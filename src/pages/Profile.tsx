@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, Truck, Zap, User, CircleCheck as CheckCircle, Trophy, X, Save } from 'lucide-react';
+import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, Truck, Zap, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
+import { supabase } from '../lib/supabase';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity' | 'scouts';
 
@@ -79,20 +80,104 @@ export default function Profile() {
 }
 
 function ProfileHeader({ profile }: { profile: any }) {
+  const { user, updateProfile } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
+
+  const avatarUrl = localAvatarUrl || profile?.avatar_url || null;
+
   const joinDate = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'May 2026';
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    e.target.value = '';
+
+    setUploading(true);
+    setUploadError('');
+
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type });
+
+      if (uploadErr) throw new Error(uploadErr.message);
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(path);
+
+      const publicUrl = urlData.publicUrl;
+
+      const { error: profileErr } = await updateProfile({ avatar_url: publicUrl });
+      if (profileErr) throw new Error(profileErr);
+
+      setLocalAvatarUrl(publicUrl);
+    } catch (err: any) {
+      setUploadError(err.message || 'Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div style={styles.profileCard}>
+      {/* Hidden file inputs — one for camera, one for gallery */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+        aria-hidden="true"
+      />
+
       <div style={styles.avatarContainer}>
-        <div style={styles.avatar}>
-          <Camera size={24} style={{ color: 'var(--color-neutral-400)' }} />
-        </div>
-        <div style={styles.editBadge}>
-          <Camera size={10} style={{ color: 'var(--color-neutral-0)' }} />
-        </div>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          style={styles.avatarBtn}
+          disabled={uploading}
+          aria-label="Change profile photo"
+        >
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="Profile avatar"
+              style={styles.avatarImg}
+            />
+          ) : (
+            <div style={styles.avatarPlaceholder}>
+              {uploading
+                ? <Loader size={24} style={{ color: 'var(--color-primary-400)', animation: 'spin 1s linear infinite' }} />
+                : <Camera size={24} style={{ color: 'var(--color-neutral-400)' }} />
+              }
+            </div>
+          )}
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          style={{ ...styles.editBadge, opacity: uploading ? 0.6 : 1 }}
+          disabled={uploading}
+          aria-label="Change profile photo"
+        >
+          {uploading
+            ? <Loader size={10} style={{ color: 'var(--color-neutral-0)', animation: 'spin 1s linear infinite' }} />
+            : <Camera size={10} style={{ color: 'var(--color-neutral-0)' }} />
+          }
+        </button>
       </div>
+
+      {uploadError && (
+        <p style={styles.uploadError}>{uploadError}</p>
+      )}
+
       <h2 style={styles.username}>@{profile?.username || 'treasure_hunter'}</h2>
       {profile?.bio && <p style={styles.bio}>{profile.bio}</p>}
       <div style={styles.rankRow}>
@@ -507,7 +592,25 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     marginBottom: 'var(--space-3)',
   },
-  avatar: {
+  avatarBtn: {
+    width: '80px',
+    height: '80px',
+    borderRadius: 'var(--radius-full)',
+    border: '3px solid var(--color-primary-200)',
+    padding: 0,
+    overflow: 'hidden',
+    display: 'block',
+    cursor: 'pointer',
+    backgroundColor: 'transparent',
+  },
+  avatarImg: {
+    width: '80px',
+    height: '80px',
+    borderRadius: 'var(--radius-full)',
+    objectFit: 'cover',
+    display: 'block',
+  },
+  avatarPlaceholder: {
     width: '80px',
     height: '80px',
     borderRadius: 'var(--radius-full)',
@@ -515,7 +618,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    border: '3px solid var(--color-primary-200)',
+  },
+  uploadError: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-error-500)',
+    textAlign: 'center',
+    maxWidth: '220px',
+    marginBottom: 'var(--space-2)',
   },
   editBadge: {
     position: 'absolute',
@@ -529,6 +638,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     border: '2px solid var(--color-neutral-0)',
+    cursor: 'pointer',
   },
   username: {
     fontSize: 'var(--font-size-lg)',
