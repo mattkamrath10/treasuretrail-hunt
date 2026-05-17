@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import BottomNav from './BottomNav';
-import LiveToast from './LiveToast';
 import Home from '../pages/Home';
 import FlashFinds from '../pages/FlashFinds';
 import RareRadar from '../pages/RareRadar';
@@ -87,7 +86,6 @@ const styles: Record<string, React.CSSProperties> = {
 export default function AppShell() {
   return (
     <div style={styles.container}>
-      <LiveToast />
       <div style={styles.content}>
         <Routes>
           <Route path="/" element={<Home />} />

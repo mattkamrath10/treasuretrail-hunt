@@ -15,56 +15,6 @@ interface AlertItem {
   isRead: boolean;
 }
 
-const alerts: AlertItem[] = [
-  {
-    id: '1',
-    type: 'match',
-    title: 'New Match Found!',
-    description: 'An Eames Lounge Chair was posted matching your Rare Radar search.',
-    timeAgo: '5 min ago',
-    isRead: false,
-  },
-  {
-    id: '2',
-    type: 'price_drop',
-    title: 'Price Drop Alert',
-    description: 'Vintage Polaroid SX-70 dropped from $65 to $45.',
-    timeAgo: '1h ago',
-    isRead: false,
-  },
-  {
-    id: '3',
-    type: 'scout',
-    title: 'Scout Activity',
-    description: '3 new scouts are watching your Nintendo 64 search.',
-    timeAgo: '2h ago',
-    isRead: true,
-  },
-  {
-    id: '4',
-    type: 'like',
-    title: 'New Likes',
-    description: 'Your Brass Compass post received 12 new likes.',
-    timeAgo: '4h ago',
-    isRead: true,
-  },
-  {
-    id: '5',
-    type: 'comment',
-    title: 'New Comment',
-    description: '@vintagehunter commented: "Is this still available?"',
-    timeAgo: '6h ago',
-    isRead: true,
-  },
-  {
-    id: '6',
-    type: 'trending',
-    title: 'Trending in Your Area',
-    description: 'Mid-century furniture is hot this week. 340% more searches.',
-    timeAgo: '8h ago',
-    isRead: true,
-  },
-];
 
 function getAlertTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -114,7 +64,7 @@ export default function Alerts() {
     isRead: n.read_status,
   }));
 
-  const allAlerts = [...realAlerts, ...alerts];
+  const allAlerts = realAlerts;
   const unreadCount = allAlerts.filter((a) => !a.isRead).length;
 
   if (isGuest) {
@@ -141,8 +91,7 @@ export default function Alerts() {
           <button onClick={() => navigate('/messages')} style={styles.messagesBtn}>
             <MessageCircle size={16} style={{ color: 'var(--color-primary-600)' }} />
             <span style={styles.messagesBtnText}>Messages</span>
-            <span style={styles.messagesBadge}>7</span>
-          </button>
+            </button>
         </div>
         <p style={styles.subtitle}>Real-time match alerts and activity</p>
       </header>
