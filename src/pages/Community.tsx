@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import {
-  ArrowLeft, Heart, MessageCircle, Share2, Bookmark, Star,
-  MapPin, Users, TrendingUp, Plus,
-  ChevronRight, Award, Search, Camera,
+  ArrowLeft, Heart, MessageCircle, Share2, Bookmark,
+  MapPin, Users, Plus,
+  Search, Camera,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { fetchCommunityPosts, createCommunityPost, togglePostLike, fetchUserLikes } from '../lib/database';
 import type { CommunityPost } from '../lib/supabase';
 
-type CommunityView = 'feed' | 'create' | 'discover' | 'clubs' | 'profile' | 'stories';
+type CommunityView = 'feed' | 'create' | 'discover' | 'profile' | 'stories';
 
 interface FeedPost {
   id: string;
@@ -44,15 +44,14 @@ function getTimeAgo(dateStr: string): string {
 export default function Community({ onBack }: { onBack: () => void }) {
   const [view, setView] = useState<CommunityView>('feed');
 
-  if (view === 'feed') return <CommunityFeed onBack={onBack} onCreate={() => setView('create')} onDiscover={() => setView('discover')} onClubs={() => setView('clubs')} />;
+  if (view === 'feed') return <CommunityFeed onBack={onBack} onCreate={() => setView('create')} onDiscover={() => setView('discover')} />;
   if (view === 'create') return <CreatePost onBack={() => setView('feed')} />;
-  if (view === 'discover') return <DiscoverPage onBack={() => setView('feed')} onClubs={() => setView('clubs')} />;
-  if (view === 'clubs') return <ClubsPage onBack={() => setView('feed')} />;
-  return <CommunityFeed onBack={onBack} onCreate={() => setView('create')} onDiscover={() => setView('discover')} onClubs={() => setView('clubs')} />;
+  if (view === 'discover') return <DiscoverPage onBack={() => setView('feed')} />;
+  return <CommunityFeed onBack={onBack} onCreate={() => setView('create')} onDiscover={() => setView('discover')} />;
 }
 
-function CommunityFeed({ onBack, onCreate, onDiscover, onClubs }: {
-  onBack: () => void; onCreate: () => void; onDiscover: () => void; onClubs: () => void;
+function CommunityFeed({ onBack, onCreate, onDiscover }: {
+  onBack: () => void; onCreate: () => void; onDiscover: () => void;
 }) {
   const { user } = useAuth();
   const { isGuest, requireAuth } = useGuestAction();
@@ -87,7 +86,6 @@ function CommunityFeed({ onBack, onCreate, onDiscover, onClubs }: {
         <span style={s.headerTitle}>Community</span>
         <div style={s.headerRight}>
           <button onClick={onDiscover} style={s.headerIconBtn}><Search size={18} /></button>
-          <button onClick={onClubs} style={s.headerIconBtn}><Users size={18} /></button>
         </div>
       </header>
 
@@ -351,7 +349,7 @@ function CreatePost({ onBack }: { onBack: () => void }) {
   );
 }
 
-function DiscoverPage({ onBack, onClubs }: { onBack: () => void; onClubs: () => void }) {
+function DiscoverPage({ onBack }: { onBack: () => void }) {
   return (
     <div style={s.container}>
       <header style={s.header}>
@@ -400,68 +398,6 @@ function DiscoverPage({ onBack, onClubs }: { onBack: () => void; onClubs: () => 
           <h3 style={s.sectionTitle}>Suggested Collectors</h3>
           <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: 'var(--font-size-sm)' }}>
             Discover collectors after more members join.
-          </div>
-        </div>
-
-        {/* Clubs link */}
-        <div style={s.section}>
-          <button onClick={onClubs} style={s.clubsLink}>
-            <Users size={16} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={s.clubsLinkText}>Explore Collector Clubs</span>
-            <ChevronRight size={14} style={{ color: 'var(--color-primary-600)' }} />
-          </button>
-        </div>
-
-        {/* Top Flippers */}
-        <div style={s.section}>
-          <h3 style={s.sectionTitle}>Top Flippers This Week</h3>
-          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: 'var(--font-size-sm)' }}>
-            Rankings will appear once members complete their first flips.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ClubsPage({ onBack }: { onBack: () => void }) {
-  return (
-    <div style={s.container}>
-      <header style={s.header}>
-        <button onClick={onBack} style={s.backBtn}><ArrowLeft size={20} /></button>
-        <span style={s.headerTitle}>Collector Clubs</span>
-        <div style={{ width: 36 }} />
-      </header>
-
-      <div style={s.scrollContent}>
-        <p style={s.clubsIntro}>Join communities of like-minded collectors and treasure hunters</p>
-
-        <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--color-neutral-400)' }}>
-          <Users size={28} style={{ color: 'var(--color-neutral-200)', marginBottom: '8px' }} />
-          <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: '4px', color: 'var(--color-neutral-600)' }}>No clubs yet</p>
-          <p style={{ fontSize: 'var(--font-size-xs)' }}>Collector clubs will appear here once the community grows.</p>
-        </div>
-
-        {/* Group features */}
-        <div style={s.section}>
-          <h3 style={s.sectionTitle}>Club Features</h3>
-          <div style={s.featureGrid}>
-            <div style={s.featureCard}>
-              <MessageCircle size={16} style={{ color: 'var(--color-primary-500)' }} />
-              <span style={s.featureLabel}>Group Feed</span>
-            </div>
-            <div style={s.featureCard}>
-              <Award size={16} style={{ color: 'var(--color-accent-500)' }} />
-              <span style={s.featureLabel}>Challenges</span>
-            </div>
-            <div style={s.featureCard}>
-              <TrendingUp size={16} style={{ color: 'var(--color-success-500)' }} />
-              <span style={s.featureLabel}>Rankings</span>
-            </div>
-            <div style={s.featureCard}>
-              <Star size={16} style={{ color: 'var(--color-warning-600)' }} />
-              <span style={s.featureLabel}>Events</span>
-            </div>
           </div>
         </div>
       </div>

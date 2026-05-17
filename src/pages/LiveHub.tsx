@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  ArrowLeft, Target, Zap, Trophy, Users, Clock, Star,
+  ArrowLeft, Target, Zap, Users, Clock, Star,
   MapPin, Crown, Shield, Award, TrendingUp, Play, Lock,
   ChevronRight, Eye,
 } from 'lucide-react';
@@ -9,7 +9,7 @@ import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
 import { TreasureChestLogo } from '../components/TreasureChestLogo';
 
-type HubView = 'main' | 'missions' | 'events' | 'leaderboards' | 'activity' | 'clubs';
+type HubView = 'main' | 'missions' | 'events' | 'activity';
 
 interface Mission {
   id: string;
@@ -48,16 +48,6 @@ interface LiveEvent {
   pro_exclusive: boolean;
 }
 
-interface ClubRank {
-  id: string;
-  club_name: string;
-  xp_total: number;
-  member_count: number;
-  rank: number;
-  icon: string;
-  color: string;
-}
-
 interface ActivityEntry {
   id: string;
   activity_type: string;
@@ -73,9 +63,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   if (view === 'main') return <MainHub onBack={onBack} onNavigate={setView} />;
   if (view === 'missions') return <MissionsView onBack={() => setView('main')} />;
   if (view === 'events') return <EventsView onBack={() => setView('main')} />;
-  if (view === 'leaderboards') return <LeaderboardsView onBack={() => setView('main')} />;
   if (view === 'activity') return <ActivityView onBack={() => setView('main')} />;
-  if (view === 'clubs') return <ClubsView onBack={() => setView('main')} />;
   return <MainHub onBack={onBack} onNavigate={setView} />;
 }
 
@@ -109,7 +97,7 @@ function MainHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v: H
         {/* Live pulse banner */}
         <div style={st.liveBanner}>
           <div style={st.liveDot} />
-          <span style={st.liveText}>2 events active now - 656 hunters competing</span>
+          <span style={st.liveText}>{events.length > 0 ? `${events.filter(e => e.status === 'active').length} events active now` : 'Live hub — missions and events'}</span>
         </div>
 
         {/* Quick nav */}
@@ -122,17 +110,9 @@ function MainHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v: H
             <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-error-50)' }}><Play size={18} style={{ color: 'var(--color-error-500)' }} /></div>
             <span style={st.qnLabel}>Events</span>
           </button>
-          <button onClick={() => onNavigate('leaderboards')} style={st.qnBtn}>
-            <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-warning-50)' }}><Trophy size={18} style={{ color: 'var(--color-warning-600)' }} /></div>
-            <span style={st.qnLabel}>Ranks</span>
-          </button>
-          <button onClick={() => onNavigate('clubs')} style={st.qnBtn}>
-            <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-secondary-50)' }}><Users size={18} style={{ color: 'var(--color-secondary-500)' }} /></div>
-            <span style={st.qnLabel}>Clubs</span>
-          </button>
           <button onClick={() => onNavigate('activity')} style={st.qnBtn}>
             <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-success-50)' }}><TrendingUp size={18} style={{ color: 'var(--color-success-500)' }} /></div>
-            <span style={st.qnLabel}>Feed</span>
+            <span style={st.qnLabel}>Activity</span>
           </button>
         </div>
 
@@ -274,41 +254,6 @@ function EventsView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function LeaderboardsView({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<'collectors' | 'scouts' | 'flippers'>('collectors');
-
-  return (
-    <div style={st.container}>
-      <header style={st.header}>
-        <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
-        <span style={st.headerTitle}>Leaderboards</span>
-        <div style={{ width: 36 }} />
-      </header>
-
-      <div style={st.scrollContent}>
-        <div style={st.tabRow}>
-          {(['collectors', 'scouts', 'flippers'] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} style={{ ...st.tabBtn, ...(tab === t ? st.tabActive : {}) }}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <div style={st.lbList}>
-          <div style={{ padding: '40px 16px', textAlign: 'center' }}>
-            <Trophy size={36} style={{ color: 'var(--color-neutral-200)', marginBottom: '12px' }} />
-            <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-500)', marginBottom: '4px' }}>
-              No rankings yet
-            </p>
-            <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-400)' }}>
-              Complete missions and activities to appear on the leaderboard.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ActivityView({ onBack }: { onBack: () => void }) {
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
@@ -336,67 +281,6 @@ function ActivityView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function ClubsView({ onBack }: { onBack: () => void }) {
-  const [clubs, setClubs] = useState<ClubRank[]>([]);
-
-  useEffect(() => {
-    supabase.from('club_rankings').select('*').order('rank', { ascending: true }).then(({ data }) => {
-      if (data) setClubs(data);
-    });
-  }, []);
-
-  return (
-    <div style={st.container}>
-      <header style={st.header}>
-        <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
-        <span style={st.headerTitle}>Club Rankings</span>
-        <div style={{ width: 36 }} />
-      </header>
-
-      <div style={st.scrollContent}>
-        <div style={st.seasonBanner}>
-          <Trophy size={14} style={{ color: 'var(--color-warning-600)' }} />
-          <span style={st.seasonText}>Spring 2026 Season - 18 days remaining</span>
-        </div>
-
-        {clubs.map((club) => (
-          <div key={club.id} style={st.clubRow}>
-            <span style={{ ...st.clubRank, color: club.rank <= 3 ? 'var(--color-primary-500)' : 'var(--color-neutral-500)' }}>#{club.rank}</span>
-            <div style={{ ...st.clubIcon, backgroundColor: `color-mix(in srgb, ${club.color} 12%, transparent)` }}>
-              <span style={{ ...st.clubIconText, color: club.color }}>{club.icon}</span>
-            </div>
-            <div style={st.clubInfo}>
-              <span style={st.clubName}>{club.club_name}</span>
-              <span style={st.clubMeta}>{club.member_count.toLocaleString()} members</span>
-            </div>
-            <div style={st.clubXp}>
-              <span style={st.clubXpVal}>{(club.xp_total / 1000).toFixed(1)}k</span>
-              <span style={st.clubXpLabel}>XP</span>
-            </div>
-          </div>
-        ))}
-
-        {/* Club features */}
-        <div style={st.section}>
-          <h3 style={st.sectionTitle}>Club Competition</h3>
-          <div style={st.featGrid}>
-            {[
-              { icon: Target, label: 'Team Missions', color: 'var(--color-primary-500)' },
-              { icon: Trophy, label: 'Trophies', color: 'var(--color-warning-500)' },
-              { icon: TrendingUp, label: 'XP Races', color: 'var(--color-success-500)' },
-              { icon: Award, label: 'Badges', color: 'var(--color-secondary-500)' },
-            ].map((f) => (
-              <div key={f.label} style={st.featCard}>
-                <f.icon size={16} style={{ color: f.color }} />
-                <span style={st.featLabel}>{f.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Shared components
 

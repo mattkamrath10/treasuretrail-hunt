@@ -4,30 +4,28 @@ import { TreasureChestLogo } from '../components/TreasureChestLogo';
 
 type ProView = 'landing' | 'compare' | 'upgrade' | 'success' | 'dashboard' | 'locked';
 type BillingCycle = 'monthly' | 'yearly';
-type Tier = 'free' | 'pro' | 'elite';
+type Tier = 'free' | 'premium';
 
 interface Feature {
   label: string;
   free: string | boolean;
-  pro: string | boolean;
-  elite: string | boolean;
+  premium: string | boolean;
 }
 
 const features: Feature[] = [
-  { label: 'AI Scans', free: '3/day', pro: 'Unlimited', elite: 'Unlimited' },
-  { label: 'Flash Finds', free: true, pro: true, elite: true },
-  { label: 'Valuation Tools', free: 'Basic', pro: 'Advanced', elite: 'Advanced + Forecast' },
-  { label: 'Alert Speed', free: 'Standard', pro: 'Priority', elite: 'Instant VIP' },
-  { label: 'Scout Matching', free: 'Basic', pro: 'Priority', elite: 'Concierge' },
-  { label: 'Marketplace Analytics', free: false, pro: true, elite: 'Advanced' },
-  { label: 'Trend Forecasting', free: false, pro: true, elite: true },
-  { label: 'Rarity Alerts', free: false, pro: 'Standard', elite: 'VIP Exclusive' },
-  { label: 'Listing Boosts', free: false, pro: '3/month', elite: 'Unlimited' },
-  { label: 'Profile Prestige', free: false, pro: 'Pro Badge', elite: 'Elite Frame' },
-  { label: 'Investment AI', free: false, pro: false, elite: true },
-  { label: 'Concierge Scouts', free: false, pro: false, elite: true },
-  { label: 'White-Glove Pickup', free: false, pro: false, elite: true },
-  { label: 'Early Feature Access', free: false, pro: false, elite: true },
+  { label: 'AI Scans', free: '3/day', premium: 'Unlimited' },
+  { label: 'Flash Finds', free: true, premium: true },
+  { label: 'Valuation Tools', free: 'Basic', premium: 'Advanced + Forecast' },
+  { label: 'Alert Speed', free: 'Standard', premium: 'Priority' },
+  { label: 'Scout Matching', free: 'Basic', premium: 'Priority' },
+  { label: 'Marketplace Analytics', free: false, premium: true },
+  { label: 'Trend Forecasting', free: false, premium: true },
+  { label: 'Rarity Alerts', free: false, premium: true },
+  { label: 'Auction Sniper Alerts', free: false, premium: true },
+  { label: 'Listing Boosts', free: false, premium: '3/month' },
+  { label: 'Profile Prestige', free: false, premium: 'Premium Badge' },
+  { label: 'Investment AI', free: false, premium: true },
+  { label: 'Early Feature Access', free: false, premium: true },
 ];
 
 const showcaseFeatures = [
@@ -88,26 +86,17 @@ function ProLanding({ onBack, onCompare, onUpgrade, onDashboard, onLocked }: {
             title="Free"
             price="$0"
             description="Get started hunting"
-            features={['Basic Flash Finds', 'Limited AI scans', 'Basic alerts', 'Community access']}
+            features={['Basic Flash Finds', 'Limited AI scans (3/day)', 'Basic alerts', 'Community access', 'Scout matching (basic)']}
             isCurrent
           />
           <TierCard
-            tier="pro"
-            title="Pro Hunter"
+            tier="premium"
+            title="Premium Membership"
             price="$9.99"
             period="/mo"
-            description="Serious treasure hunters"
-            features={['Unlimited AI scans', 'Advanced valuation', 'Early auction alerts', 'Priority scouts', 'Trend forecasting', 'Premium badges']}
+            description="The full treasure hunting experience"
+            features={['Unlimited AI scans', 'Advanced valuation + forecast', 'Priority auction alerts', 'Priority scout matching', 'Trend forecasting', 'Marketplace analytics', 'Investment AI', 'Premium badge']}
             highlighted
-            onSelect={onUpgrade}
-          />
-          <TierCard
-            tier="elite"
-            title="Elite Collector"
-            price="$24.99"
-            period="/mo"
-            description="Ultimate collector experience"
-            features={['All Pro features', 'VIP rarity alerts', 'AI investment forecast', 'Concierge scouts', 'White-glove pickup', 'Elite profile frames']}
             onSelect={onUpgrade}
           />
         </div>
@@ -140,15 +129,15 @@ function ProLanding({ onBack, onCompare, onUpgrade, onDashboard, onLocked }: {
         {/* CTA */}
         <button onClick={onUpgrade} style={s.ctaBtn}>
           <Crown size={18} style={{ color: 'var(--color-neutral-0)' }} />
-          <span style={s.ctaBtnText}>Upgrade to Pro</span>
+          <span style={s.ctaBtnText}>Upgrade to Premium</span>
         </button>
       </div>
     </div>
   );
 }
 
-function TierCard({ tier, title, price, period, description, features: featureList, highlighted, isCurrent, onSelect }: {
-  tier: Tier;
+function TierCard({ title, price, period, description, features: featureList, highlighted, isCurrent, onSelect }: {
+  tier?: Tier;
   title: string;
   price: string;
   period?: string;
@@ -162,10 +151,8 @@ function TierCard({ tier, title, price, period, description, features: featureLi
     <div style={{
       ...s.tierCard,
       ...(highlighted ? s.tierCardHighlighted : {}),
-      ...(tier === 'elite' ? s.tierCardElite : {}),
     }}>
-      {highlighted && <span style={s.tierBadge}>Most Popular</span>}
-      {tier === 'elite' && <span style={s.tierBadgeElite}>Best Value</span>}
+      {highlighted && <span style={s.tierBadge}>Best Value</span>}
       <div style={s.tierHeader}>
         <span style={{ ...s.tierTitle, ...(highlighted ? { color: 'var(--color-primary-700)' } : {}) }}>{title}</span>
         <div style={s.tierPriceRow}>
@@ -187,7 +174,7 @@ function TierCard({ tier, title, price, period, description, features: featureLi
       ) : (
         <button onClick={onSelect} style={{ ...s.tierBtn, ...(highlighted ? s.tierBtnHighlighted : {}) }}>
           <span style={{ ...s.tierBtnText, ...(highlighted ? { color: 'var(--color-neutral-0)' } : {}) }}>
-            {highlighted ? 'Get Pro' : 'Get Elite'}
+            Get Premium
           </span>
         </button>
       )}
@@ -200,7 +187,7 @@ function CompareScreen({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: (
     <div style={s.container}>
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn}><ArrowLeft size={20} /></button>
-        <span style={s.headerTitle}>Compare Plans</span>
+        <span style={s.headerTitle}>Free vs Premium</span>
         <div style={{ width: 36 }} />
       </header>
 
@@ -209,8 +196,7 @@ function CompareScreen({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: (
         <div style={s.compareHeaderRow}>
           <span style={s.compareFeatureLabel}>Feature</span>
           <span style={s.compareColLabel}>Free</span>
-          <span style={{ ...s.compareColLabel, color: 'var(--color-primary-600)' }}>Pro</span>
-          <span style={{ ...s.compareColLabel, color: 'var(--color-secondary-600)' }}>Elite</span>
+          <span style={{ ...s.compareColLabel, color: 'var(--color-primary-600)' }}>Premium</span>
         </div>
 
         {/* Rows */}
@@ -218,26 +204,25 @@ function CompareScreen({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: (
           <div key={f.label} style={{ ...s.compareRow, backgroundColor: i % 2 === 0 ? 'var(--color-neutral-50)' : 'transparent' }}>
             <span style={s.compareFeature}>{f.label}</span>
             <CompareCell value={f.free} />
-            <CompareCell value={f.pro} highlight />
-            <CompareCell value={f.elite} elite />
+            <CompareCell value={f.premium} highlight />
           </div>
         ))}
 
         <button onClick={onUpgrade} style={{ ...s.ctaBtn, marginTop: 'var(--space-4)' }}>
           <Crown size={18} style={{ color: 'var(--color-neutral-0)' }} />
-          <span style={s.ctaBtnText}>Upgrade Now</span>
+          <span style={s.ctaBtnText}>Get Premium — $9.99/mo</span>
         </button>
       </div>
     </div>
   );
 }
 
-function CompareCell({ value, highlight, elite }: { value: string | boolean; highlight?: boolean; elite?: boolean }) {
+function CompareCell({ value, highlight }: { value: string | boolean; highlight?: boolean }) {
   if (typeof value === 'boolean') {
     return (
       <div style={s.compareCell}>
         {value ? (
-          <Check size={12} style={{ color: highlight ? 'var(--color-primary-500)' : elite ? 'var(--color-secondary-500)' : 'var(--color-success-500)' }} />
+          <Check size={12} style={{ color: highlight ? 'var(--color-primary-500)' : 'var(--color-success-500)' }} />
         ) : (
           <X size={12} style={{ color: 'var(--color-neutral-300)' }} />
         )}
@@ -246,7 +231,7 @@ function CompareCell({ value, highlight, elite }: { value: string | boolean; hig
   }
   return (
     <div style={s.compareCell}>
-      <span style={{ ...s.compareCellText, ...(highlight ? { color: 'var(--color-primary-700)', fontWeight: 'var(--font-weight-semibold)' } : {}), ...(elite ? { color: 'var(--color-secondary-700)', fontWeight: 'var(--font-weight-semibold)' } : {}) }}>
+      <span style={{ ...s.compareCellText, ...(highlight ? { color: 'var(--color-primary-700)', fontWeight: 'var(--font-weight-semibold)' } : {}) }}>
         {value}
       </span>
     </div>
@@ -254,23 +239,30 @@ function CompareCell({ value, highlight, elite }: { value: string | boolean; hig
 }
 
 function UpgradeFlow({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
-  const [billing, setBilling] = useState<BillingCycle>('yearly');
-  const [selectedTier, setSelectedTier] = useState<'pro' | 'elite'>('pro');
+  const [billing, setBilling] = useState<BillingCycle>('monthly');
 
-  const prices = {
-    pro: { monthly: '$9.99', yearly: '$7.99' },
-    elite: { monthly: '$24.99', yearly: '$19.99' },
-  };
+  const price = billing === 'monthly' ? '$9.99' : '$7.99';
+  const annualTotal = '$95.88';
 
   return (
     <div style={s.container}>
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn}><ArrowLeft size={20} /></button>
-        <span style={s.headerTitle}>Upgrade</span>
+        <span style={s.headerTitle}>Get Premium</span>
         <div style={{ width: 36 }} />
       </header>
 
       <div style={s.scrollContent}>
+        {/* Plan card */}
+        <div style={{ ...s.planCard, ...s.planCardActive, marginBottom: 'var(--space-4)' }}>
+          <div style={s.planCardHeader}>
+            <Crown size={18} style={{ color: 'var(--color-primary-500)' }} />
+            <span style={s.planCardTitle}>Premium Membership</span>
+          </div>
+          <span style={s.planCardPrice}>{price}<span style={s.planCardPeriod}>/mo</span></span>
+          <span style={s.planCardDesc}>Unlimited AI, priority scouts, marketplace intelligence</span>
+        </div>
+
         {/* Billing toggle */}
         <div style={s.billingToggle}>
           <button
@@ -288,49 +280,23 @@ function UpgradeFlow({ onBack, onSuccess }: { onBack: () => void; onSuccess: () 
           </button>
         </div>
 
-        {/* Plan selection */}
-        <div style={s.planCards}>
-          <button
-            onClick={() => setSelectedTier('pro')}
-            style={{ ...s.planCard, ...(selectedTier === 'pro' ? s.planCardActive : {}) }}
-          >
-            <div style={s.planCardHeader}>
-              <Crown size={18} style={{ color: 'var(--color-primary-500)' }} />
-              <span style={s.planCardTitle}>Pro Hunter</span>
-            </div>
-            <span style={s.planCardPrice}>{prices.pro[billing]}<span style={s.planCardPeriod}>/mo</span></span>
-            <span style={s.planCardDesc}>Unlimited AI + Priority Scouts</span>
-          </button>
-          <button
-            onClick={() => setSelectedTier('elite')}
-            style={{ ...s.planCard, ...(selectedTier === 'elite' ? s.planCardActiveElite : {}) }}
-          >
-            <div style={s.planCardHeader}>
-              <Shield size={18} style={{ color: 'var(--color-secondary-500)' }} />
-              <span style={s.planCardTitle}>Elite Collector</span>
-            </div>
-            <span style={s.planCardPrice}>{prices.elite[billing]}<span style={s.planCardPeriod}>/mo</span></span>
-            <span style={s.planCardDesc}>VIP access + Concierge</span>
-          </button>
-        </div>
-
         {/* Billing summary */}
         <div style={s.billingSummary}>
           <h3 style={s.billingSummaryTitle}>Billing Summary</h3>
           <div style={s.billingRow}>
-            <span style={s.billingLabel}>{selectedTier === 'pro' ? 'Pro Hunter' : 'Elite Collector'} ({billing})</span>
-            <span style={s.billingVal}>{prices[selectedTier][billing]}/mo</span>
+            <span style={s.billingLabel}>Premium Membership ({billing})</span>
+            <span style={s.billingVal}>{price}/mo</span>
           </div>
           {billing === 'yearly' && (
             <div style={s.billingRow}>
               <span style={s.billingLabel}>Billed annually</span>
-              <span style={s.billingVal}>{selectedTier === 'pro' ? '$95.88' : '$239.88'}/yr</span>
+              <span style={s.billingVal}>{annualTotal}/yr</span>
             </div>
           )}
           <div style={s.billingDivider} />
           <div style={s.billingRow}>
             <span style={s.billingLabelBold}>Total today</span>
-            <span style={s.billingValBold}>{billing === 'yearly' ? (selectedTier === 'pro' ? '$95.88' : '$239.88') : prices[selectedTier].monthly}</span>
+            <span style={s.billingValBold}>{billing === 'yearly' ? annualTotal : price}</span>
           </div>
         </div>
 
@@ -358,8 +324,8 @@ function SuccessScreen({ onDone }: { onDone: () => void }) {
         <div style={s.successChest}>
           <TreasureChestLogo size={80} glow />
         </div>
-        <h1 style={s.successTitle}>Welcome to Pro!</h1>
-        <p style={s.successDesc}>You've unlocked the full treasure hunting experience. Advanced AI tools, priority alerts, and premium scouting are now active.</p>
+        <h1 style={s.successTitle}>Welcome to Premium!</h1>
+        <p style={s.successDesc}>You've unlocked the full treasure hunting experience. Unlimited AI tools, priority alerts, and premium scout matching are now active.</p>
 
         <div style={s.successFeatures}>
           <div style={s.successFeatureRow}>
@@ -565,7 +531,7 @@ function LockedFeature({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: (
 
         <button onClick={onUpgrade} style={s.ctaBtn}>
           <Lock size={16} style={{ color: 'var(--color-neutral-0)' }} />
-          <span style={s.ctaBtnText}>Unlock with Pro</span>
+          <span style={s.ctaBtnText}>Unlock with Premium</span>
         </button>
 
         <span style={s.trialText}>Start 7-day free trial</span>

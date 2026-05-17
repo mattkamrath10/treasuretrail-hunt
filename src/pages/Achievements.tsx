@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import {
   ArrowLeft, Trophy, Star, Zap, Shield, Clock, TrendingUp,
-  Eye, Users, Crown, Flame, ChevronRight, MapPin,
+  Eye, Users, MapPin, Flame,
 } from 'lucide-react';
 
-type AchievementsTab = 'badges' | 'leaderboard' | 'showcase' | 'challenges';
+type AchievementsTab = 'badges' | 'showcase' | 'challenges';
 
 interface Badge {
   id: string;
@@ -16,15 +16,6 @@ interface Badge {
   progress?: number;
   maxProgress?: number;
   earnedDate?: string;
-}
-
-interface LeaderEntry {
-  rank: number;
-  username: string;
-  score: number;
-  level: string;
-  badge: string;
-  isYou?: boolean;
 }
 
 interface Challenge {
@@ -52,8 +43,6 @@ const badges: Badge[] = [
   { id: '10', label: 'Power Collector', description: 'Save 100 items to collection', icon: Star, tier: 'platinum', earned: false, progress: 0, maxProgress: 100 },
 ];
 
-const leaderboardData: LeaderEntry[] = [];
-
 const challenges: Challenge[] = [
   { id: '1', title: 'Daily Discovery', description: 'Post 1 Flash Find today', xp: 50, progress: 0, total: 1, type: 'daily', timeLeft: '18h' },
   { id: '2', title: 'Scout Streak', description: 'Complete 3 pickups this week', xp: 200, progress: 0, total: 3, type: 'weekly', timeLeft: '4d' },
@@ -63,18 +52,6 @@ const challenges: Challenge[] = [
   { id: '6', title: 'Rare Earth Collection', description: 'Discover 5 items with 8+ rarity', xp: 500, progress: 0, total: 5, type: 'seasonal', timeLeft: '62d' },
 ];
 
-
-const LEVELS = [
-  { name: 'Rookie Hunter', minXp: 0, maxXp: 500 },
-  { name: 'Treasure Scout', minXp: 500, maxXp: 1500 },
-  { name: 'Elite Picker', minXp: 1500, maxXp: 4000 },
-  { name: 'Master Collector', minXp: 4000, maxXp: 8000 },
-  { name: 'Legendary Hunter', minXp: 8000, maxXp: 15000 },
-];
-
-const CURRENT_XP = 0;
-const CURRENT_LEVEL = LEVELS.find((l) => CURRENT_XP >= l.minXp && CURRENT_XP < l.maxXp) || LEVELS[4];
-const LEVEL_PROGRESS = ((CURRENT_XP - CURRENT_LEVEL.minXp) / (CURRENT_LEVEL.maxXp - CURRENT_LEVEL.minXp)) * 100;
 
 const tierColors: Record<string, { bg: string; border: string; text: string }> = {
   bronze: { bg: 'rgba(180, 130, 70, 0.1)', border: 'rgba(180, 130, 70, 0.4)', text: '#8B6914' },
@@ -96,12 +73,9 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
         <div style={{ width: 36 }} />
       </header>
 
-      {/* TreasureRank + XP Hero */}
-      <TreasureRankHero />
-
       {/* Tabs */}
       <div style={styles.tabs}>
-        {(['badges', 'leaderboard', 'showcase', 'challenges'] as AchievementsTab[]).map((t) => (
+        {(['badges', 'showcase', 'challenges'] as AchievementsTab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -114,7 +88,6 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
 
       <div style={styles.content}>
         {tab === 'badges' && <BadgesTab />}
-        {tab === 'leaderboard' && <LeaderboardTab />}
         {tab === 'showcase' && <ShowcaseTab />}
         {tab === 'challenges' && <ChallengesTab />}
       </div>
@@ -122,69 +95,6 @@ export default function Achievements({ onBack }: { onBack: () => void }) {
   );
 }
 
-function TreasureRankHero() {
-  return (
-    <div style={styles.heroCard}>
-      <div style={styles.heroTop}>
-        <div style={styles.rankCircle}>
-          <Crown size={24} style={{ color: 'var(--color-primary-500)' }} />
-          <span style={styles.rankNumber}>1</span>
-        </div>
-        <div style={styles.heroInfo}>
-          <span style={styles.heroLevel}>{CURRENT_LEVEL.name}</span>
-          <span style={styles.heroRank}>TreasureRank</span>
-        </div>
-        <div style={styles.heroScore}>
-          <span style={styles.heroScoreNum}>0</span>
-          <span style={styles.heroScoreLabel}>TR Score</span>
-        </div>
-      </div>
-
-      <div style={styles.xpSection}>
-        <div style={styles.xpLabels}>
-          <span style={styles.xpText}>{CURRENT_XP.toLocaleString()} XP</span>
-          <span style={styles.xpTarget}>{CURRENT_LEVEL.maxXp.toLocaleString()} XP to next level</span>
-        </div>
-        <div style={styles.xpBar}>
-          <div style={{ ...styles.xpFill, width: `${LEVEL_PROGRESS}%` }} />
-        </div>
-      </div>
-
-      <div style={styles.heroStats}>
-        <div style={styles.heroStat}>
-          <span style={styles.heroStatVal}>0</span>
-          <span style={styles.heroStatLbl}>Finds</span>
-        </div>
-        <div style={styles.heroStatDiv} />
-        <div style={styles.heroStat}>
-          <span style={styles.heroStatVal}>0</span>
-          <span style={styles.heroStatLbl}>Rep</span>
-        </div>
-        <div style={styles.heroStatDiv} />
-        <div style={styles.heroStat}>
-          <span style={styles.heroStatVal}>0</span>
-          <span style={styles.heroStatLbl}>Scouts</span>
-        </div>
-        <div style={styles.heroStatDiv} />
-        <div style={styles.heroStat}>
-          <span style={styles.heroStatVal}>0</span>
-          <span style={styles.heroStatLbl}>Streaks</span>
-        </div>
-      </div>
-
-      {/* Streak bar */}
-      <div style={styles.streakRow}>
-        <Flame size={14} style={{ color: 'var(--color-neutral-400)' }} />
-        <span style={styles.streakText}>No streak yet — start hunting!</span>
-        <div style={styles.streakDots}>
-          {[...Array(7)].map((_, i) => (
-            <div key={i} style={{ ...styles.streakDot, backgroundColor: 'var(--color-neutral-200)' }} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function BadgesTab() {
   const earned = badges.filter((b) => b.earned);
@@ -252,85 +162,6 @@ function BadgeCard({ badge }: { badge: Badge }) {
   );
 }
 
-function LeaderboardTab() {
-  const [timeframe, setTimeframe] = useState<'weekly' | 'monthly' | 'alltime'>('weekly');
-
-  return (
-    <>
-      <div style={styles.timeframeTabs}>
-        {(['weekly', 'monthly', 'alltime'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTimeframe(t)}
-            style={{ ...styles.timeframeTab, ...(timeframe === t ? styles.timeframeTabActive : {}) }}
-          >
-            {t === 'alltime' ? 'All Time' : t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      <div style={styles.leaderList}>
-        {leaderboardData.length === 0 && (
-          <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-neutral-400)' }}>
-            <Trophy size={32} style={{ color: 'var(--color-neutral-200)', marginBottom: '8px' }} />
-            <p style={{ fontSize: 'var(--font-size-sm)' }}>No rankings yet.</p>
-            <p style={{ fontSize: 'var(--font-size-xs)', marginTop: '4px' }}>Complete activities to appear on the leaderboard.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Reputation breakdown */}
-      <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>Your Reputation Breakdown</h3>
-        <ReputationBreakdown />
-      </div>
-    </>
-  );
-}
-
-function ReputationBreakdown() {
-  const metrics = [
-    { label: 'Completed Pickups', value: 0, max: 20, color: 'var(--color-success-500)' },
-    { label: 'Auction Assists', value: 0, max: 20, color: 'var(--color-primary-500)' },
-    { label: 'Communication', value: 0, max: 5, color: 'var(--color-secondary-500)' },
-    { label: 'Shipping Success', value: 0, max: 100, color: 'var(--color-accent-500)' },
-    { label: 'Response Speed', value: 0, max: 100, color: 'var(--color-warning-500)' },
-    { label: 'Cancellation Rate', value: 0, max: 100, color: 'var(--color-error-500)' },
-  ];
-
-  return (
-    <div style={styles.repGrid}>
-      {metrics.map((m) => (
-        <div key={m.label} style={styles.repItem}>
-          <div style={styles.repItemHeader}>
-            <span style={styles.repItemLabel}>{m.label}</span>
-            <span style={styles.repItemValue}>
-              {m.label === 'Communication' ? `${m.value}/5` :
-               m.label === 'Cancellation Rate' ? `${m.value}%` :
-               m.label.includes('Pickup') || m.label.includes('Auction') ? m.value : `${m.value}%`}
-            </span>
-          </div>
-          <div style={styles.repBar}>
-            <div style={{
-              ...styles.repBarFill,
-              width: `${(m.value / m.max) * 100}%`,
-              backgroundColor: m.label === 'Cancellation Rate' ? 'var(--color-success-500)' : m.color,
-            }} />
-          </div>
-        </div>
-      ))}
-
-      <div style={styles.trustTier}>
-        <Shield size={16} style={{ color: 'var(--color-neutral-400)' }} />
-        <div style={styles.trustTierInfo}>
-          <span style={styles.trustTierLabel}>Trust Tier: New</span>
-          <span style={styles.trustTierDesc}>Complete transactions to build your trust score</span>
-        </div>
-        <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)' }} />
-      </div>
-    </div>
-  );
-}
 
 function ShowcaseTab() {
   return (

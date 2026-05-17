@@ -1,0 +1,222 @@
+Implement the following TreasureTrail platform revisions and UI cleanup updates.
+
+========================================
+CORE PLATFORM DIRECTION
+=======================
+
+TreasureTrail is evolving into:
+
+* a treasure hunting platform
+* live auction discovery network
+* marketplace intelligence hub
+* scout coordination system
+* flipping/reseller community
+
+The app should focus on:
+
+* real-world sourcing
+* external marketplace discovery
+* live auctions
+* Whatnot/Poshmark/eBay integration
+* scout logistics
+* AI-assisted item evaluation
+
+NOT:
+
+* fake gamification
+* ranking systems
+* internal bidding systems
+* cluttered social mechanics
+
+========================================
+
+1. REMOVE CLUBS & RANKINGS FEATURES
+   ========================================
+
+Completely remove:
+
+* Clubs page/system
+* Rankings page/system
+* leaderboards
+* rank progression widgets
+* competitive ranking badges
+* club/group logic
+* associated routes/navigation icons
+* unused database references if applicable
+
+Also remove any leftover:
+
+* fake XP/ranking displays
+* ranking counters
+* leaderboard UI elements
+
+========================================
+2. REPLACE LIVE EVENTS WITH AUCTIONS
+====================================
+
+On the homepage:
+
+* replace the "Live Events" section with:
+  "Live Auctions"
+  OR
+  "Auction Radar"
+
+This section should display:
+
+* live auctions
+* upcoming auctions
+* Whatnot streams
+* Poshmark listings
+* HiBid auctions
+* estate sales
+* scout-needed opportunities
+* external marketplace finds
+
+Use real Supabase data from external_listings.
+
+========================================
+3. INTEGRATE EXTERNAL LISTINGS INTO HOMEPAGE CATEGORIES
+=======================================================
+
+External listings submitted from:
+
+* Whatnot
+* Poshmark
+* eBay
+* HiBid
+* MaxSold
+* EstateSales.net
+* Facebook Marketplace
+* other supported marketplaces
+
+must integrate directly into the main homepage category feeds/search system.
+
+Examples:
+
+* Fashion listings appear under Fashion
+* Furniture auctions appear under Furniture
+* Collectibles streams appear under Collectibles
+
+Category chips on homepage must:
+
+* filter ALL listing types together
+* include both native TreasureTrail posts and external marketplace listings
+* work dynamically from Supabase
+
+========================================
+4. ADD TOOLTIP LABELS TO TOP ICONS
+==================================
+
+On:
+
+* Sheriff Finds
+* homepage
+* top navigation/icons
+
+Add:
+
+* hover tooltips on desktop
+* tap/long-press labels on mobile
+
+Each icon should display:
+
+* feature name
+* short feature description
+
+Examples:
+
+* FlashFinds → "Snap and analyze finds instantly"
+* Auction Radar → "Discover live auctions and scout opportunities"
+* RARE Radar → "Track rare items and market trends"
+* Profile → "View your profile and settings"
+
+Requirements:
+
+* lightweight clean UI
+* no redesign
+* accessible/mobile-friendly
+
+========================================
+5. SIMPLIFY SUBSCRIPTIONS
+=========================
+
+Remove separate:
+
+* Hunter
+* Elite Collector
+
+plans.
+
+Replace with ONE premium subscription:
+
+* Premium Membership
+* $9.99/month
+
+Update:
+
+* pricing pages
+* upgrade prompts
+* badges
+* premium labels
+* feature gates
+* subscription references
+
+Remove all outdated references to old tiers.
+
+========================================
+6. HOMEPAGE EXPERIENCE REFINEMENT
+=================================
+
+Homepage should become:
+
+* a central discovery dashboard
+* marketplace radar
+* auction intelligence feed
+* scout opportunity hub
+* categorized treasure discovery system
+
+Reduce:
+
+* clutter
+* fake social mechanics
+* excessive gamification
+
+Prioritize:
+
+* discovery
+* listings
+* live auctions
+* scouts
+* marketplace intelligence
+* AI item analysis
+
+========================================
+7. SCOUT FEATURES
+=================
+
+Keep and improve:
+
+* Need Scout
+* Offer Scout Services
+
+Ensure scout-related listings:
+
+* surface clearly in feeds
+* show location context
+* support local pickup coordination
+
+========================================
+8. QUALITY CONTROL
+==================
+
+Verify:
+
+* no fake/demo/mock content remains
+* no broken routes
+* no dead navigation icons
+* category filters function correctly
+* homepage feeds populate dynamically
+* external listings integrate correctly
+* mobile responsiveness remains intact
+
+Republish after implementation.
