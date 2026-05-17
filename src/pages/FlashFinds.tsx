@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Camera, ArrowLeft, ArrowRight, X, MapPin, DollarSign, Tag, Sparkles, Eye, CircleCheck as CheckCircle, Image, Pencil, Plus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
@@ -11,22 +11,10 @@ const CATEGORIES = [
   'Art', 'Jewelry', 'Watches', 'Toys', 'Tools', 'Clothing', 'Other',
 ];
 
-
 export default function FlashFinds() {
   const { isGuest } = useAuth();
   const [step, setStep] = useState<FlowStep>('main');
-
-  if (isGuest) {
-    return (
-      <div style={{ height: '100%', position: 'relative' }}>
-        <GuestOverlay
-          title="Flash Finds"
-          subtitle="Snap photos of your finds, get instant AI valuations, and share with the community."
-        />
-      </div>
-    );
-  }
-  const [hasPhoto, setHasPhoto] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
     category: '',
@@ -35,9 +23,31 @@ export default function FlashFinds() {
     location: '',
   });
 
-  const handleTakePhoto = () => {
-    setHasPhoto(true);
-    setStep('photo');
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelected = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const url = e.target?.result as string;
+      setPhotoUrl(url);
+      setStep('photo');
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleCameraInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileSelected(file);
+    e.target.value = '';
+  };
+
+  const openCamera = () => {
+    cameraInputRef.current?.click();
+  };
+
+  const openGallery = () => {
+    galleryInputRef.current?.click();
   };
 
   const handlePhotoConfirm = () => {
@@ -54,57 +64,95 @@ export default function FlashFinds() {
 
   const handleReset = () => {
     setStep('main');
-    setHasPhoto(false);
+    setPhotoUrl(null);
     setForm({ title: '', category: '', notes: '', price: '', location: '' });
   };
 
-  if (step === 'main') {
-    return <MainScreen onUpload={handleTakePhoto} />;
-  }
-
-  if (step === 'photo') {
+  if (isGuest) {
     return (
-      <PhotoPreview
-        hasPhoto={hasPhoto}
-        onConfirm={handlePhotoConfirm}
-        onRetake={handleTakePhoto}
-        onBack={handleReset}
-      />
-    );
-  }
-
-  if (step === 'details') {
-    return (
-      <DetailsForm
-        form={form}
-        setForm={setForm}
-        onSubmit={handleDetailsSubmit}
-        onBack={() => setStep('photo')}
-      />
-    );
-  }
-
-  if (step === 'ai-analysis') {
-    return (
-      <AiAnalysisPage
-        form={form}
-        onDone={handleAiDone}
-        onBack={() => setStep('details')}
-      />
+      <div style={{ height: '100%', position: 'relative' }}>
+        <GuestOverlay
+          title="Flash Finds"
+          subtitle="Snap photos of your finds, get instant AI valuations, and share with the community."
+        />
+      </div>
     );
   }
 
   return (
-    <Confirmation
-      form={form}
-      onPostAnother={handleReset}
-      onViewFeed={() => setStep('main')}
-      onEdit={() => setStep('details')}
-    />
+    <>
+      {/* Hidden file inputs — camera capture */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleCameraInputChange}
+        style={{ display: 'none' }}
+        aria-hidden="true"
+      />
+      {/* Hidden file input — gallery / file picker */}
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleCameraInputChange}
+        style={{ display: 'none' }}
+        aria-hidden="true"
+      />
+
+      {step === 'main' && (
+        <MainScreen onCamera={openCamera} onGallery={openGallery} />
+      )}
+
+      {step === 'photo' && (
+        <PhotoPreview
+          photoUrl={photoUrl}
+          onConfirm={handlePhotoConfirm}
+          onRetakeCamera={openCamera}
+          onRetakeGallery={openGallery}
+          onBack={handleReset}
+        />
+      )}
+
+      {step === 'details' && (
+        <DetailsForm
+          photoUrl={photoUrl}
+          form={form}
+          setForm={setForm}
+          onSubmit={handleDetailsSubmit}
+          onBack={() => setStep('photo')}
+        />
+      )}
+
+      {step === 'ai-analysis' && (
+        <AiAnalysisPage
+          form={form}
+          onDone={handleAiDone}
+          onBack={() => setStep('details')}
+        />
+      )}
+
+      {step === 'confirmation' && (
+        <Confirmation
+          photoUrl={photoUrl}
+          form={form}
+          onPostAnother={handleReset}
+          onViewFeed={() => setStep('main')}
+          onEdit={() => setStep('details')}
+        />
+      )}
+    </>
   );
 }
 
-function MainScreen({ onUpload }: { onUpload: () => void }) {
+function MainScreen({
+  onCamera,
+  onGallery,
+}: {
+  onCamera: () => void;
+  onGallery: () => void;
+}) {
   return (
     <div style={styles.container}>
       <header style={styles.header}>
@@ -117,7 +165,7 @@ function MainScreen({ onUpload }: { onUpload: () => void }) {
           <div style={styles.uploadRings}>
             <div style={styles.ringOuter} />
             <div style={styles.ringMiddle} />
-            <button onClick={onUpload} style={styles.uploadBtn}>
+            <button onClick={onCamera} style={styles.uploadBtn}>
               <Camera size={36} style={{ color: 'var(--color-neutral-0)' }} />
             </button>
           </div>
@@ -126,13 +174,13 @@ function MainScreen({ onUpload }: { onUpload: () => void }) {
         </div>
 
         <div style={styles.quickActions}>
-          <button onClick={onUpload} style={styles.quickAction}>
+          <button onClick={onCamera} style={styles.quickAction}>
             <div style={styles.quickActionIcon}>
               <Camera size={20} style={{ color: 'var(--color-primary-600)' }} />
             </div>
             <span style={styles.quickActionLabel}>Take Photo</span>
           </button>
-          <button onClick={onUpload} style={styles.quickAction}>
+          <button onClick={onGallery} style={styles.quickAction}>
             <div style={styles.quickActionIcon}>
               <Image size={20} style={{ color: 'var(--color-secondary-600)' }} />
             </div>
@@ -163,14 +211,16 @@ function MainScreen({ onUpload }: { onUpload: () => void }) {
 }
 
 function PhotoPreview({
-  hasPhoto,
+  photoUrl,
   onConfirm,
-  onRetake,
+  onRetakeCamera,
+  onRetakeGallery,
   onBack,
 }: {
-  hasPhoto: boolean;
+  photoUrl: string | null;
   onConfirm: () => void;
-  onRetake: () => void;
+  onRetakeCamera: () => void;
+  onRetakeGallery: () => void;
   onBack: () => void;
 }) {
   return (
@@ -186,29 +236,43 @@ function PhotoPreview({
       </header>
 
       <div style={styles.photoContent}>
-        {hasPhoto ? (
-          <div style={styles.photoPreviewContainer}>
+        <div style={styles.photoPreviewContainer}>
+          {photoUrl ? (
+            <>
+              <img
+                src={photoUrl}
+                alt="Captured find"
+                style={styles.previewImage}
+              />
+              <div style={styles.photoOverlay}>
+                <span style={styles.photoHint}>AI will analyze this image</span>
+              </div>
+            </>
+          ) : (
             <div style={styles.cameraPlaceholder}>
               <Camera size={48} style={{ color: 'var(--color-neutral-400)' }} />
-              <p style={styles.placeholderText}>Photo captured</p>
+              <p style={styles.placeholderText}>No photo captured</p>
             </div>
-            <div style={styles.photoOverlay}>
-              <span style={styles.photoHint}>AI will analyze this image</span>
-            </div>
-          </div>
-        ) : (
-          <div style={styles.cameraPlaceholder}>
-            <Camera size={48} style={{ color: 'var(--color-neutral-300)' }} />
-            <p style={styles.placeholderText}>Camera viewfinder</p>
-          </div>
-        )}
+          )}
+        </div>
+
+        <div style={styles.retakeOptions}>
+          <button onClick={onRetakeCamera} style={styles.retakeOptionBtn}>
+            <Camera size={16} />
+            <span>Retake Photo</span>
+          </button>
+          <button onClick={onRetakeGallery} style={styles.retakeOptionBtn}>
+            <Image size={16} />
+            <span>Choose Different</span>
+          </button>
+        </div>
 
         <div style={styles.photoActions}>
-          <button onClick={onRetake} style={styles.retakeBtn}>
-            <Camera size={18} />
-            <span>Retake</span>
-          </button>
-          <button onClick={onConfirm} style={styles.usePhotoBtn}>
+          <button
+            onClick={onConfirm}
+            style={{ ...styles.usePhotoBtn, opacity: photoUrl ? 1 : 0.5 }}
+            disabled={!photoUrl}
+          >
             <CheckCircle size={18} />
             <span>Use This Photo</span>
           </button>
@@ -219,11 +283,13 @@ function PhotoPreview({
 }
 
 function DetailsForm({
+  photoUrl,
   form,
   setForm,
   onSubmit,
   onBack,
 }: {
+  photoUrl: string | null;
   form: { title: string; category: string; notes: string; price: string; location: string };
   setForm: (f: typeof form) => void;
   onSubmit: () => void;
@@ -241,9 +307,17 @@ function DetailsForm({
 
       <div style={styles.detailsContent}>
         <div style={styles.miniPreview}>
-          <div style={{ ...styles.miniImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)' }}>
-            <Camera size={20} style={{ color: 'var(--color-neutral-400)' }} />
-          </div>
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt="Your find"
+              style={{ ...styles.miniImage, objectFit: 'cover' }}
+            />
+          ) : (
+            <div style={{ ...styles.miniImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)' }}>
+              <Camera size={20} style={{ color: 'var(--color-neutral-400)' }} />
+            </div>
+          )}
           <div style={styles.miniMeta}>
             <span style={styles.miniLabel}>Your find</span>
             <span style={styles.miniHint}>Add details below</span>
@@ -331,11 +405,13 @@ function DetailsForm({
 }
 
 function Confirmation({
+  photoUrl,
   form,
   onPostAnother,
   onViewFeed,
   onEdit,
 }: {
+  photoUrl: string | null;
   form: { title: string; category: string; notes: string; price: string; location: string };
   onPostAnother: () => void;
   onViewFeed: () => void;
@@ -353,9 +429,17 @@ function Confirmation({
         </div>
 
         <div style={styles.postedCard}>
-          <div style={{ ...styles.postedImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)' }}>
-            <Camera size={24} style={{ color: 'var(--color-neutral-400)' }} />
-          </div>
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt={form.title || 'Your find'}
+              style={{ ...styles.postedImage, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }}
+            />
+          ) : (
+            <div style={{ ...styles.postedImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)' }}>
+              <Camera size={24} style={{ color: 'var(--color-neutral-400)' }} />
+            </div>
+          )}
           <div style={styles.postedInfo}>
             <h3 style={styles.postedTitle}>{form.title}</h3>
             <div style={styles.postedMeta}>
@@ -605,6 +689,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+    display: 'block',
   },
   photoOverlay: {
     position: 'absolute',
@@ -633,15 +718,36 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: 'var(--space-3)',
     backgroundColor: 'var(--color-neutral-900)',
+    height: '100%',
   },
   placeholderText: {
     color: 'var(--color-neutral-400)',
     fontSize: 'var(--font-size-sm)',
   },
+  retakeOptions: {
+    display: 'flex',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3) var(--space-4) 0',
+    backgroundColor: 'var(--color-neutral-0)',
+  },
+  retakeOptionBtn: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-2) var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    color: 'var(--color-neutral-600)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-medium)',
+    backgroundColor: 'var(--color-neutral-50)',
+  },
   photoActions: {
     display: 'flex',
     gap: 'var(--space-3)',
-    padding: 'var(--space-4)',
+    padding: 'var(--space-3) var(--space-4) var(--space-4)',
     backgroundColor: 'var(--color-neutral-0)',
     borderTop: '1px solid var(--color-neutral-100)',
   },
@@ -670,6 +776,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-0)',
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
+    transition: 'opacity 0.2s',
   },
 
   // Details form
@@ -693,7 +800,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '48px',
     height: '48px',
     borderRadius: 'var(--radius-sm)',
-    objectFit: 'cover',
+    flexShrink: 0,
   },
   miniMeta: {
     display: 'flex',
@@ -742,17 +849,17 @@ const styles: Record<string, React.CSSProperties> = {
   categoryChip: {
     padding: 'var(--space-2) var(--space-3)',
     borderRadius: 'var(--radius-full)',
+    border: '1px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-50)',
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-medium)',
-    backgroundColor: 'var(--color-neutral-100)',
     color: 'var(--color-neutral-600)',
-    border: '1px solid transparent',
     transition: 'all var(--transition-fast)',
   },
   categoryChipActive: {
     backgroundColor: 'var(--color-primary-50)',
+    borderColor: 'var(--color-primary-300)',
     color: 'var(--color-primary-700)',
-    border: '1px solid var(--color-primary-200)',
   },
   priceWrapper: {
     display: 'flex',
@@ -791,8 +898,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid var(--color-neutral-200)',
     fontSize: 'var(--font-size-base)',
     color: 'var(--color-neutral-900)',
-    lineHeight: 'var(--line-height-normal)',
     resize: 'none',
+    fontFamily: 'inherit',
     width: '100%',
   },
   continueBtn: {
@@ -803,14 +910,15 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: 'var(--space-4)',
     borderRadius: 'var(--radius-md)',
-    background: 'linear-gradient(135deg, var(--color-primary-600), var(--color-accent-500))',
+    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))',
+    color: 'var(--color-neutral-0)',
     boxShadow: '0 4px 16px rgba(234, 179, 8, 0.3)',
-    flexShrink: 0,
+    marginTop: 'auto',
   },
   continueBtnText: {
-    color: 'var(--color-neutral-0)',
     fontSize: 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-0)',
   },
 
   // Confirmation
@@ -826,9 +934,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    textAlign: 'center',
     marginBottom: 'var(--space-6)',
-    animation: 'scaleIn 0.4s ease',
   },
   successIcon: {
     width: '72px',
@@ -838,58 +944,65 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 'var(--space-3)',
+    marginBottom: 'var(--space-4)',
   },
   successTitle: {
     fontSize: 'var(--font-size-2xl)',
     fontWeight: 'var(--font-weight-bold)',
     color: 'var(--color-neutral-900)',
+    marginBottom: 'var(--space-1)',
   },
   successSubtitle: {
     fontSize: 'var(--font-size-sm)',
     color: 'var(--color-neutral-500)',
-    marginTop: 'var(--space-1)',
   },
   postedCard: {
+    display: 'flex',
+    gap: 'var(--space-3)',
+    padding: 'var(--space-4)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-50)',
     width: '100%',
-    borderRadius: 'var(--radius-lg)',
-    overflow: 'hidden',
-    boxShadow: 'var(--shadow-lg)',
     marginBottom: 'var(--space-6)',
-    animation: 'slideUp 0.5s ease forwards',
   },
   postedImage: {
-    width: '100%',
-    aspectRatio: '4/3',
-    objectFit: 'cover',
+    width: '64px',
+    height: '64px',
+    flexShrink: 0,
   },
   postedInfo: {
-    padding: 'var(--space-4)',
-    backgroundColor: 'var(--color-neutral-0)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-1)',
+    flex: 1,
+    overflow: 'hidden',
   },
   postedTitle: {
     fontSize: 'var(--font-size-base)',
-    fontWeight: 'var(--font-weight-bold)',
+    fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-900)',
-    marginBottom: 'var(--space-2)',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
   postedMeta: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: 'var(--space-3)',
-    marginBottom: 'var(--space-3)',
+    gap: 'var(--space-2)',
+    alignItems: 'center',
   },
   postedCategory: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: '3px',
     fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
+    color: 'var(--color-neutral-600)',
   },
   postedPrice: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: '3px',
     fontSize: 'var(--font-size-xs)',
     color: 'var(--color-success-600)',
     fontWeight: 'var(--font-weight-medium)',
@@ -897,34 +1010,21 @@ const styles: Record<string, React.CSSProperties> = {
   postedLocation: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: '3px',
     fontSize: 'var(--font-size-xs)',
     color: 'var(--color-neutral-500)',
   },
-  postedValueBadge: {
-    display: 'inline-flex',
-    padding: 'var(--space-1) var(--space-3)',
-    backgroundColor: 'var(--color-primary-50)',
-    borderRadius: 'var(--radius-full)',
-    border: '1px solid var(--color-primary-200)',
-  },
-  valueBadgeText: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-primary-700)',
-  },
   confirmActions: {
-    width: '100%',
     display: 'flex',
     flexDirection: 'column',
-    gap: 'var(--space-2)',
+    gap: 'var(--space-3)',
+    width: '100%',
   },
   viewFeedBtn: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 'var(--space-2)',
-    width: '100%',
     padding: 'var(--space-3)',
     borderRadius: 'var(--radius-md)',
     border: '1px solid var(--color-neutral-200)',
@@ -937,7 +1037,6 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 'var(--space-2)',
-    width: '100%',
     padding: 'var(--space-3)',
     borderRadius: 'var(--radius-md)',
     border: '1px solid var(--color-neutral-200)',
@@ -950,13 +1049,10 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 'var(--space-2)',
-    width: '100%',
-    padding: 'var(--space-4)',
+    padding: 'var(--space-3)',
     borderRadius: 'var(--radius-md)',
-    background: 'linear-gradient(135deg, var(--color-primary-600), var(--color-accent-500))',
+    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))',
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
-    boxShadow: '0 4px 16px rgba(234, 179, 8, 0.3)',
-    marginTop: 'var(--space-2)',
   },
 };
