@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Star, Camera, Heart, Upload, Award, ChevronRight, LogOut, MapPin, Shield, Clock, Package, Truck, MessageCircle, Zap, User, CircleCheck as CheckCircle, Eye, Trophy } from 'lucide-react';
+import { Settings, Star, Camera, Heart, Upload, Award, ChevronRight, LogOut, MapPin, Shield, Clock, Package, Truck, MessageCircle, Zap, User, CircleCheck as CheckCircle, Eye, Trophy, X, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 
@@ -64,6 +64,7 @@ const verificationBadges = [
 export default function Profile() {
   const { profile, signOut, isGuest } = useAuth();
   const [tab, setTab] = useState<ProfileTab>('overview');
+  const [showSettings, setShowSettings] = useState(false);
   const navigate = useNavigate();
 
   if (isGuest) {
@@ -92,11 +93,12 @@ export default function Profile() {
           <button onClick={signOut} style={styles.iconBtn}>
             <LogOut size={18} style={{ color: 'var(--color-neutral-600)' }} />
           </button>
-          <button style={styles.iconBtn}>
+          <button onClick={() => setShowSettings(true)} style={styles.iconBtn}>
             <Settings size={20} style={{ color: 'var(--color-neutral-600)' }} />
           </button>
         </div>
       </header>
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 
       <div style={styles.content}>
         <ProfileHeader profile={profile} />
@@ -483,6 +485,163 @@ function ScoutCard({ scout, delay }: { scout: ScoutProfile; delay: number }) {
     </div>
   );
 }
+
+function SettingsModal({ onClose }: { onClose: () => void }) {
+  const { profile, updateProfile } = useAuth();
+  const [username, setUsername] = useState(profile?.username || '');
+  const [bio, setBio] = useState(profile?.bio || '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    if (!username.trim()) { setError('Username is required.'); return; }
+    setSaving(true);
+    setError('');
+    const { error: err } = await updateProfile({ username: username.trim(), bio: bio.trim() });
+    setSaving(false);
+    if (err) { setError(err); return; }
+    setSaved(true);
+    setTimeout(() => { setSaved(false); onClose(); }, 1000);
+  };
+
+  return (
+    <div style={settingsStyles.overlay}>
+      <div style={settingsStyles.modal}>
+        <div style={settingsStyles.modalHeader}>
+          <h2 style={settingsStyles.modalTitle}>Profile Settings</h2>
+          <button onClick={onClose} style={settingsStyles.closeBtn}>
+            <X size={20} style={{ color: 'var(--color-neutral-600)' }} />
+          </button>
+        </div>
+
+        <div style={settingsStyles.body}>
+          <div style={settingsStyles.field}>
+            <label style={settingsStyles.label}>Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="your_username"
+              style={settingsStyles.input}
+            />
+          </div>
+
+          <div style={settingsStyles.field}>
+            <label style={settingsStyles.label}>Bio</label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Tell the community about yourself..."
+              rows={3}
+              style={{ ...settingsStyles.input, resize: 'vertical', minHeight: '72px' }}
+            />
+          </div>
+
+          {error && <p style={settingsStyles.errorText}>{error}</p>}
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ ...settingsStyles.saveBtn, opacity: saving ? 0.6 : 1 }}
+          >
+            <Save size={16} style={{ color: 'var(--color-neutral-0)' }} />
+            <span style={settingsStyles.saveBtnText}>
+              {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Changes'}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const settingsStyles: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    zIndex: 200,
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  modal: {
+    backgroundColor: 'var(--color-neutral-0)',
+    borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
+    width: '100%',
+    maxWidth: '480px',
+    boxShadow: 'var(--shadow-xl)',
+    paddingBottom: 'var(--space-6)',
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 'var(--space-4)',
+    borderBottom: '1px solid var(--color-neutral-100)',
+  },
+  modalTitle: {
+    fontSize: 'var(--font-size-base)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
+  },
+  closeBtn: {
+    width: '36px',
+    height: '36px',
+    borderRadius: 'var(--radius-md)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  body: {
+    padding: 'var(--space-4)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-4)',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-1)',
+  },
+  label: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-700)',
+  },
+  input: {
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-900)',
+    backgroundColor: 'var(--color-neutral-50)',
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  errorText: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-error-500)',
+  },
+  saveBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-primary-500)',
+    cursor: 'pointer',
+    marginTop: 'var(--space-2)',
+  },
+  saveBtnText: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-0)',
+  },
+};
 
 const styles: Record<string, React.CSSProperties> = {
   container: {

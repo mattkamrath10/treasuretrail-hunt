@@ -28,18 +28,6 @@ interface Listing {
   auction?: boolean;
 }
 
-const featuredListings: Listing[] = [
-  { id: '1', image: 'https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=400', title: 'Vintage Rolex Submariner 1680', price: '$12,500', seller: 'luxury_time', sellerRating: 4.9, rarity: 9.4, category: 'Watches', condition: 'Excellent', verified: true, hot: true, watchers: 24, timeAgo: '2h', localPickup: true },
-  { id: '2', image: 'https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=400', title: 'Eames Lounge Chair & Ottoman', price: '$4,200', seller: 'estate_pro', sellerRating: 4.8, rarity: 8.7, category: 'Furniture', condition: 'Good', verified: true, watchers: 18, timeAgo: '5h', localPickup: true },
-  { id: '3', image: 'https://images.pexels.com/photos/1038000/pexels-photo-1038000.jpeg?auto=compress&cs=tinysrgb&w=400', title: 'First Edition Hemingway Collection', price: '$3,400', seller: 'rare_books_nyc', sellerRating: 4.7, rarity: 9.1, category: 'Books', condition: 'Very Good', verified: true, hot: true, watchers: 12, timeAgo: '1d' },
-];
-
-const recentListings: Listing[] = [
-  { id: '4', image: 'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Polaroid SX-70 Gold Edition', price: '$850', seller: 'analog_hunter', sellerRating: 4.6, rarity: 7.8, category: 'Electronics', condition: 'Good', verified: false, watchers: 8, timeAgo: '30m', localPickup: true },
-  { id: '5', image: 'https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Danish Teak Credenza', price: '$1,800', seller: 'mcm_finds', sellerRating: 4.8, rarity: 7.2, category: 'Furniture', condition: 'Excellent', verified: true, watchers: 14, timeAgo: '1h' },
-  { id: '6', image: 'https://images.pexels.com/photos/1191531/pexels-photo-1191531.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Japanese Porcelain Tea Set', price: '$320', seller: 'vintage_eye', sellerRating: 4.9, rarity: 6.5, category: 'Collectibles', condition: 'Mint', verified: true, watchers: 6, timeAgo: '3h', localPickup: true },
-  { id: '7', image: 'https://images.pexels.com/photos/3945683/pexels-photo-3945683.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Mid-Century Brass Desk Lamp', price: '$145', seller: 'thrift_ninja', sellerRating: 4.5, rarity: 5.8, category: 'Antiques', condition: 'Good', verified: false, watchers: 3, timeAgo: '4h', localPickup: true },
-];
 
 const categories = ['All', 'Watches', 'Furniture', 'Electronics', 'Books', 'Collectibles', 'Antiques', 'Jewelry', 'Art'];
 
@@ -87,28 +75,12 @@ export default function Marketplace({ onBack }: { onBack: () => void }) {
   return <MarketHome onBack={onBack} onItemClick={openDetail} onCreateListing={() => setView('create')} onDashboard={() => setView('dashboard')} />;
 }
 
-function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
-  onBack: () => void;
-  onItemClick: (item: Listing) => void;
-  onCreateListing: () => void;
-  onDashboard: () => void;
-}) {
-  const { requireAuth } = useGuestAction();
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [realListings, setRealListings] = useState<MarketplaceListing[]>([]);
-
-  useEffect(() => {
-    fetchMarketplaceListings().then((data) => {
-      if (data.length > 0) setRealListings(data);
-    }).catch(() => {});
-  }, []);
-
-  const realAsListings: Listing[] = realListings.map((l) => ({
+function toListingShape(l: MarketplaceListing): Listing {
+  return {
     id: l.id,
-    image: l.image_url || 'https://images.pexels.com/photos/3945683/pexels-photo-3945683.jpeg?auto=compress&cs=tinysrgb&w=300',
+    image: l.image_url || '',
     title: l.title,
-    price: `$${l.price.toLocaleString()}`,
+    price: `$${Number(l.price).toLocaleString()}`,
     seller: l.profiles?.username || 'seller',
     sellerRating: 4.5,
     rarity: 6.0,
@@ -119,9 +91,47 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
     timeAgo: getMarketTimeAgo(l.created_at),
     localPickup: l.local_pickup,
     auction: l.auction_enabled,
-  }));
+  };
+}
 
-  const filters = ['Local Pickup', 'Auction', 'Buy Now', 'Scout Verified', 'High Demand'];
+function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
+  onBack: () => void;
+  onItemClick: (item: Listing) => void;
+  onCreateListing: () => void;
+  onDashboard: () => void;
+}) {
+  const { requireAuth } = useGuestAction();
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMarketplaceListings(50).then((data) => {
+      setListings(data.map(toListingShape));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const filtered = listings.filter((item) => {
+    if (activeCategory !== 'All' && item.category !== activeCategory) return false;
+    if (activeFilter === 'Local Pickup' && !item.localPickup) return false;
+    if (activeFilter === 'Auction' && !item.auction) return false;
+    if (activeFilter === 'Scout Verified' && !item.verified) return false;
+    return true;
+  });
+
+  const featured = filtered.slice(0, 3);
+  const hotFinds = filtered.filter((l) => l.image).slice(0, 4);
+  const recent = filtered;
+
+  const filters = ['Local Pickup', 'Auction', 'Buy Now', 'Scout Verified'];
+
+  const EmptyState = ({ label }: { label: string }) => (
+    <div style={s.emptyState}>
+      <Package size={28} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
+      <span style={s.emptyStateText}>{label}</span>
+    </div>
+  );
 
   return (
     <div style={s.container}>
@@ -166,79 +176,105 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
           ))}
         </div>
 
-        {/* Featured */}
-        <div style={s.section}>
-          <div style={s.sectionHeader}>
-            <h2 style={s.sectionTitle}>Featured Finds</h2>
-            <ChevronRight size={16} style={{ color: 'var(--color-neutral-400)' }} />
+        {loading ? (
+          <div style={s.emptyState}>
+            <span style={s.emptyStateText}>Loading listings…</span>
           </div>
-          <div style={s.featuredScroll}>
-            {featuredListings.map((item) => (
-              <button key={item.id} onClick={() => onItemClick(item)} style={s.featuredCard}>
-                <div style={s.featuredImgWrap}>
-                  <img src={item.image} alt={item.title} style={s.featuredImg} />
-                  {item.hot && <span style={s.hotBadge}><Zap size={8} /> Hot</span>}
-                  <span style={s.rarityBadge}>{item.rarity}</span>
+        ) : (
+          <>
+            {/* Featured */}
+            <div style={s.section}>
+              <div style={s.sectionHeader}>
+                <h2 style={s.sectionTitle}>Featured Finds</h2>
+                <ChevronRight size={16} style={{ color: 'var(--color-neutral-400)' }} />
+              </div>
+              {featured.length === 0 ? (
+                <EmptyState label="No featured listings yet. Be the first to post!" />
+              ) : (
+                <div style={s.featuredScroll}>
+                  {featured.map((item) => (
+                    <button key={item.id} onClick={() => onItemClick(item)} style={s.featuredCard}>
+                      <div style={s.featuredImgWrap}>
+                        {item.image ? (
+                          <img src={item.image} alt={item.title} style={s.featuredImg} />
+                        ) : (
+                          <div style={{ ...s.featuredImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Package size={24} style={{ color: 'var(--color-neutral-300)' }} />
+                          </div>
+                        )}
+                        <span style={s.rarityBadge}>{item.category}</span>
+                      </div>
+                      <div style={s.featuredInfo}>
+                        <span style={s.featuredTitle}>{item.title}</span>
+                        <span style={s.featuredPrice}>{item.price}</span>
+                        <div style={s.sellerRow}>
+                          <Shield size={10} style={{ color: item.verified ? 'var(--color-secondary-500)' : 'var(--color-neutral-300)' }} />
+                          <span style={s.sellerName}>@{item.seller}</span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <div style={s.featuredInfo}>
-                  <span style={s.featuredTitle}>{item.title}</span>
-                  <span style={s.featuredPrice}>{item.price}</span>
-                  <div style={s.sellerRow}>
-                    <Shield size={10} style={{ color: item.verified ? 'var(--color-secondary-500)' : 'var(--color-neutral-300)' }} />
-                    <span style={s.sellerName}>@{item.seller}</span>
-                    <Star size={10} style={{ color: 'var(--color-primary-500)', fill: 'var(--color-primary-500)' }} />
-                    <span style={s.sellerRating}>{item.sellerRating}</span>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+              )}
+            </div>
 
-        {/* Hot Finds */}
-        <div style={s.section}>
-          <div style={s.sectionHeader}>
-            <h2 style={s.sectionTitle}>Hot Finds</h2>
-            <span style={s.sectionBadge}><Zap size={10} /> Trending</span>
-          </div>
-          <div style={s.hotGrid}>
-            {featuredListings.filter((l) => l.hot).map((item) => (
-              <button key={item.id} onClick={() => onItemClick(item)} style={s.hotCard}>
-                <img src={item.image} alt={item.title} style={s.hotImg} />
-                <div style={s.hotOverlay}>
-                  <span style={s.hotPrice}>{item.price}</span>
-                  <span style={s.hotWatchers}><Eye size={10} /> {item.watchers}</span>
+            {/* Hot Finds */}
+            {hotFinds.filter((l) => l.image).length > 0 && (
+              <div style={s.section}>
+                <div style={s.sectionHeader}>
+                  <h2 style={s.sectionTitle}>Hot Finds</h2>
+                  <span style={s.sectionBadge}><Zap size={10} /> Trending</span>
                 </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Recently Posted */}
-        <div style={s.section}>
-          <div style={s.sectionHeader}>
-            <h2 style={s.sectionTitle}>Recently Posted</h2>
-          </div>
-          {[...realAsListings, ...recentListings].map((item) => (
-            <button key={item.id} onClick={() => onItemClick(item)} style={s.listingRow}>
-              <img src={item.image} alt={item.title} style={s.listingImg} />
-              <div style={s.listingInfo}>
-                <span style={s.listingTitle}>{item.title}</span>
-                <div style={s.listingMeta}>
-                  <span style={s.listingPrice}>{item.price}</span>
-                  <span style={s.listingDot} />
-                  <span style={s.listingTime}>{item.timeAgo}</span>
-                </div>
-                <div style={s.listingBottom}>
-                  {item.verified && <Shield size={10} style={{ color: 'var(--color-secondary-500)' }} />}
-                  <span style={s.listingSeller}>@{item.seller}</span>
-                  {item.localPickup && <span style={s.pickupBadge}><MapPin size={8} /> Local</span>}
+                <div style={s.hotGrid}>
+                  {hotFinds.filter((l) => l.image).slice(0, 4).map((item) => (
+                    <button key={item.id} onClick={() => onItemClick(item)} style={s.hotCard}>
+                      <img src={item.image} alt={item.title} style={s.hotImg} />
+                      <div style={s.hotOverlay}>
+                        <span style={s.hotPrice}>{item.price}</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
-              <Heart size={16} style={{ color: 'var(--color-neutral-300)' }} />
-            </button>
-          ))}
-        </div>
+            )}
+
+            {/* Recently Posted */}
+            <div style={s.section}>
+              <div style={s.sectionHeader}>
+                <h2 style={s.sectionTitle}>Recently Posted</h2>
+              </div>
+              {recent.length === 0 ? (
+                <EmptyState label="No listings yet. Create one to get started!" />
+              ) : (
+                recent.map((item) => (
+                  <button key={item.id} onClick={() => onItemClick(item)} style={s.listingRow}>
+                    {item.image ? (
+                      <img src={item.image} alt={item.title} style={s.listingImg} />
+                    ) : (
+                      <div style={{ ...s.listingImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Package size={18} style={{ color: 'var(--color-neutral-300)' }} />
+                      </div>
+                    )}
+                    <div style={s.listingInfo}>
+                      <span style={s.listingTitle}>{item.title}</span>
+                      <div style={s.listingMeta}>
+                        <span style={s.listingPrice}>{item.price}</span>
+                        <span style={s.listingDot} />
+                        <span style={s.listingTime}>{item.timeAgo}</span>
+                      </div>
+                      <div style={s.listingBottom}>
+                        {item.verified && <Shield size={10} style={{ color: 'var(--color-secondary-500)' }} />}
+                        <span style={s.listingSeller}>@{item.seller}</span>
+                        {item.localPickup && <span style={s.pickupBadge}><MapPin size={8} /> Local</span>}
+                      </div>
+                    </div>
+                    <Heart size={16} style={{ color: 'var(--color-neutral-300)' }} />
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Create listing FAB */}
@@ -337,28 +373,6 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
             </div>
           </div>
 
-          {/* Offer history */}
-          <div style={s.detailSection}>
-            <h3 style={s.detailSectionTitle}>Recent Offers</h3>
-            <div style={s.offerHistory}>
-              <div style={s.offerRow}><span style={s.offerUser}>@watch_seeker</span><span style={s.offerAmt}>$11,000</span><span style={s.offerStatus}>Declined</span></div>
-              <div style={s.offerRow}><span style={s.offerUser}>@collector_mike</span><span style={s.offerAmt}>$10,500</span><span style={s.offerStatus}>Declined</span></div>
-            </div>
-          </div>
-
-          {/* Similar */}
-          <div style={s.detailSection}>
-            <h3 style={s.detailSectionTitle}>Similar Items</h3>
-            <div style={s.similarScroll}>
-              {recentListings.slice(0, 3).map((sim) => (
-                <div key={sim.id} style={s.similarCard}>
-                  <img src={sim.image} alt={sim.title} style={s.similarImg} />
-                  <span style={s.similarTitle}>{sim.title}</span>
-                  <span style={s.similarPrice}>{sim.price}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -846,6 +860,10 @@ const s: Record<string, React.CSSProperties> = {
   filterRow: { display: 'flex', gap: 'var(--space-2)', overflow: 'auto', marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-1)' },
   filterChip: { padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: '10px', fontWeight: 'var(--font-weight-medium)', backgroundColor: 'var(--color-neutral-0)', color: 'var(--color-neutral-500)', border: '1px solid var(--color-neutral-200)', whiteSpace: 'nowrap', flexShrink: 0 },
   filterChipActive: { borderColor: 'var(--color-primary-400)', backgroundColor: 'var(--color-primary-50)', color: 'var(--color-primary-700)' },
+
+  // Empty state
+  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-6) var(--space-4)', textAlign: 'center' },
+  emptyStateText: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-400)' },
 
   // Sections
   section: { marginBottom: 'var(--space-5)' },
