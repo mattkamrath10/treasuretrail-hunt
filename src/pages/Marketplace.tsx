@@ -339,7 +339,7 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
                 <Star size={10} style={{ color: 'var(--color-primary-500)', fill: 'var(--color-primary-500)' }} />
                 <span style={s.sellerCardRating}>{item.sellerRating}</span>
                 <span style={s.sellerCardDot} />
-                <span style={s.sellerCardSales}>47 sales</span>
+                <span style={s.sellerCardSales}>Verified Seller</span>
               </div>
             </div>
             <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)' }} />
@@ -351,9 +351,8 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
             <div style={s.attrList}>
               <div style={s.attrRow}><span style={s.attrLabel}>Category</span><span style={s.attrVal}>{item.category}</span></div>
               <div style={s.attrRow}><span style={s.attrLabel}>Condition</span><span style={s.attrVal}>{item.condition}</span></div>
-              <div style={s.attrRow}><span style={s.attrLabel}>Era</span><span style={s.attrVal}>1960s</span></div>
-              <div style={s.attrRow}><span style={s.attrLabel}>Watchers</span><span style={s.attrVal}>{item.watchers}</span></div>
               <div style={s.attrRow}><span style={s.attrLabel}>Pickup</span><span style={s.attrVal}>{item.localPickup ? 'Available' : 'Shipping only'}</span></div>
+              {item.auction && <div style={s.attrRow}><span style={s.attrLabel}>Listing Type</span><span style={s.attrVal}>Auction</span></div>}
             </div>
           </div>
 
@@ -619,7 +618,7 @@ function OfferScreen({ item, onBack }: { item: Listing; onBack: () => void }) {
           <Shield size={14} style={{ color: 'var(--color-secondary-500)' }} />
           <div style={s.sellerTrustInfo}>
             <span style={s.sellerTrustTitle}>Trusted Seller</span>
-            <span style={s.sellerTrustDesc}>47 successful sales, 4.9 rating, fast responder</span>
+            <span style={s.sellerTrustDesc}>Verified seller on TreasureTrail</span>
           </div>
         </div>
 
@@ -747,13 +746,11 @@ function OrderConfirmation({ onDone }: { onDone: () => void }) {
 
 function SellerDashboard({ onBack }: { onBack: () => void }) {
   const stats = [
-    { label: 'Active Listings', value: '12' },
-    { label: 'Sold Items', value: '47' },
-    { label: 'Total Earned', value: '$8,420' },
-    { label: 'Conversion', value: '34%' },
+    { label: 'Active Listings', value: '0' },
+    { label: 'Sold Items', value: '0' },
+    { label: 'Total Earned', value: '$0' },
+    { label: 'Conversion', value: '0%' },
   ];
-
-  const activeListings = recentListings.slice(0, 3);
 
   return (
     <div style={s.container}>
@@ -780,23 +777,19 @@ function SellerDashboard({ onBack }: { onBack: () => void }) {
           <div style={s.perfCard}>
             <div style={s.perfRow}>
               <span style={s.perfLabel}>Views (7d)</span>
-              <span style={s.perfVal}>342</span>
-              <TrendingUp size={12} style={{ color: 'var(--color-success-500)' }} />
+              <span style={s.perfVal}>0</span>
             </div>
             <div style={s.perfRow}>
               <span style={s.perfLabel}>Watchers</span>
-              <span style={s.perfVal}>28</span>
-              <TrendingUp size={12} style={{ color: 'var(--color-success-500)' }} />
+              <span style={s.perfVal}>0</span>
             </div>
             <div style={s.perfRow}>
               <span style={s.perfLabel}>Offers Received</span>
-              <span style={s.perfVal}>8</span>
-              <span style={s.perfNeutral}>-</span>
+              <span style={s.perfVal}>0</span>
             </div>
             <div style={s.perfRow}>
               <span style={s.perfLabel}>Reputation Impact</span>
-              <span style={s.perfValGreen}>+0.2</span>
-              <Star size={12} style={{ color: 'var(--color-primary-500)' }} />
+              <span style={s.perfVal}>—</span>
             </div>
           </div>
         </div>
@@ -804,18 +797,9 @@ function SellerDashboard({ onBack }: { onBack: () => void }) {
         {/* Active listings */}
         <div style={s.detailSection}>
           <h3 style={s.detailSectionTitle}>Active Listings</h3>
-          {activeListings.map((item) => (
-            <div key={item.id} style={s.dashListingRow}>
-              <img src={item.image} alt={item.title} style={s.dashListingImg} />
-              <div style={s.dashListingInfo}>
-                <span style={s.dashListingTitle}>{item.title}</span>
-                <span style={s.dashListingPrice}>{item.price}</span>
-              </div>
-              <div style={s.dashListingStats}>
-                <span style={s.dashListingStat}><Eye size={10} /> {item.watchers}</span>
-              </div>
-            </div>
-          ))}
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '0.85rem' }}>
+            No active listings yet.
+          </div>
         </div>
 
         {/* Earnings chart mock */}

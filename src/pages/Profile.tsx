@@ -31,33 +31,11 @@ interface ScoutProfile {
   verified: boolean;
 }
 
-const savedFinds: SavedItem[] = [
-  { id: '1', image: 'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Polaroid SX-70', price: '$45' },
-  { id: '2', image: 'https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Teak Sideboard', price: '$180' },
-  { id: '3', image: 'https://images.pexels.com/photos/1038000/pexels-photo-1038000.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Hemingway Set', price: '$320' },
-  { id: '4', image: 'https://images.pexels.com/photos/1191531/pexels-photo-1191531.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Tea Set', price: '$65' },
-];
-
-const activityFeed: ActivityItem[] = [
-  { id: '1', type: 'find', title: 'Posted a new find: Vintage Brass Lamp', timestamp: '2h ago', detail: 'AI valued at $85-$150' },
-  { id: '2', type: 'scout', title: 'Completed scout job for @watch_seeker', timestamp: '1d ago', detail: 'Found Rolex Submariner at estate sale' },
-  { id: '3', type: 'review', title: 'Received 5-star review from @collector_mike', timestamp: '2d ago', detail: '"Fast, reliable, great communication"' },
-  { id: '4', type: 'auction', title: 'Auction assist: Mid-Century Credenza', timestamp: '3d ago', detail: 'Won at $420 (budget was $500)' },
-  { id: '5', type: 'match', title: 'Helped match: Nintendo 64 Complete Set', timestamp: '5d ago', detail: 'Connected buyer with seller in Austin' },
-];
-
-const nearbyScouts: ScoutProfile[] = [
-  { id: '1', username: 'estate_pro', rating: 4.9, region: 'Brooklyn, NY', specialties: ['Furniture', 'Antiques'], completedJobs: 87, verified: true },
-  { id: '2', username: 'thrift_ninja', rating: 4.7, region: 'Austin, TX', specialties: ['Electronics', 'Toys'], completedJobs: 52, verified: true },
-  { id: '3', username: 'vintage_eye', rating: 4.8, region: 'Portland, OR', specialties: ['Watches', 'Jewelry'], completedJobs: 114, verified: true },
-  { id: '4', username: 'barn_find_bill', rating: 4.6, region: 'Nashville, TN', specialties: ['Tools', 'Collectibles'], completedJobs: 33, verified: false },
-];
-
 const verificationBadges = [
-  { label: 'Verified Scout', icon: Shield, earned: true },
-  { label: 'Pickup Helper', icon: Truck, earned: true },
+  { label: 'Verified Scout', icon: Shield, earned: false },
+  { label: 'Pickup Helper', icon: Truck, earned: false },
   { label: 'High Value Specialist', icon: Star, earned: false },
-  { label: 'Estate Sale Expert', icon: Award, earned: true },
+  { label: 'Estate Sale Expert', icon: Award, earned: false },
   { label: 'Auction Runner', icon: Zap, earned: false },
 ];
 
@@ -116,7 +94,7 @@ export default function Profile() {
         </div>
 
         {tab === 'overview' && <OverviewTab profile={profile} />}
-        {tab === 'reputation' && <ReputationTab />}
+        {tab === 'reputation' && <ReputationTab profile={profile} />}
         {tab === 'activity' && <ActivityTab />}
         {tab === 'scouts' && <ScoutsTab />}
       </div>
@@ -140,19 +118,11 @@ function ProfileHeader({ profile }: { profile: any }) {
         </div>
       </div>
       <h2 style={styles.username}>@{profile?.username || 'treasure_hunter'}</h2>
-      {profile?.bio ? (
-        <p style={styles.bio}>{profile.bio}</p>
-      ) : (
-        <p style={styles.bio}>Passionate collector and scout. Finding hidden treasures everywhere.</p>
-      )}
+      {profile?.bio && <p style={styles.bio}>{profile.bio}</p>}
       <div style={styles.rankRow}>
         <span style={styles.rankBadge}>{profile?.treasure_rank || 'Hunter'}</span>
         <span style={styles.levelBadge}>Lv. {profile?.level || 1}</span>
         <span style={styles.xpBadge}>{profile?.xp || 0} XP</span>
-      </div>
-      <div style={styles.locationRow}>
-        <MapPin size={12} style={{ color: 'var(--color-neutral-400)' }} />
-        <span style={styles.locationText}>Brooklyn, NY</span>
       </div>
       <span style={styles.joinDate}>Member since {joinDate}</span>
 
@@ -168,12 +138,12 @@ function ProfileHeader({ profile }: { profile: any }) {
         </div>
         <div style={styles.statDivider} />
         <div style={styles.stat}>
-          <span style={styles.statNumber}>47</span>
+          <span style={styles.statNumber}>0</span>
           <span style={styles.statLabel}>Finds</span>
         </div>
         <div style={styles.statDivider} />
         <div style={styles.stat}>
-          <span style={styles.statNumber}>128</span>
+          <span style={styles.statNumber}>0</span>
           <span style={styles.statLabel}>Saved</span>
         </div>
       </div>
@@ -182,7 +152,7 @@ function ProfileHeader({ profile }: { profile: any }) {
 }
 
 function OverviewTab({ profile }: { profile: any }) {
-  const repScore = profile?.reputation_score ?? 5.0;
+  const repScore = profile?.reputation_score ?? 0;
   return (
     <>
       <div style={styles.reputationCard}>
@@ -252,34 +222,30 @@ function OverviewTab({ profile }: { profile: any }) {
         <div style={styles.sectionHeader}>
           <Heart size={16} style={{ color: 'var(--color-error-400)' }} />
           <h3 style={styles.sectionTitle}>Saved Finds</h3>
-          <ChevronRight size={16} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
         </div>
-        <div style={styles.grid}>
-          {savedFinds.map((item) => (
-            <div key={item.id} style={styles.gridItem}>
-              <img src={item.image} alt={item.title} style={styles.gridImage} />
-              <div style={styles.gridOverlay}>
-                <span style={styles.gridPrice}>{item.price}</span>
-              </div>
-            </div>
-          ))}
+        <div style={styles.emptyTabState}>
+          <Heart size={24} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
+          <p style={styles.emptyTabTitle}>No saved finds yet</p>
+          <p style={styles.emptyTabSub}>Items you save will appear here.</p>
         </div>
       </div>
     </>
   );
 }
 
-function ReputationTab() {
+function ReputationTab({ profile }: { profile: any }) {
+  const score = profile?.reputation_score ?? 0;
+  const scorePercent = Math.min((score / 5) * 100, 100);
   return (
     <>
       <div style={styles.repPanel}>
         <div style={styles.repPanelHeader}>
           <div style={styles.trustedBadge}>
             <Shield size={20} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={styles.trustedText}>Trusted Scout</span>
+            <span style={styles.trustedText}>{score >= 4.5 ? 'Trusted Scout' : 'Building Reputation'}</span>
           </div>
           <div style={styles.repScoreLarge}>
-            <span style={styles.repScoreNum}>4.8</span>
+            <span style={styles.repScoreNum}>{score.toFixed(1)}</span>
             <span style={styles.repScoreMax}>/5.0</span>
           </div>
         </div>
@@ -290,159 +256,49 @@ function ReputationTab() {
               <Star size={14} style={{ color: 'var(--color-primary-500)' }} />
             </div>
             <div style={styles.repMetricInfo}>
-              <span style={styles.repMetricLabel}>Positive Reviews</span>
-              <span style={styles.repMetricValue}>96%</span>
+              <span style={styles.repMetricLabel}>Reputation Score</span>
+              <span style={styles.repMetricValue}>{score.toFixed(1)} / 5.0</span>
             </div>
             <div style={styles.repMetricBar}>
-              <div style={{ ...styles.repMetricFill, width: '96%' }} />
-            </div>
-          </div>
-
-          <div style={styles.repMetric}>
-            <div style={styles.repMetricIcon}>
-              <Package size={14} style={{ color: 'var(--color-secondary-500)' }} />
-            </div>
-            <div style={styles.repMetricInfo}>
-              <span style={styles.repMetricLabel}>Successful Shipments</span>
-              <span style={styles.repMetricValue}>42/44</span>
-            </div>
-            <div style={styles.repMetricBar}>
-              <div style={{ ...styles.repMetricFill, width: '95%', backgroundColor: 'var(--color-secondary-500)' }} />
-            </div>
-          </div>
-
-          <div style={styles.repMetric}>
-            <div style={styles.repMetricIcon}>
-              <Zap size={14} style={{ color: 'var(--color-accent-500)' }} />
-            </div>
-            <div style={styles.repMetricInfo}>
-              <span style={styles.repMetricLabel}>Auction Wins</span>
-              <span style={styles.repMetricValue}>12</span>
-            </div>
-            <div style={styles.repMetricBar}>
-              <div style={{ ...styles.repMetricFill, width: '60%', backgroundColor: 'var(--color-accent-500)' }} />
-            </div>
-          </div>
-
-          <div style={styles.repMetric}>
-            <div style={styles.repMetricIcon}>
-              <MessageCircle size={14} style={{ color: 'var(--color-success-500)' }} />
-            </div>
-            <div style={styles.repMetricInfo}>
-              <span style={styles.repMetricLabel}>Communication Rating</span>
-              <span style={styles.repMetricValue}>4.9/5</span>
-            </div>
-            <div style={styles.repMetricBar}>
-              <div style={{ ...styles.repMetricFill, width: '98%', backgroundColor: 'var(--color-success-500)' }} />
-            </div>
-          </div>
-
-          <div style={styles.repMetric}>
-            <div style={styles.repMetricIcon}>
-              <Clock size={14} style={{ color: 'var(--color-warning-500)' }} />
-            </div>
-            <div style={styles.repMetricInfo}>
-              <span style={styles.repMetricLabel}>Response Speed</span>
-              <span style={styles.repMetricValue}>Under 1 hour</span>
-            </div>
-            <div style={styles.repMetricBar}>
-              <div style={{ ...styles.repMetricFill, width: '92%', backgroundColor: 'var(--color-warning-500)' }} />
+              <div style={{ ...styles.repMetricFill, width: `${scorePercent}%` }} />
             </div>
           </div>
         </div>
       </div>
 
-      <div style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <h3 style={styles.sectionTitle}>Specialty Categories</h3>
-        </div>
-        <div style={styles.categoriesList}>
-          <span style={styles.categoryTag}>Furniture</span>
-          <span style={styles.categoryTag}>Antiques</span>
-          <span style={styles.categoryTag}>Watches</span>
-          <span style={styles.categoryTag}>Estate Sales</span>
-        </div>
-      </div>
-
-      <div style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <MapPin size={16} style={{ color: 'var(--color-neutral-500)' }} />
-          <h3 style={styles.sectionTitle}>Regional Coverage</h3>
-        </div>
-        <div style={styles.regionCard}>
-          <div style={styles.regionRow}>
-            <span style={styles.regionLabel}>Primary</span>
-            <span style={styles.regionValue}>Brooklyn & Manhattan, NY</span>
+      {profile?.favorite_categories && profile.favorite_categories.length > 0 && (
+        <div style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <h3 style={styles.sectionTitle}>Specialty Categories</h3>
           </div>
-          <div style={styles.regionRow}>
-            <span style={styles.regionLabel}>Secondary</span>
-            <span style={styles.regionValue}>Long Island, NJ</span>
-          </div>
-          <div style={styles.regionRow}>
-            <span style={styles.regionLabel}>Range</span>
-            <span style={styles.regionValue}>50 mile radius</span>
+          <div style={styles.categoriesList}>
+            {profile.favorite_categories.map((cat: string) => (
+              <span key={cat} style={styles.categoryTag}>{cat}</span>
+            ))}
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
 
 function ActivityTab() {
-  const activityIcons: Record<string, typeof Star> = {
-    find: Upload,
-    scout: Eye,
-    auction: Zap,
-    match: CheckCircle,
-    review: Star,
-  };
-
-  const activityColors: Record<string, string> = {
-    find: 'var(--color-secondary-500)',
-    scout: 'var(--color-primary-500)',
-    auction: 'var(--color-accent-500)',
-    match: 'var(--color-success-500)',
-    review: 'var(--color-warning-500)',
-  };
-
   return (
-    <div style={styles.activityList}>
-      {activityFeed.map((item, index) => {
-        const Icon = activityIcons[item.type];
-        const color = activityColors[item.type];
-        return (
-          <div
-            key={item.id}
-            style={{
-              ...styles.activityItem,
-              animationDelay: `${index * 80}ms`,
-            }}
-          >
-            <div style={{ ...styles.activityIcon, backgroundColor: `${color}15` }}>
-              <Icon size={16} style={{ color }} />
-            </div>
-            <div style={styles.activityContent}>
-              <h4 style={styles.activityTitle}>{item.title}</h4>
-              <p style={styles.activityDetail}>{item.detail}</p>
-              <span style={styles.activityTime}>{item.timestamp}</span>
-            </div>
-          </div>
-        );
-      })}
+    <div style={styles.emptyTabState}>
+      <Upload size={28} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
+      <p style={styles.emptyTabTitle}>No activity yet</p>
+      <p style={styles.emptyTabSub}>Your finds, scout jobs, and auction activity will appear here.</p>
     </div>
   );
 }
 
 function ScoutsTab() {
   return (
-    <>
-      <p style={styles.scoutsIntro}>Discover trusted scouts in your area</p>
-      <div style={styles.scoutsList}>
-        {nearbyScouts.map((scout, index) => (
-          <ScoutCard key={scout.id} scout={scout} delay={index * 80} />
-        ))}
-      </div>
-    </>
+    <div style={styles.emptyTabState}>
+      <User size={28} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
+      <p style={styles.emptyTabTitle}>No scouts nearby yet</p>
+      <p style={styles.emptyTabSub}>Trusted scouts in your area will appear here once available.</p>
+    </div>
   );
 }
 
@@ -1135,6 +991,28 @@ const styles: Record<string, React.CSSProperties> = {
   activityTime: {
     fontSize: 'var(--font-size-xs)',
     color: 'var(--color-neutral-400)',
+  },
+
+  // Empty tab states
+  emptyTabState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 'var(--space-10) var(--space-4)',
+    textAlign: 'center',
+  },
+  emptyTabTitle: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-600)',
+    marginBottom: 'var(--space-1)',
+  },
+  emptyTabSub: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-400)',
+    maxWidth: '260px',
+    lineHeight: 'var(--line-height-normal)',
   },
 
   // Scouts tab

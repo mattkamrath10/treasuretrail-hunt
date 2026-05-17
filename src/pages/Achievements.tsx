@@ -154,10 +154,10 @@ function TreasureRankHero() {
         </div>
         <div style={styles.heroInfo}>
           <span style={styles.heroLevel}>{CURRENT_LEVEL.name}</span>
-          <span style={styles.heroRank}>TreasureRank #5 Regional</span>
+          <span style={styles.heroRank}>TreasureRank</span>
         </div>
         <div style={styles.heroScore}>
-          <span style={styles.heroScoreNum}>6,890</span>
+          <span style={styles.heroScoreNum}>0</span>
           <span style={styles.heroScoreLabel}>TR Score</span>
         </div>
       </div>
@@ -174,22 +174,22 @@ function TreasureRankHero() {
 
       <div style={styles.heroStats}>
         <div style={styles.heroStat}>
-          <span style={styles.heroStatVal}>47</span>
+          <span style={styles.heroStatVal}>0</span>
           <span style={styles.heroStatLbl}>Finds</span>
         </div>
         <div style={styles.heroStatDiv} />
         <div style={styles.heroStat}>
-          <span style={styles.heroStatVal}>4.8</span>
+          <span style={styles.heroStatVal}>0</span>
           <span style={styles.heroStatLbl}>Rep</span>
         </div>
         <div style={styles.heroStatDiv} />
         <div style={styles.heroStat}>
-          <span style={styles.heroStatVal}>23</span>
+          <span style={styles.heroStatVal}>0</span>
           <span style={styles.heroStatLbl}>Scouts</span>
         </div>
         <div style={styles.heroStatDiv} />
         <div style={styles.heroStat}>
-          <span style={styles.heroStatVal}>12</span>
+          <span style={styles.heroStatVal}>0</span>
           <span style={styles.heroStatLbl}>Streaks</span>
         </div>
       </div>
@@ -197,7 +197,7 @@ function TreasureRankHero() {
       {/* Streak bar */}
       <div style={styles.streakRow}>
         <Flame size={14} style={{ color: 'var(--color-accent-500)' }} />
-        <span style={styles.streakText}>12-day hunt streak</span>
+        <span style={styles.streakText}>No streak yet — start hunting!</span>
         <div style={styles.streakDots}>
           {[...Array(7)].map((_, i) => (
             <div key={i} style={{ ...styles.streakDot, backgroundColor: i < 5 ? 'var(--color-accent-500)' : 'var(--color-neutral-200)' }} />
