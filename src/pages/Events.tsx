@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft, MapPin, Users, Star, Clock, Trophy, Zap,
   Shield, Award, Crown, Target, Flag, Eye,
   Calendar, TrendingUp, Lock,
 } from 'lucide-react';
 import { TreasureChestLogo } from '../components/TreasureChestLogo';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 type EventsView = 'hub' | 'detail' | 'missions' | 'squads' | 'leaderboards' | 'passport' | 'battle';
 
@@ -51,14 +53,19 @@ const events: EventItem[] = [
   { id: '6', title: 'Collector Convention NYC', type: 'Convention', image: 'https://images.pexels.com/photos/1038000/pexels-photo-1038000.jpeg?auto=compress&cs=tinysrgb&w=600', location: 'NYC', date: 'Jun 15', time: '9:00 AM', attendees: 512, rarity: 'All Categories', difficulty: 'Easy', host: '@treasuretrail', vip: true },
 ];
 
-const missions: Mission[] = [
-  { id: '1', title: 'Thrift Hunter', desc: 'Visit 3 thrift stores in one day', xp: 150, progress: 2, total: 3, rarity: 'common', timeLeft: '6h' },
-  { id: '2', title: 'Golden Flip', desc: 'Complete a flip with 500%+ profit', xp: 500, progress: 0, total: 1, rarity: 'epic' },
-  { id: '3', title: 'Scout Network', desc: 'Successfully coordinate with 5 scouts', xp: 300, progress: 3, total: 5, rarity: 'rare' },
-  { id: '4', title: 'Rarity Seeker', desc: 'Find an item with 9.0+ rarity score', xp: 750, progress: 0, total: 1, rarity: 'legendary' },
-  { id: '5', title: 'Estate Explorer', desc: 'Attend 3 estate sales this month', xp: 200, progress: 1, total: 3, rarity: 'common', timeLeft: '12d' },
-  { id: '6', title: 'Auction Ace', desc: 'Win 5 auctions below market value', xp: 400, progress: 4, total: 5, rarity: 'rare', timeLeft: '3d' },
+const EVT_LEVELS = [
+  { name: 'Rookie Hunter', minXp: 0, maxXp: 500 },
+  { name: 'Treasure Scout', minXp: 500, maxXp: 1500 },
+  { name: 'Elite Picker', minXp: 1500, maxXp: 4000 },
+  { name: 'Master Collector', minXp: 4000, maxXp: 8000 },
+  { name: 'Legendary Hunter', minXp: 8000, maxXp: 15000 },
 ];
+function getEvtLevel(xp: number) {
+  const level = EVT_LEVELS.find((l) => xp >= l.minXp && xp < l.maxXp) || EVT_LEVELS[EVT_LEVELS.length - 1];
+  const progress = Math.min(((xp - level.minXp) / (level.maxXp - level.minXp)) * 100, 100);
+  const xpToNext = Math.max(level.maxXp - xp, 0);
+  return { name: level.name, progress, xpToNext };
+}
 
 const squadMembers: SquadMember[] = [
   { name: 'luxury_time', role: 'Captain', avatar: 'MC', score: 2840 },
@@ -136,17 +143,17 @@ function EventsHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v:
           </button>
         </div>
 
-        {/* Active mission teaser */}
+        {/* Mission CTA */}
         <div style={st.missionTeaser}>
           <div style={st.missionTeaserLeft}>
             <Target size={14} style={{ color: 'var(--color-primary-600)' }} />
             <div>
-              <span style={st.missionTeaserTitle}>Active: Thrift Hunter</span>
-              <span style={st.missionTeaserProgress}>2/3 stores visited - 6h left</span>
+              <span style={st.missionTeaserTitle}>Hunt Missions</span>
+              <span style={st.missionTeaserProgress}>Complete missions to earn XP and badges</span>
             </div>
           </div>
           <div style={st.missionTeaserBar}>
-            <div style={{ ...st.missionTeaserBarFill, width: '66%' }} />
+            <div style={{ ...st.missionTeaserBarFill, width: '0%' }} />
           </div>
         </div>
 
@@ -299,48 +306,72 @@ function EventDetail({ onBack }: { onBack: () => void }) {
 }
 
 function MissionsPage({ onBack }: { onBack: () => void }) {
-  const rarityColors = { common: 'var(--color-neutral-500)', rare: 'var(--color-primary-500)', epic: 'var(--color-secondary-500)', legendary: 'var(--color-warning-500)' };
-  const rarityBg = { common: 'var(--color-neutral-50)', rare: 'var(--color-primary-50)', epic: 'var(--color-secondary-50)', legendary: 'var(--color-warning-50)' };
+  const { profile } = useAuth();
+  const [missions, setMissions] = useState<{ id: string; title: string; description: string; xp_reward: number; rarity: string; difficulty: string; ends_at: string | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from('hunt_missions')
+      .select('id, title, description, xp_reward, rarity, difficulty, ends_at')
+      .eq('status', 'active')
+      .order('ends_at', { ascending: true })
+      .then(({ data }) => {
+        if (data) setMissions(data);
+        setLoading(false);
+      });
+  }, []);
+
+  const rarityColors: Record<string, string> = { common: 'var(--color-neutral-500)', rare: 'var(--color-primary-500)', epic: 'var(--color-secondary-500)', legendary: 'var(--color-warning-500)' };
+  const rarityBg: Record<string, string> = { common: 'var(--color-neutral-50)', rare: 'var(--color-primary-50)', epic: 'var(--color-secondary-50)', legendary: 'var(--color-warning-50)' };
+
+  const xp = profile?.xp ?? 0;
+  const { name: levelName, progress: levelProgress, xpToNext } = getEvtLevel(xp);
 
   return (
     <div style={st.container}>
       <header style={st.header}>
         <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
         <span style={st.headerTitle}>Missions</span>
-        <div style={st.xpBadge}><Zap size={10} style={{ color: 'var(--color-primary-700)' }} /><span style={st.xpText}>2,450 XP</span></div>
+        <div style={st.xpBadge}><Zap size={10} style={{ color: 'var(--color-primary-700)' }} /><span style={st.xpText}>{xp.toLocaleString()} XP</span></div>
       </header>
 
       <div style={st.scrollContent}>
         {/* Level progress */}
         <div style={st.levelCard}>
           <div style={st.levelRow}>
-            <span style={st.levelLabel}>Level 12</span>
-            <span style={st.levelNext}>550 XP to Level 13</span>
+            <span style={st.levelLabel}>{levelName}</span>
+            <span style={st.levelNext}>{xpToNext > 0 ? `${xpToNext.toLocaleString()} XP to next level` : 'Max level reached'}</span>
           </div>
-          <div style={st.levelBar}><div style={{ ...st.levelBarFill, width: '72%' }} /></div>
+          <div style={st.levelBar}><div style={{ ...st.levelBarFill, width: `${levelProgress}%` }} /></div>
         </div>
 
         {/* Active missions */}
         <div style={st.section}>
           <h3 style={st.sectionTitle}>Active Missions</h3>
+          {loading && (
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-400)', textAlign: 'center', padding: '24px 0' }}>Loading missions…</p>
+          )}
+          {!loading && missions.length === 0 && (
+            <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+              <Target size={32} style={{ color: 'var(--color-neutral-200)', marginBottom: '8px' }} />
+              <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-500)', marginBottom: '4px' }}>No active missions</p>
+              <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-400)' }}>Check back soon — new missions are added regularly.</p>
+            </div>
+          )}
           {missions.map((m) => (
-            <div key={m.id} style={{ ...st.missionCard, borderLeftColor: rarityColors[m.rarity] }}>
+            <div key={m.id} style={{ ...st.missionCard, borderLeftColor: rarityColors[m.rarity] || 'var(--color-neutral-300)' }}>
               <div style={st.missionHeader}>
                 <div>
                   <span style={st.missionTitle}>{m.title}</span>
-                  <span style={st.missionDesc}>{m.desc}</span>
+                  <span style={st.missionDesc}>{m.description}</span>
                 </div>
-                <span style={{ ...st.missionRarity, color: rarityColors[m.rarity], backgroundColor: rarityBg[m.rarity] }}>{m.rarity}</span>
-              </div>
-              <div style={st.missionProgressRow}>
-                <div style={st.missionProgressBar}>
-                  <div style={{ ...st.missionProgressFill, width: `${(m.progress / m.total) * 100}%`, backgroundColor: rarityColors[m.rarity] }} />
-                </div>
-                <span style={st.missionProgressText}>{m.progress}/{m.total}</span>
+                <span style={{ ...st.missionRarity, color: rarityColors[m.rarity] || 'var(--color-neutral-500)', backgroundColor: rarityBg[m.rarity] || 'var(--color-neutral-50)' }}>{m.rarity}</span>
               </div>
               <div style={st.missionFooter}>
-                <span style={st.missionXp}><Zap size={10} /> {m.xp} XP</span>
-                {m.timeLeft && <span style={st.missionTime}><Clock size={10} /> {m.timeLeft}</span>}
+                <span style={st.missionXp}><Zap size={10} /> {m.xp_reward} XP</span>
+                {m.ends_at && <span style={st.missionTime}><Clock size={10} /> Ends {new Date(m.ends_at).toLocaleDateString()}</span>}
+                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>{m.difficulty}</span>
               </div>
             </div>
           ))}

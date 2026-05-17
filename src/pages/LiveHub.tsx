@@ -169,7 +169,22 @@ function MainHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v: H
   );
 }
 
+const HUB_LEVELS = [
+  { name: 'Rookie Hunter', minXp: 0, maxXp: 500 },
+  { name: 'Treasure Scout', minXp: 500, maxXp: 1500 },
+  { name: 'Elite Picker', minXp: 1500, maxXp: 4000 },
+  { name: 'Master Collector', minXp: 4000, maxXp: 8000 },
+  { name: 'Legendary Hunter', minXp: 8000, maxXp: 15000 },
+];
+function getHubLevel(xp: number) {
+  const level = HUB_LEVELS.find((l) => xp >= l.minXp && xp < l.maxXp) || HUB_LEVELS[HUB_LEVELS.length - 1];
+  const progress = Math.min(((xp - level.minXp) / (level.maxXp - level.minXp)) * 100, 100);
+  const xpToNext = Math.max(level.maxXp - xp, 0);
+  return { name: level.name, progress, xpToNext };
+}
+
 function MissionsView({ onBack }: { onBack: () => void }) {
+  const { profile } = useAuth();
   const [missions, setMissions] = useState<Mission[]>([]);
   const [filter, setFilter] = useState('all');
 
@@ -181,6 +196,8 @@ function MissionsView({ onBack }: { onBack: () => void }) {
 
   const filtered = filter === 'all' ? missions : missions.filter((m) => m.type === filter);
   const filters = ['all', 'daily', 'weekly', 'seasonal', 'limited', 'team'];
+  const xp = profile?.xp ?? 0;
+  const { name: levelName, progress: levelProgress, xpToNext } = getHubLevel(xp);
 
   return (
     <div style={st.container}>
@@ -195,9 +212,9 @@ function MissionsView({ onBack }: { onBack: () => void }) {
         <div style={st.levelBanner}>
           <TreasureChestLogo size={28} glow />
           <div style={st.levelInfo}>
-            <span style={st.levelTitle}>Level 12 Hunter</span>
-            <div style={st.levelBar}><div style={{ ...st.levelFill, width: '72%' }} /></div>
-            <span style={st.levelSub}>550 XP to Level 13</span>
+            <span style={st.levelTitle}>{levelName}</span>
+            <div style={st.levelBar}><div style={{ ...st.levelFill, width: `${levelProgress}%` }} /></div>
+            <span style={st.levelSub}>{xpToNext > 0 ? `${xpToNext.toLocaleString()} XP to next level` : 'Max level reached'}</span>
           </div>
         </div>
 
@@ -260,32 +277,6 @@ function EventsView({ onBack }: { onBack: () => void }) {
 function LeaderboardsView({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<'collectors' | 'scouts' | 'flippers'>('collectors');
 
-  const collectors = [
-    { rank: 1, name: 'luxury_time', score: '42,800 XP', badge: 'Elite', region: 'Brooklyn' },
-    { rank: 2, name: 'thrift_queen', score: '38,200 XP', badge: 'Elite', region: 'Austin' },
-    { rank: 3, name: 'rare_books', score: '35,100 XP', badge: 'Pro', region: 'NYC' },
-    { rank: 4, name: 'storage_king', score: '31,400 XP', badge: 'Pro', region: 'Denver' },
-    { rank: 5, name: 'sneaker_scout', score: '28,900 XP', badge: 'Pro', region: 'Brooklyn' },
-    { rank: 6, name: 'estate_maven', score: '24,100 XP', badge: 'Hunter', region: 'Chicago' },
-    { rank: 7, name: 'vintage_eye', score: '21,800 XP', badge: 'Hunter', region: 'Portland' },
-  ];
-
-  const scouts = [
-    { rank: 1, name: 'vintage_eye', score: '23 pickups', badge: 'Scout', region: 'Portland' },
-    { rank: 2, name: 'dallas_picker', score: '19 pickups', badge: 'Scout', region: 'Dallas' },
-    { rank: 3, name: 'chi_scout', score: '15 pickups', badge: 'Scout', region: 'Chicago' },
-    { rank: 4, name: 'barn_find_bill', score: '12 pickups', badge: 'Scout', region: 'Nashville' },
-  ];
-
-  const flippers = [
-    { rank: 1, name: 'thrift_queen', score: '$18,400', badge: 'Elite', region: 'Austin' },
-    { rank: 2, name: 'storage_king', score: '$12,800', badge: 'Pro', region: 'Denver' },
-    { rank: 3, name: 'luxury_time', score: '$9,200', badge: 'Elite', region: 'Brooklyn' },
-    { rank: 4, name: 'mcm_finds', score: '$7,100', badge: 'Pro', region: 'LA' },
-  ];
-
-  const data = tab === 'collectors' ? collectors : tab === 'scouts' ? scouts : flippers;
-
   return (
     <div style={st.container}>
       <header style={st.header}>
@@ -304,17 +295,15 @@ function LeaderboardsView({ onBack }: { onBack: () => void }) {
         </div>
 
         <div style={st.lbList}>
-          {data.map((e) => (
-            <div key={`${tab}-${e.rank}`} style={st.lbRow}>
-              <span style={{ ...st.lbRank, color: e.rank === 1 ? 'var(--color-primary-500)' : e.rank === 2 ? 'var(--color-neutral-500)' : e.rank === 3 ? 'var(--color-accent-600)' : 'var(--color-neutral-400)' }}>#{e.rank}</span>
-              <div style={st.lbAvatar}><span style={st.lbAvatarText}>{e.name[0].toUpperCase()}</span></div>
-              <div style={st.lbInfo}>
-                <span style={st.lbName}>@{e.name}</span>
-                <span style={st.lbMeta}>{e.badge} - {e.region}</span>
-              </div>
-              <span style={st.lbScore}>{e.score}</span>
-            </div>
-          ))}
+          <div style={{ padding: '40px 16px', textAlign: 'center' }}>
+            <Trophy size={36} style={{ color: 'var(--color-neutral-200)', marginBottom: '12px' }} />
+            <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-500)', marginBottom: '4px' }}>
+              No rankings yet
+            </p>
+            <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-400)' }}>
+              Complete missions and activities to appear on the leaderboard.
+            </p>
+          </div>
         </div>
       </div>
     </div>

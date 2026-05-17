@@ -128,7 +128,7 @@ function TreasureRankHero() {
       <div style={styles.heroTop}>
         <div style={styles.rankCircle}>
           <Crown size={24} style={{ color: 'var(--color-primary-500)' }} />
-          <span style={styles.rankNumber}>5</span>
+          <span style={styles.rankNumber}>1</span>
         </div>
         <div style={styles.heroInfo}>
           <span style={styles.heroLevel}>{CURRENT_LEVEL.name}</span>
@@ -174,11 +174,11 @@ function TreasureRankHero() {
 
       {/* Streak bar */}
       <div style={styles.streakRow}>
-        <Flame size={14} style={{ color: 'var(--color-accent-500)' }} />
+        <Flame size={14} style={{ color: 'var(--color-neutral-400)' }} />
         <span style={styles.streakText}>No streak yet — start hunting!</span>
         <div style={styles.streakDots}>
           {[...Array(7)].map((_, i) => (
-            <div key={i} style={{ ...styles.streakDot, backgroundColor: i < 5 ? 'var(--color-accent-500)' : 'var(--color-neutral-200)' }} />
+            <div key={i} style={{ ...styles.streakDot, backgroundColor: 'var(--color-neutral-200)' }} />
           ))}
         </div>
       </div>
