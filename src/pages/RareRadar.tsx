@@ -92,9 +92,20 @@ function FeedView({
   onCreateRequest: () => void;
   onViewMatches: () => void;
 }) {
-  const filteredItems = selectedCategory
-    ? feedItems.filter((i) => i.category === selectedCategory)
-    : feedItems;
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredItems = feedItems.filter((i) => {
+    const matchesCategory = selectedCategory ? i.category === selectedCategory : true;
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = q
+      ? i.title.toLowerCase().includes(q) ||
+        i.category.toLowerCase().includes(q) ||
+        (i.notes && i.notes.toLowerCase().includes(q))
+      : true;
+    return matchesCategory && matchesSearch;
+  });
+
+  const hasActiveSearch = searchQuery.trim().length > 0 || selectedCategory !== null;
 
   return (
     <div style={styles.container}>
@@ -110,13 +121,26 @@ function FeedView({
           </button>
         </div>
         <div style={styles.searchBar}>
-          <Search size={18} style={{ color: 'var(--color-neutral-400)' }} />
+          <Search size={18} style={{ color: searchQuery ? 'var(--color-primary-500)' : 'var(--color-neutral-400)' }} />
           <input
             type="text"
             placeholder="Search wanted items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={styles.searchInput}
-            readOnly
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
           />
+          {searchQuery.length > 0 && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={styles.clearBtn}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
           <button style={styles.filterIcon}>
             <Filter size={16} style={{ color: 'var(--color-neutral-500)' }} />
           </button>
@@ -157,6 +181,33 @@ function FeedView({
           <h3 style={styles.sectionTitle}>Active Hunts</h3>
           <span style={styles.count}>{filteredItems.length} requests</span>
         </div>
+
+        {feedItems.length === 0 && !hasActiveSearch && (
+          <div style={styles.emptyState}>
+            <Search size={32} style={{ color: 'var(--color-neutral-300)', marginBottom: 12 }} />
+            <p style={styles.emptyTitle}>No active hunts yet</p>
+            <p style={styles.emptySub}>Be the first — post what you're looking for and scouts will find it for you.</p>
+          </div>
+        )}
+
+        {feedItems.length > 0 && filteredItems.length === 0 && hasActiveSearch && (
+          <div style={styles.emptyState}>
+            <Search size={32} style={{ color: 'var(--color-neutral-300)', marginBottom: 12 }} />
+            <p style={styles.emptyTitle}>No results found</p>
+            <p style={styles.emptySub}>
+              {searchQuery ? `No hunts match "${searchQuery}"` : 'No hunts in this category yet.'}
+              {' '}Try a different search or clear the filter.
+            </p>
+            {hasActiveSearch && (
+              <button
+                onClick={() => { setSearchQuery(''); setSelectedCategory(null); }}
+                style={styles.clearFilterBtn}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
 
         <div style={styles.feedList}>
           {filteredItems.map((item, index) => (
@@ -592,6 +643,51 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  clearBtn: {
+    width: '20px',
+    height: '20px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-300)',
+    color: 'var(--color-neutral-0)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    lineHeight: 1,
+    flexShrink: 0,
+    cursor: 'pointer',
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 'var(--space-10) var(--space-4)',
+    textAlign: 'center',
+  },
+  emptyTitle: {
+    fontSize: 'var(--font-size-base)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-700)',
+    marginBottom: 'var(--space-2)',
+  },
+  emptySub: {
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-500)',
+    maxWidth: '280px',
+    lineHeight: 'var(--line-height-normal)',
+  },
+  clearFilterBtn: {
+    marginTop: 'var(--space-4)',
+    padding: 'var(--space-2) var(--space-4)',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-100)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-medium)',
+    color: 'var(--color-neutral-700)',
+    cursor: 'pointer',
+    border: '1px solid var(--color-neutral-200)',
   },
   content: {
     flex: 1,
