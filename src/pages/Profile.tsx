@@ -1,35 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Star, Camera, Heart, Upload, Award, ChevronRight, LogOut, MapPin, Shield, Clock, Package, Truck, MessageCircle, Zap, User, CircleCheck as CheckCircle, Eye, Trophy, X, Save } from 'lucide-react';
+import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, Truck, Zap, User, CircleCheck as CheckCircle, Trophy, X, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity' | 'scouts';
 
-interface SavedItem {
-  id: string;
-  image: string;
-  title: string;
-  price: string;
-}
-
-interface ActivityItem {
-  id: string;
-  type: 'find' | 'scout' | 'auction' | 'match' | 'review';
-  title: string;
-  timestamp: string;
-  detail: string;
-}
-
-interface ScoutProfile {
-  id: string;
-  username: string;
-  rating: number;
-  region: string;
-  specialties: string[];
-  completedJobs: number;
-  verified: boolean;
-}
 
 const verificationBadges = [
   { label: 'Verified Scout', icon: Shield, earned: false },
@@ -302,45 +278,6 @@ function ScoutsTab() {
   );
 }
 
-function ScoutCard({ scout, delay }: { scout: ScoutProfile; delay: number }) {
-  return (
-    <div style={{ ...styles.scoutCard, animationDelay: `${delay}ms` }}>
-      <div style={styles.scoutCardTop}>
-        <div style={styles.scoutAvatar}>
-          <User size={20} style={{ color: 'var(--color-neutral-400)' }} />
-        </div>
-        <div style={styles.scoutInfo}>
-          <div style={styles.scoutNameRow}>
-            <span style={styles.scoutUsername}>@{scout.username}</span>
-            {scout.verified && (
-              <Shield size={12} style={{ color: 'var(--color-primary-500)' }} />
-            )}
-          </div>
-          <div style={styles.scoutMetaRow}>
-            <span style={styles.scoutRating}>
-              <Star size={10} style={{ color: 'var(--color-primary-500)', fill: 'var(--color-primary-500)' }} />
-              {scout.rating}
-            </span>
-            <span style={styles.scoutRegion}>
-              <MapPin size={10} /> {scout.region}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div style={styles.scoutSpecialties}>
-        {scout.specialties.map((spec) => (
-          <span key={spec} style={styles.scoutSpecTag}>{spec}</span>
-        ))}
-      </div>
-
-      <div style={styles.scoutCardFooter}>
-        <span style={styles.scoutJobs}>{scout.completedJobs} jobs completed</span>
-        <button style={styles.requestBtn}>Request Help</button>
-      </div>
-    </div>
-  );
-}
 
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { profile, updateProfile } = useAuth();

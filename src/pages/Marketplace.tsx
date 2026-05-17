@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  ArrowLeft, Search, Star, Shield, TrendingUp, Eye, MapPin,
+  ArrowLeft, Search, Star, Shield, TrendingUp, MapPin,
   Heart, Zap, ChevronRight, Package, Truck, Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
