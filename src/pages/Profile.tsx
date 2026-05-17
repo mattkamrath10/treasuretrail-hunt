@@ -82,6 +82,9 @@ export default function Profile() {
           <button onClick={() => navigate('/safety')} style={styles.iconBtn}>
             <Shield size={18} style={{ color: 'var(--color-secondary-500)' }} />
           </button>
+          <button onClick={signOut} style={styles.iconBtn} aria-label="Sign out">
+            <LogOut size={18} style={{ color: 'var(--color-neutral-600)' }} />
+          </button>
           <button onClick={() => setShowSettings(true)} style={styles.iconBtn}>
             <Settings size={20} style={{ color: 'var(--color-neutral-600)' }} />
           </button>
@@ -404,7 +407,7 @@ function ScoutsTab() {
 
 
 function SettingsModal({ onClose }: { onClose: () => void }) {
-  const { profile, updateProfile, signOut } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const [username, setUsername] = useState(profile?.username || '');
   const [bio, setBio] = useState(profile?.bio || '');
   const [saving, setSaving] = useState(false);
@@ -468,15 +471,6 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
             </span>
           </button>
 
-          <div style={settingsStyles.divider} />
-
-          <button
-            onClick={() => { onClose(); signOut(); }}
-            style={settingsStyles.signOutBtn}
-          >
-            <LogOut size={16} style={{ color: 'var(--color-error-500)' }} />
-            <span style={settingsStyles.signOutText}>Sign Out</span>
-          </button>
         </div>
       </div>
     </div>
@@ -567,28 +561,6 @@ const settingsStyles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-0)',
-  },
-  divider: {
-    height: '1px',
-    backgroundColor: 'var(--color-neutral-100)',
-    margin: 'var(--space-1) 0',
-  },
-  signOutBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-3)',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--color-error-50)',
-    border: '1px solid var(--color-error-100)',
-    cursor: 'pointer',
-    width: '100%',
-  },
-  signOutText: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-error-600)',
   },
 };
 
