@@ -12,6 +12,7 @@ export default function Home() {
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('All');
 
   useEffect(() => {
     fetchCommunityPosts()
@@ -19,6 +20,10 @@ export default function Home() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const filteredPosts = activeCategory === 'All'
+    ? posts
+    : posts.filter((p) => (p.category ?? '').toLowerCase() === activeCategory.toLowerCase());
 
   return (
     <div style={styles.container}>
@@ -54,12 +59,13 @@ export default function Home() {
       </header>
 
       <div style={styles.categories}>
-        {categories.map((cat, i) => (
+        {categories.map((cat) => (
           <button
             key={cat}
+            onClick={() => setActiveCategory(cat)}
             style={{
               ...styles.categoryChip,
-              ...(i === 0 ? styles.categoryChipActive : {}),
+              ...(cat === activeCategory ? styles.categoryChipActive : {}),
             }}
           >
             {cat}
@@ -84,7 +90,17 @@ export default function Home() {
           </div>
         )}
 
-        {posts.map((post, index) => (
+        {!loading && posts.length > 0 && filteredPosts.length === 0 && (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyTitle}>No {activeCategory} finds yet</p>
+            <p style={styles.emptyText}>Be the first to share a {activeCategory.toLowerCase()} treasure!</p>
+            <button onClick={() => navigate('/community')} style={styles.emptyBtn}>
+              Share a Find
+            </button>
+          </div>
+        )}
+
+        {filteredPosts.map((post, index) => (
           <article
             key={post.id}
             style={{
