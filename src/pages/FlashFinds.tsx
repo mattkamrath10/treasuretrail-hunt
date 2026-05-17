@@ -11,7 +11,6 @@ const CATEGORIES = [
   'Art', 'Jewelry', 'Watches', 'Toys', 'Tools', 'Clothing', 'Other',
 ];
 
-const MOCK_PHOTO = 'https://images.pexels.com/photos/3945683/pexels-photo-3945683.jpeg?auto=compress&cs=tinysrgb&w=600';
 
 export default function FlashFinds() {
   const { isGuest } = useAuth();
@@ -189,7 +188,10 @@ function PhotoPreview({
       <div style={styles.photoContent}>
         {hasPhoto ? (
           <div style={styles.photoPreviewContainer}>
-            <img src={MOCK_PHOTO} alt="Captured item" style={styles.previewImage} />
+            <div style={styles.cameraPlaceholder}>
+              <Camera size={48} style={{ color: 'var(--color-neutral-400)' }} />
+              <p style={styles.placeholderText}>Photo captured</p>
+            </div>
             <div style={styles.photoOverlay}>
               <span style={styles.photoHint}>AI will analyze this image</span>
             </div>
@@ -239,7 +241,9 @@ function DetailsForm({
 
       <div style={styles.detailsContent}>
         <div style={styles.miniPreview}>
-          <img src={MOCK_PHOTO} alt="Item" style={styles.miniImage} />
+          <div style={{ ...styles.miniImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)' }}>
+            <Camera size={20} style={{ color: 'var(--color-neutral-400)' }} />
+          </div>
           <div style={styles.miniMeta}>
             <span style={styles.miniLabel}>Your find</span>
             <span style={styles.miniHint}>Add details below</span>
@@ -349,9 +353,11 @@ function Confirmation({
         </div>
 
         <div style={styles.postedCard}>
-          <img src={MOCK_PHOTO} alt="Posted item" style={styles.postedImage} />
+          <div style={{ ...styles.postedImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)' }}>
+            <Camera size={24} style={{ color: 'var(--color-neutral-400)' }} />
+          </div>
           <div style={styles.postedInfo}>
-            <h3 style={styles.postedTitle}>{form.title || 'Vintage Brass Desk Lamp'}</h3>
+            <h3 style={styles.postedTitle}>{form.title}</h3>
             <div style={styles.postedMeta}>
               <span style={styles.postedCategory}>
                 <Tag size={12} /> {form.category || 'Antiques'}
@@ -366,9 +372,6 @@ function Confirmation({
                   <MapPin size={12} /> {form.location}
                 </span>
               )}
-            </div>
-            <div style={styles.postedValueBadge}>
-              <span style={styles.valueBadgeText}>Est. Value: $85 - $150</span>
             </div>
           </div>
         </div>

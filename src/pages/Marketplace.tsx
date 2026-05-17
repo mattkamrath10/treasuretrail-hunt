@@ -802,20 +802,10 @@ function SellerDashboard({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        {/* Earnings chart mock */}
         <div style={s.detailSection}>
           <h3 style={s.detailSectionTitle}>Earnings (Last 30 Days)</h3>
-          <div style={s.chartMock}>
-            <div style={s.chartBars}>
-              {[35, 60, 45, 80, 55, 90, 70].map((h, i) => (
-                <div key={i} style={{ ...s.chartBar, height: `${h}%` }} />
-              ))}
-            </div>
-            <div style={s.chartLabels}>
-              {['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7'].map((w) => (
-                <span key={w} style={s.chartLabel}>{w}</span>
-              ))}
-            </div>
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '0.85rem' }}>
+            No sales yet. Earnings will appear here once you make your first sale.
           </div>
         </div>
       </div>

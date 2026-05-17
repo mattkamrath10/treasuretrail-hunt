@@ -31,95 +31,9 @@ interface RegionalScout {
   responseTime: string;
 }
 
-const auctionItems: AuctionItem[] = [
-  {
-    id: '1',
-    title: 'Mid-Century Danish Teak Credenza',
-    image: 'https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=400',
-    auctionHouse: 'Heritage Auctions',
-    location: 'Dallas, TX',
-    currentBid: '$380',
-    estimatedValue: '$800 - $1,200',
-    endsIn: '2h 14m',
-    scoutsInterested: 6,
-    scoutNeeded: true,
-    pickupOnly: true,
-    endingSoon: true,
-    highDemand: true,
-    category: 'Furniture',
-  },
-  {
-    id: '2',
-    title: 'Omega Seamaster 300 (1967)',
-    image: 'https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=400',
-    auctionHouse: 'Sotheby\'s Online',
-    location: 'New York, NY',
-    currentBid: '$4,200',
-    estimatedValue: '$5,500 - $7,000',
-    endsIn: '1d 6h',
-    scoutsInterested: 12,
-    scoutNeeded: false,
-    pickupOnly: false,
-    endingSoon: false,
-    highDemand: true,
-    category: 'Watches',
-  },
-  {
-    id: '3',
-    title: 'Storage Unit Lot #47 - Mixed Antiques',
-    image: 'https://images.pexels.com/photos/5825573/pexels-photo-5825573.jpeg?auto=compress&cs=tinysrgb&w=400',
-    auctionHouse: 'StorageTreasures',
-    location: 'Phoenix, AZ',
-    currentBid: '$220',
-    estimatedValue: '$500 - $2,000+',
-    endsIn: '4h 30m',
-    scoutsInterested: 3,
-    scoutNeeded: true,
-    pickupOnly: true,
-    endingSoon: true,
-    highDemand: false,
-    category: 'Collectibles',
-  },
-  {
-    id: '4',
-    title: 'Complete Eames Shell Chair Set (6)',
-    image: 'https://images.pexels.com/photos/1866149/pexels-photo-1866149.jpeg?auto=compress&cs=tinysrgb&w=400',
-    auctionHouse: 'Wright Auction',
-    location: 'Chicago, IL',
-    currentBid: '$1,800',
-    estimatedValue: '$3,000 - $4,500',
-    endsIn: '3d 2h',
-    scoutsInterested: 9,
-    scoutNeeded: true,
-    pickupOnly: true,
-    endingSoon: false,
-    highDemand: true,
-    category: 'Furniture',
-  },
-  {
-    id: '5',
-    title: 'First Edition Hemingway Collection',
-    image: 'https://images.pexels.com/photos/1038000/pexels-photo-1038000.jpeg?auto=compress&cs=tinysrgb&w=400',
-    auctionHouse: 'Christie\'s',
-    location: 'London, UK',
-    currentBid: '$6,500',
-    estimatedValue: '$8,000 - $12,000',
-    endsIn: '5d 18h',
-    scoutsInterested: 15,
-    scoutNeeded: false,
-    pickupOnly: false,
-    endingSoon: false,
-    highDemand: true,
-    category: 'Books',
-  },
-];
+const auctionItems: AuctionItem[] = [];
 
-const regionalScouts: RegionalScout[] = [
-  { id: '1', username: 'dallas_picker', rating: 4.9, region: 'Dallas-Fort Worth, TX', specialties: ['Furniture', 'Antiques'], completedJobs: 64, available: true, responseTime: '< 30 min' },
-  { id: '2', username: 'phx_treasure', rating: 4.7, region: 'Phoenix Metro, AZ', specialties: ['Storage Units', 'Estate Sales'], completedJobs: 41, available: true, responseTime: '< 1 hour' },
-  { id: '3', username: 'chi_town_scout', rating: 4.8, region: 'Chicago, IL', specialties: ['Furniture', 'Art'], completedJobs: 92, available: false, responseTime: '< 2 hours' },
-  { id: '4', username: 'nyc_finds', rating: 4.6, region: 'NYC Metro', specialties: ['Watches', 'Jewelry'], completedJobs: 55, available: true, responseTime: '< 45 min' },
-];
+const regionalScouts: RegionalScout[] = [];
 
 const CATEGORIES = ['All', 'Furniture', 'Watches', 'Collectibles', 'Books', 'Art', 'Electronics'];
 

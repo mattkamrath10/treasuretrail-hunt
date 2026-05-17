@@ -30,112 +30,11 @@ interface SearchRequest {
   urgency: 'low' | 'medium' | 'high';
 }
 
-const feedItems: SearchRequest[] = [
-  {
-    id: '1',
-    title: 'Eames Lounge Chair (Original)',
-    category: 'Furniture',
-    condition: 'Good',
-    budgetMin: '2000',
-    budgetMax: '4000',
-    notes: 'Looking for authentic Herman Miller with rosewood shell. No reproductions.',
-    username: 'vintage_hunter',
-    timePosted: '2h ago',
-    scouts: 14,
-    image: 'https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=300',
-    urgency: 'high',
-  },
-  {
-    id: '2',
-    title: 'Nintendo 64 Complete Set',
-    category: 'Electronics',
-    condition: 'Good',
-    budgetMin: '150',
-    budgetMax: '300',
-    notes: 'Need controllers, cables, and at least 5 games. GoldenEye preferred.',
-    username: 'retro_gamer',
-    timePosted: '5h ago',
-    scouts: 8,
-    image: 'https://images.pexels.com/photos/371924/pexels-photo-371924.jpeg?auto=compress&cs=tinysrgb&w=300',
-    urgency: 'medium',
-  },
-  {
-    id: '3',
-    title: 'Vintage Pyrex Mixing Bowls',
-    category: 'Collectibles',
-    condition: 'Mint',
-    budgetMin: '50',
-    budgetMax: '150',
-    notes: 'Primary colors set preferred. Will consider individual pieces.',
-    username: 'kitchen_collector',
-    timePosted: '1d ago',
-    scouts: 22,
-    image: 'https://images.pexels.com/photos/5825573/pexels-photo-5825573.jpeg?auto=compress&cs=tinysrgb&w=300',
-    urgency: 'low',
-  },
-  {
-    id: '4',
-    title: 'Rolex Submariner Pre-2010',
-    category: 'Watches',
-    condition: 'Good',
-    budgetMin: '6000',
-    budgetMax: '9000',
-    notes: 'Looking for no-date variant. Box and papers preferred but not required.',
-    username: 'watch_seeker',
-    timePosted: '3h ago',
-    scouts: 31,
-    image: 'https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=300',
-    urgency: 'high',
-  },
-  {
-    id: '5',
-    title: 'Air Jordan 1 Chicago (1985)',
-    category: 'Sneakers',
-    condition: 'Fair',
-    budgetMin: '800',
-    budgetMax: '2000',
-    notes: 'Wearable condition acceptable. Size 10-10.5 only.',
-    username: 'sole_hunter',
-    timePosted: '6h ago',
-    scouts: 19,
-    image: 'https://images.pexels.com/photos/1464625/pexels-photo-1464625.jpeg?auto=compress&cs=tinysrgb&w=300',
-    urgency: 'medium',
-  },
-];
+const feedItems: SearchRequest[] = [];
 
-const trendingSearches = [
-  { label: 'Mid-Century Furniture', count: 142 },
-  { label: 'Vintage Watches', count: 98 },
-  { label: 'Retro Gaming', count: 76 },
-  { label: 'First Edition Books', count: 54 },
-];
+const trendingSearches: { label: string; count: number }[] = [];
 
-const suggestedMatches = [
-  {
-    id: '1',
-    title: 'Herman Miller Eames Chair - Walnut',
-    price: '$3,200',
-    source: 'Estate Sale - Brooklyn',
-    matchScore: 94,
-    image: 'https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=200',
-  },
-  {
-    id: '2',
-    title: 'N64 Console + 8 Games Bundle',
-    price: '$220',
-    source: 'Garage Sale - Austin',
-    matchScore: 87,
-    image: 'https://images.pexels.com/photos/371924/pexels-photo-371924.jpeg?auto=compress&cs=tinysrgb&w=200',
-  },
-  {
-    id: '3',
-    title: 'Pyrex Primary Colors Set (Complete)',
-    price: '$95',
-    source: 'Thrift Store - Portland',
-    matchScore: 91,
-    image: 'https://images.pexels.com/photos/5825573/pexels-photo-5825573.jpeg?auto=compress&cs=tinysrgb&w=200',
-  },
-];
+const suggestedMatches: { id: string; title: string; price: string; source: string; matchScore: number; image: string }[] = [];
 
 const urgencyColors = {
   low: { bg: 'var(--color-secondary-50)', text: 'var(--color-secondary-700)' },

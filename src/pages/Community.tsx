@@ -30,90 +30,6 @@ interface FeedPost {
   saved?: boolean;
 }
 
-interface CollectorClub {
-  id: string;
-  name: string;
-  members: number;
-  icon: string;
-  color: string;
-  description: string;
-}
-
-interface StoryUser {
-  id: string;
-  name: string;
-  avatar: string;
-  hasNew: boolean;
-}
-
-const feedPosts: FeedPost[] = [
-  {
-    id: '1', user: { name: 'Marcus Chen', handle: 'luxury_time', rank: 'Elite', avatar: 'MC', verified: true },
-    type: 'find', image: 'https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=600',
-    caption: 'Found this 1968 Rolex Submariner at a local estate sale. The patina on this dial is absolutely incredible. Sometimes the best finds are the ones you least expect.',
-    tags: ['#vintage', '#rolex', '#estatefind'], location: 'Brooklyn, NY', scoutAssisted: true,
-    rarity: 9.4, estimatedValue: '$12,500', likes: 342, comments: 48, shares: 23, timeAgo: '2h', liked: true,
-  },
-  {
-    id: '2', user: { name: 'Sarah Kim', handle: 'thrift_queen', rank: 'Pro', avatar: 'SK', verified: true },
-    type: 'flip', image: 'https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=600',
-    caption: 'Bought this Eames chair for $200 at a garage sale, sold for $4,200 on marketplace. 2,000% return! The leather was in perfect condition under the slipcover.',
-    tags: ['#flip', '#eames', '#profit'], location: 'Austin, TX',
-    estimatedValue: '$4,200', likes: 891, comments: 126, shares: 67, timeAgo: '5h',
-  },
-  {
-    id: '3', user: { name: 'Jake Morrison', handle: 'storage_king', rank: 'Hunter', avatar: 'JM', verified: false },
-    type: 'auction_win', image: 'https://images.pexels.com/photos/3945683/pexels-photo-3945683.jpeg?auto=compress&cs=tinysrgb&w=600',
-    caption: 'Won this storage unit for $475 - just found a box of vintage brass lamps worth $2,000+. Still digging through the rest!',
-    tags: ['#storageauction', '#jackpot', '#brass'], location: 'Denver, CO',
-    estimatedValue: '$2,000+', likes: 567, comments: 89, shares: 34, timeAgo: '8h',
-  },
-  {
-    id: '4', user: { name: 'Elena Vasquez', handle: 'rare_books_nyc', rank: 'Elite', avatar: 'EV', verified: true },
-    type: 'collection', image: 'https://images.pexels.com/photos/1038000/pexels-photo-1038000.jpeg?auto=compress&cs=tinysrgb&w=600',
-    caption: 'My first edition collection is finally complete. 15 years of hunting, 47 rare books. This Hemingway is the crown jewel.',
-    tags: ['#collection', '#firstEdition', '#hemingway'],
-    rarity: 9.1, estimatedValue: '$28,000', likes: 1243, comments: 201, shares: 89, timeAgo: '1d', saved: true,
-  },
-  {
-    id: '5', user: { name: 'Derrick Hall', handle: 'sneaker_scout', rank: 'Pro', avatar: 'DH', verified: true },
-    type: 'scout_story', image: 'https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=600',
-    caption: 'Scouted 3 pairs of deadstock Jordan 1s at a thrift in Bushwick. Client tipped $200 on top of the fee. Love this community.',
-    tags: ['#scoutstory', '#jordan1', '#deadstock'], location: 'Brooklyn, NY', scoutAssisted: true,
-    estimatedValue: '$3,600', likes: 723, comments: 94, shares: 41, timeAgo: '1d',
-  },
-];
-
-const storyUsers: StoryUser[] = [
-  { id: '1', name: 'Your Story', avatar: '+', hasNew: false },
-  { id: '2', name: 'luxury_time', avatar: 'MC', hasNew: true },
-  { id: '3', name: 'thrift_queen', avatar: 'SK', hasNew: true },
-  { id: '4', name: 'storage_king', avatar: 'JM', hasNew: true },
-  { id: '5', name: 'rare_books', avatar: 'EV', hasNew: true },
-  { id: '6', name: 'sneaker_sc', avatar: 'DH', hasNew: false },
-  { id: '7', name: 'vintage_eye', avatar: 'VE', hasNew: true },
-];
-
-const clubs: CollectorClub[] = [
-  { id: '1', name: 'Watch Collectors', members: 2341, icon: 'WC', color: 'var(--color-primary-500)', description: 'Luxury timepiece enthusiasts' },
-  { id: '2', name: 'Antique Hunters', members: 1892, icon: 'AH', color: 'var(--color-secondary-500)', description: 'Estate sales and antique finds' },
-  { id: '3', name: 'Storage Warriors', members: 1456, icon: 'SW', color: 'var(--color-accent-500)', description: 'Storage auction teams' },
-  { id: '4', name: 'Sneaker Scouts', members: 3210, icon: 'SS', color: 'var(--color-error-500)', description: 'Deadstock and rare kicks' },
-  { id: '5', name: 'Luxury Flips', members: 987, icon: 'LF', color: 'var(--color-warning-600)', description: 'High-value flip strategies' },
-  { id: '6', name: 'Estate Experts', members: 1123, icon: 'EE', color: 'var(--color-success-600)', description: 'Estate sale coordination' },
-];
-
-const trendingFinds = [
-  { title: 'Find of the Day', item: 'Cartier Tank Francaise', value: '$8,200', user: '@luxury_time' },
-  { title: 'Weekly Spotlight', item: 'Nakamichi Dragon Cassette', value: '$4,500', user: '@analog_hunter' },
-  { title: 'Viral Find', item: '$15 Painting worth $42,000', value: '$42,000', user: '@thrift_queen' },
-];
-
-const suggestedCollectors = [
-  { name: 'vintage_eye', rank: 'Elite', followers: '12.4k', specialty: 'Mid-Century' },
-  { name: 'chi_picker', rank: 'Pro', followers: '8.2k', specialty: 'Watches' },
-  { name: 'estate_maven', rank: 'Elite', followers: '15.1k', specialty: 'Furniture' },
-];
 
 function getTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -140,14 +56,11 @@ function CommunityFeed({ onBack, onCreate, onDiscover, onClubs }: {
 }) {
   const { user } = useAuth();
   const { isGuest, requireAuth } = useGuestAction();
-  const [posts, setPosts] = useState(feedPosts);
   const [realPosts, setRealPosts] = useState<CommunityPost[]>([]);
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchCommunityPosts().then((data) => {
-      if (data.length > 0) setRealPosts(data);
-    }).catch(() => {});
+    fetchCommunityPosts().then(setRealPosts).catch(() => {});
     if (user) {
       fetchUserLikes(user.id).then(setUserLikes).catch(() => {});
     }
@@ -155,8 +68,7 @@ function CommunityFeed({ onBack, onCreate, onDiscover, onClubs }: {
 
   const toggleLike = (id: string) => {
     if (isGuest) { requireAuth(() => {}); return; }
-    const isReal = realPosts.some((p) => p.id === id);
-    if (isReal && user) {
+    if (user) {
       const liked = userLikes.has(id);
       togglePostLike(user.id, id, liked);
       setUserLikes((prev) => {
@@ -165,13 +77,7 @@ function CommunityFeed({ onBack, onCreate, onDiscover, onClubs }: {
         return next;
       });
       setRealPosts((prev) => prev.map((p) => p.id === id ? { ...p, like_count: liked ? p.like_count - 1 : p.like_count + 1 } : p));
-    } else {
-      setPosts((prev) => prev.map((p) => p.id === id ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p));
     }
-  };
-
-  const toggleSave = (id: string) => {
-    setPosts((prev) => prev.map((p) => p.id === id ? { ...p, saved: !p.saved } : p));
   };
 
   return (
@@ -186,22 +92,14 @@ function CommunityFeed({ onBack, onCreate, onDiscover, onClubs }: {
       </header>
 
       <div style={s.scrollContent}>
-        {/* Stories */}
+        {/* Stories row — Your Story only */}
         <div style={s.storiesRow}>
-          {storyUsers.map((u) => (
-            <button key={u.id} style={s.storyItem}>
-              <div style={{ ...s.storyAvatar, ...(u.hasNew ? s.storyAvatarNew : {}), ...(u.id === '1' ? s.storyAvatarAdd : {}) }}>
-                <span style={s.storyAvatarText}>{u.avatar}</span>
-              </div>
-              <span style={s.storyName}>{u.name}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Trending banner */}
-        <div style={s.trendingBanner}>
-          <TrendingUp size={14} style={{ color: 'var(--color-primary-600)' }} />
-          <span style={s.trendingText}><strong>Find of the Day:</strong> Cartier Tank found at $800 yard sale</span>
+          <button style={s.storyItem}>
+            <div style={{ ...s.storyAvatar, ...s.storyAvatarAdd }}>
+              <span style={s.storyAvatarText}>+</span>
+            </div>
+            <span style={s.storyName}>Your Story</span>
+          </button>
         </div>
 
         {/* Real posts from Supabase */}
@@ -236,10 +134,12 @@ function CommunityFeed({ onBack, onCreate, onDiscover, onClubs }: {
           />
         ))}
 
-        {/* Mock feed posts (fallback/demo content) */}
-        {posts.map((post) => (
-          <FeedCard key={post.id} post={post} onLike={() => toggleLike(post.id)} onSave={() => toggleSave(post.id)} />
-        ))}
+        {realPosts.length === 0 && (
+          <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--color-neutral-400)' }}>
+            <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: '4px' }}>No posts yet</p>
+            <p style={{ fontSize: 'var(--font-size-xs)' }}>Be the first to share a find with the community!</p>
+          </div>
+        )}
       </div>
 
       {/* Create FAB */}
@@ -338,7 +238,7 @@ function CreatePost({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const [postType, setPostType] = useState<string>('find');
   const [caption, setCaption] = useState('');
-  const [tags, setTags] = useState('#vintage #find');
+  const [tags, setTags] = useState('');
   const [posting, setPosting] = useState(false);
 
   const types = [
@@ -418,7 +318,7 @@ function CreatePost({ onBack }: { onBack: () => void }) {
           <label style={s.createLabel}>Location</label>
           <div style={s.createLocationRow}>
             <MapPin size={14} style={{ color: 'var(--color-neutral-400)' }} />
-            <input type="text" style={s.createLocationInput} placeholder="Add location" readOnly defaultValue="Brooklyn, NY" />
+            <input type="text" style={s.createLocationInput} placeholder="Add location" />
           </div>
         </div>
 
@@ -487,38 +387,20 @@ function DiscoverPage({ onBack, onClubs }: { onBack: () => void; onClubs: () => 
           </div>
         </div>
 
-        {/* Featured finds */}
+        {/* Weekly Highlights */}
         <div style={s.section}>
           <h3 style={s.sectionTitle}>Weekly Highlights</h3>
-          {trendingFinds.map((f) => (
-            <div key={f.title} style={s.highlightCard}>
-              <div style={s.highlightBadge}><Award size={14} style={{ color: 'var(--color-primary-600)' }} /></div>
-              <div style={s.highlightInfo}>
-                <span style={s.highlightTitle}>{f.title}</span>
-                <span style={s.highlightItem}>{f.item}</span>
-                <span style={s.highlightMeta}>{f.value} - {f.user}</span>
-              </div>
-              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)' }} />
-            </div>
-          ))}
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: 'var(--font-size-sm)' }}>
+            No highlights yet — post your finds to be featured here!
+          </div>
         </div>
 
         {/* Suggested collectors */}
         <div style={s.section}>
           <h3 style={s.sectionTitle}>Suggested Collectors</h3>
-          {suggestedCollectors.map((c) => (
-            <div key={c.name} style={s.suggestedRow}>
-              <div style={s.suggestedAvatar}><span style={s.suggestedAvatarText}>{c.name[0].toUpperCase()}</span></div>
-              <div style={s.suggestedInfo}>
-                <div style={s.suggestedNameRow}>
-                  <span style={s.suggestedName}>@{c.name}</span>
-                  <span style={s.suggestedRank}>{c.rank}</span>
-                </div>
-                <span style={s.suggestedMeta}>{c.followers} followers - {c.specialty}</span>
-              </div>
-              <button style={s.followBtn}><span style={s.followBtnText}>Follow</span></button>
-            </div>
-          ))}
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: 'var(--font-size-sm)' }}>
+            Discover collectors after more members join.
+          </div>
         </div>
 
         {/* Clubs link */}
@@ -530,21 +412,11 @@ function DiscoverPage({ onBack, onClubs }: { onBack: () => void; onClubs: () => 
           </button>
         </div>
 
-        {/* Viral rankings */}
+        {/* Top Flippers */}
         <div style={s.section}>
           <h3 style={s.sectionTitle}>Top Flippers This Week</h3>
-          <div style={s.leaderboard}>
-            {[
-              { rank: 1, name: 'thrift_queen', profit: '$18,400' },
-              { rank: 2, name: 'storage_king', profit: '$12,800' },
-              { rank: 3, name: 'luxury_time', profit: '$9,200' },
-            ].map((l) => (
-              <div key={l.rank} style={s.leaderRow}>
-                <span style={{ ...s.leaderRank, color: l.rank === 1 ? 'var(--color-primary-500)' : l.rank === 2 ? 'var(--color-neutral-500)' : 'var(--color-accent-600)' }}>#{l.rank}</span>
-                <span style={s.leaderName}>@{l.name}</span>
-                <span style={s.leaderProfit}>{l.profit}</span>
-              </div>
-            ))}
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: 'var(--font-size-sm)' }}>
+            Rankings will appear once members complete their first flips.
           </div>
         </div>
       </div>
@@ -564,19 +436,11 @@ function ClubsPage({ onBack }: { onBack: () => void }) {
       <div style={s.scrollContent}>
         <p style={s.clubsIntro}>Join communities of like-minded collectors and treasure hunters</p>
 
-        {clubs.map((club) => (
-          <div key={club.id} style={s.clubCard}>
-            <div style={{ ...s.clubIcon, backgroundColor: `color-mix(in srgb, ${club.color} 12%, transparent)` }}>
-              <span style={{ ...s.clubIconText, color: club.color }}>{club.icon}</span>
-            </div>
-            <div style={s.clubInfo}>
-              <span style={s.clubName}>{club.name}</span>
-              <span style={s.clubDesc}>{club.description}</span>
-              <span style={s.clubMembers}><Users size={10} /> {club.members.toLocaleString()} members</span>
-            </div>
-            <button style={s.joinBtn}><span style={s.joinBtnText}>Join</span></button>
-          </div>
-        ))}
+        <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--color-neutral-400)' }}>
+          <Users size={28} style={{ color: 'var(--color-neutral-200)', marginBottom: '8px' }} />
+          <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: '4px', color: 'var(--color-neutral-600)' }}>No clubs yet</p>
+          <p style={{ fontSize: 'var(--font-size-xs)' }}>Collector clubs will appear here once the community grows.</p>
+        </div>
 
         {/* Group features */}
         <div style={s.section}>

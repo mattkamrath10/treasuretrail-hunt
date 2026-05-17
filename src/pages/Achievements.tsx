@@ -38,53 +38,31 @@ interface Challenge {
   timeLeft?: string;
 }
 
-interface ShowcaseItem {
-  id: string;
-  image: string;
-  title: string;
-  value: string;
-  rarity: number;
-}
 
 const badges: Badge[] = [
-  { id: '1', label: 'First Find', description: 'Post your first discovery', icon: Zap, tier: 'bronze', earned: true, earnedDate: 'May 2026' },
-  { id: '2', label: '10 Successful Scouts', description: 'Complete 10 scout missions', icon: Users, tier: 'silver', earned: true, earnedDate: 'May 2026' },
-  { id: '3', label: 'Auction Winner', description: 'Win your first auction', icon: Trophy, tier: 'bronze', earned: true, earnedDate: 'May 2026' },
-  { id: '4', label: 'Rare Item Hunter', description: 'Find an item with 9+ rarity score', icon: Eye, tier: 'gold', earned: true, earnedDate: 'May 2026' },
-  { id: '5', label: 'Estate Sale Expert', description: 'Complete 25 estate sale finds', icon: MapPin, tier: 'silver', earned: true, progress: 25, maxProgress: 25, earnedDate: 'May 2026' },
-  { id: '6', label: 'Luxury Watch Specialist', description: 'Identify 5 luxury watches', icon: Clock, tier: 'gold', earned: false, progress: 3, maxProgress: 5 },
-  { id: '7', label: 'Trusted Scout', description: 'Maintain 4.8+ rating for 30 days', icon: Shield, tier: 'platinum', earned: true, earnedDate: 'May 2026' },
-  { id: '8', label: 'Fast Responder', description: 'Average response time under 15 min', icon: Clock, tier: 'silver', earned: true, earnedDate: 'May 2026' },
-  { id: '9', label: 'Top Flipper', description: 'Achieve $5,000+ in flip profits', icon: TrendingUp, tier: 'gold', earned: false, progress: 3800, maxProgress: 5000 },
-  { id: '10', label: 'Power Collector', description: 'Save 100 items to collection', icon: Star, tier: 'platinum', earned: false, progress: 72, maxProgress: 100 },
+  { id: '1', label: 'First Find', description: 'Post your first discovery', icon: Zap, tier: 'bronze', earned: false },
+  { id: '2', label: '10 Successful Scouts', description: 'Complete 10 scout missions', icon: Users, tier: 'silver', earned: false, progress: 0, maxProgress: 10 },
+  { id: '3', label: 'Auction Winner', description: 'Win your first auction', icon: Trophy, tier: 'bronze', earned: false },
+  { id: '4', label: 'Rare Item Hunter', description: 'Find an item with 9+ rarity score', icon: Eye, tier: 'gold', earned: false },
+  { id: '5', label: 'Estate Sale Expert', description: 'Complete 25 estate sale finds', icon: MapPin, tier: 'silver', earned: false, progress: 0, maxProgress: 25 },
+  { id: '6', label: 'Luxury Watch Specialist', description: 'Identify 5 luxury watches', icon: Clock, tier: 'gold', earned: false, progress: 0, maxProgress: 5 },
+  { id: '7', label: 'Trusted Scout', description: 'Maintain 4.8+ rating for 30 days', icon: Shield, tier: 'platinum', earned: false },
+  { id: '8', label: 'Fast Responder', description: 'Average response time under 15 min', icon: Clock, tier: 'silver', earned: false },
+  { id: '9', label: 'Top Flipper', description: 'Achieve $5,000+ in flip profits', icon: TrendingUp, tier: 'gold', earned: false, progress: 0, maxProgress: 5000 },
+  { id: '10', label: 'Power Collector', description: 'Save 100 items to collection', icon: Star, tier: 'platinum', earned: false, progress: 0, maxProgress: 100 },
 ];
 
-const leaderboardData: LeaderEntry[] = [
-  { rank: 1, username: 'vintage_eye', score: 9420, level: 'Legendary', badge: 'Platinum' },
-  { rank: 2, username: 'estate_pro', score: 8850, level: 'Master', badge: 'Gold' },
-  { rank: 3, username: 'chi_town_scout', score: 8200, level: 'Master', badge: 'Gold' },
-  { rank: 4, username: 'dallas_picker', score: 7640, level: 'Elite', badge: 'Silver' },
-  { rank: 5, username: 'treasure_hunter', score: 6890, level: 'Elite', badge: 'Silver', isYou: true },
-  { rank: 6, username: 'thrift_ninja', score: 6540, level: 'Elite', badge: 'Silver' },
-  { rank: 7, username: 'barn_find_bill', score: 5920, level: 'Scout', badge: 'Bronze' },
-  { rank: 8, username: 'nyc_finds', score: 5480, level: 'Scout', badge: 'Bronze' },
-];
+const leaderboardData: LeaderEntry[] = [];
 
 const challenges: Challenge[] = [
   { id: '1', title: 'Daily Discovery', description: 'Post 1 Flash Find today', xp: 50, progress: 0, total: 1, type: 'daily', timeLeft: '18h' },
-  { id: '2', title: 'Scout Streak', description: 'Complete 3 pickups this week', xp: 200, progress: 2, total: 3, type: 'weekly', timeLeft: '4d' },
-  { id: '3', title: 'Auction Hunter', description: 'Win 2 auctions this week', xp: 300, progress: 1, total: 2, type: 'weekly', timeLeft: '4d' },
-  { id: '4', title: 'Market Maven', description: 'Save 10 items from AI analysis', xp: 150, progress: 7, total: 10, type: 'weekly', timeLeft: '4d' },
-  { id: '5', title: 'Summer Treasure Hunt', description: 'Find 20 items at estate sales this season', xp: 1000, progress: 12, total: 20, type: 'seasonal', timeLeft: '62d' },
-  { id: '6', title: 'Rare Earth Collection', description: 'Discover 5 items with 8+ rarity', xp: 500, progress: 3, total: 5, type: 'seasonal', timeLeft: '62d' },
+  { id: '2', title: 'Scout Streak', description: 'Complete 3 pickups this week', xp: 200, progress: 0, total: 3, type: 'weekly', timeLeft: '4d' },
+  { id: '3', title: 'Auction Hunter', description: 'Win 2 auctions this week', xp: 300, progress: 0, total: 2, type: 'weekly', timeLeft: '4d' },
+  { id: '4', title: 'Market Maven', description: 'Save 10 items from AI analysis', xp: 150, progress: 0, total: 10, type: 'weekly', timeLeft: '4d' },
+  { id: '5', title: 'Summer Treasure Hunt', description: 'Find 20 items at estate sales this season', xp: 1000, progress: 0, total: 20, type: 'seasonal', timeLeft: '62d' },
+  { id: '6', title: 'Rare Earth Collection', description: 'Discover 5 items with 8+ rarity', xp: 500, progress: 0, total: 5, type: 'seasonal', timeLeft: '62d' },
 ];
 
-const showcaseItems: ShowcaseItem[] = [
-  { id: '1', image: 'https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Rolex Submariner 1680', value: '$12,500', rarity: 9.4 },
-  { id: '2', image: 'https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Eames Lounge Chair', value: '$4,200', rarity: 8.7 },
-  { id: '3', image: 'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg?auto=compress&cs=tinysrgb&w=300', title: 'Polaroid SX-70 Gold', value: '$850', rarity: 7.8 },
-  { id: '4', image: 'https://images.pexels.com/photos/1038000/pexels-photo-1038000.jpeg?auto=compress&cs=tinysrgb&w=300', title: '1st Ed. Hemingway Set', value: '$3,400', rarity: 9.1 },
-];
 
 const LEVELS = [
   { name: 'Rookie Hunter', minXp: 0, maxXp: 500 },
@@ -94,7 +72,7 @@ const LEVELS = [
   { name: 'Legendary Hunter', minXp: 8000, maxXp: 15000 },
 ];
 
-const CURRENT_XP = 6890;
+const CURRENT_XP = 0;
 const CURRENT_LEVEL = LEVELS.find((l) => CURRENT_XP >= l.minXp && CURRENT_XP < l.maxXp) || LEVELS[4];
 const LEVEL_PROGRESS = ((CURRENT_XP - CURRENT_LEVEL.minXp) / (CURRENT_LEVEL.maxXp - CURRENT_LEVEL.minXp)) * 100;
 
@@ -292,39 +270,13 @@ function LeaderboardTab() {
       </div>
 
       <div style={styles.leaderList}>
-        {leaderboardData.map((entry) => (
-          <div
-            key={entry.rank}
-            style={{
-              ...styles.leaderRow,
-              ...(entry.isYou ? styles.leaderRowYou : {}),
-            }}
-          >
-            <div style={styles.leaderRank}>
-              {entry.rank <= 3 ? (
-                <div style={{
-                  ...styles.medalCircle,
-                  backgroundColor: entry.rank === 1 ? 'var(--color-primary-500)' : entry.rank === 2 ? '#94a3b8' : '#b45309',
-                }}>
-                  <span style={styles.medalText}>{entry.rank}</span>
-                </div>
-              ) : (
-                <span style={styles.rankText}>{entry.rank}</span>
-              )}
-            </div>
-            <div style={styles.leaderInfo}>
-              <span style={styles.leaderName}>
-                @{entry.username}
-                {entry.isYou && <span style={styles.youBadge}>You</span>}
-              </span>
-              <span style={styles.leaderLevel}>{entry.level}</span>
-            </div>
-            <div style={styles.leaderScore}>
-              <span style={styles.leaderScoreNum}>{entry.score.toLocaleString()}</span>
-              <span style={styles.leaderScoreLabel}>TR</span>
-            </div>
+        {leaderboardData.length === 0 && (
+          <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-neutral-400)' }}>
+            <Trophy size={32} style={{ color: 'var(--color-neutral-200)', marginBottom: '8px' }} />
+            <p style={{ fontSize: 'var(--font-size-sm)' }}>No rankings yet.</p>
+            <p style={{ fontSize: 'var(--font-size-xs)', marginTop: '4px' }}>Complete activities to appear on the leaderboard.</p>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Reputation breakdown */}
@@ -338,12 +290,12 @@ function LeaderboardTab() {
 
 function ReputationBreakdown() {
   const metrics = [
-    { label: 'Completed Pickups', value: 18, max: 20, color: 'var(--color-success-500)' },
-    { label: 'Auction Assists', value: 15, max: 20, color: 'var(--color-primary-500)' },
-    { label: 'Communication', value: 4.9, max: 5, color: 'var(--color-secondary-500)' },
-    { label: 'Shipping Success', value: 96, max: 100, color: 'var(--color-accent-500)' },
-    { label: 'Response Speed', value: 92, max: 100, color: 'var(--color-warning-500)' },
-    { label: 'Cancellation Rate', value: 2, max: 100, color: 'var(--color-error-500)' },
+    { label: 'Completed Pickups', value: 0, max: 20, color: 'var(--color-success-500)' },
+    { label: 'Auction Assists', value: 0, max: 20, color: 'var(--color-primary-500)' },
+    { label: 'Communication', value: 0, max: 5, color: 'var(--color-secondary-500)' },
+    { label: 'Shipping Success', value: 0, max: 100, color: 'var(--color-accent-500)' },
+    { label: 'Response Speed', value: 0, max: 100, color: 'var(--color-warning-500)' },
+    { label: 'Cancellation Rate', value: 0, max: 100, color: 'var(--color-error-500)' },
   ];
 
   return (
@@ -369,10 +321,10 @@ function ReputationBreakdown() {
       ))}
 
       <div style={styles.trustTier}>
-        <Shield size={16} style={{ color: 'var(--color-secondary-500)' }} />
+        <Shield size={16} style={{ color: 'var(--color-neutral-400)' }} />
         <div style={styles.trustTierInfo}>
-          <span style={styles.trustTierLabel}>Trust Tier: Gold</span>
-          <span style={styles.trustTierDesc}>Verified, reliable, highly trusted</span>
+          <span style={styles.trustTierLabel}>Trust Tier: New</span>
+          <span style={styles.trustTierDesc}>Complete transactions to build your trust score</span>
         </div>
         <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)' }} />
       </div>
@@ -381,50 +333,31 @@ function ReputationBreakdown() {
 }
 
 function ShowcaseTab() {
-  const totalValue = '$21,950';
-  const rarestItem = showcaseItems[0];
-
   return (
     <>
       <div style={styles.showcaseStats}>
         <div style={styles.showcaseStat}>
-          <span style={styles.showcaseStatVal}>{totalValue}</span>
+          <span style={styles.showcaseStatVal}>$0</span>
           <span style={styles.showcaseStatLbl}>Total Value Discovered</span>
         </div>
         <div style={styles.showcaseStat}>
-          <span style={styles.showcaseStatVal}>{rarestItem.rarity}</span>
+          <span style={styles.showcaseStatVal}>—</span>
           <span style={styles.showcaseStatLbl}>Highest Rarity Score</span>
         </div>
       </div>
 
       <div style={styles.section}>
         <h3 style={styles.sectionTitle}>Top Finds Gallery</h3>
-        <div style={styles.galleryGrid}>
-          {showcaseItems.map((item) => (
-            <div key={item.id} style={styles.galleryCard}>
-              <div style={styles.galleryImageWrap}>
-                <img src={item.image} alt={item.title} style={styles.galleryImage} />
-                <span style={styles.galleryRarity}>{item.rarity}</span>
-              </div>
-              <span style={styles.galleryTitle}>{item.title}</span>
-              <span style={styles.galleryValue}>{item.value}</span>
-            </div>
-          ))}
+        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-neutral-400)' }}>
+          <p style={{ fontSize: 'var(--font-size-sm)' }}>No finds showcased yet.</p>
+          <p style={{ fontSize: 'var(--font-size-xs)', marginTop: '4px' }}>Post your first Flash Find to start building your gallery.</p>
         </div>
       </div>
 
       <div style={styles.section}>
         <h3 style={styles.sectionTitle}>Favorite Categories</h3>
-        <div style={styles.catsList}>
-          {['Watches', 'Furniture', 'Books', 'Electronics'].map((cat, i) => (
-            <div key={cat} style={styles.catRow}>
-              <span style={styles.catRank}>#{i + 1}</span>
-              <span style={styles.catName}>{cat}</span>
-              <div style={styles.catBarWrap}>
-                <div style={{ ...styles.catBarFill, width: `${90 - i * 18}%` }} />
-              </div>
-            </div>
-          ))}
+        <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: 'var(--font-size-sm)' }}>
+          Categories will appear after you post finds.
         </div>
       </div>
     </>
@@ -441,18 +374,16 @@ function ChallengesTab() {
       {/* Streak section */}
       <div style={styles.streakCard}>
         <div style={styles.streakCardTop}>
-          <Flame size={20} style={{ color: 'var(--color-accent-500)' }} />
+          <Flame size={20} style={{ color: 'var(--color-neutral-300)' }} />
           <div style={styles.streakCardInfo}>
-            <span style={styles.streakCardTitle}>12-Day Hunt Streak</span>
-            <span style={styles.streakCardSub}>Keep going for a bonus reward at 14 days!</span>
+            <span style={styles.streakCardTitle}>No active streak</span>
+            <span style={styles.streakCardSub}>Post a Flash Find today to start your streak!</span>
           </div>
         </div>
         <div style={styles.streakCalendar}>
           {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
             <div key={i} style={styles.streakDay}>
-              <div style={{ ...styles.streakDayCircle, backgroundColor: i < 5 ? 'var(--color-accent-500)' : 'var(--color-neutral-200)' }}>
-                {i < 5 && <Flame size={10} style={{ color: 'var(--color-neutral-0)' }} />}
-              </div>
+              <div style={{ ...styles.streakDayCircle, backgroundColor: 'var(--color-neutral-200)' }} />
               <span style={styles.streakDayLabel}>{d}</span>
             </div>
           ))}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, TrendingUp, ChartBar as BarChart3, Share2, Bookmark, Send, Eye, Zap, CircleCheck as CheckCircle, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { ArrowLeft, Sparkles, ChartBar as BarChart3, Share2, Bookmark, Send, Eye, Zap, CircleCheck as CheckCircle } from 'lucide-react';
 
 type AnalysisView = 'loading' | 'results';
 
@@ -8,8 +8,6 @@ interface AnalysisProps {
   onDone: () => void;
   onBack: () => void;
 }
-
-const MOCK_PHOTO = 'https://images.pexels.com/photos/3945683/pexels-photo-3945683.jpeg?auto=compress&cs=tinysrgb&w=600';
 
 const LOADING_STAGES = [
   { label: 'Identifying Item', duration: 800 },
@@ -20,37 +18,7 @@ const LOADING_STAGES = [
   { label: 'Calculating Rarity', duration: 700 },
 ];
 
-interface MarketplaceListing {
-  platform: string;
-  soldPrice: string;
-  activeRange: string;
-  trend: 'up' | 'down' | 'stable';
-  avgSellTime: string;
-  color: string;
-}
 
-const marketplaceData: MarketplaceListing[] = [
-  { platform: 'eBay', soldPrice: '$95 - $140', activeRange: '$80 - $165', trend: 'up', avgSellTime: '8 days', color: 'var(--color-primary-500)' },
-  { platform: 'Poshmark', soldPrice: '$75 - $110', activeRange: '$90 - $130', trend: 'stable', avgSellTime: '12 days', color: 'var(--color-secondary-500)' },
-  { platform: 'Whatnot', soldPrice: '$100 - $155', activeRange: '$85 - $150', trend: 'up', avgSellTime: '5 days', color: 'var(--color-accent-500)' },
-  { platform: 'Estate Auctions', soldPrice: '$60 - $90', activeRange: '$50 - $120', trend: 'up', avgSellTime: '1 day', color: 'var(--color-success-500)' },
-  { platform: 'FB Marketplace', soldPrice: '$50 - $85', activeRange: '$45 - $100', trend: 'down', avgSellTime: '14 days', color: 'var(--color-warning-500)' },
-];
-
-interface Recommendation {
-  label: string;
-  description: string;
-  color: string;
-  bgColor: string;
-  icon: typeof TrendingUp;
-}
-
-const recommendations: Recommendation[] = [
-  { label: 'High Flip Potential', description: 'Quick resale could net $60-$90 profit', color: 'var(--color-success-700)', bgColor: 'var(--color-success-50)', icon: Zap },
-  { label: 'Trending Up', description: 'Demand increased 25% in last 30 days', color: 'var(--color-primary-700)', bgColor: 'var(--color-primary-50)', icon: TrendingUp },
-  { label: 'Rare Collector Interest', description: 'Matches 4 active Rare Radar searches', color: 'var(--color-accent-700)', bgColor: 'var(--color-accent-50)', icon: Eye },
-  { label: 'Auction Opportunity', description: 'Whatnot auctions selling 20% above market', color: 'var(--color-secondary-700)', bgColor: 'var(--color-secondary-50)', icon: BarChart3 },
-];
 
 export default function AiAnalysis({ form, onDone, onBack }: AnalysisProps) {
   const [view, setView] = useState<AnalysisView>('loading');
@@ -97,7 +65,9 @@ function LoadingExperience({ onComplete }: { onComplete: () => void }) {
     <div style={styles.loadingContainer}>
       <div style={styles.loadingContent}>
         <div style={styles.loadingImageWrap}>
-          <img src={MOCK_PHOTO} alt="Analyzing" style={styles.loadingImage} />
+          <div style={{ ...styles.loadingImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-md)' }}>
+            <Sparkles size={48} style={{ color: 'var(--color-primary-400)' }} />
+          </div>
           <div style={styles.scanOverlay}>
             <div style={{ ...styles.scanLine, top: `${(progress % 100) * 0.9}%` }} />
           </div>
@@ -161,15 +131,7 @@ function LoadingExperience({ onComplete }: { onComplete: () => void }) {
 }
 
 function ResultsScreen({ form, onDone, onBack }: AnalysisProps) {
-  const purchasePrice = form.price ? parseFloat(form.price) : 35;
-  const resaleLow = 85;
-  const resaleHigh = 150;
-  const shippingEstimate = 12;
-  const feePercent = 13;
-  const feeLow = Math.round(resaleLow * feePercent / 100);
-  const feeHigh = Math.round(resaleHigh * feePercent / 100);
-  const profitLow = resaleLow - purchasePrice - shippingEstimate - feeLow;
-  const profitHigh = resaleHigh - purchasePrice - shippingEstimate - feeHigh;
+  const purchasePrice = form.price ? parseFloat(form.price) : null;
 
   return (
     <div style={styles.container}>
@@ -183,7 +145,9 @@ function ResultsScreen({ form, onDone, onBack }: AnalysisProps) {
 
       <div style={styles.resultsContent}>
         <div style={styles.resultHero}>
-          <img src={MOCK_PHOTO} alt="Item" style={styles.resultImage} />
+          <div style={{ ...styles.resultImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Sparkles size={48} style={{ color: 'var(--color-primary-300)' }} />
+          </div>
           <div style={styles.resultHeroOverlay}>
             <div style={styles.aiConfidence}>
               <Sparkles size={12} style={{ color: 'var(--color-primary-400)' }} />
@@ -194,42 +158,24 @@ function ResultsScreen({ form, onDone, onBack }: AnalysisProps) {
 
         <div style={styles.resultBody}>
           <h2 style={styles.resultTitle}>
-            {form.title || 'Mid-Century Brass Adjustable Desk Lamp'}
+            {form.title || 'Untitled Item'}
           </h2>
 
-          <div style={styles.resultTags}>
-            <span style={styles.resultTag}>{form.category || 'Antiques'}</span>
-            <span style={styles.resultTag}>1960s Era</span>
-            <span style={styles.resultTag}>Good Condition</span>
-          </div>
+          {form.category && (
+            <div style={styles.resultTags}>
+              <span style={styles.resultTag}>{form.category}</span>
+            </div>
+          )}
 
           {/* Core metrics */}
           <div style={styles.metricsGrid}>
             <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Est. Value</span>
-              <span style={styles.metricValue}>$85 - $150</span>
+              <span style={styles.metricLabel}>Purchase Price</span>
+              <span style={styles.metricValue}>{form.price ? `$${form.price}` : '—'}</span>
             </div>
             <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Resale Range</span>
-              <span style={styles.metricValueGreen}>$95 - $165</span>
-            </div>
-            <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Rarity</span>
-              <div style={styles.scoreRow}>
-                <div style={styles.scoreBar}>
-                  <div style={{ ...styles.scoreFill, width: '72%' }} />
-                </div>
-                <span style={styles.scoreNum}>7.2/10</span>
-              </div>
-            </div>
-            <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Demand</span>
-              <div style={styles.scoreRow}>
-                <div style={styles.scoreBar}>
-                  <div style={{ ...styles.scoreFill, width: '85%', backgroundColor: 'var(--color-success-500)' }} />
-                </div>
-                <span style={styles.scoreNum}>8.5/10</span>
-              </div>
+              <span style={styles.metricLabel}>AI Analysis</span>
+              <span style={styles.metricValue}>Pending</span>
             </div>
           </div>
 
@@ -237,78 +183,32 @@ function ResultsScreen({ form, onDone, onBack }: AnalysisProps) {
           <div style={styles.attributesSection}>
             <h3 style={styles.sectionTitle}>Item Details</h3>
             <div style={styles.attributesList}>
-              <div style={styles.attrRow}>
-                <span style={styles.attrLabel}>Category</span>
-                <span style={styles.attrValue}>{form.category || 'Antiques / Lighting'}</span>
-              </div>
-              <div style={styles.attrRow}>
-                <span style={styles.attrLabel}>Era</span>
-                <span style={styles.attrValue}>1960s Mid-Century Modern</span>
-              </div>
-              <div style={styles.attrRow}>
-                <span style={styles.attrLabel}>Condition</span>
-                <span style={styles.attrValue}>Good (natural patina, working)</span>
-              </div>
-              <div style={styles.attrRow}>
-                <span style={styles.attrLabel}>Brand</span>
-                <span style={styles.attrValue}>Possibly Laurel Lamp Co.</span>
-              </div>
-              <div style={styles.attrRow}>
-                <span style={styles.attrLabel}>Market Trend</span>
-                <span style={styles.attrValueTrend}>
-                  <TrendingUp size={12} style={{ color: 'var(--color-success-500)' }} />
-                  +18% (30 days)
-                </span>
-              </div>
+              {form.category && (
+                <div style={styles.attrRow}>
+                  <span style={styles.attrLabel}>Category</span>
+                  <span style={styles.attrValue}>{form.category}</span>
+                </div>
+              )}
+              {form.location && (
+                <div style={styles.attrRow}>
+                  <span style={styles.attrLabel}>Location</span>
+                  <span style={styles.attrValue}>{form.location}</span>
+                </div>
+              )}
+              {form.notes && (
+                <div style={styles.attrRow}>
+                  <span style={styles.attrLabel}>Notes</span>
+                  <span style={styles.attrValue}>{form.notes}</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Marketplace comparison */}
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>Marketplace Comparison</h3>
-            <div style={styles.marketplaceList}>
-              {marketplaceData.map((mp) => (
-                <div key={mp.platform} style={styles.mpCard}>
-                  <div style={styles.mpHeader}>
-                    <div style={{ ...styles.mpDot, backgroundColor: mp.color }} />
-                    <span style={styles.mpName}>{mp.platform}</span>
-                    <TrendIcon trend={mp.trend} />
-                  </div>
-                  <div style={styles.mpBody}>
-                    <div style={styles.mpCol}>
-                      <span style={styles.mpLabel}>Sold</span>
-                      <span style={styles.mpValue}>{mp.soldPrice}</span>
-                    </div>
-                    <div style={styles.mpCol}>
-                      <span style={styles.mpLabel}>Active</span>
-                      <span style={styles.mpValue}>{mp.activeRange}</span>
-                    </div>
-                    <div style={styles.mpCol}>
-                      <span style={styles.mpLabel}>Avg Time</span>
-                      <span style={styles.mpValue}>{mp.avgSellTime}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Smart recommendations */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>Smart Recommendations</h3>
-            <div style={styles.recsGrid}>
-              {recommendations.map((rec) => (
-                <div
-                  key={rec.label}
-                  style={{ ...styles.recCard, backgroundColor: rec.bgColor }}
-                >
-                  <rec.icon size={16} style={{ color: rec.color }} />
-                  <div style={styles.recInfo}>
-                    <span style={{ ...styles.recLabel, color: rec.color }}>{rec.label}</span>
-                    <span style={styles.recDesc}>{rec.description}</span>
-                  </div>
-                </div>
-              ))}
+            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '0.85rem' }}>
+              Connect an AI backend to enable live market price comparisons.
             </div>
           </div>
 
@@ -316,26 +216,14 @@ function ResultsScreen({ form, onDone, onBack }: AnalysisProps) {
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>Profit Estimator</h3>
             <div style={styles.profitCard}>
-              <div style={styles.profitRow}>
-                <span style={styles.profitLabel}>Purchase Price</span>
-                <span style={styles.profitValue}>-${purchasePrice}</span>
-              </div>
-              <div style={styles.profitRow}>
-                <span style={styles.profitLabel}>Est. Resale Value</span>
-                <span style={styles.profitValueGreen}>${resaleLow} - ${resaleHigh}</span>
-              </div>
-              <div style={styles.profitRow}>
-                <span style={styles.profitLabel}>Shipping Estimate</span>
-                <span style={styles.profitValue}>-${shippingEstimate}</span>
-              </div>
-              <div style={styles.profitRow}>
-                <span style={styles.profitLabel}>Marketplace Fees (~{feePercent}%)</span>
-                <span style={styles.profitValue}>-${feeLow} - ${feeHigh}</span>
-              </div>
-              <div style={styles.profitDivider} />
-              <div style={styles.profitRow}>
-                <span style={styles.profitLabelBold}>Estimated Profit</span>
-                <span style={styles.profitTotal}>+${profitLow} - ${profitHigh}</span>
+              {purchasePrice !== null && (
+                <div style={styles.profitRow}>
+                  <span style={styles.profitLabel}>Purchase Price</span>
+                  <span style={styles.profitValue}>-${purchasePrice}</span>
+                </div>
+              )}
+              <div style={{ padding: '8px 0', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '0.85rem' }}>
+                Connect an AI backend to enable profit estimates.
               </div>
             </div>
           </div>
@@ -381,11 +269,6 @@ function ResultsScreen({ form, onDone, onBack }: AnalysisProps) {
   );
 }
 
-function TrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
-  if (trend === 'up') return <ArrowUpRight size={12} style={{ color: 'var(--color-success-500)' }} />;
-  if (trend === 'down') return <ArrowDownRight size={12} style={{ color: 'var(--color-error-500)' }} />;
-  return <Minus size={12} style={{ color: 'var(--color-neutral-400)' }} />;
-}
 
 const styles: Record<string, React.CSSProperties> = {
   // Loading screen

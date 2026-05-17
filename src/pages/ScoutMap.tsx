@@ -37,32 +37,9 @@ const CATEGORIES = [
   { label: 'Garage Sales', icon: MapPin },
 ];
 
-const mapMarkers: MapMarker[] = [
-  { id: 's1', type: 'scout', x: 32, y: 28, label: '@dallas_picker', detail: '4.9 rating' },
-  { id: 's2', type: 'scout', x: 58, y: 45, label: '@vintage_eye', detail: '4.8 rating' },
-  { id: 's3', type: 'scout', x: 75, y: 62, label: '@chi_town_scout', detail: '4.8 rating' },
-  { id: 'f1', type: 'find', x: 25, y: 55, label: 'Brass Lamp', detail: '$85-$150' },
-  { id: 'f2', type: 'find', x: 65, y: 30, label: 'Eames Chair', detail: '$1,200-$1,800' },
-  { id: 'f3', type: 'find', x: 45, y: 72, label: 'Rolex GMT', detail: '$8,500-$12,000' },
-  { id: 'a1', type: 'auction', x: 40, y: 38, label: 'Heritage Auction', detail: 'Ends 2h' },
-  { id: 'a2', type: 'auction', x: 82, y: 48, label: 'Estate Lot #12', detail: 'Ends 5h' },
-  { id: 'e1', type: 'estate', x: 18, y: 42, label: 'Estate Sale', detail: 'Sat 8am-2pm' },
-  { id: 'g1', type: 'garage', x: 52, y: 22, label: 'Multi-Family', detail: 'Sun 7am-12pm' },
-  { id: 'g2', type: 'garage', x: 88, y: 35, label: 'Moving Sale', detail: 'Today 9am-4pm' },
-  { id: 't1', type: 'thrift', x: 35, y: 65, label: 'Goodwill Outlet', detail: 'Open now' },
-  { id: 't2', type: 'thrift', x: 70, y: 75, label: 'Salvation Army', detail: 'Open now' },
-  { id: 'st1', type: 'storage', x: 22, y: 80, label: 'Storage Auction', detail: 'Tomorrow 10am' },
-];
+const mapMarkers: MapMarker[] = [];
 
-const nearbyItems: NearbyItem[] = [
-  { id: '1', type: 'find', title: 'Vintage Polaroid SX-70 posted nearby', detail: '0.3 mi away', timestamp: '2m ago' },
-  { id: '2', type: 'auction', title: 'Heritage Auction ending soon', detail: 'Danish Teak Credenza', timestamp: '2h left', urgency: true },
-  { id: '3', type: 'scout', title: '@dallas_picker available for pickup', detail: 'Response time: < 30min', timestamp: 'Active now' },
-  { id: '4', type: 'radar', title: 'Rare Radar match: Eames Lounge Chair', detail: '92% match confidence', timestamp: '15m ago' },
-  { id: '5', type: 'trending', title: 'Mid-century furniture trending in area', detail: '+340% searches this week', timestamp: 'Trending' },
-  { id: '6', type: 'find', title: 'First Edition Hemingway spotted', detail: '1.2 mi away at estate sale', timestamp: '45m ago' },
-  { id: '7', type: 'scout', title: '3 new scouts online in your area', detail: 'Furniture, Electronics, Watches', timestamp: 'Just now' },
-];
+const nearbyItems: NearbyItem[] = [];
 
 const markerColors: Record<MarkerType, string> = {
   scout: 'var(--color-primary-500)',
@@ -141,14 +118,6 @@ export default function ScoutMap({ onBack }: { onBack: () => void }) {
           );
         })}
 
-        {/* Cluster indicators */}
-        <div style={{ ...styles.cluster, left: '42%', top: '35%' }}>
-          <span style={styles.clusterCount}>5</span>
-        </div>
-        <div style={{ ...styles.cluster, left: '70%', top: '68%' }}>
-          <span style={styles.clusterCount}>3</span>
-        </div>
-
         {/* Top bar */}
         <div style={styles.topBar}>
           <button onClick={onBack} style={styles.topBtn}>
@@ -156,7 +125,7 @@ export default function ScoutMap({ onBack }: { onBack: () => void }) {
           </button>
           <div style={styles.searchPill}>
             <Navigation size={14} style={{ color: 'var(--color-primary-500)' }} />
-            <span style={styles.searchText}>Brooklyn, NY</span>
+            <span style={styles.searchText}>Your Location</span>
           </div>
           <button onClick={() => setShowLayers(!showLayers)} style={styles.topBtn}>
             <Layers size={18} />

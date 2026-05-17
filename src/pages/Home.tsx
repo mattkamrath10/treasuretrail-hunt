@@ -1,91 +1,23 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap } from 'lucide-react';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
-
-interface FeedItem {
-  id: string;
-  image: string;
-  title: string;
-  username: string;
-  avatar: string;
-  category: string;
-  price: string;
-  likes: number;
-  comments: number;
-  timeAgo: string;
-  isHot?: boolean;
-}
-
-const feedItems: FeedItem[] = [
-  {
-    id: '1',
-    image: 'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg?auto=compress&cs=tinysrgb&w=600',
-    title: 'Vintage Polaroid SX-70 Camera',
-    username: 'vintagehunter',
-    avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100',
-    category: 'Electronics',
-    price: '$45',
-    likes: 234,
-    comments: 18,
-    timeAgo: '2h ago',
-    isHot: true,
-  },
-  {
-    id: '2',
-    image: 'https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=600',
-    title: 'Mid-Century Modern Teak Sideboard',
-    username: 'estatefinds',
-    avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100',
-    category: 'Furniture',
-    price: '$180',
-    likes: 512,
-    comments: 42,
-    timeAgo: '4h ago',
-  },
-  {
-    id: '3',
-    image: 'https://images.pexels.com/photos/1038000/pexels-photo-1038000.jpeg?auto=compress&cs=tinysrgb&w=600',
-    title: 'First Edition Hemingway Collection',
-    username: 'bookworm_scout',
-    avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=100',
-    category: 'Books',
-    price: '$320',
-    likes: 891,
-    comments: 67,
-    timeAgo: '6h ago',
-    isHot: true,
-  },
-  {
-    id: '4',
-    image: 'https://images.pexels.com/photos/1191531/pexels-photo-1191531.jpeg?auto=compress&cs=tinysrgb&w=600',
-    title: 'Hand-Painted Japanese Tea Set',
-    username: 'thrift_queen',
-    avatar: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=100',
-    category: 'Collectibles',
-    price: '$65',
-    likes: 156,
-    comments: 9,
-    timeAgo: '8h ago',
-  },
-  {
-    id: '5',
-    image: 'https://images.pexels.com/photos/1037992/pexels-photo-1037992.jpeg?auto=compress&cs=tinysrgb&w=600',
-    title: 'Antique Brass Compass - 1890s',
-    username: 'treasure_map',
-    avatar: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=100',
-    category: 'Antiques',
-    price: '$275',
-    likes: 723,
-    comments: 31,
-    timeAgo: '12h ago',
-    isHot: true,
-  },
-];
+import { fetchCommunityPosts } from '../lib/database';
+import type { CommunityPost } from '../lib/supabase';
 
 const categories = ['All', 'Electronics', 'Furniture', 'Books', 'Collectibles', 'Antiques', 'Art', 'Jewelry'];
 
 export default function Home() {
   const navigate = useNavigate();
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCommunityPosts()
+      .then(setPosts)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div style={styles.container}>
@@ -132,51 +64,68 @@ export default function Home() {
       </div>
 
       <div style={styles.feed}>
-        {feedItems.map((item, index) => (
+        {loading && (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyText}>Loading finds...</p>
+          </div>
+        )}
+
+        {!loading && posts.length === 0 && (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyTitle}>No finds yet</p>
+            <p style={styles.emptyText}>Be the first to share a treasure find!</p>
+            <button onClick={() => navigate('/community')} style={styles.emptyBtn}>
+              Share a Find
+            </button>
+          </div>
+        )}
+
+        {posts.map((post, index) => (
           <article
-            key={item.id}
+            key={post.id}
             style={{
               ...styles.card,
               animationDelay: `${index * 80}ms`,
             }}
           >
             <div style={styles.cardImageContainer}>
-              <img
-                src={item.image}
-                alt={item.title}
-                style={styles.cardImage}
-                loading="lazy"
-              />
-              {item.isHot && (
-                <span style={styles.hotBadge}>HOT</span>
+              {post.image_url ? (
+                <img
+                  src={post.image_url}
+                  alt={post.caption}
+                  style={styles.cardImage}
+                  loading="lazy"
+                />
+              ) : (
+                <div style={{ ...styles.cardImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Bookmark size={32} style={{ color: 'var(--color-neutral-300)' }} />
+                </div>
               )}
-              <span style={styles.priceBadge}>{item.price}</span>
+              <span style={styles.priceBadge}>{post.for_sale ? 'For Sale' : post.type}</span>
             </div>
 
             <div style={styles.cardContent}>
               <div style={styles.cardHeader}>
-                <img
-                  src={item.avatar}
-                  alt={item.username}
-                  style={styles.avatar}
-                />
-                <div style={styles.cardMeta}>
-                  <span style={styles.username}>@{item.username}</span>
-                  <span style={styles.timeAgo}>{item.timeAgo}</span>
+                <div style={{ ...styles.avatar, backgroundColor: 'var(--color-primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: 'var(--color-primary-700)' }}>
+                  {(post.profiles?.username || 'U').slice(0, 1).toUpperCase()}
                 </div>
-                <span style={styles.categoryTag}>{item.category}</span>
+                <div style={styles.cardMeta}>
+                  <span style={styles.username}>@{post.profiles?.username || 'hunter'}</span>
+                  <span style={styles.timeAgo}>{new Date(post.created_at).toLocaleDateString()}</span>
+                </div>
+                <span style={styles.categoryTag}>{post.category}</span>
               </div>
 
-              <h3 style={styles.cardTitle}>{item.title}</h3>
+              <h3 style={styles.cardTitle}>{post.caption}</h3>
 
               <div style={styles.cardActions}>
                 <button style={styles.actionBtn}>
                   <Heart size={18} />
-                  <span>{item.likes}</span>
+                  <span>{post.like_count}</span>
                 </button>
                 <button style={styles.actionBtn}>
                   <MessageCircle size={18} />
-                  <span>{item.comments}</span>
+                  <span>{post.comment_count}</span>
                 </button>
                 <button style={styles.actionBtn}>
                   <Bookmark size={18} />
@@ -199,6 +148,34 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '48px 24px',
+    textAlign: 'center',
+  },
+  emptyTitle: {
+    fontSize: 'var(--font-size-base)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-700)',
+    marginBottom: '4px',
+  },
+  emptyText: {
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-400)',
+    marginBottom: '16px',
+  },
+  emptyBtn: {
+    padding: '10px 20px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-600)',
+    color: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-medium)',
+    cursor: 'pointer',
   },
   header: {
     display: 'flex',
