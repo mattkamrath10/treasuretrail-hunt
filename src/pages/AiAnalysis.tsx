@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, ChartBar as BarChart3, Share2, Bookmark, Send, Eye, Zap, CircleCheck as CheckCircle } from 'lucide-react';
+import { ArrowLeft, Sparkles, ChartBar as BarChart3, Share2, Bookmark, Send, Eye, Zap, CircleCheck as CheckCircle, Loader } from 'lucide-react';
 
 type AnalysisView = 'loading' | 'results';
 
@@ -7,6 +7,8 @@ interface AnalysisProps {
   form: { title: string; category: string; notes: string; price: string; location: string };
   onDone: () => void;
   onBack: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 const LOADING_STAGES = [
@@ -20,12 +22,12 @@ const LOADING_STAGES = [
 
 
 
-export default function AiAnalysis({ form, onDone, onBack }: AnalysisProps) {
+export default function AiAnalysis({ form, onDone, onBack, submitting, submitError }: AnalysisProps) {
   const [view, setView] = useState<AnalysisView>('loading');
 
   return view === 'loading'
     ? <LoadingExperience onComplete={() => setView('results')} />
-    : <ResultsScreen form={form} onDone={onDone} onBack={onBack} />;
+    : <ResultsScreen form={form} onDone={onDone} onBack={onBack} submitting={submitting} submitError={submitError} />;
 }
 
 function LoadingExperience({ onComplete }: { onComplete: () => void }) {
@@ -130,7 +132,7 @@ function LoadingExperience({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-function ResultsScreen({ form, onDone, onBack }: AnalysisProps) {
+function ResultsScreen({ form, onDone, onBack, submitting, submitError }: AnalysisProps) {
   const purchasePrice = form.price ? parseFloat(form.price) : null;
 
   return (
@@ -259,9 +261,21 @@ function ResultsScreen({ form, onDone, onBack }: AnalysisProps) {
             </div>
           </div>
 
-          <button onClick={onDone} style={styles.primaryBtn}>
-            <CheckCircle size={18} style={{ color: 'var(--color-neutral-0)' }} />
-            <span style={styles.primaryBtnText}>Post This Find</span>
+          {submitError && (
+            <p style={styles.errorText}>{submitError}</p>
+          )}
+          <button
+            onClick={onDone}
+            disabled={submitting}
+            style={{ ...styles.primaryBtn, opacity: submitting ? 0.7 : 1 }}
+          >
+            {submitting
+              ? <Loader size={18} style={{ color: 'var(--color-neutral-0)', animation: 'spin 1s linear infinite' }} />
+              : <CheckCircle size={18} style={{ color: 'var(--color-neutral-0)' }} />
+            }
+            <span style={styles.primaryBtnText}>
+              {submitting ? 'Posting…' : 'Post This Find'}
+            </span>
           </button>
         </div>
       </div>
@@ -742,5 +756,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-0)',
     fontSize: 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-semibold)',
+  },
+  errorText: {
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-error-500)',
+    textAlign: 'center',
+    marginBottom: 'var(--space-3)',
+    padding: 'var(--space-2) var(--space-3)',
+    backgroundColor: 'var(--color-error-50)',
+    borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--color-error-200)',
   },
 };

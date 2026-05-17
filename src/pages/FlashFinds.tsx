@@ -1,8 +1,11 @@
 import { useState, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Camera, ArrowLeft, ArrowRight, X, MapPin, DollarSign, Tag, Sparkles, Eye, CircleCheck as CheckCircle, Image, Pencil, Plus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import AiAnalysisPage from './AiAnalysis';
+import { createCommunityPost, createFlashFind } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 type FlowStep = 'main' | 'photo' | 'details' | 'ai-analysis' | 'confirmation';
 
@@ -12,7 +15,8 @@ const CATEGORIES = [
 ];
 
 export default function FlashFinds() {
-  const { isGuest } = useAuth();
+  const { isGuest, user } = useAuth();
+  const navigate = useNavigate();
   const [step, setStep] = useState<FlowStep>('main');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -22,6 +26,8 @@ export default function FlashFinds() {
     price: '',
     location: '',
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -58,14 +64,68 @@ export default function FlashFinds() {
     setStep('ai-analysis');
   };
 
-  const handleAiDone = () => {
-    setStep('confirmation');
+  const handleAiDone = async () => {
+    if (!user) return;
+    setSubmitting(true);
+    setSubmitError('');
+
+    try {
+      let imageUrl: string | undefined;
+
+      if (photoUrl) {
+        try {
+          const res = await fetch(photoUrl);
+          const blob = await res.blob();
+          const ext = blob.type.split('/')[1] || 'jpg';
+          const path = `finds/${user.id}/${Date.now()}.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from('avatars')
+            .upload(path, blob, { upsert: true, contentType: blob.type });
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+            imageUrl = urlData.publicUrl;
+          }
+        } catch {
+          // Image upload failed — continue without image URL
+        }
+      }
+
+      const { error: postErr } = await createCommunityPost({
+        user_id: user.id,
+        type: 'flash_find',
+        caption: form.notes || form.title || 'New find',
+        image_url: imageUrl,
+        tags: form.category ? [form.category] : [],
+        location: form.location || undefined,
+        estimated_value: form.price ? parseFloat(form.price) : undefined,
+        category: form.category || undefined,
+      });
+
+      if (postErr) throw new Error(postErr);
+
+      await createFlashFind({
+        user_id: user.id,
+        title: form.title || 'Untitled Find',
+        description: form.notes || undefined,
+        image_url: imageUrl,
+        estimated_value: form.price ? parseFloat(form.price) : undefined,
+        category: form.category || undefined,
+        location: form.location || undefined,
+      });
+
+      setStep('confirmation');
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to post. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleReset = () => {
     setStep('main');
     setPhotoUrl(null);
     setForm({ title: '', category: '', notes: '', price: '', location: '' });
+    setSubmitError('');
   };
 
   if (isGuest) {
@@ -130,6 +190,8 @@ export default function FlashFinds() {
           form={form}
           onDone={handleAiDone}
           onBack={() => setStep('details')}
+          submitting={submitting}
+          submitError={submitError}
         />
       )}
 
@@ -138,7 +200,7 @@ export default function FlashFinds() {
           photoUrl={photoUrl}
           form={form}
           onPostAnother={handleReset}
-          onViewFeed={() => setStep('main')}
+          onViewFeed={() => navigate('/community')}
           onEdit={() => setStep('details')}
         />
       )}
