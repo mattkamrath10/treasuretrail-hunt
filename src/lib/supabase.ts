@@ -1,0 +1,70 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export type Profile = {
+  id: string;
+  username: string;
+  bio: string;
+  avatar_url: string | null;
+  favorite_categories: string[];
+  treasure_rank: string;
+  xp: number;
+  level: number;
+  reputation_score: number;
+  scout_verified: boolean;
+  pro_member: boolean;
+  follower_count: number;
+  following_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CommunityPost = {
+  id: string;
+  user_id: string;
+  type: string;
+  caption: string;
+  image_url: string | null;
+  tags: string[];
+  location: string;
+  rarity_score: number | null;
+  estimated_value: number | null;
+  scout_assisted: boolean;
+  for_sale: boolean;
+  category: string;
+  like_count: number;
+  comment_count: number;
+  share_count: number;
+  created_at: string;
+  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
+};
+
+export type MarketplaceListing = {
+  id: string;
+  seller_id: string;
+  title: string;
+  description: string;
+  price: number;
+  condition: string;
+  category: string;
+  image_url: string | null;
+  auction_enabled: boolean;
+  local_pickup: boolean;
+  status: string;
+  created_at: string;
+  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
+};
+
+export type Notification = {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  content: string;
+  read_status: boolean;
+  created_at: string;
+};
