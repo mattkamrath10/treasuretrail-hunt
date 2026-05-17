@@ -1,545 +1,824 @@
-import { useState } from 'react';
-import { ArrowLeft, Clock, MapPin, DollarSign, Users, Eye, Star, TriangleAlert as AlertTriangle, TrendingUp, Gavel, User, Package } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import {
+  ArrowLeft, ExternalLink, Radio, Gavel, Tag, MapPin,
+  Users, Package, Truck, Plus, X, Clock, ChevronDown,
+  Loader, Home,
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useGuestAction } from '../components/GuestGate';
+import { supabase } from '../lib/supabase';
 
-type AuctionView = 'feed' | 'detail' | 'coordinate';
+type HubView = 'feed' | 'detail' | 'submit';
 
-interface AuctionItem {
+interface ExternalListing {
   id: string;
+  user_id: string;
+  platform: string;
+  platform_label: string;
+  listing_type: string;
   title: string;
-  image: string;
-  auctionHouse: string;
-  location: string;
-  currentBid: string;
-  estimatedValue: string;
-  endsIn: string;
-  scoutsInterested: number;
-  scoutNeeded: boolean;
-  pickupOnly: boolean;
-  endingSoon: boolean;
-  highDemand: boolean;
+  description: string;
+  image_url: string | null;
+  external_url: string;
+  price_display: string;
   category: string;
+  condition: string;
+  ships_available: boolean;
+  local_pickup: boolean;
+  ends_at: string | null;
+  location: string;
+  scout_needed: boolean;
+  status: string;
+  created_at: string;
+  profiles?: { username: string | null; scout_verified: boolean };
 }
 
-interface RegionalScout {
-  id: string;
-  username: string;
-  rating: number;
-  region: string;
-  specialties: string[];
-  completedJobs: number;
-  available: boolean;
-  responseTime: string;
+const PLATFORMS = [
+  { id: 'whatnot',    label: 'Whatnot',         color: '#FF6B35', bg: '#FFF3EE' },
+  { id: 'poshmark',   label: 'Poshmark',         color: '#C13584', bg: '#FCF0F7' },
+  { id: 'ebay',       label: 'eBay',             color: '#0064D2', bg: '#EBF3FF' },
+  { id: 'hibid',      label: 'HiBid',            color: '#1A5276', bg: '#EBF5FB' },
+  { id: 'maxsold',    label: 'MaxSold',          color: '#148F77', bg: '#E8F8F5' },
+  { id: 'estatesales',label: 'EstateSales.net',  color: '#8B4513', bg: '#FDF3E7' },
+  { id: 'facebook',   label: 'FB Marketplace',   color: '#1877F2', bg: '#EBF3FF' },
+  { id: 'other',      label: 'Other',            color: '#6B7280', bg: '#F3F4F6' },
+];
+
+const TYPE_CHIPS = [
+  { id: 'all',         label: 'All' },
+  { id: 'live_stream', label: 'Live Streams' },
+  { id: 'auction',     label: 'Auctions' },
+  { id: 'fixed',       label: 'Fixed Price' },
+  { id: 'estate',      label: 'Estate Sales' },
+];
+
+const EXTRA_CHIPS = [
+  { id: 'local',    label: 'Local Pickup' },
+  { id: 'ships',    label: 'Ships Available' },
+  { id: 'scout',    label: 'Scout Needed' },
+];
+
+const CATEGORIES = ['All', 'Fashion', 'Collectibles', 'Electronics', 'Furniture', 'Jewelry', 'Art', 'Watches', 'Books'];
+
+const CONDITIONS = ['Like New', 'Excellent', 'Good', 'Fair', 'For Parts'];
+
+function getPlatform(id: string) {
+  return PLATFORMS.find((p) => p.id === id) ?? PLATFORMS[PLATFORMS.length - 1];
 }
 
-const auctionItems: AuctionItem[] = [];
+function getTypeLabel(type: string) {
+  const map: Record<string, string> = {
+    live_stream: 'Live Stream',
+    auction: 'Auction',
+    fixed: 'Fixed Price',
+    estate: 'Estate Sale',
+  };
+  return map[type] ?? type;
+}
 
-const regionalScouts: RegionalScout[] = [];
+function getTypeIcon(type: string, size = 12) {
+  if (type === 'live_stream') return <Radio size={size} />;
+  if (type === 'auction') return <Gavel size={size} />;
+  if (type === 'estate') return <Home size={size} />;
+  return <Tag size={size} />;
+}
 
-const CATEGORIES = ['All', 'Furniture', 'Watches', 'Collectibles', 'Books', 'Art', 'Electronics'];
+function timeUntil(iso: string | null): string | null {
+  if (!iso) return null;
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return 'Ended';
+  const h = Math.floor(diff / 3600000);
+  if (h < 1) return `${Math.floor(diff / 60000)}m left`;
+  if (h < 24) return `${h}h left`;
+  return `${Math.floor(h / 24)}d left`;
+}
 
 export default function Auctions({ onBack }: { onBack: () => void }) {
-  const [view, setView] = useState<AuctionView>('feed');
-  const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [view, setView] = useState<HubView>('feed');
+  const [selected, setSelected] = useState<ExternalListing | null>(null);
 
-  const handleViewDetail = (item: AuctionItem) => {
-    setSelectedItem(item);
-    setView('detail');
-  };
-
-  const handleCoordinate = (item: AuctionItem) => {
-    setSelectedItem(item);
-    setView('coordinate');
-  };
-
-  if (view === 'detail' && selectedItem) {
+  if (view === 'detail' && selected) {
     return (
-      <AuctionDetail
-        item={selectedItem}
+      <ListingDetail
+        listing={selected}
         onBack={() => setView('feed')}
-        onCoordinate={() => setView('coordinate')}
-      />
-    );
-  }
-
-  if (view === 'coordinate' && selectedItem) {
-    return (
-      <ScoutCoordination
-        item={selectedItem}
-        onBack={() => setView('detail')}
+        onListingUpdate={(updated) => setSelected(updated)}
       />
     );
   }
 
   return (
-    <AuctionFeed
-      selectedCategory={selectedCategory}
-      setSelectedCategory={setSelectedCategory}
-      onBack={onBack}
-      onViewDetail={handleViewDetail}
-      onCoordinate={handleCoordinate}
-    />
+    <>
+      <HubFeed
+        onBack={onBack}
+        onOpen={(item) => { setSelected(item); setView('detail'); }}
+        onSubmit={() => setView('submit')}
+      />
+      {view === 'submit' && (
+        <SubmitSheet onClose={() => setView('feed')} onSuccess={() => setView('feed')} />
+      )}
+    </>
   );
 }
 
-function AuctionFeed({
-  selectedCategory,
-  setSelectedCategory,
+function HubFeed({
   onBack,
-  onViewDetail,
-  onCoordinate,
+  onOpen,
+  onSubmit,
 }: {
-  selectedCategory: string;
-  setSelectedCategory: (c: string) => void;
   onBack: () => void;
-  onViewDetail: (item: AuctionItem) => void;
-  onCoordinate: (item: AuctionItem) => void;
+  onOpen: (item: ExternalListing) => void;
+  onSubmit: () => void;
 }) {
-  const filtered = selectedCategory === 'All'
-    ? auctionItems
-    : auctionItems.filter((i) => i.category === selectedCategory);
+  const { requireAuth } = useGuestAction();
 
-  const endingSoon = auctionItems.filter((i) => i.endingSoon);
+  const [listings, setListings] = useState<ExternalListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [extraFilter, setExtraFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState('All');
+
+  useEffect(() => {
+    supabase
+      .from('external_listings')
+      .select('*, profiles(username, scout_verified)')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(60)
+      .then(({ data }) => {
+        if (data) setListings(data as ExternalListing[]);
+        setLoading(false);
+      });
+  }, []);
+
+  const filtered = listings.filter((l) => {
+    if (typeFilter !== 'all' && l.listing_type !== typeFilter) return false;
+    if (categoryFilter !== 'All' && l.category.toLowerCase() !== categoryFilter.toLowerCase()) return false;
+    if (extraFilter === 'local' && !l.local_pickup) return false;
+    if (extraFilter === 'ships' && !l.ships_available) return false;
+    if (extraFilter === 'scout' && !l.scout_needed) return false;
+    return true;
+  });
+
+  const liveCount = listings.filter((l) => l.listing_type === 'live_stream').length;
 
   return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <div style={styles.headerRow}>
-          <button onClick={onBack} style={styles.backBtn}>
-            <ArrowLeft size={20} />
-          </button>
+    <div style={st.container}>
+      <header style={st.header}>
+        <div style={st.headerRow}>
+          <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
           <div>
-            <h1 style={styles.title}>Auction Mode</h1>
-            <p style={styles.subtitle}>Live auctions and scout coordination</p>
+            <h1 style={st.title}>Marketplace Hub</h1>
+            <p style={st.subtitle}>External listings, live streams & auctions</p>
           </div>
+          <button onClick={() => requireAuth(onSubmit)} style={st.addBtn}>
+            <Plus size={16} style={{ color: 'var(--color-neutral-0)' }} />
+          </button>
         </div>
       </header>
 
-      <div style={styles.content}>
-        {endingSoon.length > 0 && (
-          <div style={styles.urgentBanner}>
-            <Clock size={14} style={{ color: 'var(--color-error-600)' }} />
-            <span style={styles.urgentText}>{endingSoon.length} auctions ending within 5 hours</span>
-          </div>
-        )}
+      {liveCount > 0 && (
+        <div style={st.liveBanner}>
+          <span style={st.liveDot} />
+          <span style={st.liveText}>{liveCount} live stream{liveCount > 1 ? 's' : ''} active now</span>
+        </div>
+      )}
 
-        <div style={styles.categoriesScroll}>
-          {CATEGORIES.map((cat) => (
+      <div style={st.filtersWrap}>
+        <div style={st.filterRow}>
+          {TYPE_CHIPS.map((chip) => (
+            <button
+              key={chip.id}
+              onClick={() => setTypeFilter(chip.id)}
+              style={{ ...st.chip, ...(typeFilter === chip.id ? st.chipActive : {}) }}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+        <div style={st.filterRow}>
+          {EXTRA_CHIPS.map((chip) => (
+            <button
+              key={chip.id}
+              onClick={() => setExtraFilter(extraFilter === chip.id ? null : chip.id)}
+              style={{ ...st.chip, ...(extraFilter === chip.id ? st.chipActiveAlt : {}) }}
+            >
+              {chip.label}
+            </button>
+          ))}
+          {CATEGORIES.filter((c) => c !== 'All').map((cat) => (
             <button
               key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              style={{
-                ...styles.catChip,
-                ...(selectedCategory === cat ? styles.catChipActive : {}),
-              }}
+              onClick={() => setCategoryFilter(categoryFilter === cat ? 'All' : cat)}
+              style={{ ...st.chip, ...(categoryFilter === cat ? st.chipActiveAlt : {}) }}
             >
               {cat}
             </button>
           ))}
         </div>
+      </div>
 
-        <div style={styles.sectionRow}>
-          <h3 style={styles.sectionTitle}>Active Auctions</h3>
-          <span style={styles.count}>{filtered.length} listings</span>
-        </div>
+      <div style={st.feed}>
+        {loading && (
+          <div style={st.centered}>
+            <Loader size={24} style={{ color: 'var(--color-neutral-300)', animation: 'spin 0.8s linear infinite' }} />
+          </div>
+        )}
 
-        <div style={styles.auctionList}>
-          {filtered.map((item, index) => (
-            <AuctionCard
-              key={item.id}
-              item={item}
-              delay={index * 80}
-              onView={() => onViewDetail(item)}
-              onScout={() => onCoordinate(item)}
-            />
-          ))}
-        </div>
+        {!loading && filtered.length === 0 && (
+          <div style={st.emptyWrap}>
+            <Gavel size={40} style={{ color: 'var(--color-neutral-200)', marginBottom: '12px' }} />
+            <p style={st.emptyTitle}>No listings yet</p>
+            <p style={st.emptyBody}>
+              {listings.length === 0
+                ? 'Be the first to share an external auction, live stream, or listing from Whatnot, eBay, Poshmark, and more.'
+                : 'No listings match your current filters.'}
+            </p>
+            {listings.length === 0 && (
+              <button onClick={() => requireAuth(onSubmit)} style={st.emptyBtn}>
+                <Plus size={14} /> Share a Listing
+              </button>
+            )}
+          </div>
+        )}
+
+        {filtered.map((item, i) => (
+          <ExternalListingCard
+            key={item.id}
+            listing={item}
+            delay={i * 60}
+            onOpen={() => onOpen(item)}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
-function AuctionCard({
-  item,
+function ExternalListingCard({
+  listing,
   delay,
-  onView,
-  onScout,
+  onOpen,
 }: {
-  item: AuctionItem;
+  listing: ExternalListing;
   delay: number;
-  onView: () => void;
-  onScout: () => void;
+  onOpen: () => void;
 }) {
+  const plat = getPlatform(listing.platform);
+  const displayLabel = listing.platform === 'other' && listing.platform_label
+    ? listing.platform_label
+    : plat.label;
+  const timer = timeUntil(listing.ends_at);
+  const isLive = listing.listing_type === 'live_stream';
+
   return (
     <article
-      style={{ ...styles.card, animationDelay: `${delay}ms` }}
-      onClick={onView}
+      style={{ ...st.card, animationDelay: `${delay}ms` }}
+      onClick={onOpen}
     >
-      <div style={styles.cardImageWrap}>
-        <img src={item.image} alt={item.title} style={styles.cardImage} />
-        <div style={styles.cardBadges}>
-          {item.endingSoon && (
-            <span style={styles.badgeEnding}>
-              <Clock size={10} /> Ends Soon
-            </span>
+      {listing.image_url ? (
+        <div style={st.cardImgWrap}>
+          <img src={listing.image_url} alt={listing.title} style={st.cardImg} loading="lazy" />
+          {isLive && <span style={st.livePill}><Radio size={9} /> LIVE</span>}
+        </div>
+      ) : (
+        <div style={{ ...st.cardImgWrap, ...st.cardImgPlaceholder }}>
+          {getTypeIcon(listing.listing_type, 28)}
+          {isLive && <span style={st.livePill}><Radio size={9} /> LIVE</span>}
+        </div>
+      )}
+
+      <div style={st.cardBody}>
+        <div style={st.cardTopRow}>
+          <span style={{ ...st.platformBadge, color: plat.color, backgroundColor: plat.bg }}>
+            {displayLabel}
+          </span>
+          <span style={st.typeBadge}>{getTypeIcon(listing.listing_type, 10)} {getTypeLabel(listing.listing_type)}</span>
+        </div>
+
+        <h3 style={st.cardTitle}>{listing.title}</h3>
+
+        <div style={st.cardMeta}>
+          {listing.price_display && (
+            <span style={st.priceTag}>{listing.price_display}</span>
           )}
-          {item.pickupOnly && (
-            <span style={styles.badgePickup}>
-              <Package size={10} /> Pickup Only
-            </span>
+          {listing.location && (
+            <span style={st.metaItem}><MapPin size={10} /> {listing.location}</span>
           )}
-          {item.scoutNeeded && (
-            <span style={styles.badgeScout}>
-              <Users size={10} /> Scout Needed
+          {timer && (
+            <span style={{ ...st.metaItem, color: timer === 'Ended' ? 'var(--color-error-500)' : 'var(--color-neutral-500)' }}>
+              <Clock size={10} /> {timer}
             </span>
           )}
         </div>
-        {item.highDemand && (
-          <span style={styles.badgeHot}>
-            <TrendingUp size={10} /> High Demand
-          </span>
-        )}
-      </div>
 
-      <div style={styles.cardBody}>
-        <h3 style={styles.cardTitle}>{item.title}</h3>
-        <div style={styles.cardMeta}>
-          <span style={styles.cardHouse}>
-            <Gavel size={11} /> {item.auctionHouse}
-          </span>
-          <span style={styles.cardLocation}>
-            <MapPin size={11} /> {item.location}
-          </span>
-        </div>
-
-        <div style={styles.cardPricing}>
-          <div style={styles.priceCol}>
-            <span style={styles.priceLabel}>Current Bid</span>
-            <span style={styles.priceValue}>{item.currentBid}</span>
-          </div>
-          <div style={styles.priceCol}>
-            <span style={styles.priceLabel}>Est. Value</span>
-            <span style={styles.estValue}>{item.estimatedValue}</span>
-          </div>
-        </div>
-
-        <div style={styles.cardFooter}>
-          <div style={styles.cardFooterLeft}>
-            <span style={styles.timerBadge}>
-              <Clock size={11} /> {item.endsIn}
-            </span>
-            <span style={styles.scoutInterest}>
-              <Users size={11} /> {item.scoutsInterested}
-            </span>
-          </div>
-          <div style={styles.cardActions}>
-            <button
-              onClick={(e) => { e.stopPropagation(); onView(); }}
-              style={styles.watchBtn}
-            >
-              <Eye size={14} />
-            </button>
-            {item.scoutNeeded && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onScout(); }}
-                style={styles.requestScoutBtn}
-              >
-                Request Scout
-              </button>
+        <div style={st.cardFooter}>
+          <div style={st.cardBadges}>
+            {listing.ships_available && (
+              <span style={st.shippingBadge}><Truck size={9} /> Ships</span>
+            )}
+            {listing.local_pickup && (
+              <span style={st.pickupBadge}><Package size={9} /> Pickup</span>
+            )}
+            {listing.scout_needed && (
+              <span style={st.scoutBadge}><Users size={9} /> Scout Needed</span>
             )}
           </div>
+          <span style={st.cardBy}>@{listing.profiles?.username ?? 'hunter'}</span>
         </div>
       </div>
     </article>
   );
 }
 
-function AuctionDetail({
-  item,
+function ListingDetail({
+  listing,
   onBack,
-  onCoordinate,
+  onListingUpdate,
 }: {
-  item: AuctionItem;
+  listing: ExternalListing;
   onBack: () => void;
-  onCoordinate: () => void;
+  onListingUpdate: (l: ExternalListing) => void;
 }) {
+  const { user } = useAuth();
+  const [scoutLoading, setScoutLoading] = useState(false);
+  const [offerSent, setOfferSent] = useState(false);
+
+  const plat = getPlatform(listing.platform);
+  const displayLabel = listing.platform === 'other' && listing.platform_label
+    ? listing.platform_label
+    : plat.label;
+  const timer = timeUntil(listing.ends_at);
+  const isAuctionType = listing.listing_type === 'live_stream' || listing.listing_type === 'auction';
+
+  const openListing = () => window.open(listing.external_url, '_blank', 'noopener,noreferrer');
+
+  const handleScoutNeeded = async () => {
+    if (!user) return;
+    setScoutLoading(true);
+    const { data } = await supabase
+      .from('external_listings')
+      .update({ scout_needed: true })
+      .eq('id', listing.id)
+      .select()
+      .maybeSingle();
+    setScoutLoading(false);
+    if (data) onListingUpdate(data as ExternalListing);
+  };
+
+  const handleOfferScout = () => {
+    setOfferSent(true);
+  };
+
   return (
-    <div style={styles.container}>
-      <header style={styles.stepHeader}>
-        <button onClick={onBack} style={styles.backBtn}>
-          <ArrowLeft size={20} />
-        </button>
-        <span style={styles.stepLabel}>Auction Details</span>
+    <div style={st.container}>
+      <header style={st.stepHeader}>
+        <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
+        <span style={st.stepTitle}>Listing Detail</span>
         <div style={{ width: 36 }} />
       </header>
 
-      <div style={styles.detailContent}>
-        <div style={styles.detailImageWrap}>
-          <img src={item.image} alt={item.title} style={styles.detailImage} />
-          <div style={styles.detailImageOverlay}>
-            <span style={styles.detailTimer}>
-              <Clock size={14} /> Ends in {item.endsIn}
+      <div style={st.detailScroll}>
+        {listing.image_url ? (
+          <div style={st.detailImgWrap}>
+            <img src={listing.image_url} alt={listing.title} style={st.detailImg} />
+            {listing.listing_type === 'live_stream' && (
+              <span style={st.detailLivePill}><Radio size={11} /> LIVE NOW</span>
+            )}
+          </div>
+        ) : (
+          <div style={st.detailImgPlaceholder}>
+            {getTypeIcon(listing.listing_type, 48)}
+          </div>
+        )}
+
+        <div style={st.detailBody}>
+          <div style={st.detailTopRow}>
+            <span style={{ ...st.platformBadgeLg, color: plat.color, backgroundColor: plat.bg }}>
+              {displayLabel}
+            </span>
+            <span style={st.typeBadgeLg}>
+              {getTypeIcon(listing.listing_type, 12)} {getTypeLabel(listing.listing_type)}
             </span>
           </div>
-        </div>
 
-        <div style={styles.detailBody}>
-          <h2 style={styles.detailTitle}>{item.title}</h2>
-          <div style={styles.detailMetaRow}>
-            <span style={styles.detailHouse}>
-              <Gavel size={12} /> {item.auctionHouse}
-            </span>
-            <span style={styles.detailLocation}>
-              <MapPin size={12} /> {item.location}
-            </span>
-          </div>
+          <h2 style={st.detailTitle}>{listing.title}</h2>
 
-          <div style={styles.warningBadges}>
-            {item.pickupOnly && (
-              <div style={styles.warningBadge}>
-                <Package size={14} style={{ color: 'var(--color-warning-600)' }} />
-                <div>
-                  <span style={styles.warningTitle}>Pickup Only</span>
-                  <span style={styles.warningDesc}>Shipping not available</span>
-                </div>
-              </div>
+          {listing.price_display && (
+            <p style={st.detailPrice}>{listing.price_display}</p>
+          )}
+
+          <div style={st.detailInfoRow}>
+            {listing.location && (
+              <span style={st.detailInfoItem}><MapPin size={12} /> {listing.location}</span>
             )}
-            {item.scoutNeeded && (
-              <div style={styles.warningBadgeGreen}>
-                <Users size={14} style={{ color: 'var(--color-success-600)' }} />
-                <div>
-                  <span style={styles.warningTitle}>Local Scout Recommended</span>
-                  <span style={styles.warningDesc}>{item.scoutsInterested} scouts available nearby</span>
-                </div>
-              </div>
+            {timer && (
+              <span style={{
+                ...st.detailInfoItem,
+                color: timer === 'Ended' ? 'var(--color-error-600)' : 'var(--color-neutral-600)',
+                fontWeight: 'var(--font-weight-semibold)',
+              }}>
+                <Clock size={12} /> {timer}
+              </span>
             )}
-            {item.endingSoon && (
-              <div style={styles.warningBadgeRed}>
-                <AlertTriangle size={14} style={{ color: 'var(--color-error-600)' }} />
-                <div>
-                  <span style={styles.warningTitle}>Ends Soon</span>
-                  <span style={styles.warningDesc}>Less than 5 hours remaining</span>
-                </div>
-              </div>
-            )}
-            {item.highDemand && (
-              <div style={styles.warningBadgeBlue}>
-                <TrendingUp size={14} style={{ color: 'var(--color-primary-600)' }} />
-                <div>
-                  <span style={styles.warningTitle}>High Demand</span>
-                  <span style={styles.warningDesc}>{item.scoutsInterested} users watching</span>
-                </div>
-              </div>
+            {listing.ends_at && !timer?.includes('Ended') && (
+              <span style={st.detailInfoItem}>
+                Ends {new Date(listing.ends_at).toLocaleDateString()}
+              </span>
             )}
           </div>
 
-          <div style={styles.detailPricing}>
-            <div style={styles.detailPriceCard}>
-              <span style={styles.detailPriceLabel}>Current Bid</span>
-              <span style={styles.detailPriceAmount}>{item.currentBid}</span>
-            </div>
-            <div style={styles.detailPriceCard}>
-              <span style={styles.detailPriceLabel}>Est. Value</span>
-              <span style={styles.detailEstAmount}>{item.estimatedValue}</span>
-            </div>
+          {listing.description && (
+            <p style={st.detailDesc}>{listing.description}</p>
+          )}
+
+          <div style={st.detailBadgeRow}>
+            {listing.condition && listing.condition !== 'good' && (
+              <span style={st.condBadge}>{listing.condition}</span>
+            )}
+            {listing.category && listing.category !== 'other' && (
+              <span style={st.catBadgeDetail}>{listing.category}</span>
+            )}
+            {listing.ships_available && (
+              <span style={st.shippingBadge}><Truck size={10} /> Ships Nationwide</span>
+            )}
+            {listing.local_pickup && (
+              <span style={st.pickupBadge}><Package size={10} /> Local Pickup</span>
+            )}
           </div>
 
-          <div style={styles.detailSection}>
-            <h3 style={styles.detailSectionTitle}>Suggested Max Bid</h3>
-            <div style={styles.suggestedBid}>
-              <DollarSign size={16} style={{ color: 'var(--color-success-600)' }} />
-              <span style={styles.suggestedAmount}>$650</span>
-              <span style={styles.suggestedNote}>Based on resale value and market trends</span>
-            </div>
+          <div style={st.detailBy}>
+            <span style={st.detailByText}>Shared by @{listing.profiles?.username ?? 'hunter'}</span>
+            {listing.profiles?.scout_verified && (
+              <span style={st.verifiedBadge}>Verified Scout</span>
+            )}
           </div>
 
-          <div style={styles.detailSection}>
-            <h3 style={styles.detailSectionTitle}>Estimated Resale Value</h3>
-            <div style={styles.resaleCard}>
-              <div style={styles.resaleRow}>
-                <span style={styles.resaleLabel}>Quick Flip</span>
-                <span style={styles.resaleValue}>{item.estimatedValue.split(' - ')[0]}</span>
-              </div>
-              <div style={styles.resaleRow}>
-                <span style={styles.resaleLabel}>Hold 6 months</span>
-                <span style={styles.resaleValue}>{item.estimatedValue.split(' - ')[1] || item.estimatedValue}</span>
-              </div>
-              <div style={styles.resaleRow}>
-                <span style={styles.resaleLabel}>Potential Profit</span>
-                <span style={styles.profitValue}>+$400 - $800</span>
-              </div>
-            </div>
+          <div style={st.actionBlock}>
+            <button onClick={openListing} style={st.primaryActionBtn}>
+              <ExternalLink size={16} />
+              Open Original Listing
+            </button>
+
+            {isAuctionType && (
+              <button onClick={openListing} style={st.watchBtn}>
+                {listing.listing_type === 'live_stream' ? <Radio size={15} /> : <Gavel size={15} />}
+                {listing.listing_type === 'live_stream' ? 'Watch Live Stream' : 'Watch Auction'}
+              </button>
+            )}
           </div>
 
-          <div style={styles.detailSection}>
-            <h3 style={styles.detailSectionTitle}>Bid History</h3>
-            <div style={styles.bidHistory}>
-              <div style={styles.bidRow}>
-                <span style={styles.bidUser}>@collector_42</span>
-                <span style={styles.bidAmount}>{item.currentBid}</span>
-                <span style={styles.bidTime}>12 min ago</span>
-              </div>
-              <div style={styles.bidRow}>
-                <span style={styles.bidUser}>@vintage_eye</span>
-                <span style={styles.bidAmount}>$350</span>
-                <span style={styles.bidTime}>1h ago</span>
-              </div>
-              <div style={styles.bidRow}>
-                <span style={styles.bidUser}>@picker_pro</span>
-                <span style={styles.bidAmount}>$280</span>
-                <span style={styles.bidTime}>3h ago</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.detailSection}>
-            <h3 style={styles.detailSectionTitle}>Scout Activity</h3>
-            <div style={styles.scoutActivity}>
-              <div style={styles.scoutActivityRow}>
-                <div style={styles.scoutDot} />
-                <span style={styles.scoutActivityText}>
-                  @dallas_picker viewed this listing (20 min ago)
+          <div style={st.scoutBlock}>
+            <h3 style={st.scoutBlockTitle}>Scout Coordination</h3>
+            <p style={st.scoutBlockDesc}>
+              Need someone local to inspect, bid in-person, or pick up this item?
+            </p>
+            <div style={st.scoutBtnRow}>
+              {!listing.scout_needed ? (
+                <button
+                  onClick={handleScoutNeeded}
+                  disabled={scoutLoading}
+                  style={st.needScoutBtn}
+                >
+                  {scoutLoading
+                    ? <Loader size={14} style={{ animation: 'spin 0.8s linear infinite' }} />
+                    : <Users size={14} />}
+                  I Need a Scout
+                </button>
+              ) : (
+                <span style={st.scoutNeededPill}>
+                  <Users size={12} /> Scout Requested
                 </span>
-              </div>
-              <div style={styles.scoutActivityRow}>
-                <div style={styles.scoutDot} />
-                <span style={styles.scoutActivityText}>
-                  @phx_treasure offered to scout (1h ago)
-                </span>
-              </div>
+              )}
+
+              {!offerSent ? (
+                <button onClick={handleOfferScout} style={st.offerScoutBtn}>
+                  <Users size={14} />
+                  Offer Scout Services
+                </button>
+              ) : (
+                <span style={st.offerSentPill}>Scout offer sent!</span>
+              )}
             </div>
           </div>
-
-          <button onClick={onCoordinate} style={styles.recruitBtn}>
-            <Users size={18} style={{ color: 'var(--color-neutral-0)' }} />
-            <span style={styles.recruitBtnText}>Recruit Scout</span>
-          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function ScoutCoordination({
-  item,
-  onBack,
-}: {
-  item: AuctionItem;
-  onBack: () => void;
-}) {
+function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const { user } = useAuth();
+  const [step, setStep] = useState<'platform' | 'details' | 'meta'>('platform');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const [form, setForm] = useState({
+    platform: '',
+    platform_label: '',
+    listing_type: 'auction',
+    external_url: '',
+    title: '',
+    description: '',
+    image_url: '',
+    price_display: '',
+    category: 'other',
+    condition: 'Good',
+    ships_available: false,
+    local_pickup: false,
+    ends_at: '',
+    location: '',
+    scout_needed: false,
+  });
+
+  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  const canProceedStep1 = form.platform !== '' && form.external_url.trim() !== '' && form.listing_type !== '';
+  const canProceedStep2 = form.title.trim() !== '';
+
+  const handleSubmit = async () => {
+    if (!user) return;
+    setSaving(true);
+    setError('');
+    const { error: err } = await supabase.from('external_listings').insert({
+      user_id: user.id,
+      platform: form.platform,
+      platform_label: form.platform_label,
+      listing_type: form.listing_type,
+      external_url: form.external_url.trim(),
+      title: form.title.trim(),
+      description: form.description.trim(),
+      image_url: form.image_url.trim() || null,
+      price_display: form.price_display.trim(),
+      category: form.category,
+      condition: form.condition,
+      ships_available: form.ships_available,
+      local_pickup: form.local_pickup,
+      ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
+      location: form.location.trim(),
+      scout_needed: form.scout_needed,
+      status: 'active',
+    });
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    onSuccess();
+  };
+
   return (
-    <div style={styles.container}>
-      <header style={styles.stepHeader}>
-        <button onClick={onBack} style={styles.backBtn}>
-          <ArrowLeft size={20} />
-        </button>
-        <span style={styles.stepLabel}>Scout Coordination</span>
-        <div style={{ width: 36 }} />
-      </header>
+    <div style={sh.overlay} onClick={onClose}>
+      <div style={sh.sheet} onClick={(e) => e.stopPropagation()}>
+        <div style={sh.handle} />
 
-      <div style={styles.coordContent}>
-        <div style={styles.coordItemCard}>
-          <img src={item.image} alt={item.title} style={styles.coordImage} />
-          <div style={styles.coordItemInfo}>
-            <h3 style={styles.coordItemTitle}>{item.title}</h3>
-            <span style={styles.coordItemLocation}>
-              <MapPin size={11} /> {item.location}
-            </span>
-            <span style={styles.coordItemTimer}>
-              <Clock size={11} /> Ends in {item.endsIn}
-            </span>
-          </div>
+        <div style={sh.sheetHeader}>
+          <span style={sh.sheetTitle}>Share a Listing</span>
+          <button onClick={onClose} style={sh.closeBtn}><X size={18} /></button>
         </div>
 
-        <div style={styles.coordSection}>
-          <h3 style={styles.coordSectionTitle}>What do you need?</h3>
-          <div style={styles.needsGrid}>
-            <button style={styles.needBtn}>
-              <Gavel size={16} style={{ color: 'var(--color-primary-600)' }} />
-              <span style={styles.needLabel}>Bidding Help</span>
-              <span style={styles.needDesc}>Local bidder to attend</span>
-            </button>
-            <button style={styles.needBtn}>
-              <Package size={16} style={{ color: 'var(--color-secondary-600)' }} />
-              <span style={styles.needLabel}>Pickup Assist</span>
-              <span style={styles.needDesc}>Transport after winning</span>
-            </button>
-            <button style={styles.needBtn}>
-              <Eye size={16} style={{ color: 'var(--color-accent-500)' }} />
-              <span style={styles.needLabel}>Inspection</span>
-              <span style={styles.needDesc}>Preview item in-person</span>
-            </button>
-          </div>
+        <div style={sh.steps}>
+          {(['platform', 'details', 'meta'] as const).map((s, i) => (
+            <div key={s} style={sh.stepItem}>
+              <div style={{
+                ...sh.stepDot,
+                ...(step === s ? sh.stepDotActive : {}),
+                ...((['platform', 'details', 'meta'].indexOf(step) > i) ? sh.stepDotDone : {}),
+              }} />
+              <span style={{ ...sh.stepLabel, ...(step === s ? sh.stepLabelActive : {}) }}>
+                {['Platform', 'Details', 'Info'][i]}
+              </span>
+            </div>
+          ))}
         </div>
 
-        <div style={styles.coordSection}>
-          <div style={styles.sectionRow}>
-            <h3 style={styles.coordSectionTitle}>Available Scouts Near {item.location}</h3>
-          </div>
-          <div style={styles.scoutList}>
-            {regionalScouts.map((scout, index) => (
-              <div
-                key={scout.id}
-                style={{ ...styles.scoutCard, animationDelay: `${index * 80}ms` }}
-              >
-                <div style={styles.scoutCardTop}>
-                  <div style={styles.scoutAvatar}>
-                    <User size={18} style={{ color: 'var(--color-neutral-400)' }} />
-                  </div>
-                  <div style={styles.scoutCardInfo}>
-                    <div style={styles.scoutNameRow}>
-                      <span style={styles.scoutUsername}>@{scout.username}</span>
-                      {scout.available ? (
-                        <span style={styles.availableBadge}>Available</span>
-                      ) : (
-                        <span style={styles.busyBadge}>Busy</span>
-                      )}
-                    </div>
-                    <div style={styles.scoutDetails}>
-                      <span style={styles.scoutRating}>
-                        <Star size={10} style={{ color: 'var(--color-primary-500)', fill: 'var(--color-primary-500)' }} />
-                        {scout.rating}
-                      </span>
-                      <span style={styles.scoutRegion}>
-                        <MapPin size={10} /> {scout.region}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={styles.scoutCardMeta}>
-                  <div style={styles.scoutSpecialties}>
-                    {scout.specialties.map((s) => (
-                      <span key={s} style={styles.specTag}>{s}</span>
-                    ))}
-                  </div>
-                  <div style={styles.scoutStats}>
-                    <span style={styles.scoutStat}>{scout.completedJobs} jobs</span>
-                    <span style={styles.scoutStat}>
-                      <Clock size={10} /> {scout.responseTime}
+        <div style={sh.body}>
+          {step === 'platform' && (
+            <div style={sh.section}>
+              <label style={sh.label}>Platform *</label>
+              <div style={sh.platformGrid}>
+                {PLATFORMS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => set('platform', p.id)}
+                    style={{
+                      ...sh.platformBtn,
+                      borderColor: form.platform === p.id ? p.color : 'var(--color-neutral-200)',
+                      backgroundColor: form.platform === p.id ? p.bg : 'var(--color-neutral-0)',
+                    }}
+                  >
+                    <span style={{ ...sh.platformBtnLabel, color: form.platform === p.id ? p.color : 'var(--color-neutral-700)' }}>
+                      {p.label}
                     </span>
-                  </div>
-                </div>
+                  </button>
+                ))}
+              </div>
+              {form.platform === 'other' && (
+                <input
+                  placeholder="Platform name (e.g. Craigslist)"
+                  value={form.platform_label}
+                  onChange={(e) => set('platform_label', e.target.value)}
+                  style={sh.input}
+                />
+              )}
 
-                <button
-                  style={{
-                    ...styles.requestHelpBtn,
-                    ...(scout.available ? {} : styles.requestHelpBtnDisabled),
-                  }}
-                  disabled={!scout.available}
+              <label style={{ ...sh.label, marginTop: '16px' }}>Listing Type *</label>
+              <div style={sh.typeRow}>
+                {[
+                  { id: 'live_stream', label: 'Live Stream', icon: <Radio size={14} /> },
+                  { id: 'auction',     label: 'Auction',     icon: <Gavel size={14} /> },
+                  { id: 'fixed',       label: 'Fixed Price', icon: <Tag size={14} /> },
+                  { id: 'estate',      label: 'Estate Sale', icon: <Home size={14} /> },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => set('listing_type', t.id)}
+                    style={{
+                      ...sh.typeBtn,
+                      ...(form.listing_type === t.id ? sh.typeBtnActive : {}),
+                    }}
+                  >
+                    {t.icon}
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <label style={{ ...sh.label, marginTop: '16px' }}>Listing URL *</label>
+              <input
+                type="url"
+                placeholder="https://whatnot.com/stream/..."
+                value={form.external_url}
+                onChange={(e) => set('external_url', e.target.value)}
+                style={sh.input}
+                inputMode="url"
+              />
+            </div>
+          )}
+
+          {step === 'details' && (
+            <div style={sh.section}>
+              <label style={sh.label}>Title *</label>
+              <input
+                placeholder="What are you listing?"
+                value={form.title}
+                onChange={(e) => set('title', e.target.value)}
+                style={sh.input}
+                maxLength={120}
+              />
+
+              <label style={{ ...sh.label, marginTop: '12px' }}>Description</label>
+              <textarea
+                placeholder="Add any useful details — condition, lot contents, etc."
+                value={form.description}
+                onChange={(e) => set('description', e.target.value)}
+                style={sh.textarea}
+                rows={3}
+              />
+
+              <label style={{ ...sh.label, marginTop: '12px' }}>Price / Starting Bid</label>
+              <input
+                placeholder="e.g. $25, Starting at $100, Make Offer"
+                value={form.price_display}
+                onChange={(e) => set('price_display', e.target.value)}
+                style={sh.input}
+              />
+
+              <label style={{ ...sh.label, marginTop: '12px' }}>Image URL (optional)</label>
+              <input
+                type="url"
+                placeholder="https://..."
+                value={form.image_url}
+                onChange={(e) => set('image_url', e.target.value)}
+                style={sh.input}
+                inputMode="url"
+              />
+            </div>
+          )}
+
+          {step === 'meta' && (
+            <div style={sh.section}>
+              <label style={sh.label}>Category</label>
+              <div style={sh.selectWrap}>
+                <select
+                  value={form.category}
+                  onChange={(e) => set('category', e.target.value)}
+                  style={sh.select}
                 >
-                  {scout.available ? 'Request Help' : 'Unavailable'}
+                  {CATEGORIES.filter((c) => c !== 'All').map((c) => (
+                    <option key={c} value={c.toLowerCase()}>{c}</option>
+                  ))}
+                  <option value="other">Other</option>
+                </select>
+                <ChevronDown size={14} style={sh.selectIcon} />
+              </div>
+
+              <label style={{ ...sh.label, marginTop: '12px' }}>Condition</label>
+              <div style={sh.selectWrap}>
+                <select
+                  value={form.condition}
+                  onChange={(e) => set('condition', e.target.value)}
+                  style={sh.select}
+                >
+                  {CONDITIONS.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} style={sh.selectIcon} />
+              </div>
+
+              <label style={{ ...sh.label, marginTop: '12px' }}>Ends At (optional)</label>
+              <input
+                type="datetime-local"
+                value={form.ends_at}
+                onChange={(e) => set('ends_at', e.target.value)}
+                style={sh.input}
+              />
+
+              <label style={{ ...sh.label, marginTop: '12px' }}>Location (optional)</label>
+              <input
+                placeholder="City, State or Online"
+                value={form.location}
+                onChange={(e) => set('location', e.target.value)}
+                style={sh.input}
+              />
+
+              <div style={sh.toggleRow}>
+                <label style={sh.toggleLabel}>Ships Nationwide</label>
+                <button
+                  onClick={() => set('ships_available', !form.ships_available)}
+                  style={{ ...sh.toggle, ...(form.ships_available ? sh.toggleOn : {}) }}
+                >
+                  <div style={{ ...sh.toggleThumb, ...(form.ships_available ? sh.toggleThumbOn : {}) }} />
                 </button>
               </div>
-            ))}
-          </div>
+
+              <div style={sh.toggleRow}>
+                <label style={sh.toggleLabel}>Local Pickup</label>
+                <button
+                  onClick={() => set('local_pickup', !form.local_pickup)}
+                  style={{ ...sh.toggle, ...(form.local_pickup ? sh.toggleOn : {}) }}
+                >
+                  <div style={{ ...sh.toggleThumb, ...(form.local_pickup ? sh.toggleThumbOn : {}) }} />
+                </button>
+              </div>
+
+              <div style={sh.toggleRow}>
+                <label style={sh.toggleLabel}>I need a local scout</label>
+                <button
+                  onClick={() => set('scout_needed', !form.scout_needed)}
+                  style={{ ...sh.toggle, ...(form.scout_needed ? sh.toggleOn : {}) }}
+                >
+                  <div style={{ ...sh.toggleThumb, ...(form.scout_needed ? sh.toggleThumbOn : {}) }} />
+                </button>
+              </div>
+
+              {error && <p style={sh.errorText}>{error}</p>}
+            </div>
+          )}
+        </div>
+
+        <div style={sh.footer}>
+          {step !== 'platform' && (
+            <button
+              onClick={() => setStep(step === 'meta' ? 'details' : 'platform')}
+              style={sh.backStepBtn}
+            >
+              Back
+            </button>
+          )}
+          {step === 'platform' && (
+            <button
+              onClick={() => setStep('details')}
+              disabled={!canProceedStep1}
+              style={{ ...sh.nextBtn, ...(canProceedStep1 ? {} : sh.nextBtnDisabled) }}
+            >
+              Next
+            </button>
+          )}
+          {step === 'details' && (
+            <button
+              onClick={() => setStep('meta')}
+              disabled={!canProceedStep2}
+              style={{ ...sh.nextBtn, ...(canProceedStep2 ? {} : sh.nextBtnDisabled) }}
+            >
+              Next
+            </button>
+          )}
+          {step === 'meta' && (
+            <button
+              onClick={handleSubmit}
+              disabled={saving}
+              style={sh.submitBtn}
+            >
+              {saving ? <Loader size={14} style={{ animation: 'spin 0.8s linear infinite' }} /> : null}
+              Share Listing
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const st: Record<string, React.CSSProperties> = {
   container: {
     height: '100%',
     display: 'flex',
@@ -556,266 +835,288 @@ const styles: Record<string, React.CSSProperties> = {
   headerRow: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 'var(--space-3)',
+  },
+  backBtn: {
+    width: '36px',
+    height: '36px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-100)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   title: {
     fontSize: 'var(--font-size-xl)',
     fontWeight: 'var(--font-weight-bold)',
     color: 'var(--color-neutral-900)',
+    flex: 1,
   },
   subtitle: {
     fontSize: 'var(--font-size-xs)',
     color: 'var(--color-neutral-500)',
     marginTop: '1px',
   },
-  content: {
-    flex: 1,
-    overflow: 'auto',
-    padding: 'var(--space-4)',
-  },
-  urgentBanner: {
+  addBtn: {
+    width: '36px',
+    height: '36px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-600)',
     display: 'flex',
     alignItems: 'center',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-3) var(--space-4)',
-    backgroundColor: 'var(--color-error-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-error-100)',
-    marginBottom: 'var(--space-4)',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
-  urgentText: {
+  liveBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 16px',
+    backgroundColor: 'var(--color-error-50)',
+    borderBottom: '1px solid var(--color-error-100)',
+    flexShrink: 0,
+  },
+  liveDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    backgroundColor: 'var(--color-error-500)',
+    animation: 'pulse 1.5s ease-in-out infinite',
+    flexShrink: 0,
+  },
+  liveText: {
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-error-700)',
   },
-  categoriesScroll: {
-    display: 'flex',
-    gap: 'var(--space-2)',
-    overflow: 'auto',
-    paddingBottom: 'var(--space-3)',
-    marginBottom: 'var(--space-4)',
+  filtersWrap: {
+    flexShrink: 0,
+    borderBottom: '1px solid var(--color-neutral-100)',
+    backgroundColor: 'var(--color-neutral-0)',
   },
-  catChip: {
-    padding: 'var(--space-2) var(--space-3)',
+  filterRow: {
+    display: 'flex',
+    gap: '6px',
+    padding: '8px 16px',
+    overflowX: 'auto',
+  },
+  chip: {
+    padding: '5px 12px',
     borderRadius: 'var(--radius-full)',
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-medium)',
+    whiteSpace: 'nowrap',
     backgroundColor: 'var(--color-neutral-100)',
     color: 'var(--color-neutral-600)',
-    whiteSpace: 'nowrap',
     flexShrink: 0,
     border: '1px solid transparent',
   },
-  catChipActive: {
+  chipActive: {
     backgroundColor: 'var(--color-neutral-900)',
     color: 'var(--color-neutral-0)',
   },
-  sectionRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 'var(--space-3)',
+  chipActiveAlt: {
+    backgroundColor: 'var(--color-primary-50)',
+    color: 'var(--color-primary-700)',
+    border: '1px solid var(--color-primary-200)',
   },
-  sectionTitle: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
-  },
-  count: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-400)',
-  },
-  auctionList: {
+  feed: {
+    flex: 1,
+    overflow: 'auto',
+    padding: '12px 16px 24px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 'var(--space-4)',
+    gap: '12px',
+  },
+  centered: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '48px 0',
+  },
+  emptyWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+    padding: '48px 24px',
+  },
+  emptyTitle: {
+    fontSize: 'var(--font-size-base)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-700)',
+    marginBottom: '8px',
+  },
+  emptyBody: {
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-400)',
+    lineHeight: '1.55',
+    marginBottom: '20px',
+    maxWidth: '300px',
+  },
+  emptyBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '10px 20px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-600)',
+    color: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-medium)',
   },
 
-  // Auction card
+  // Card
   card: {
-    borderRadius: 'var(--radius-md)',
+    borderRadius: 'var(--radius-lg)',
     border: '1px solid var(--color-neutral-100)',
     overflow: 'hidden',
+    backgroundColor: 'var(--color-neutral-0)',
     boxShadow: 'var(--shadow-sm)',
-    animation: 'slideUp 0.4s ease forwards',
+    cursor: 'pointer',
+    animation: 'slideUp 0.35s ease forwards',
     opacity: 0,
     animationFillMode: 'forwards',
-    cursor: 'pointer',
   },
-  cardImageWrap: {
+  cardImgWrap: {
     position: 'relative',
+    width: '100%',
     aspectRatio: '16/9',
     overflow: 'hidden',
+    backgroundColor: 'var(--color-neutral-100)',
   },
-  cardImage: {
+  cardImgPlaceholder: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'var(--color-neutral-300)',
+  },
+  cardImg: {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
   },
-  cardBadges: {
+  livePill: {
     position: 'absolute',
-    top: 'var(--space-2)',
-    left: 'var(--space-2)',
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '4px',
-  },
-  badgeEnding: {
+    top: '8px',
+    left: '8px',
     display: 'flex',
     alignItems: 'center',
-    gap: '3px',
+    gap: '4px',
     padding: '3px 8px',
     borderRadius: 'var(--radius-full)',
     backgroundColor: 'var(--color-error-500)',
-    color: 'var(--color-neutral-0)',
+    color: 'white',
     fontSize: '10px',
     fontWeight: 'var(--font-weight-bold)',
-  },
-  badgePickup: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    padding: '3px 8px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-warning-500)',
-    color: 'var(--color-neutral-0)',
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-  },
-  badgeScout: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    padding: '3px 8px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-secondary-500)',
-    color: 'var(--color-neutral-0)',
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-  },
-  badgeHot: {
-    position: 'absolute',
-    top: 'var(--space-2)',
-    right: 'var(--space-2)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    padding: '3px 8px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    color: 'var(--color-primary-400)',
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
+    letterSpacing: '0.5px',
   },
   cardBody: {
-    padding: 'var(--space-3) var(--space-4) var(--space-4)',
+    padding: '12px',
+  },
+  cardTopRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginBottom: '6px',
+  },
+  platformBadge: {
+    padding: '2px 8px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '10px',
+    fontWeight: 'var(--font-weight-bold)',
+  },
+  typeBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
+    padding: '2px 7px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '10px',
+    fontWeight: 'var(--font-weight-medium)',
+    backgroundColor: 'var(--color-neutral-100)',
+    color: 'var(--color-neutral-600)',
   },
   cardTitle: {
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-900)',
-    lineHeight: 'var(--line-height-tight)',
-    marginBottom: 'var(--space-2)',
+    marginBottom: '6px',
+    lineHeight: '1.35',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
   },
   cardMeta: {
     display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    marginBottom: 'var(--space-3)',
+    flexWrap: 'wrap',
+    gap: '8px',
+    marginBottom: '8px',
   },
-  cardHouse: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-  },
-  cardLocation: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-  },
-  cardPricing: {
-    display: 'flex',
-    gap: 'var(--space-4)',
-    marginBottom: 'var(--space-3)',
-    padding: 'var(--space-3)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderRadius: 'var(--radius-sm)',
-  },
-  priceCol: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  priceLabel: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-medium)',
-    color: 'var(--color-neutral-400)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  },
-  priceValue: {
-    fontSize: 'var(--font-size-base)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
-  },
-  estValue: {
+  priceTag: {
     fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-success-600)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-primary-700)',
+  },
+  metaItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-500)',
   },
   cardFooter: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  cardFooterLeft: {
+  cardBadges: {
     display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
+    gap: '4px',
+    flexWrap: 'wrap',
   },
-  timerBadge: {
+  shippingBadge: {
     display: 'flex',
     alignItems: 'center',
     gap: '3px',
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-error-600)',
+    padding: '2px 7px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '10px',
+    fontWeight: 'var(--font-weight-medium)',
+    backgroundColor: 'var(--color-success-50)',
+    color: 'var(--color-success-700)',
   },
-  scoutInterest: {
+  pickupBadge: {
     display: 'flex',
     alignItems: 'center',
     gap: '3px',
+    padding: '2px 7px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '10px',
+    fontWeight: 'var(--font-weight-medium)',
+    backgroundColor: 'var(--color-warning-50)',
+    color: 'var(--color-warning-700)',
+  },
+  scoutBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
+    padding: '2px 7px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '10px',
+    fontWeight: 'var(--font-weight-medium)',
+    backgroundColor: 'var(--color-primary-50)',
+    color: 'var(--color-primary-700)',
+  },
+  cardBy: {
     fontSize: 'var(--font-size-xs)',
     color: 'var(--color-neutral-400)',
   },
-  cardActions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-  },
-  watchBtn: {
-    width: '32px',
-    height: '32px',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-200)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'var(--color-neutral-500)',
-  },
-  requestScoutBtn: {
-    padding: 'var(--space-2) var(--space-3)',
-    borderRadius: 'var(--radius-md)',
-    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))',
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-0)',
-  },
 
-  // Step header
+  // Detail
   stepHeader: {
     display: 'flex',
     alignItems: 'center',
@@ -824,507 +1125,529 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid var(--color-neutral-100)',
     flexShrink: 0,
   },
-  backBtn: {
-    width: '36px',
-    height: '36px',
-    borderRadius: 'var(--radius-md)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'var(--color-neutral-600)',
-  },
-  stepLabel: {
+  stepTitle: {
     fontSize: 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-900)',
   },
-
-  // Detail view
-  detailContent: {
+  detailScroll: {
     flex: 1,
     overflow: 'auto',
+    paddingBottom: '32px',
   },
-  detailImageWrap: {
+  detailImgWrap: {
     position: 'relative',
-    aspectRatio: '16/10',
+    width: '100%',
+    aspectRatio: '4/3',
     overflow: 'hidden',
+    backgroundColor: 'var(--color-neutral-100)',
   },
-  detailImage: {
+  detailImgPlaceholder: {
+    width: '100%',
+    aspectRatio: '4/3',
+    backgroundColor: 'var(--color-neutral-100)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'var(--color-neutral-300)',
+  },
+  detailImg: {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
   },
-  detailImageOverlay: {
+  detailLivePill: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 'var(--space-3) var(--space-4)',
-    background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
-  detailTimer: {
+    top: '12px',
+    left: '12px',
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
-    padding: 'var(--space-1) var(--space-3)',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: '5px 12px',
     borderRadius: 'var(--radius-full)',
-    color: 'var(--color-neutral-0)',
+    backgroundColor: 'var(--color-error-500)',
+    color: 'white',
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-bold)',
-    backdropFilter: 'blur(4px)',
+    letterSpacing: '0.5px',
   },
   detailBody: {
-    padding: 'var(--space-4)',
+    padding: '16px',
+  },
+  detailTopRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '10px',
+  },
+  platformBadgeLg: {
+    padding: '4px 12px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-bold)',
+  },
+  typeBadgeLg: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 10px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-medium)',
+    backgroundColor: 'var(--color-neutral-100)',
+    color: 'var(--color-neutral-600)',
   },
   detailTitle: {
-    fontSize: 'var(--font-size-lg)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
-    lineHeight: 'var(--line-height-tight)',
-    marginBottom: 'var(--space-2)',
-  },
-  detailMetaRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    marginBottom: 'var(--space-4)',
-  },
-  detailHouse: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-  },
-  detailLocation: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-  },
-
-  // Warning badges
-  warningBadges: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
-    marginBottom: 'var(--space-4)',
-  },
-  warningBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-3) var(--space-4)',
-    backgroundColor: 'var(--color-warning-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-warning-100)',
-  },
-  warningBadgeGreen: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-3) var(--space-4)',
-    backgroundColor: 'var(--color-success-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-success-100)',
-  },
-  warningBadgeRed: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-3) var(--space-4)',
-    backgroundColor: 'var(--color-error-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-error-100)',
-  },
-  warningBadgeBlue: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-3) var(--space-4)',
-    backgroundColor: 'var(--color-primary-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-primary-100)',
-  },
-  warningTitle: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
-    display: 'block',
-  },
-  warningDesc: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-    display: 'block',
-  },
-
-  // Detail pricing
-  detailPricing: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 'var(--space-3)',
-    marginBottom: 'var(--space-5)',
-  },
-  detailPriceCard: {
-    padding: 'var(--space-3)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-100)',
-    textAlign: 'center',
-  },
-  detailPriceLabel: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-medium)',
-    color: 'var(--color-neutral-400)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    display: 'block',
-    marginBottom: '4px',
-  },
-  detailPriceAmount: {
     fontSize: 'var(--font-size-xl)',
     fontWeight: 'var(--font-weight-bold)',
     color: 'var(--color-neutral-900)',
+    marginBottom: '6px',
+    lineHeight: '1.3',
   },
-  detailEstAmount: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-success-600)',
-  },
-
-  // Detail sections
-  detailSection: {
-    marginBottom: 'var(--space-5)',
-  },
-  detailSectionTitle: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
-    marginBottom: 'var(--space-3)',
-  },
-  suggestedBid: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-3) var(--space-4)',
-    backgroundColor: 'var(--color-success-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-success-100)',
-    flexWrap: 'wrap',
-  },
-  suggestedAmount: {
+  detailPrice: {
     fontSize: 'var(--font-size-lg)',
     fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-success-700)',
+    color: 'var(--color-primary-700)',
+    marginBottom: '8px',
   },
-  suggestedNote: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-success-600)',
-    width: '100%',
-    marginTop: '2px',
-  },
-  resaleCard: {
-    padding: 'var(--space-3) var(--space-4)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-100)',
+  detailInfoRow: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
+    flexWrap: 'wrap',
+    gap: '10px',
+    marginBottom: '12px',
   },
-  resaleRow: {
+  detailInfoItem: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  resaleLabel: {
+    gap: '4px',
     fontSize: 'var(--font-size-sm)',
     color: 'var(--color-neutral-600)',
   },
-  resaleValue: {
+  detailDesc: {
     fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-900)',
+    color: 'var(--color-neutral-600)',
+    lineHeight: '1.6',
+    marginBottom: '14px',
   },
-  profitValue: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-success-600)',
-  },
-  bidHistory: {
+  detailBadgeRow: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
+    flexWrap: 'wrap',
+    gap: '6px',
+    marginBottom: '12px',
   },
-  bidRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 'var(--space-2) var(--space-3)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderRadius: 'var(--radius-sm)',
-  },
-  bidUser: {
+  condBadge: {
+    padding: '3px 10px',
+    borderRadius: 'var(--radius-full)',
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-medium)',
+    backgroundColor: 'var(--color-neutral-100)',
     color: 'var(--color-neutral-700)',
   },
-  bidAmount: {
+  catBadgeDetail: {
+    padding: '3px 10px',
+    borderRadius: 'var(--radius-full)',
     fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
+    fontWeight: 'var(--font-weight-medium)',
+    backgroundColor: 'var(--color-accent-50)',
+    color: 'var(--color-accent-700)',
   },
-  bidTime: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-400)',
-  },
-  scoutActivity: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
-  },
-  scoutActivityRow: {
+  detailBy: {
     display: 'flex',
     alignItems: 'center',
-    gap: 'var(--space-2)',
+    gap: '8px',
+    marginBottom: '20px',
+    paddingBottom: '16px',
+    borderBottom: '1px solid var(--color-neutral-100)',
   },
-  scoutDot: {
-    width: '6px',
-    height: '6px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-success-400)',
-    flexShrink: 0,
-  },
-  scoutActivityText: {
+  detailByText: {
     fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-600)',
+    color: 'var(--color-neutral-500)',
   },
-  recruitBtn: {
+  verifiedBadge: {
+    padding: '2px 8px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '10px',
+    fontWeight: 'var(--font-weight-bold)',
+    backgroundColor: 'var(--color-success-50)',
+    color: 'var(--color-success-700)',
+  },
+  actionBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginBottom: '24px',
+  },
+  primaryActionBtn: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 'var(--space-2)',
-    width: '100%',
-    padding: 'var(--space-4)',
+    gap: '8px',
+    padding: '14px',
     borderRadius: 'var(--radius-md)',
-    background: 'linear-gradient(135deg, var(--color-primary-600), var(--color-accent-500))',
-    boxShadow: '0 4px 16px rgba(234, 179, 8, 0.3)',
-    marginTop: 'var(--space-4)',
-  },
-  recruitBtnText: {
+    backgroundColor: 'var(--color-primary-600)',
     color: 'var(--color-neutral-0)',
     fontSize: 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-semibold)',
+    width: '100%',
   },
-
-  // Coordination view
-  coordContent: {
-    flex: 1,
-    overflow: 'auto',
-    padding: 'var(--space-4)',
-  },
-  coordItemCard: {
+  watchBtn: {
     display: 'flex',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-3)',
-    backgroundColor: 'var(--color-neutral-50)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    padding: '12px',
     borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-100)',
-    marginBottom: 'var(--space-5)',
-  },
-  coordImage: {
-    width: '56px',
-    height: '56px',
-    borderRadius: 'var(--radius-sm)',
-    objectFit: 'cover',
-    flexShrink: 0,
-  },
-  coordItemInfo: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  coordItemTitle: {
+    backgroundColor: 'var(--color-error-50)',
+    color: 'var(--color-error-700)',
+    border: '1px solid var(--color-error-200)',
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-900)',
+    width: '100%',
   },
-  coordItemLocation: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
+  scoutBlock: {
+    backgroundColor: 'var(--color-primary-50)',
+    border: '1px solid var(--color-primary-100)',
+    borderRadius: 'var(--radius-lg)',
+    padding: '16px',
   },
-  coordItemTimer: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-error-600)',
-    fontWeight: 'var(--font-weight-medium)',
-  },
-  coordSection: {
-    marginBottom: 'var(--space-5)',
-  },
-  coordSectionTitle: {
+  scoutBlockTitle: {
     fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
-    marginBottom: 'var(--space-3)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-primary-900)',
+    marginBottom: '4px',
   },
-  needsGrid: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
+  scoutBlockDesc: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-primary-700)',
+    marginBottom: '14px',
+    lineHeight: '1.5',
   },
-  needBtn: {
+  scoutBtnRow: {
     display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-4)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-200)',
-    backgroundColor: 'var(--color-neutral-0)',
-    textAlign: 'left',
+    gap: '10px',
     flexWrap: 'wrap',
   },
-  needLabel: {
+  needScoutBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '10px 16px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-primary-600)',
+    color: 'var(--color-neutral-0)',
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  scoutNeededPill: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '10px 16px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-success-50)',
+    color: 'var(--color-success-700)',
+    border: '1px solid var(--color-success-200)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  offerScoutBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '10px 16px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-neutral-0)',
+    color: 'var(--color-primary-700)',
+    border: '1px solid var(--color-primary-300)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  offerSentPill: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '10px 16px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-success-50)',
+    color: 'var(--color-success-700)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
     flex: 1,
   },
-  needDesc: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-400)',
-    width: '100%',
-    marginLeft: '36px',
+};
+
+const sh: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'flex-end',
   },
-  scoutList: {
+  sheet: {
+    width: '100%',
+    maxHeight: '92vh',
+    backgroundColor: 'var(--color-neutral-0)',
+    borderRadius: '20px 20px 0 0',
     display: 'flex',
     flexDirection: 'column',
-    gap: 'var(--space-3)',
+    overflow: 'hidden',
+    animation: 'slideUp 0.3s ease',
   },
-  scoutCard: {
-    padding: 'var(--space-4)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-100)',
-    backgroundColor: 'var(--color-neutral-0)',
-    boxShadow: 'var(--shadow-sm)',
-    animation: 'slideUp 0.4s ease forwards',
-    opacity: 0,
-    animationFillMode: 'forwards',
+  handle: {
+    width: '36px',
+    height: '4px',
+    borderRadius: '2px',
+    backgroundColor: 'var(--color-neutral-200)',
+    margin: '10px auto 0',
+    flexShrink: 0,
   },
-  scoutCardTop: {
+  sheetHeader: {
     display: 'flex',
-    gap: 'var(--space-3)',
-    marginBottom: 'var(--space-3)',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 20px 12px',
+    borderBottom: '1px solid var(--color-neutral-100)',
+    flexShrink: 0,
   },
-  scoutAvatar: {
-    width: '40px',
-    height: '40px',
+  sheetTitle: {
+    fontSize: 'var(--font-size-base)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
+  },
+  closeBtn: {
+    width: '30px',
+    height: '30px',
     borderRadius: 'var(--radius-full)',
     backgroundColor: 'var(--color-neutral-100)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  steps: {
+    display: 'flex',
+    gap: '0',
+    padding: '12px 20px',
+    borderBottom: '1px solid var(--color-neutral-100)',
     flexShrink: 0,
   },
-  scoutCardInfo: {
+  stepItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
     flex: 1,
   },
-  scoutNameRow: {
+  stepDot: {
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    backgroundColor: 'var(--color-neutral-200)',
+    flexShrink: 0,
+  },
+  stepDotActive: {
+    backgroundColor: 'var(--color-primary-600)',
+  },
+  stepDotDone: {
+    backgroundColor: 'var(--color-success-500)',
+  },
+  stepLabel: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-400)',
+  },
+  stepLabelActive: {
+    color: 'var(--color-primary-700)',
+    fontWeight: 'var(--font-weight-semibold)',
+  },
+  body: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '16px 20px',
+  },
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  label: {
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-700)',
+    marginBottom: '6px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+  },
+  platformGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '8px',
+    marginBottom: '4px',
+  },
+  platformBtn: {
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-md)',
+    border: '1.5px solid var(--color-neutral-200)',
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+  platformBtnLabel: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+  },
+  typeRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '8px',
+    marginBottom: '4px',
+  },
+  typeBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-md)',
+    border: '1.5px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-medium)',
+    color: 'var(--color-neutral-700)',
+    cursor: 'pointer',
+  },
+  typeBtnActive: {
+    borderColor: 'var(--color-primary-500)',
+    backgroundColor: 'var(--color-primary-50)',
+    color: 'var(--color-primary-700)',
+  },
+  input: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-900)',
+    backgroundColor: 'var(--color-neutral-0)',
+    boxSizing: 'border-box',
+  },
+  textarea: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-900)',
+    backgroundColor: 'var(--color-neutral-0)',
+    resize: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  },
+  selectWrap: {
+    position: 'relative',
+  },
+  select: {
+    width: '100%',
+    padding: '10px 32px 10px 12px',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-900)',
+    backgroundColor: 'var(--color-neutral-0)',
+    appearance: 'none',
+    boxSizing: 'border-box',
+  },
+  selectIcon: {
+    position: 'absolute',
+    right: '10px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: 'var(--color-neutral-400)',
+    pointerEvents: 'none',
+  },
+  toggleRow: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: '2px',
+    marginTop: '14px',
   },
-  scoutUsername: {
+  toggleLabel: {
     fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-900)',
-  },
-  availableBadge: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    padding: '2px 8px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-success-50)',
-    color: 'var(--color-success-700)',
-  },
-  busyBadge: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    padding: '2px 8px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-neutral-100)',
-    color: 'var(--color-neutral-500)',
-  },
-  scoutDetails: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-  },
-  scoutRating: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-medium)',
     color: 'var(--color-neutral-700)',
+    fontWeight: 'var(--font-weight-medium)',
   },
-  scoutRegion: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
+  toggle: {
+    width: '44px',
+    height: '24px',
+    borderRadius: '12px',
+    backgroundColor: 'var(--color-neutral-200)',
+    position: 'relative',
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+  },
+  toggleOn: {
+    backgroundColor: 'var(--color-primary-500)',
+  },
+  toggleThumb: {
+    position: 'absolute',
+    top: '2px',
+    left: '2px',
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    backgroundColor: 'white',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+    transition: 'left 0.2s',
+  },
+  toggleThumbOn: {
+    left: '22px',
+  },
+  errorText: {
     fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
+    color: 'var(--color-error-600)',
+    marginTop: '10px',
   },
-  scoutCardMeta: {
-    marginBottom: 'var(--space-3)',
-  },
-  scoutSpecialties: {
+  footer: {
     display: 'flex',
-    gap: 'var(--space-2)',
-    marginBottom: 'var(--space-2)',
+    gap: '10px',
+    padding: '14px 20px',
+    borderTop: '1px solid var(--color-neutral-100)',
+    flexShrink: 0,
   },
-  specTag: {
-    padding: '2px 8px',
-    borderRadius: 'var(--radius-full)',
-    fontSize: 'var(--font-size-xs)',
-    backgroundColor: 'var(--color-neutral-100)',
-    color: 'var(--color-neutral-600)',
-  },
-  scoutStats: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-  },
-  scoutStat: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-400)',
-  },
-  requestHelpBtn: {
-    width: '100%',
-    padding: 'var(--space-3)',
+  backStepBtn: {
+    padding: '12px 20px',
     borderRadius: 'var(--radius-md)',
-    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))',
+    backgroundColor: 'var(--color-neutral-100)',
+    color: 'var(--color-neutral-700)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-medium)',
+  },
+  nextBtn: {
+    flex: 1,
+    padding: '12px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-primary-600)',
+    color: 'var(--color-neutral-0)',
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-0)',
-    textAlign: 'center',
   },
-  requestHelpBtnDisabled: {
-    background: 'var(--color-neutral-200)',
+  nextBtnDisabled: {
+    backgroundColor: 'var(--color-neutral-200)',
     color: 'var(--color-neutral-400)',
+  },
+  submitBtn: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    padding: '12px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-primary-600)',
+    color: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
   },
 };
