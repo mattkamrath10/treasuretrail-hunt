@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, Truck, Zap, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader } from 'lucide-react';
+import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, Truck, Zap, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
@@ -20,7 +20,41 @@ export default function Profile() {
   const { profile, signOut, isGuest } = useAuth();
   const [tab, setTab] = useState<ProfileTab>('overview');
   const [showSettings, setShowSettings] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const navigate = useNavigate();
+
+  const handleShare = async () => {
+    const username = profile?.username;
+    const profileUrl = `${window.location.origin}/u/${username || ''}`;
+    const shareData = {
+      title: `${username ? '@' + username : 'My'} TreasureTrail Profile`,
+      text: `Check out my TreasureTrail profile!`,
+      url: profileUrl,
+    };
+
+    if (navigator.share && navigator.canShare?.(shareData)) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (_) {
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(profileUrl);
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = profileUrl;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2500);
+  };
 
   if (isGuest) {
     return (
@@ -42,6 +76,9 @@ export default function Profile() {
             <Trophy size={14} style={{ color: 'var(--color-primary-600)' }} />
             <span style={styles.achieveBtnText}>Rank</span>
           </button>
+          <button onClick={handleShare} style={styles.iconBtn} aria-label="Share profile">
+            <Share2 size={18} style={{ color: 'var(--color-neutral-600)' }} />
+          </button>
           <button onClick={() => navigate('/safety')} style={styles.iconBtn}>
             <Shield size={18} style={{ color: 'var(--color-secondary-500)' }} />
           </button>
@@ -54,6 +91,11 @@ export default function Profile() {
         </div>
       </header>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {shareCopied && (
+        <div style={styles.shareToast}>
+          Link copied to clipboard!
+        </div>
+      )}
 
       <div style={styles.content}>
         <ProfileHeader profile={profile} />
@@ -569,6 +611,22 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  shareToast: {
+    position: 'fixed',
+    bottom: '80px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: 'var(--color-neutral-900)',
+    color: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-medium)',
+    padding: 'var(--space-2) var(--space-4)',
+    borderRadius: 'var(--radius-full)',
+    whiteSpace: 'nowrap',
+    zIndex: 300,
+    boxShadow: 'var(--shadow-lg)',
+    pointerEvents: 'none',
   },
   content: {
     flex: 1,

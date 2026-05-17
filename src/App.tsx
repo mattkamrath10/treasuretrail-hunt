@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import ProfileSetup from './pages/ProfileSetup';
 import AppShell from './components/AppShell';
+import PublicProfile from './pages/PublicProfile';
 
 function AppContent() {
   const { user, loading, hasCompletedSetup, isGuest, enterGuestMode } = useAuth();
@@ -93,8 +94,16 @@ const loadingStyles: Record<string, React.CSSProperties> = {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <Routes>
+      <Route path="/u/:username" element={<PublicProfile />} />
+      <Route
+        path="/*"
+        element={
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        }
+      />
+    </Routes>
   );
 }
