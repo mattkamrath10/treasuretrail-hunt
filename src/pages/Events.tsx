@@ -26,17 +26,6 @@ interface EventItem {
   vip?: boolean;
 }
 
-interface Mission {
-  id: string;
-  title: string;
-  desc: string;
-  xp: number;
-  progress: number;
-  total: number;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  timeLeft?: string;
-}
-
 interface SquadMember {
   name: string;
   role: string;
