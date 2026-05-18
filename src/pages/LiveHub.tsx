@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Gavel, Plus, X, Clock, ExternalLink,
-  Upload, ToggleLeft, ToggleRight, ChevronDown, Calendar,
+  Upload, ToggleLeft, ToggleRight, ChevronDown,
+  Search, SlidersHorizontal, MapPin, Calendar,
+  Truck, Package, UserCheck, AlertCircle, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -24,7 +27,9 @@ interface ExternalListing {
   created_at: string;
 }
 
-type TypeFilter = 'all' | 'auctions' | 'estate' | 'yard' | 'storage';
+type TypeFilter = 'all' | 'auctions' | 'estate' | 'yard' | 'storage' | 'scout_needed';
+type DateFilter = 'all' | 'today' | 'tomorrow' | 'this_weekend' | 'next_weekend' | 'this_week' | 'this_month' | 'custom';
+type SortKey = 'newest' | 'soonest' | 'ending_soon';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -34,12 +39,30 @@ const TYPE_FILTERS: { key: TypeFilter; label: string }[] = [
   { key: 'estate', label: 'Estate Sales' },
   { key: 'yard', label: 'Yard Sales' },
   { key: 'storage', label: 'Storage Lockers' },
+  { key: 'scout_needed', label: 'Scout Needed' },
+];
+
+const DATE_FILTERS: { key: DateFilter; label: string }[] = [
+  { key: 'all', label: 'Any Time' },
+  { key: 'today', label: 'Today' },
+  { key: 'tomorrow', label: 'Tomorrow' },
+  { key: 'this_weekend', label: 'This Weekend' },
+  { key: 'next_weekend', label: 'Next Weekend' },
+  { key: 'this_week', label: 'This Week' },
+  { key: 'this_month', label: 'This Month' },
+  { key: 'custom', label: 'Custom Date' },
+];
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'newest', label: 'Newest Added' },
+  { key: 'soonest', label: 'Soonest First' },
+  { key: 'ending_soon', label: 'Ending Soon' },
 ];
 
 const PLATFORM_TABS = [
   { key: 'poshmark', label: 'Poshmark', color: '#C13584', bg: '#FDF0F8' },
-  { key: 'whatnot', label: 'Whatnot', color: '#FF5C00', bg: '#FFF3EE' },
-  { key: 'ebay', label: 'eBay', color: '#E53238', bg: '#FEF0F0' },
+  { key: 'whatnot',  label: 'Whatnot',  color: '#FF5C00', bg: '#FFF3EE' },
+  { key: 'ebay',     label: 'eBay',     color: '#E53238', bg: '#FEF0F0' },
   { key: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#EFF5FE' },
 ];
 
@@ -55,40 +78,176 @@ const LISTING_TYPE_LABELS: Record<string, string> = {
   storage_auction: 'Storage Auction', fixed_price: 'For Sale',
 };
 
-// ─── Filter logic ─────────────────────────────────────────────────────────────
+// ─── Filter / sort logic ──────────────────────────────────────────────────────
 
-function applyFilters(
+function getDateRange(filter: DateFilter): { start: Date; end: Date } | null {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch (filter) {
+    case 'today': {
+      const end = new Date(today); end.setDate(end.getDate() + 1);
+      return { start: today, end };
+    }
+    case 'tomorrow': {
+      const start = new Date(today); start.setDate(start.getDate() + 1);
+      const end = new Date(start); end.setDate(end.getDate() + 1);
+      return { start, end };
+    }
+    case 'this_weekend': {
+      const dow = today.getDay();
+      const toSat = dow === 0 ? -1 : (6 - dow);
+      const sat = new Date(today); sat.setDate(today.getDate() + toSat);
+      const mon = new Date(sat); mon.setDate(sat.getDate() + 2);
+      return { start: sat, end: mon };
+    }
+    case 'next_weekend': {
+      const dow = today.getDay();
+      const toSat = dow === 0 ? 6 : (13 - dow);
+      const sat = new Date(today); sat.setDate(today.getDate() + toSat);
+      const mon = new Date(sat); mon.setDate(sat.getDate() + 2);
+      return { start: sat, end: mon };
+    }
+    case 'this_week': {
+      const end = new Date(today); end.setDate(today.getDate() + 7);
+      return { start: today, end };
+    }
+    case 'this_month': {
+      const end = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      return { start: today, end };
+    }
+    default: return null;
+  }
+}
+
+function applyAll(
   listings: ExternalListing[],
-  typeFilter: TypeFilter,
-  platformFilter: string | null,
+  opts: {
+    typeFilter: TypeFilter;
+    platformFilter: string | null;
+    searchQuery: string;
+    locationQuery: string;
+    dateFilter: DateFilter;
+    customDate: string;
+    sortBy: SortKey;
+  },
 ): ExternalListing[] {
-  let result = listings;
+  let result = [...listings];
 
-  if (platformFilter) {
-    result = result.filter((l) => l.platform === platformFilter);
+  // Platform tab filter
+  if (opts.platformFilter) {
+    result = result.filter((l) => l.platform === opts.platformFilter);
   }
 
-  switch (typeFilter) {
-    case 'auctions': result = result.filter((l) => l.listing_type === 'auction' || l.listing_type === 'live_stream'); break;
-    case 'estate':   result = result.filter((l) => l.listing_type === 'estate_sale'); break;
-    case 'yard':     result = result.filter((l) => l.listing_type === 'yard_sale'); break;
-    case 'storage':  result = result.filter((l) => l.listing_type === 'storage_auction'); break;
+  // Type chip filter
+  switch (opts.typeFilter) {
+    case 'auctions':     result = result.filter((l) => l.listing_type === 'auction' || l.listing_type === 'live_stream'); break;
+    case 'estate':       result = result.filter((l) => l.listing_type === 'estate_sale'); break;
+    case 'yard':         result = result.filter((l) => l.listing_type === 'yard_sale'); break;
+    case 'storage':      result = result.filter((l) => l.listing_type === 'storage_auction'); break;
+    case 'scout_needed': result = result.filter((l) => l.scout_needed); break;
     default: break;
   }
 
+  // Search
+  const q = opts.searchQuery.trim().toLowerCase();
+  if (q) {
+    result = result.filter((l) =>
+      l.title.toLowerCase().includes(q) ||
+      (l.category ?? '').toLowerCase().includes(q) ||
+      l.platform.toLowerCase().includes(q) ||
+      (LISTING_TYPE_LABELS[l.listing_type] ?? '').toLowerCase().includes(q),
+    );
+  }
+
+  // Location search (against title + category text)
+  const loc = opts.locationQuery.trim().toLowerCase();
+  if (loc) {
+    result = result.filter((l) =>
+      l.title.toLowerCase().includes(loc) ||
+      (l.category ?? '').toLowerCase().includes(loc),
+    );
+  }
+
+  // Date filter
+  if (opts.dateFilter !== 'all' && opts.dateFilter !== 'custom') {
+    const range = getDateRange(opts.dateFilter);
+    if (range) {
+      result = result.filter((l) => {
+        if (!l.ends_at) return true;
+        const d = new Date(l.ends_at);
+        return d >= range.start && d < range.end;
+      });
+    }
+  } else if (opts.dateFilter === 'custom' && opts.customDate) {
+    const target = new Date(opts.customDate);
+    const next = new Date(target); next.setDate(next.getDate() + 1);
+    result = result.filter((l) => {
+      if (!l.ends_at) return true;
+      const d = new Date(l.ends_at);
+      return d >= target && d < next;
+    });
+  }
+
+  // Sort
+  switch (opts.sortBy) {
+    case 'soonest':
+    case 'ending_soon':
+      result.sort((a, b) => {
+        if (!a.ends_at && !b.ends_at) return 0;
+        if (!a.ends_at) return 1;
+        if (!b.ends_at) return -1;
+        return new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime();
+      });
+      break;
+    case 'newest':
+    default:
+      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
   return result;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatCountdown(endsAt: string): string {
+  const diff = new Date(endsAt).getTime() - Date.now();
+  if (diff <= 0) return 'Ended';
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (h >= 24) return `Ends in ${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h >= 1)  return `Ends in ${h}h ${m}m`;
+  return `Ends in ${m}m`;
+}
+
+function formatDateTime(dt: string): string {
+  return new Date(dt).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LiveHub({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [listings, setListings] = useState<ExternalListing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+
+  // Filters
+  const [searchQuery,    setSearchQuery]    = useState('');
+  const [typeFilter,     setTypeFilter]     = useState<TypeFilter>('all');
   const [platformFilter, setPlatformFilter] = useState<string | null>(null);
-  const [showAddPlatform, setShowAddPlatform] = useState(false);
-  const [showUploadEvent, setShowUploadEvent] = useState(false);
+  const [dateFilter,     setDateFilter]     = useState<DateFilter>('all');
+  const [customDate,     setCustomDate]     = useState('');
+  const [sortBy,         setSortBy]         = useState<SortKey>('newest');
+  const [locationQuery,  setLocationQuery]  = useState('');
+
+  // UI state
+  const [showFilters,      setShowFilters]      = useState(false);
+  const [showAddPlatform,  setShowAddPlatform]  = useState(false);
+  const [showUploadEvent,  setShowUploadEvent]  = useState(false);
+  const [selectedListing,  setSelectedListing]  = useState<ExternalListing | null>(null);
 
   const fetchListings = () => {
     setLoading(true);
@@ -97,7 +256,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
       .select('id,platform,listing_type,external_url,title,price_display,category,image_url,ends_at,scout_needed,ships_available,status,created_at')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
-      .limit(60)
+      .limit(100)
       .then(({ data }) => {
         if (data) setListings(data as ExternalListing[]);
         setLoading(false);
@@ -106,12 +265,15 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 
   useEffect(() => { fetchListings(); }, []);
 
-  const togglePlatform = (key: string) => {
-    setPlatformFilter((prev) => (prev === key ? null : key));
-  };
+  const filtered = useMemo(
+    () => applyAll(listings, { typeFilter, platformFilter, searchQuery, locationQuery, dateFilter, customDate, sortBy }),
+    [listings, typeFilter, platformFilter, searchQuery, locationQuery, dateFilter, customDate, sortBy],
+  );
 
-  const filtered = applyFilters(listings, typeFilter, platformFilter);
   const liveCount = listings.filter((l) => l.listing_type === 'live_stream').length;
+  const activeFilterCount = [
+    dateFilter !== 'all', locationQuery.trim() !== '', sortBy !== 'newest',
+  ].filter(Boolean).length;
 
   return (
     <div style={st.container}>
@@ -122,37 +284,47 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         <div style={st.headerCenter}>
           <span style={st.headerTitle}>Live Events</span>
           {liveCount > 0 && (
-            <span style={st.liveChip}>
-              <span style={st.liveDot} />
-              {liveCount} LIVE
-            </span>
+            <span style={st.liveChip}><span style={st.liveDot} />{liveCount} LIVE</span>
           )}
         </div>
-        <button
-          onClick={() => setShowAddPlatform(true)}
-          style={st.addBtn}
-          aria-label="Add platform"
-          title="Add Marketplace"
-        >
+        <button onClick={() => setShowAddPlatform(true)} style={st.addBtn} title="Add Marketplace">
           <Plus size={17} style={{ color: 'var(--color-primary-600)' }} />
         </button>
       </header>
 
-      {/* ── Subtitle ── */}
-      <div style={st.subtitle}>
-        <span style={st.subtitleText}>
-          Track live auctions, reseller platforms, estate sales, and sourcing opportunities.
-        </span>
+      {/* ── Search bar ── */}
+      <div style={st.searchRow}>
+        <div style={st.searchBox}>
+          <Search size={14} style={{ color: 'var(--color-neutral-400)', flexShrink: 0 }} />
+          <input
+            style={st.searchInput}
+            placeholder="Search auctions, estate sales, yard sales, platforms…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} style={st.searchClear}>
+              <X size={13} style={{ color: 'var(--color-neutral-400)' }} />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => setShowFilters(true)}
+          style={{ ...st.filterToggle, ...(activeFilterCount > 0 ? st.filterToggleActive : {}) }}
+        >
+          <SlidersHorizontal size={15} />
+          {activeFilterCount > 0 && <span style={st.filterBadge}>{activeFilterCount}</span>}
+        </button>
       </div>
 
-      {/* ── Platform quick-tabs ── */}
+      {/* ── Platform tabs ── */}
       <div style={st.platformTabs}>
         {PLATFORM_TABS.map((p) => {
           const isActive = platformFilter === p.key;
           return (
             <button
               key={p.key}
-              onClick={() => togglePlatform(p.key)}
+              onClick={() => setPlatformFilter(isActive ? null : p.key)}
               style={{
                 ...st.platformTab,
                 backgroundColor: isActive ? p.bg : 'var(--color-neutral-50)',
@@ -168,7 +340,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         })}
       </div>
 
-      {/* ── Filter chips ── */}
+      {/* ── Type filter chips ── */}
       <div style={st.filterRow}>
         {TYPE_FILTERS.map((f) => (
           <button
@@ -181,43 +353,81 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         ))}
       </div>
 
-      {/* ── Upload Event action bar ── */}
+      {/* ── Upload event bar ── */}
       <div style={st.uploadBar}>
-        <span style={st.uploadBarText}>Have an auction or sale to share?</span>
+        <span style={st.uploadBarText}>Have a sale or auction to share?</span>
         <button onClick={() => setShowUploadEvent(true)} style={st.uploadBarBtn}>
-          <Upload size={12} />
-          Upload Event
+          <Upload size={11} />Upload Event
         </button>
       </div>
+
+      {/* ── Results count ── */}
+      {!loading && (
+        <div style={st.resultsBar}>
+          <span style={st.resultsText}>
+            {filtered.length} {filtered.length === 1 ? 'event' : 'events'}
+            {searchQuery && ` matching "${searchQuery}"`}
+          </span>
+          {sortBy !== 'newest' && (
+            <span style={st.sortLabel}>
+              {SORT_OPTIONS.find((s) => s.key === sortBy)?.label}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ── Feed ── */}
       <div style={st.feed}>
         {loading && (
           <div style={st.emptyState}>
-            <p style={st.emptyText}>Loading sourcing events...</p>
+            <p style={st.emptyText}>Loading sourcing events…</p>
           </div>
         )}
 
         {!loading && filtered.length === 0 && (
           <div style={st.emptyState}>
             <Gavel size={36} style={{ color: 'var(--color-neutral-200)', marginBottom: '14px' }} />
-            <p style={st.emptyTitle}>No live sourcing events yet</p>
+            <p style={st.emptyTitle}>No events found</p>
             <p style={st.emptyText}>
-              Be the first to upload an auction, estate sale, yard sale, or marketplace listing.
+              {searchQuery
+                ? `No results for "${searchQuery}". Try a different search.`
+                : 'Be the first to upload an auction, estate sale, yard sale, or marketplace listing.'}
             </p>
-            <button onClick={() => setShowUploadEvent(true)} style={st.emptyBtn}>
-              <Upload size={13} />
-              Upload an Event
-            </button>
+            {!searchQuery && (
+              <button onClick={() => setShowUploadEvent(true)} style={st.emptyBtn}>
+                <Upload size={13} />Upload an Event
+              </button>
+            )}
           </div>
         )}
 
         {!loading && filtered.map((listing) => (
-          <ListingCard key={listing.id} listing={listing} />
+          <ListingCard
+            key={listing.id}
+            listing={listing}
+            onClick={() => setSelectedListing(listing)}
+          />
         ))}
       </div>
 
       {/* ── Modals ── */}
+      {selectedListing && (
+        <EventDetailModal
+          listing={selectedListing}
+          onClose={() => setSelectedListing(null)}
+          onScout={() => { setSelectedListing(null); navigate('/scout-map'); }}
+        />
+      )}
+      {showFilters && (
+        <FilterDrawer
+          dateFilter={dateFilter} setDateFilter={setDateFilter}
+          customDate={customDate} setCustomDate={setCustomDate}
+          sortBy={sortBy} setSortBy={setSortBy}
+          locationQuery={locationQuery} setLocationQuery={setLocationQuery}
+          onClose={() => setShowFilters(false)}
+          onReset={() => { setDateFilter('all'); setCustomDate(''); setSortBy('newest'); setLocationQuery(''); }}
+        />
+      )}
       {showAddPlatform && (
         <AddPlatformModal
           userId={user?.id}
@@ -238,60 +448,225 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 
 // ─── Listing card ─────────────────────────────────────────────────────────────
 
-function ListingCard({ listing }: { listing: ExternalListing }) {
+function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: () => void }) {
   const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
   const platformLabel = listing.platform.charAt(0).toUpperCase() + listing.platform.slice(1);
   const typeLabel = LISTING_TYPE_LABELS[listing.listing_type] ?? listing.listing_type;
   const isLive = listing.listing_type === 'live_stream';
 
-  const timeInfo = (() => {
-    if (!listing.ends_at) return null;
-    const diff = new Date(listing.ends_at).getTime() - Date.now();
-    if (diff <= 0) return 'Ended';
-    const hours = Math.floor(diff / 3600000);
-    const mins = Math.floor((diff % 3600000) / 60000);
-    if (hours >= 24) return `Ends in ${Math.floor(hours / 24)}d ${hours % 24}h`;
-    if (hours >= 1)  return `Ends in ${hours}h ${mins}m`;
-    return `Ends in ${mins}m`;
-  })();
-
   return (
-    <div style={st.card}>
+    <button onClick={onClick} style={st.card}>
       {listing.image_url && (
         <div style={st.cardImgWrap}>
           <img src={listing.image_url} alt={listing.title} style={st.cardImg} />
           {isLive && (
-            <span style={st.liveBadge}>
-              <span style={st.liveBadgeDot} />LIVE
-            </span>
+            <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>
           )}
         </div>
       )}
       <div style={st.cardBody}>
         <div style={st.cardTop}>
-          <span style={{ ...st.platformBadge, backgroundColor: `${color}18`, color }}>
-            {platformLabel}
-          </span>
+          <span style={{ ...st.platformBadge, backgroundColor: `${color}18`, color }}>{platformLabel}</span>
           <span style={st.typeBadge}>{typeLabel}</span>
-          {listing.price_display && (
-            <span style={st.price}>{listing.price_display}</span>
-          )}
+          {listing.price_display && <span style={st.price}>{listing.price_display}</span>}
         </div>
+
         <p style={st.cardTitle}>{listing.title}</p>
-        {listing.category && (
-          <span style={st.categoryTag}>{listing.category}</span>
-        )}
-        <div style={st.cardMeta}>
-          {timeInfo && (
-            <span style={st.metaItem}><Clock size={10} />{timeInfo}</span>
+
+        {listing.category && <span style={st.categoryTag}>{listing.category}</span>}
+
+        {/* Scout & logistics badges */}
+        <div style={st.badgeRow}>
+          {listing.scout_needed && (
+            <span style={st.badgeScout}><AlertCircle size={9} />Scout Needed</span>
           )}
-          {listing.scout_needed && <span style={st.scoutTag}>Scout Needed</span>}
-          {listing.ships_available && <span style={st.shipsTag}>Ships</span>}
+          {listing.ships_available ? (
+            <span style={st.badgeShips}><Truck size={9} />Ships</span>
+          ) : (
+            <span style={st.badgeLocal}><Package size={9} />Local Pickup</span>
+          )}
+          {listing.ends_at && (
+            <span style={st.badgeTimer}><Clock size={9} />{formatCountdown(listing.ends_at)}</span>
+          )}
         </div>
-        <div style={st.cardActions}>
-          <a href={listing.external_url} target="_blank" rel="noopener noreferrer" style={st.viewBtn}>
-            <ExternalLink size={12} />View Listing
+
+        <div style={st.cardFooter}>
+          <span style={st.viewHint}>Tap to view details <ChevronRight size={11} /></span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ─── Event detail modal ───────────────────────────────────────────────────────
+
+function EventDetailModal({ listing, onClose, onScout }: {
+  listing: ExternalListing;
+  onClose: () => void;
+  onScout: () => void;
+}) {
+  const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
+  const platformLabel = listing.platform.charAt(0).toUpperCase() + listing.platform.slice(1);
+  const typeLabel = LISTING_TYPE_LABELS[listing.listing_type] ?? listing.listing_type;
+  const isLive = listing.listing_type === 'live_stream';
+
+  return (
+    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={mo.sheet}>
+        <div style={mo.handle} />
+        <div style={mo.header}>
+          <span style={mo.title}>Event Details</span>
+          <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
+        </div>
+        <div style={mo.body}>
+          {/* Image */}
+          {listing.image_url && (
+            <div style={{ width: '100%', height: '180px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 'var(--space-3)', position: 'relative' }}>
+              <img src={listing.image_url} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {isLive && <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>}
+            </div>
+          )}
+
+          {/* Platform + type */}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap' as const }}>
+            <span style={{ ...st.platformBadge, backgroundColor: `${color}18`, color }}>{platformLabel}</span>
+            <span style={st.typeBadge}>{typeLabel}</span>
+            {listing.price_display && <span style={st.price}>{listing.price_display}</span>}
+          </div>
+
+          {/* Title */}
+          <p style={{ fontSize: 'var(--font-size-base)', fontWeight: 700, color: 'var(--color-neutral-900)', lineHeight: 1.4, marginBottom: 'var(--space-2)' }}>
+            {listing.title}
+          </p>
+
+          {/* Category */}
+          {listing.category && (
+            <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', marginBottom: 'var(--space-3)' }}>
+              Category: {listing.category}
+            </p>
+          )}
+
+          {/* Date / time */}
+          {listing.ends_at && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-3)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)' }}>
+              <Calendar size={13} style={{ color: 'var(--color-primary-500)' }} />
+              <span>{formatDateTime(listing.ends_at)}</span>
+              <span style={{ color: 'var(--color-error-600)', fontWeight: 600 }}>({formatCountdown(listing.ends_at)})</span>
+            </div>
+          )}
+
+          {/* Scout & logistics badges */}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' as const, marginBottom: 'var(--space-4)' }}>
+            {listing.scout_needed && <span style={st.badgeScout}><AlertCircle size={10} />Scout Needed</span>}
+            {listing.ships_available
+              ? <span style={st.badgeShips}><Truck size={10} />Shipping Available</span>
+              : <span style={st.badgeLocal}><Package size={10} />Local Pickup Only</span>}
+          </div>
+
+          {/* Scout action buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+            <button onClick={onScout} style={det.scoutOfferBtn}>
+              <UserCheck size={16} style={{ color: 'var(--color-neutral-0)' }} />
+              <span style={det.scoutBtnText}>Offer Scout Services</span>
+            </button>
+            <button onClick={onScout} style={det.pickupBtn}>
+              <MapPin size={16} style={{ color: 'var(--color-primary-600)' }} />
+              <span style={det.pickupBtnText}>Need Pickup Help</span>
+            </button>
+          </div>
+
+          {/* View external listing */}
+          <a href={listing.external_url} target="_blank" rel="noopener noreferrer" style={det.viewBtn}>
+            <ExternalLink size={14} />
+            <span>View Full Listing</span>
           </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Filter drawer ────────────────────────────────────────────────────────────
+
+function FilterDrawer({ dateFilter, setDateFilter, customDate, setCustomDate, sortBy, setSortBy, locationQuery, setLocationQuery, onClose, onReset }: {
+  dateFilter: DateFilter; setDateFilter: (v: DateFilter) => void;
+  customDate: string; setCustomDate: (v: string) => void;
+  sortBy: SortKey; setSortBy: (v: SortKey) => void;
+  locationQuery: string; setLocationQuery: (v: string) => void;
+  onClose: () => void; onReset: () => void;
+}) {
+  return (
+    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={mo.sheet}>
+        <div style={mo.handle} />
+        <div style={mo.header}>
+          <span style={mo.title}>Filters &amp; Sort</span>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+            <button onClick={onReset} style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-primary-600)' }}>Reset</button>
+            <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
+          </div>
+        </div>
+        <div style={mo.body}>
+
+          {/* Date filter */}
+          <p style={fd.sectionTitle}>Date</p>
+          <div style={fd.chipGrid}>
+            {DATE_FILTERS.map((d) => (
+              <button
+                key={d.key}
+                onClick={() => setDateFilter(d.key)}
+                style={{ ...fd.chip, ...(dateFilter === d.key ? fd.chipActive : {}) }}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+          {dateFilter === 'custom' && (
+            <input
+              style={{ ...mo.input, marginTop: 'var(--space-2)' }}
+              type="date"
+              value={customDate}
+              onChange={(e) => setCustomDate(e.target.value)}
+            />
+          )}
+
+          {/* Sort */}
+          <p style={{ ...fd.sectionTitle, marginTop: 'var(--space-4)' }}>Sort By</p>
+          <div style={fd.chipGrid}>
+            {SORT_OPTIONS.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setSortBy(s.key)}
+                style={{ ...fd.chip, ...(sortBy === s.key ? fd.chipActive : {}) }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Location search */}
+          <p style={{ ...fd.sectionTitle, marginTop: 'var(--space-4)' }}>Location</p>
+          <div style={st.searchBox}>
+            <MapPin size={14} style={{ color: 'var(--color-neutral-400)', flexShrink: 0 }} />
+            <input
+              style={st.searchInput}
+              placeholder="City, state, or ZIP (searches titles)"
+              value={locationQuery}
+              onChange={(e) => setLocationQuery(e.target.value)}
+            />
+            {locationQuery && (
+              <button onClick={() => setLocationQuery('')} style={st.searchClear}>
+                <X size={13} style={{ color: 'var(--color-neutral-400)' }} />
+              </button>
+            )}
+          </div>
+          <p style={{ fontSize: '10px', color: 'var(--color-neutral-400)', marginTop: '5px', lineHeight: 1.4 }}>
+            Searches within event titles and categories. Include location when uploading events for best results.
+          </p>
+
+          <button onClick={onClose} style={{ ...mo.submitBtn, marginTop: 'var(--space-5)' }}>
+            Apply Filters
+          </button>
         </div>
       </div>
     </div>
@@ -301,39 +676,27 @@ function ListingCard({ listing }: { listing: ExternalListing }) {
 // ─── Add Platform modal ───────────────────────────────────────────────────────
 
 interface PlatformForm {
-  platform_name: string;
-  website_url: string;
-  description: string;
-  platform_type: string;
-  shipping_supported: boolean;
-  scout_friendly: boolean;
-  logo_url: string;
+  platform_name: string; website_url: string; description: string;
+  platform_type: string; shipping_supported: boolean; scout_friendly: boolean; logo_url: string;
 }
 
 function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
   const [form, setForm] = useState<PlatformForm>({
-    platform_name: '', website_url: '', description: '',
-    platform_type: 'marketplace', shipping_supported: false,
-    scout_friendly: false, logo_url: '',
+    platform_name: '', website_url: '', description: '', platform_type: 'marketplace',
+    shipping_supported: false, scout_friendly: false, logo_url: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
   const set = (k: keyof PlatformForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
     if (!form.platform_name.trim()) { setError('Platform name is required.'); return; }
-    setError('');
-    setSaving(true);
+    setError(''); setSaving(true);
     const { error: err } = await supabase.from('platform_submissions').insert({
-      platform_name: form.platform_name.trim(),
-      website_url: form.website_url.trim() || null,
-      description: form.description.trim() || null,
-      platform_type: form.platform_type,
-      shipping_supported: form.shipping_supported,
-      scout_friendly: form.scout_friendly,
-      logo_url: form.logo_url.trim() || null,
-      submitted_by: userId ?? null,
+      platform_name: form.platform_name.trim(), website_url: form.website_url.trim() || null,
+      description: form.description.trim() || null, platform_type: form.platform_type,
+      shipping_supported: form.shipping_supported, scout_friendly: form.scout_friendly,
+      logo_url: form.logo_url.trim() || null, submitted_by: userId ?? null,
     });
     setSaving(false);
     if (err) { setError('Failed to submit. Please try again.'); return; }
@@ -351,13 +714,10 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
         <div style={mo.body}>
           <label style={mo.label}>Platform Name <span style={mo.req}>*</span></label>
           <input style={mo.input} placeholder="e.g. HiBid, MaxSold, OfferUp…" value={form.platform_name} onChange={(e) => set('platform_name', e.target.value)} />
-
           <label style={mo.label}>Website URL</label>
           <input style={mo.input} placeholder="https://…" type="url" value={form.website_url} onChange={(e) => set('website_url', e.target.value)} />
-
           <label style={mo.label}>Description</label>
-          <textarea style={{ ...mo.input, height: '72px', resize: 'none' }} placeholder="What kind of listings does this platform have?" value={form.description} onChange={(e) => set('description', e.target.value)} />
-
+          <textarea style={{ ...mo.input, height: '68px', resize: 'none' } as React.CSSProperties} placeholder="What kind of listings does this platform have?" value={form.description} onChange={(e) => set('description', e.target.value)} />
           <label style={mo.label}>Platform Type</label>
           <div style={mo.selectWrap}>
             <select style={mo.select} value={form.platform_type} onChange={(e) => set('platform_type', e.target.value)}>
@@ -370,29 +730,22 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
             </select>
             <ChevronDown size={13} style={mo.selectIcon} />
           </div>
-
           <label style={mo.label}>Logo / Image URL (optional)</label>
           <input style={mo.input} placeholder="https://…" value={form.logo_url} onChange={(e) => set('logo_url', e.target.value)} />
-
           <div style={mo.toggleRow}>
             <div style={mo.toggleItem}>
               <span style={mo.toggleLabel}>Shipping Supported</span>
               <button onClick={() => set('shipping_supported', !form.shipping_supported)} style={mo.toggleBtn}>
-                {form.shipping_supported
-                  ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} />
-                  : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
+                {form.shipping_supported ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
               </button>
             </div>
             <div style={mo.toggleItem}>
               <span style={mo.toggleLabel}>Scout Friendly</span>
               <button onClick={() => set('scout_friendly', !form.scout_friendly)} style={mo.toggleBtn}>
-                {form.scout_friendly
-                  ? <ToggleRight size={28} style={{ color: 'var(--color-warning-500)' }} />
-                  : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
+                {form.scout_friendly ? <ToggleRight size={28} style={{ color: 'var(--color-warning-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
               </button>
             </div>
           </div>
-
           {error && <p style={mo.errorText}>{error}</p>}
           <button onClick={handleSubmit} disabled={saving} style={{ ...mo.submitBtn, opacity: saving ? 0.7 : 1 }}>
             {saving ? 'Submitting…' : 'Submit Marketplace'}
@@ -406,47 +759,31 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
 // ─── Upload Event modal ───────────────────────────────────────────────────────
 
 interface EventForm {
-  title: string;
-  platform: string;
-  listing_type: string;
-  external_url: string;
-  price_display: string;
-  category: string;
-  image_url: string;
-  ends_at: string;
-  scout_needed: boolean;
-  ships_available: boolean;
+  title: string; platform: string; listing_type: string; external_url: string;
+  price_display: string; category: string; image_url: string; ends_at: string;
+  scout_needed: boolean; ships_available: boolean;
 }
 
 function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
   const [form, setForm] = useState<EventForm>({
-    title: '', platform: 'other', listing_type: 'auction',
-    external_url: '', price_display: '', category: '',
-    image_url: '', ends_at: '', scout_needed: false, ships_available: false,
+    title: '', platform: 'other', listing_type: 'auction', external_url: '',
+    price_display: '', category: '', image_url: '', ends_at: '',
+    scout_needed: false, ships_available: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
   const set = (k: keyof EventForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
     if (!form.title.trim()) { setError('Title is required.'); return; }
     if (!form.external_url.trim()) { setError('External URL is required.'); return; }
-    setError('');
-    setSaving(true);
+    setError(''); setSaving(true);
     const { error: err } = await supabase.from('external_listings').insert({
-      title: form.title.trim(),
-      platform: form.platform,
-      listing_type: form.listing_type,
-      external_url: form.external_url.trim(),
-      price_display: form.price_display.trim() || null,
-      category: form.category.trim() || null,
-      image_url: form.image_url.trim() || null,
-      ends_at: form.ends_at || null,
-      scout_needed: form.scout_needed,
-      ships_available: form.ships_available,
-      status: 'active',
-      submitted_by: userId ?? null,
+      title: form.title.trim(), platform: form.platform, listing_type: form.listing_type,
+      external_url: form.external_url.trim(), price_display: form.price_display.trim() || null,
+      category: form.category.trim() || null, image_url: form.image_url.trim() || null,
+      ends_at: form.ends_at || null, scout_needed: form.scout_needed,
+      ships_available: form.ships_available, status: 'active', submitted_by: userId ?? null,
     });
     setSaving(false);
     if (err) { setError('Failed to submit. Please try again.'); return; }
@@ -463,8 +800,7 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
         </div>
         <div style={mo.body}>
           <label style={mo.label}>Title <span style={mo.req}>*</span></label>
-          <input style={mo.input} placeholder="e.g. HiBid Estate Auction — Chicago" value={form.title} onChange={(e) => set('title', e.target.value)} />
-
+          <input style={mo.input} placeholder="e.g. Estate Sale — Phoenix, AZ" value={form.title} onChange={(e) => set('title', e.target.value)} />
           <div style={mo.row}>
             <div style={{ flex: 1 }}>
               <label style={mo.label}>Platform</label>
@@ -498,10 +834,8 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
               </div>
             </div>
           </div>
-
           <label style={mo.label}>External URL <span style={mo.req}>*</span></label>
           <input style={mo.input} placeholder="https://…" type="url" value={form.external_url} onChange={(e) => set('external_url', e.target.value)} />
-
           <div style={mo.row}>
             <div style={{ flex: 1 }}>
               <label style={mo.label}>Starting Price</label>
@@ -512,32 +846,24 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
               <input style={mo.input} placeholder="e.g. Antiques" value={form.category} onChange={(e) => set('category', e.target.value)} />
             </div>
           </div>
-
-          <label style={mo.label}><Calendar size={11} style={{ marginRight: '4px' }} />End Date / Time</label>
+          <label style={mo.label}>End Date / Time</label>
           <input style={mo.input} type="datetime-local" value={form.ends_at} onChange={(e) => set('ends_at', e.target.value)} />
-
           <label style={mo.label}>Image URL</label>
           <input style={mo.input} placeholder="https://…" value={form.image_url} onChange={(e) => set('image_url', e.target.value)} />
-
           <div style={mo.toggleRow}>
             <div style={mo.toggleItem}>
               <span style={mo.toggleLabel}>Shipping Available</span>
               <button onClick={() => set('ships_available', !form.ships_available)} style={mo.toggleBtn}>
-                {form.ships_available
-                  ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} />
-                  : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
+                {form.ships_available ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
               </button>
             </div>
             <div style={mo.toggleItem}>
               <span style={mo.toggleLabel}>Scout Needed</span>
               <button onClick={() => set('scout_needed', !form.scout_needed)} style={mo.toggleBtn}>
-                {form.scout_needed
-                  ? <ToggleRight size={28} style={{ color: 'var(--color-warning-500)' }} />
-                  : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
+                {form.scout_needed ? <ToggleRight size={28} style={{ color: 'var(--color-warning-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
               </button>
             </div>
           </div>
-
           {error && <p style={mo.errorText}>{error}</p>}
           <button onClick={handleSubmit} disabled={saving} style={{ ...mo.submitBtn, opacity: saving ? 0.7 : 1 }}>
             {saving ? 'Submitting…' : 'Submit Event'}
@@ -557,50 +883,75 @@ const st: Record<string, React.CSSProperties> = {
   backBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-600)' },
   headerCenter: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
   headerTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
-  liveChip: { display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-50)', border: '1px solid var(--color-error-200)' },
+  liveChip: { display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-50)', border: '1px solid var(--color-error-200)', fontSize: '10px', fontWeight: 700, color: 'var(--color-error-700)' },
   liveDot: { width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-error-500)', animation: 'pulse 2s infinite', flexShrink: 0 },
   addBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
 
-  subtitle: { padding: '8px var(--space-4) 0', flexShrink: 0 },
-  subtitleText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', lineHeight: 1.4 },
+  searchRow: { display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
+  searchBox: { flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-150)' },
+  searchInput: { flex: 1, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)', backgroundColor: 'transparent', border: 'none', outline: 'none', minWidth: 0 },
+  searchClear: { display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  filterToggle: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', width: '40px', height: '40px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)', flexShrink: 0, position: 'relative' },
+  filterToggleActive: { backgroundColor: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-300)', color: 'var(--color-primary-600)' },
+  filterBadge: { position: 'absolute', top: '-4px', right: '-4px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--color-primary-500)', color: '#fff', fontSize: '9px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' },
 
-  platformTabs: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4)', flexShrink: 0 },
-  platformTab: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', padding: '9px var(--space-2)', borderRadius: 'var(--radius-md)', transition: 'background 0.15s, border-color 0.15s' },
-  platformTabDot: { width: '10px', height: '10px', borderRadius: '50%' },
+  platformTabs: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', flexShrink: 0 },
+  platformTab: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: '8px var(--space-1)', borderRadius: 'var(--radius-md)', transition: 'background 0.15s, border-color 0.15s' },
+  platformTabDot: { width: '9px', height: '9px', borderRadius: '50%' },
   platformTabLabel: { fontSize: '10px', fontWeight: 700, textAlign: 'center' as const },
 
-  filterRow: { display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0, borderTop: '1px solid var(--color-neutral-50)' },
-  chip: { flexShrink: 0, padding: '5px 12px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-neutral-600)', backgroundColor: 'var(--color-neutral-100)', border: '1px solid transparent' },
+  filterRow: { display: 'flex', gap: '6px', padding: '6px var(--space-4)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0, borderTop: '1px solid var(--color-neutral-50)' },
+  chip: { flexShrink: 0, padding: '5px 11px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-neutral-600)', backgroundColor: 'var(--color-neutral-100)', border: '1px solid transparent' },
   chipActive: { backgroundColor: 'var(--color-primary-600)', color: 'var(--color-neutral-0)', border: '1px solid var(--color-primary-600)' },
 
-  uploadBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px var(--space-4)', backgroundColor: 'var(--color-neutral-50)', borderTop: '1px solid var(--color-neutral-100)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
-  uploadBarText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' },
-  uploadBarBtn: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary-600)', padding: '5px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
+  uploadBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px var(--space-4)', backgroundColor: 'var(--color-neutral-50)', borderTop: '1px solid var(--color-neutral-100)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
+  uploadBarText: { fontSize: '11px', color: 'var(--color-neutral-500)' },
+  uploadBarBtn: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: 'var(--color-primary-600)', padding: '5px 11px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
 
-  feed: { flex: 1, overflowY: 'auto', padding: 'var(--space-3) var(--space-4)' },
+  resultsBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px var(--space-4)', flexShrink: 0 },
+  resultsText: { fontSize: '11px', color: 'var(--color-neutral-400)' },
+  sortLabel: { fontSize: '11px', color: 'var(--color-primary-600)', fontWeight: 600 },
+
+  feed: { flex: 1, overflowY: 'auto', padding: 'var(--space-2) var(--space-4) var(--space-4)' },
   emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', textAlign: 'center' },
   emptyTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-700)', marginBottom: '6px' },
   emptyText: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-400)', marginBottom: '20px', lineHeight: 1.5 },
   emptyBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-600)', color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)' },
 
-  card: { borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-neutral-100)', overflow: 'hidden', marginBottom: 'var(--space-3)', backgroundColor: 'var(--color-neutral-0)' },
-  cardImgWrap: { position: 'relative', height: '160px', backgroundColor: 'var(--color-neutral-50)' },
+  card: { width: '100%', textAlign: 'left', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-neutral-100)', overflow: 'hidden', marginBottom: 'var(--space-3)', backgroundColor: 'var(--color-neutral-0)' },
+  cardImgWrap: { position: 'relative', height: '150px', backgroundColor: 'var(--color-neutral-50)' },
   cardImg: { width: '100%', height: '100%', objectFit: 'cover' },
   liveBadge: { position: 'absolute', top: '10px', left: '10px', display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-500)', color: '#fff', fontSize: '10px', fontWeight: 700 },
   liveBadgeDot: { width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#fff', animation: 'pulse 1.5s infinite' },
-  cardBody: { padding: 'var(--space-3)' },
-  cardTop: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap' as const },
+  cardBody: { padding: '10px var(--space-3) var(--space-3)' },
+  cardTop: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '7px', flexWrap: 'wrap' as const },
   platformBadge: { fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px' },
   typeBadge: { fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '4px', backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)' },
   price: { marginLeft: 'auto', fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-success-700)' },
-  cardTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-900)', lineHeight: 1.4, marginBottom: 'var(--space-2)' },
-  categoryTag: { display: 'inline-block', fontSize: '10px', color: 'var(--color-secondary-700)', backgroundColor: 'var(--color-secondary-50)', padding: '2px 7px', borderRadius: '4px', marginBottom: 'var(--space-2)' },
-  cardMeta: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap' as const },
-  metaItem: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--color-neutral-500)' },
-  scoutTag: { fontSize: '10px', fontWeight: 600, color: 'var(--color-warning-700)', backgroundColor: 'var(--color-warning-50)', padding: '2px 7px', borderRadius: '4px' },
-  shipsTag: { fontSize: '10px', fontWeight: 600, color: 'var(--color-success-700)', backgroundColor: 'var(--color-success-50)', padding: '2px 7px', borderRadius: '4px' },
-  cardActions: { display: 'flex', justifyContent: 'flex-end' },
-  viewBtn: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-primary-600)', padding: '6px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', textDecoration: 'none' },
+  cardTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-900)', lineHeight: 1.4, marginBottom: '6px' },
+  categoryTag: { display: 'inline-block', fontSize: '10px', color: 'var(--color-secondary-700)', backgroundColor: 'var(--color-secondary-50)', padding: '2px 7px', borderRadius: '4px', marginBottom: '7px' },
+  badgeRow: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '6px' },
+  badgeScout: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: 'var(--color-warning-700)', backgroundColor: 'var(--color-warning-50)', padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--color-warning-200)' },
+  badgeShips: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: 'var(--color-success-700)', backgroundColor: 'var(--color-success-50)', padding: '2px 7px', borderRadius: '4px' },
+  badgeLocal: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: 'var(--color-neutral-600)', backgroundColor: 'var(--color-neutral-100)', padding: '2px 7px', borderRadius: '4px' },
+  badgeTimer: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--color-error-600)', fontWeight: 600 },
+  cardFooter: { display: 'flex', justifyContent: 'flex-end' },
+  viewHint: { display: 'flex', alignItems: 'center', fontSize: '10px', color: 'var(--color-primary-500)', fontWeight: 600 },
+};
+
+const det: Record<string, React.CSSProperties> = {
+  scoutOfferBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-success-500), var(--color-success-700))', cursor: 'pointer' },
+  scoutBtnText: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: '#fff' },
+  pickupBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-300)', cursor: 'pointer' },
+  pickupBtnText: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-primary-700)' },
+  viewBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-neutral-100)', fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-neutral-800)', textDecoration: 'none' },
+};
+
+const fd: Record<string, React.CSSProperties> = {
+  sectionTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-800)', marginBottom: 'var(--space-2)' },
+  chipGrid: { display: 'flex', flexWrap: 'wrap' as const, gap: 'var(--space-2)' },
+  chip: { padding: '6px 14px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-neutral-600)', backgroundColor: 'var(--color-neutral-100)', border: '1px solid transparent' },
+  chipActive: { backgroundColor: 'var(--color-primary-600)', color: '#fff', border: '1px solid var(--color-primary-600)' },
 };
 
 const mo: Record<string, React.CSSProperties> = {
@@ -623,5 +974,5 @@ const mo: Record<string, React.CSSProperties> = {
   toggleLabel: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-700)' },
   toggleBtn: { background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 },
   errorText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-error-600)', marginTop: 'var(--space-2)', padding: '8px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-error-50)' },
-  submitBtn: { width: '100%', padding: '13px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', color: '#fff', fontSize: 'var(--font-size-sm)', fontWeight: 700, marginTop: 'var(--space-4)', cursor: 'pointer', transition: 'opacity 0.2s' },
+  submitBtn: { width: '100%', padding: '13px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', color: '#fff', fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: 'pointer', transition: 'opacity 0.2s' },
 };

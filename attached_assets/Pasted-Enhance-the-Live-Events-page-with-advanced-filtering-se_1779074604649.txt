@@ -1,0 +1,231 @@
+Enhance the Live Events page with advanced filtering, search, and integrated scout coordination features.
+
+========================================
+
+1. SEARCH + FILTER SYSTEM
+   ========================================
+
+Add a search bar near the top of the Live Events page.
+
+Placeholder:
+"Search auctions, estate sales, yard sales, marketplaces, or locations..."
+
+Search should dynamically filter:
+
+* title
+* category
+* description
+* platform
+* event type
+* city/state/location
+
+Search updates instantly while typing.
+
+========================================
+2. DATE FILTERING
+=================
+
+Add a date filter dropdown or segmented controls with:
+
+* Today
+* Tomorrow
+* This Weekend
+* Next Weekend
+* This Week
+* Next Week
+* This Month
+* Custom Date
+
+Users should be able to quickly filter sourcing events by timeframe.
+
+========================================
+3. CUSTOM DATE PICKER
+=====================
+
+When "Custom Date" is selected:
+
+* open a calendar/date picker
+* allow:
+
+  * single date
+  * OR date range
+
+========================================
+4. SORTING OPTIONS
+==================
+
+Add sorting controls:
+
+* Soonest First
+* Newest Added
+* Closest Distance
+* Ending Soon
+* Most Popular
+
+========================================
+5. LOCATION FILTERS
+===================
+
+Add:
+
+* ZIP code search
+* City/state search
+* Radius selector:
+
+  * 10 miles
+  * 25 miles
+  * 50 miles
+  * 100 miles
+
+Important for:
+
+* yard sales
+* estate sales
+* local pickup auctions
+* scout coordination
+
+========================================
+6. COMBINED FILTERING
+=====================
+
+Users should be able to combine filters.
+
+Examples:
+
+* Yard Sales + Next Weekend + 25 miles
+* Storage Lockers + Today
+* Estate Sales + This Weekend + Scout Needed
+
+========================================
+7. SCOUT COORDINATION INTEGRATION
+=================================
+
+Keep scouts integrated directly into the Live Events ecosystem.
+
+========================================
+8. MAIN EVENT CARD SCOUT BADGES
+===============================
+
+On the main Live Events feed cards, display lightweight scout-related badges such as:
+
+* Scout Needed
+* Scouts Available
+* Local Pickup Only
+* Shipping Available
+
+These should appear visually on event cards without cluttering the feed.
+
+Examples:
+
+* Estate Sale — Phoenix AZ
+  [Scout Needed]
+  [No Shipping]
+
+* Storage Locker Auction — Dallas TX
+  [Scouts Available]
+
+========================================
+9. EVENT DETAIL PAGE SCOUT FEATURES
+===================================
+
+When a user opens an event detail page, include deeper scout coordination tools:
+
+* Offer Scout Services button
+* Need Pickup Help button
+* Scout discussion/comments area
+* Pickup/shipping coordination section
+* Distance/location information
+* Scout availability indicators
+
+========================================
+10. SCOUT FILTER CHIP
+=====================
+
+Add an optional filter chip:
+
+* Scouts Available
+
+When enabled:
+
+* show events where scout assistance is available nearby
+
+========================================
+11. USER PROFILE SCOUT STATUS
+=============================
+
+Add scout availability indicators to user profiles such as:
+
+* Available for scouting
+* Pickup only
+* Shipping available
+* Local sourcing expert
+
+Optional:
+
+* travel radius
+* city/state
+* specialization categories
+
+========================================
+12. UI/UX REQUIREMENTS
+======================
+
+The page should feel like:
+
+* a reseller sourcing dashboard
+* auction intelligence feed
+* logistics coordination platform
+* marketplace discovery system
+
+NOT:
+
+* a game
+* a fake social simulator
+* a cluttered ranking system
+
+========================================
+13. DATABASE REQUIREMENTS
+=========================
+
+All:
+
+* listings
+* filters
+* scout data
+* events
+* badges
+* search results
+
+must come ONLY from real Supabase data.
+
+Remove all remaining:
+
+* fake/demo listings
+* hardcoded scout arrays
+* placeholder events
+* mock rankings
+
+========================================
+14. MOBILE OPTIMIZATION
+=======================
+
+On mobile:
+
+* search bar remains accessible/pinned
+* filters collapse into clean drawers/sheets
+* chips scroll horizontally
+* scout badges remain readable without clutter
+
+========================================
+15. FINAL QA
+============
+
+Verify:
+
+* filters work correctly
+* search works instantly
+* scout badges display properly
+* event detail pages function
+* no fake content remains
+* mobile responsiveness works
+* republish after completion
