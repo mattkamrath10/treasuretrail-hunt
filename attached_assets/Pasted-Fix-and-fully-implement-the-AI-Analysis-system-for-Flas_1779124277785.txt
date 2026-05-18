@@ -1,0 +1,191 @@
+Fix and fully implement the AI Analysis system for Flash Finds.
+
+========================================
+CURRENT PROBLEM
+===============
+
+The AI Analysis page opens, but:
+
+* fields remain blank
+* analysis stays stuck on "Pending"
+* no item data populates
+* no pricing data appears
+* no marketplace comparison appears
+
+The frontend exists, but the AI backend is not functioning correctly.
+
+========================================
+GOAL
+====
+
+Transform AI Analysis into a real reseller intelligence tool.
+
+The system should:
+
+* identify items from photos
+* generate item titles
+* estimate resale value
+* suggest marketplaces
+* compare market pricing
+* help users determine profitability
+
+========================================
+
+1. FIX PENDING STATE
+   ========================================
+
+Currently:
+AI Analysis stays on:
+"Pending"
+
+Fix:
+
+* async analysis flow
+* loading state handling
+* API response handling
+* timeout handling
+* failed request handling
+
+Analysis should:
+
+* complete successfully
+  OR
+* return readable errors
+
+Never remain permanently stuck.
+
+========================================
+2. IMAGE ANALYSIS
+=================
+
+When a user uploads/takes a photo:
+
+Use AI image analysis to:
+
+* identify the item
+* detect category
+* detect brand/logo/text
+* estimate condition
+* generate likely item name/title
+
+Example:
+"Vintage Sony Walkman WM-FX195"
+
+========================================
+3. MARKETPLACE PRICE COMPARISON
+===============================
+
+Implement real market comparison logic.
+
+Use:
+
+* Google Shopping style lookup
+* marketplace search APIs
+* web search
+* or scraping-compatible architecture
+
+Compare against:
+
+* eBay
+* Facebook Marketplace
+* Whatnot
+* Poshmark
+* Mercari
+* OfferUp
+
+Return:
+
+* estimated resale range
+* average sold price
+* active listing price range
+* suggested listing platform
+
+========================================
+4. AUTO-FILL ANALYSIS SECTIONS
+==============================
+
+Populate:
+
+* Item Name
+* Estimated Value
+* Category
+* Brand
+* Marketplace Comparison
+* Profit Estimator
+* Suggested Selling Platform
+* Rarity/Trend Indicators
+
+========================================
+5. PROFIT ESTIMATOR
+===================
+
+Allow user to enter:
+
+* purchase price
+
+Then calculate:
+
+* estimated resale value
+* estimated fees
+* estimated shipping
+* estimated profit
+
+========================================
+6. MARKETPLACE FOUND + LOCATION FOUND
+=====================================
+
+Integrate previously added fields into AI analysis.
+
+Show:
+
+* Marketplace Found
+* Location Found
+
+Use this data later for analytics/trend tracking.
+
+========================================
+7. FALLBACK BEHAVIOR
+====================
+
+If AI cannot identify the item:
+
+* still allow manual posting
+* suggest categories
+* allow manual editing
+
+Never block the user.
+
+========================================
+8. PERFORMANCE
+==============
+
+Optimize for mobile:
+
+* compress images before upload
+* avoid long hangs
+* show loading progress
+* responsive UI
+
+========================================
+9. REMOVE PLACEHOLDER TEXT
+==========================
+
+Remove:
+"Connect an AI backend to enable live market price comparisons"
+
+Replace with actual functioning analysis.
+
+========================================
+10. FINAL QA
+============
+
+Verify:
+
+* AI analysis completes
+* pending state resolves
+* item data populates
+* pricing comparison works
+* profit estimator works
+* mobile camera uploads work
+* no console errors
+* no fake/demo analysis data used
