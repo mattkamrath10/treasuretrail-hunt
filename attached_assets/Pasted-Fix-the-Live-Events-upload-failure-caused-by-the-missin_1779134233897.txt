@@ -1,0 +1,122 @@
+Fix the Live Events upload failure caused by the missing Supabase table:
+
+ERROR:
+Could not find the table 'public.external_listings' in the schema cache
+
+========================================
+
+1. VERIFY TABLE EXISTS
+   ========================================
+
+Check Supabase for:
+public.external_listings
+
+If missing:
+create it immediately.
+
+========================================
+2. CREATE TABLE
+===============
+
+Create the external_listings table with fields for:
+
+id
+created_at
+user_id
+title
+description
+platform
+event_type
+category
+external_url
+image_url
+location
+zip_code
+city
+state
+shipping_available
+local_pickup
+scout_needed
+scouts_available
+start_price
+end_date
+status
+
+Include proper types/defaults.
+
+========================================
+3. ENABLE RLS
+=============
+
+Enable Row Level Security.
+
+Policies:
+
+* anyone can read active listings
+* authenticated users can insert their own listings
+* users can edit/delete only their own listings
+
+========================================
+4. VERIFY SUPABASE CLIENT QUERIES
+=================================
+
+Ensure all insert/select calls reference:
+
+external_listings
+
+and NOT:
+community_posts
+events
+mock arrays
+or incorrect table names.
+
+========================================
+5. REFRESH SCHEMA CACHE
+=======================
+
+After migration:
+refresh Supabase schema cache
+and restart the dev server if needed.
+
+========================================
+6. VERIFY EVENT SUBMISSION
+==========================
+
+Test:
+
+* upload event
+* image URL
+* marketplace selection
+* scout toggles
+* shipping toggles
+* location fields
+
+Ensure records successfully appear in:
+
+* Live Events feed
+* Home Feed
+* filtered searches
+
+========================================
+7. REMOVE ALL FALLBACK MOCK DATA
+================================
+
+If external_listings fails:
+DO NOT silently show fake events.
+
+Only show:
+"No events found"
+
+========================================
+8. FINAL QA
+===========
+
+Verify:
+
+* no schema cache errors
+* event uploads persist in Supabase
+* listings appear instantly
+* filters work
+* mobile works
+* deployed version works
+* republish after fix
