@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
-  ArrowLeft, Gavel, Home, MapPin, Plus, X, Clock, ExternalLink,
-  Upload, ToggleLeft, ToggleRight, ChevronDown,
+  ArrowLeft, Gavel, Plus, X, Clock, ExternalLink,
+  Upload, ToggleLeft, ToggleRight, ChevronDown, Calendar,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ExternalListing {
   id: string;
@@ -22,88 +24,103 @@ interface ExternalListing {
   created_at: string;
 }
 
-type FilterKey = 'all' | 'auctions' | 'estate' | 'yard' | 'whatnot' | 'poshmark' | 'flea' | 'storage';
+type TypeFilter = 'all' | 'auctions' | 'estate' | 'yard' | 'storage';
 
-const FILTERS: { key: FilterKey; label: string }[] = [
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TYPE_FILTERS: { key: TypeFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'auctions', label: 'Auctions' },
   { key: 'estate', label: 'Estate Sales' },
   { key: 'yard', label: 'Yard Sales' },
-  { key: 'whatnot', label: 'Whatnot' },
-  { key: 'poshmark', label: 'Poshmark' },
-  { key: 'flea', label: 'Flea Markets' },
-  { key: 'storage', label: 'Storage' },
+  { key: 'storage', label: 'Storage Lockers' },
+];
+
+const PLATFORM_TABS = [
+  { key: 'poshmark', label: 'Poshmark', color: '#C13584', bg: '#FDF0F8' },
+  { key: 'whatnot', label: 'Whatnot', color: '#FF5C00', bg: '#FFF3EE' },
+  { key: 'ebay', label: 'eBay', color: '#E53238', bg: '#FEF0F0' },
+  { key: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#EFF5FE' },
 ];
 
 const PLATFORM_COLORS: Record<string, string> = {
-  whatnot: '#FF5C00',
-  poshmark: '#C13584',
-  ebay: '#E53238',
-  hibid: '#1A3668',
-  maxsold: '#007A74',
-  estatesales: '#7B4F2E',
-  facebook: '#1877F2',
-  other: '#6B7280',
+  whatnot: '#FF5C00', poshmark: '#C13584', ebay: '#E53238',
+  hibid: '#1A3668', maxsold: '#007A74', estatesales: '#7B4F2E',
+  facebook: '#1877F2', other: '#6B7280',
 };
 
 const LISTING_TYPE_LABELS: Record<string, string> = {
-  live_stream: 'Live Stream',
-  auction: 'Auction',
-  estate_sale: 'Estate Sale',
-  yard_sale: 'Yard Sale',
-  flea_market: 'Flea Market',
-  storage_auction: 'Storage Auction',
-  fixed_price: 'For Sale',
+  live_stream: 'Live Stream', auction: 'Auction', estate_sale: 'Estate Sale',
+  yard_sale: 'Yard Sale', flea_market: 'Flea Market',
+  storage_auction: 'Storage Auction', fixed_price: 'For Sale',
 };
 
-function applyFilter(listings: ExternalListing[], filter: FilterKey): ExternalListing[] {
-  switch (filter) {
-    case 'auctions': return listings.filter((l) => l.listing_type === 'auction' || l.listing_type === 'live_stream');
-    case 'estate': return listings.filter((l) => l.listing_type === 'estate_sale');
-    case 'yard': return listings.filter((l) => l.listing_type === 'yard_sale');
-    case 'whatnot': return listings.filter((l) => l.platform === 'whatnot');
-    case 'poshmark': return listings.filter((l) => l.platform === 'poshmark');
-    case 'flea': return listings.filter((l) => l.listing_type === 'flea_market');
-    case 'storage': return listings.filter((l) => l.listing_type === 'storage_auction');
-    default: return listings;
+// ─── Filter logic ─────────────────────────────────────────────────────────────
+
+function applyFilters(
+  listings: ExternalListing[],
+  typeFilter: TypeFilter,
+  platformFilter: string | null,
+): ExternalListing[] {
+  let result = listings;
+
+  if (platformFilter) {
+    result = result.filter((l) => l.platform === platformFilter);
   }
+
+  switch (typeFilter) {
+    case 'auctions': result = result.filter((l) => l.listing_type === 'auction' || l.listing_type === 'live_stream'); break;
+    case 'estate':   result = result.filter((l) => l.listing_type === 'estate_sale'); break;
+    case 'yard':     result = result.filter((l) => l.listing_type === 'yard_sale'); break;
+    case 'storage':  result = result.filter((l) => l.listing_type === 'storage_auction'); break;
+    default: break;
+  }
+
+  return result;
 }
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LiveHub({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const [listings, setListings] = useState<ExternalListing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterKey>('all');
-  const [showUpload, setShowUpload] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [platformFilter, setPlatformFilter] = useState<string | null>(null);
+  const [showAddPlatform, setShowAddPlatform] = useState(false);
+  const [showUploadEvent, setShowUploadEvent] = useState(false);
 
   const fetchListings = () => {
     setLoading(true);
     supabase
       .from('external_listings')
-      .select('*')
+      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,ends_at,scout_needed,ships_available,status,created_at')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(60)
       .then(({ data }) => {
         if (data) setListings(data as ExternalListing[]);
         setLoading(false);
       });
   };
 
-  useEffect(() => {
-    fetchListings();
-  }, []);
+  useEffect(() => { fetchListings(); }, []);
 
-  const filtered = applyFilter(listings, filter);
+  const togglePlatform = (key: string) => {
+    setPlatformFilter((prev) => (prev === key ? null : key));
+  };
+
+  const filtered = applyFilters(listings, typeFilter, platformFilter);
   const liveCount = listings.filter((l) => l.listing_type === 'live_stream').length;
 
   return (
     <div style={st.container}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <header style={st.header}>
         <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
         <div style={st.headerCenter}>
-          <span style={st.headerTitle}>Auction Radar</span>
+          <span style={st.headerTitle}>Live Events</span>
           {liveCount > 0 && (
             <span style={st.liveChip}>
               <span style={st.liveDot} />
@@ -111,62 +128,69 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
             </span>
           )}
         </div>
-        <button onClick={() => setShowUpload(true)} style={st.uploadBtn} aria-label="Upload event">
-          <Plus size={18} style={{ color: 'var(--color-primary-600)' }} />
+        <button
+          onClick={() => setShowAddPlatform(true)}
+          style={st.addBtn}
+          aria-label="Add platform"
+          title="Add Marketplace"
+        >
+          <Plus size={17} style={{ color: 'var(--color-primary-600)' }} />
         </button>
       </header>
 
-      {/* Subtitle */}
+      {/* ── Subtitle ── */}
       <div style={st.subtitle}>
-        <span style={st.subtitleText}>Discover auctions, estate sales, yard sales, and live sourcing opportunities.</span>
+        <span style={st.subtitleText}>
+          Track live auctions, reseller platforms, estate sales, and sourcing opportunities.
+        </span>
       </div>
 
-      {/* Quick nav */}
-      <div style={st.quickNav}>
-        <button onClick={() => setFilter('auctions')} style={{ ...st.qnBtn, ...(filter === 'auctions' ? st.qnBtnActive : {}) }}>
-          <div style={{ ...st.qnIcon, backgroundColor: filter === 'auctions' ? 'var(--color-primary-100)' : 'var(--color-primary-50)' }}>
-            <Gavel size={18} style={{ color: 'var(--color-primary-600)' }} />
-          </div>
-          <span style={st.qnLabel}>Auctions</span>
-          <span style={st.qnSub}>Live &amp; upcoming</span>
-        </button>
-        <button onClick={() => setFilter('estate')} style={{ ...st.qnBtn, ...(filter === 'estate' ? st.qnBtnActive : {}) }}>
-          <div style={{ ...st.qnIcon, backgroundColor: filter === 'estate' ? 'var(--color-accent-100)' : 'var(--color-accent-50)' }}>
-            <Home size={18} style={{ color: 'var(--color-accent-600)' }} />
-          </div>
-          <span style={st.qnLabel}>Estate Sales</span>
-          <span style={st.qnSub}>Liquidation events</span>
-        </button>
-        <button onClick={() => setFilter('yard')} style={{ ...st.qnBtn, ...(filter === 'yard' ? st.qnBtnActive : {}) }}>
-          <div style={{ ...st.qnIcon, backgroundColor: filter === 'yard' ? 'var(--color-success-100)' : 'var(--color-success-50)' }}>
-            <MapPin size={18} style={{ color: 'var(--color-success-600)' }} />
-          </div>
-          <span style={st.qnLabel}>Yard Sales</span>
-          <span style={st.qnSub}>Local &amp; nearby</span>
-        </button>
-        <button onClick={() => setShowUpload(true)} style={st.qnBtn}>
-          <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-secondary-50)' }}>
-            <Upload size={18} style={{ color: 'var(--color-secondary-600)' }} />
-          </div>
-          <span style={st.qnLabel}>Upload</span>
-          <span style={st.qnSub}>Add an event</span>
-        </button>
+      {/* ── Platform quick-tabs ── */}
+      <div style={st.platformTabs}>
+        {PLATFORM_TABS.map((p) => {
+          const isActive = platformFilter === p.key;
+          return (
+            <button
+              key={p.key}
+              onClick={() => togglePlatform(p.key)}
+              style={{
+                ...st.platformTab,
+                backgroundColor: isActive ? p.bg : 'var(--color-neutral-50)',
+                border: `1.5px solid ${isActive ? p.color : 'var(--color-neutral-100)'}`,
+              }}
+            >
+              <span style={{ ...st.platformTabDot, backgroundColor: p.color }} />
+              <span style={{ ...st.platformTabLabel, color: isActive ? p.color : 'var(--color-neutral-700)' }}>
+                {p.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Filter chips */}
+      {/* ── Filter chips ── */}
       <div style={st.filterRow}>
-        {FILTERS.map((f) => (
+        {TYPE_FILTERS.map((f) => (
           <button
             key={f.key}
-            onClick={() => setFilter(f.key)}
-            style={{ ...st.chip, ...(filter === f.key ? st.chipActive : {}) }}
+            onClick={() => setTypeFilter(f.key)}
+            style={{ ...st.chip, ...(typeFilter === f.key ? st.chipActive : {}) }}
           >
             {f.label}
           </button>
         ))}
       </div>
 
-      {/* Feed */}
+      {/* ── Upload Event action bar ── */}
+      <div style={st.uploadBar}>
+        <span style={st.uploadBarText}>Have an auction or sale to share?</span>
+        <button onClick={() => setShowUploadEvent(true)} style={st.uploadBarBtn}>
+          <Upload size={12} />
+          Upload Event
+        </button>
+      </div>
+
+      {/* ── Feed ── */}
       <div style={st.feed}>
         {loading && (
           <div style={st.emptyState}>
@@ -176,11 +200,13 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 
         {!loading && filtered.length === 0 && (
           <div style={st.emptyState}>
-            <Gavel size={36} style={{ color: 'var(--color-neutral-200)', marginBottom: '12px' }} />
+            <Gavel size={36} style={{ color: 'var(--color-neutral-200)', marginBottom: '14px' }} />
             <p style={st.emptyTitle}>No live sourcing events yet</p>
-            <p style={st.emptyText}>Be the first to upload an auction, estate sale, or yard sale.</p>
-            <button onClick={() => setShowUpload(true)} style={st.emptyBtn}>
-              <Plus size={14} />
+            <p style={st.emptyText}>
+              Be the first to upload an auction, estate sale, yard sale, or marketplace listing.
+            </p>
+            <button onClick={() => setShowUploadEvent(true)} style={st.emptyBtn}>
+              <Upload size={13} />
               Upload an Event
             </button>
           </div>
@@ -191,17 +217,26 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         ))}
       </div>
 
-      {/* Upload modal */}
-      {showUpload && (
-        <UploadModal
+      {/* ── Modals ── */}
+      {showAddPlatform && (
+        <AddPlatformModal
           userId={user?.id}
-          onClose={() => setShowUpload(false)}
-          onSuccess={() => { setShowUpload(false); fetchListings(); }}
+          onClose={() => setShowAddPlatform(false)}
+          onSuccess={() => setShowAddPlatform(false)}
+        />
+      )}
+      {showUploadEvent && (
+        <UploadEventModal
+          userId={user?.id}
+          onClose={() => setShowUploadEvent(false)}
+          onSuccess={() => { setShowUploadEvent(false); fetchListings(); }}
         />
       )}
     </div>
   );
 }
+
+// ─── Listing card ─────────────────────────────────────────────────────────────
 
 function ListingCard({ listing }: { listing: ExternalListing }) {
   const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
@@ -216,7 +251,7 @@ function ListingCard({ listing }: { listing: ExternalListing }) {
     const hours = Math.floor(diff / 3600000);
     const mins = Math.floor((diff % 3600000) / 60000);
     if (hours >= 24) return `Ends in ${Math.floor(hours / 24)}d ${hours % 24}h`;
-    if (hours >= 1) return `Ends in ${hours}h ${mins}m`;
+    if (hours >= 1)  return `Ends in ${hours}h ${mins}m`;
     return `Ends in ${mins}m`;
   })();
 
@@ -227,13 +262,11 @@ function ListingCard({ listing }: { listing: ExternalListing }) {
           <img src={listing.image_url} alt={listing.title} style={st.cardImg} />
           {isLive && (
             <span style={st.liveBadge}>
-              <span style={st.liveBadgeDot} />
-              LIVE
+              <span style={st.liveBadgeDot} />LIVE
             </span>
           )}
         </div>
       )}
-
       <div style={st.cardBody}>
         <div style={st.cardTop}>
           <span style={{ ...st.platformBadge, backgroundColor: `${color}18`, color }}>
@@ -244,37 +277,20 @@ function ListingCard({ listing }: { listing: ExternalListing }) {
             <span style={st.price}>{listing.price_display}</span>
           )}
         </div>
-
         <p style={st.cardTitle}>{listing.title}</p>
-
         {listing.category && (
           <span style={st.categoryTag}>{listing.category}</span>
         )}
-
         <div style={st.cardMeta}>
           {timeInfo && (
-            <span style={st.metaItem}>
-              <Clock size={10} />
-              {timeInfo}
-            </span>
+            <span style={st.metaItem}><Clock size={10} />{timeInfo}</span>
           )}
-          {listing.scout_needed && (
-            <span style={st.scoutTag}>Scout Needed</span>
-          )}
-          {listing.ships_available && (
-            <span style={st.shipsTag}>Ships</span>
-          )}
+          {listing.scout_needed && <span style={st.scoutTag}>Scout Needed</span>}
+          {listing.ships_available && <span style={st.shipsTag}>Ships</span>}
         </div>
-
         <div style={st.cardActions}>
-          <a
-            href={listing.external_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={st.viewBtn}
-          >
-            <ExternalLink size={12} />
-            View Listing
+          <a href={listing.external_url} target="_blank" rel="noopener noreferrer" style={st.viewBtn}>
+            <ExternalLink size={12} />View Listing
           </a>
         </div>
       </div>
@@ -282,7 +298,114 @@ function ListingCard({ listing }: { listing: ExternalListing }) {
   );
 }
 
-interface UploadForm {
+// ─── Add Platform modal ───────────────────────────────────────────────────────
+
+interface PlatformForm {
+  platform_name: string;
+  website_url: string;
+  description: string;
+  platform_type: string;
+  shipping_supported: boolean;
+  scout_friendly: boolean;
+  logo_url: string;
+}
+
+function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
+  const [form, setForm] = useState<PlatformForm>({
+    platform_name: '', website_url: '', description: '',
+    platform_type: 'marketplace', shipping_supported: false,
+    scout_friendly: false, logo_url: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const set = (k: keyof PlatformForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSubmit = async () => {
+    if (!form.platform_name.trim()) { setError('Platform name is required.'); return; }
+    setError('');
+    setSaving(true);
+    const { error: err } = await supabase.from('platform_submissions').insert({
+      platform_name: form.platform_name.trim(),
+      website_url: form.website_url.trim() || null,
+      description: form.description.trim() || null,
+      platform_type: form.platform_type,
+      shipping_supported: form.shipping_supported,
+      scout_friendly: form.scout_friendly,
+      logo_url: form.logo_url.trim() || null,
+      submitted_by: userId ?? null,
+    });
+    setSaving(false);
+    if (err) { setError('Failed to submit. Please try again.'); return; }
+    onSuccess();
+  };
+
+  return (
+    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={mo.sheet}>
+        <div style={mo.handle} />
+        <div style={mo.header}>
+          <span style={mo.title}>Add Marketplace</span>
+          <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
+        </div>
+        <div style={mo.body}>
+          <label style={mo.label}>Platform Name <span style={mo.req}>*</span></label>
+          <input style={mo.input} placeholder="e.g. HiBid, MaxSold, OfferUp…" value={form.platform_name} onChange={(e) => set('platform_name', e.target.value)} />
+
+          <label style={mo.label}>Website URL</label>
+          <input style={mo.input} placeholder="https://…" type="url" value={form.website_url} onChange={(e) => set('website_url', e.target.value)} />
+
+          <label style={mo.label}>Description</label>
+          <textarea style={{ ...mo.input, height: '72px', resize: 'none' }} placeholder="What kind of listings does this platform have?" value={form.description} onChange={(e) => set('description', e.target.value)} />
+
+          <label style={mo.label}>Platform Type</label>
+          <div style={mo.selectWrap}>
+            <select style={mo.select} value={form.platform_type} onChange={(e) => set('platform_type', e.target.value)}>
+              <option value="marketplace">Marketplace</option>
+              <option value="auction">Auction</option>
+              <option value="live_selling">Live Selling</option>
+              <option value="estate_sales">Estate Sales</option>
+              <option value="storage_auctions">Storage Auctions</option>
+              <option value="local_classifieds">Local Classifieds</option>
+            </select>
+            <ChevronDown size={13} style={mo.selectIcon} />
+          </div>
+
+          <label style={mo.label}>Logo / Image URL (optional)</label>
+          <input style={mo.input} placeholder="https://…" value={form.logo_url} onChange={(e) => set('logo_url', e.target.value)} />
+
+          <div style={mo.toggleRow}>
+            <div style={mo.toggleItem}>
+              <span style={mo.toggleLabel}>Shipping Supported</span>
+              <button onClick={() => set('shipping_supported', !form.shipping_supported)} style={mo.toggleBtn}>
+                {form.shipping_supported
+                  ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} />
+                  : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
+              </button>
+            </div>
+            <div style={mo.toggleItem}>
+              <span style={mo.toggleLabel}>Scout Friendly</span>
+              <button onClick={() => set('scout_friendly', !form.scout_friendly)} style={mo.toggleBtn}>
+                {form.scout_friendly
+                  ? <ToggleRight size={28} style={{ color: 'var(--color-warning-500)' }} />
+                  : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
+              </button>
+            </div>
+          </div>
+
+          {error && <p style={mo.errorText}>{error}</p>}
+          <button onClick={handleSubmit} disabled={saving} style={{ ...mo.submitBtn, opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Submitting…' : 'Submit Marketplace'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Upload Event modal ───────────────────────────────────────────────────────
+
+interface EventForm {
   title: string;
   platform: string;
   listing_type: string;
@@ -295,31 +418,23 @@ interface UploadForm {
   ships_available: boolean;
 }
 
-function UploadModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
-  const [form, setForm] = useState<UploadForm>({
-    title: '',
-    platform: 'other',
-    listing_type: 'auction',
-    external_url: '',
-    price_display: '',
-    category: '',
-    image_url: '',
-    ends_at: '',
-    scout_needed: false,
-    ships_available: false,
+function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
+  const [form, setForm] = useState<EventForm>({
+    title: '', platform: 'other', listing_type: 'auction',
+    external_url: '', price_display: '', category: '',
+    image_url: '', ends_at: '', scout_needed: false, ships_available: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const set = (field: keyof UploadForm, value: string | boolean) =>
-    setForm((f) => ({ ...f, [field]: value }));
+  const set = (k: keyof EventForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
     if (!form.title.trim()) { setError('Title is required.'); return; }
     if (!form.external_url.trim()) { setError('External URL is required.'); return; }
     setError('');
     setSaving(true);
-    const payload = {
+    const { error: err } = await supabase.from('external_listings').insert({
       title: form.title.trim(),
       platform: form.platform,
       listing_type: form.listing_type,
@@ -332,8 +447,7 @@ function UploadModal({ userId, onClose, onSuccess }: { userId?: string; onClose:
       ships_available: form.ships_available,
       status: 'active',
       submitted_by: userId ?? null,
-    };
-    const { error: err } = await supabase.from('external_listings').insert(payload);
+    });
     setSaving(false);
     if (err) { setError('Failed to submit. Please try again.'); return; }
     onSuccess();
@@ -344,21 +458,13 @@ function UploadModal({ userId, onClose, onSuccess }: { userId?: string; onClose:
       <div style={mo.sheet}>
         <div style={mo.handle} />
         <div style={mo.header}>
-          <span style={mo.title}>Upload an Event</span>
+          <span style={mo.title}>Upload Event</span>
           <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
         </div>
-
         <div style={mo.body}>
-          {/* Title */}
           <label style={mo.label}>Title <span style={mo.req}>*</span></label>
-          <input
-            style={mo.input}
-            placeholder="e.g. HiBid Estate Auction — Chicago"
-            value={form.title}
-            onChange={(e) => set('title', e.target.value)}
-          />
+          <input style={mo.input} placeholder="e.g. HiBid Estate Auction — Chicago" value={form.title} onChange={(e) => set('title', e.target.value)} />
 
-          {/* Platform + Type row */}
           <div style={mo.row}>
             <div style={{ flex: 1 }}>
               <label style={mo.label}>Platform</label>
@@ -377,7 +483,7 @@ function UploadModal({ userId, onClose, onSuccess }: { userId?: string; onClose:
               </div>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={mo.label}>Type</label>
+              <label style={mo.label}>Event Type</label>
               <div style={mo.selectWrap}>
                 <select style={mo.select} value={form.listing_type} onChange={(e) => set('listing_type', e.target.value)}>
                   <option value="auction">Auction</option>
@@ -393,57 +499,26 @@ function UploadModal({ userId, onClose, onSuccess }: { userId?: string; onClose:
             </div>
           </div>
 
-          {/* External URL */}
           <label style={mo.label}>External URL <span style={mo.req}>*</span></label>
-          <input
-            style={mo.input}
-            placeholder="https://..."
-            value={form.external_url}
-            onChange={(e) => set('external_url', e.target.value)}
-            type="url"
-          />
+          <input style={mo.input} placeholder="https://…" type="url" value={form.external_url} onChange={(e) => set('external_url', e.target.value)} />
 
-          {/* Price + Category row */}
           <div style={mo.row}>
             <div style={{ flex: 1 }}>
               <label style={mo.label}>Starting Price</label>
-              <input
-                style={mo.input}
-                placeholder="e.g. $25 or Free"
-                value={form.price_display}
-                onChange={(e) => set('price_display', e.target.value)}
-              />
+              <input style={mo.input} placeholder="e.g. $25 or Free" value={form.price_display} onChange={(e) => set('price_display', e.target.value)} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={mo.label}>Category</label>
-              <input
-                style={mo.input}
-                placeholder="e.g. Antiques"
-                value={form.category}
-                onChange={(e) => set('category', e.target.value)}
-              />
+              <input style={mo.input} placeholder="e.g. Antiques" value={form.category} onChange={(e) => set('category', e.target.value)} />
             </div>
           </div>
 
-          {/* End date */}
-          <label style={mo.label}>End Date / Time</label>
-          <input
-            style={mo.input}
-            type="datetime-local"
-            value={form.ends_at}
-            onChange={(e) => set('ends_at', e.target.value)}
-          />
+          <label style={mo.label}><Calendar size={11} style={{ marginRight: '4px' }} />End Date / Time</label>
+          <input style={mo.input} type="datetime-local" value={form.ends_at} onChange={(e) => set('ends_at', e.target.value)} />
 
-          {/* Image URL */}
           <label style={mo.label}>Image URL</label>
-          <input
-            style={mo.input}
-            placeholder="https://..."
-            value={form.image_url}
-            onChange={(e) => set('image_url', e.target.value)}
-          />
+          <input style={mo.input} placeholder="https://…" value={form.image_url} onChange={(e) => set('image_url', e.target.value)} />
 
-          {/* Toggles */}
           <div style={mo.toggleRow}>
             <div style={mo.toggleItem}>
               <span style={mo.toggleLabel}>Shipping Available</span>
@@ -464,9 +539,8 @@ function UploadModal({ userId, onClose, onSuccess }: { userId?: string; onClose:
           </div>
 
           {error && <p style={mo.errorText}>{error}</p>}
-
           <button onClick={handleSubmit} disabled={saving} style={{ ...mo.submitBtn, opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Submitting...' : 'Submit Event'}
+            {saving ? 'Submitting…' : 'Submit Event'}
           </button>
         </div>
       </div>
@@ -474,43 +548,41 @@ function UploadModal({ userId, onClose, onSuccess }: { userId?: string; onClose:
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const st: Record<string, React.CSSProperties> = {
   container: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--color-neutral-0)' },
 
-  // Header
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
   backBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-600)' },
   headerCenter: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
   headerTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
   liveChip: { display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-50)', border: '1px solid var(--color-error-200)' },
   liveDot: { width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-error-500)', animation: 'pulse 2s infinite', flexShrink: 0 },
-  uploadBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
+  addBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
 
-  // Subtitle
   subtitle: { padding: '8px var(--space-4) 0', flexShrink: 0 },
   subtitleText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', lineHeight: 1.4 },
 
-  // Quick nav
-  quickNav: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
-  qnBtn: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: 'var(--space-2) var(--space-1)', borderRadius: 'var(--radius-md)', border: '1px solid transparent', transition: 'border-color 0.15s' },
-  qnBtnActive: { border: '1px solid var(--color-primary-200)', backgroundColor: 'var(--color-primary-50)' },
-  qnIcon: { width: '40px', height: '40px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  qnLabel: { fontSize: '10px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-800)', textAlign: 'center' as const },
-  qnSub: { fontSize: '9px', color: 'var(--color-neutral-400)', textAlign: 'center' as const, lineHeight: 1.2 },
+  platformTabs: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4)', flexShrink: 0 },
+  platformTab: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', padding: '9px var(--space-2)', borderRadius: 'var(--radius-md)', transition: 'background 0.15s, border-color 0.15s' },
+  platformTabDot: { width: '10px', height: '10px', borderRadius: '50%' },
+  platformTabLabel: { fontSize: '10px', fontWeight: 700, textAlign: 'center' as const },
 
-  // Filter chips
-  filterRow: { display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0, borderBottom: '1px solid var(--color-neutral-50)' },
+  filterRow: { display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0, borderTop: '1px solid var(--color-neutral-50)' },
   chip: { flexShrink: 0, padding: '5px 12px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-neutral-600)', backgroundColor: 'var(--color-neutral-100)', border: '1px solid transparent' },
   chipActive: { backgroundColor: 'var(--color-primary-600)', color: 'var(--color-neutral-0)', border: '1px solid var(--color-primary-600)' },
 
-  // Feed
+  uploadBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px var(--space-4)', backgroundColor: 'var(--color-neutral-50)', borderTop: '1px solid var(--color-neutral-100)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
+  uploadBarText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' },
+  uploadBarBtn: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary-600)', padding: '5px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
+
   feed: { flex: 1, overflowY: 'auto', padding: 'var(--space-3) var(--space-4)' },
-  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '56px 24px', textAlign: 'center' },
+  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', textAlign: 'center' },
   emptyTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-700)', marginBottom: '6px' },
   emptyText: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-400)', marginBottom: '20px', lineHeight: 1.5 },
   emptyBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-600)', color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)' },
 
-  // Listing card
   card: { borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-neutral-100)', overflow: 'hidden', marginBottom: 'var(--space-3)', backgroundColor: 'var(--color-neutral-0)' },
   cardImgWrap: { position: 'relative', height: '160px', backgroundColor: 'var(--color-neutral-50)' },
   cardImg: { width: '100%', height: '100%', objectFit: 'cover' },
@@ -539,14 +611,14 @@ const mo: Record<string, React.CSSProperties> = {
   title: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
   closeBtn: { width: '32px', height: '32px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-500)' },
   body: { flex: 1, overflowY: 'auto', padding: 'var(--space-4)' },
-  label: { display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-600)', marginBottom: '5px', marginTop: 'var(--space-3)' },
+  label: { display: 'flex', alignItems: 'center', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-600)', marginBottom: '5px', marginTop: 'var(--space-3)' },
   req: { color: 'var(--color-error-500)', marginLeft: '2px' },
   input: { width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)', backgroundColor: 'var(--color-neutral-0)', boxSizing: 'border-box' as const },
   row: { display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)' },
   selectWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   select: { width: '100%', padding: '9px 28px 9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)', backgroundColor: 'var(--color-neutral-0)', appearance: 'none', boxSizing: 'border-box' as const },
   selectIcon: { position: 'absolute', right: '8px', color: 'var(--color-neutral-400)', pointerEvents: 'none' },
-  toggleRow: { display: 'flex', gap: 'var(--space-4)', marginTop: 'var(--space-4)' },
+  toggleRow: { display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)' },
   toggleItem: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)' },
   toggleLabel: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-700)' },
   toggleBtn: { background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 },

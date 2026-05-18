@@ -1,0 +1,188 @@
+Completely rebuild and reorganize the current Live Events page.
+
+========================================
+PAGE TITLE
+==========
+
+Change the page title to:
+
+"Live Events"
+
+Subtitle:
+"Track live auctions, reseller platforms, estate sales, and sourcing opportunities."
+
+========================================
+REMOVE ALL FAKE CONTENT
+=======================
+
+Delete ALL remaining fake/demo/mock content including:
+
+* fake event cards
+* fake usernames
+* fake rankings
+* fake hunter systems
+* fake missions
+* fake team members
+* fake circles/icons at top
+* fake stats
+* hardcoded demo arrays
+
+This page must use ONLY real Supabase data.
+
+========================================
+TOP SHORTCUT TABS
+=================
+
+Replace the 4 top shortcut buttons with:
+
+1. Poshmark
+2. Whatnot
+3. eBay
+4. Facebook Marketplace
+
+Each should:
+
+* have matching marketplace colors/icons
+* filter relevant listings/events when clicked
+* work dynamically from Supabase data
+
+========================================
+FILTER CHIP ROW
+===============
+
+Keep the filter chips underneath but update them to:
+
+* All
+* Auctions
+* Estate Sales
+* Yard Sales
+* Storage Lockers
+
+REMOVE:
+
+* Whatnot chip
+* Poshmark chip
+
+The filters must:
+
+* dynamically filter real event/listing data
+* work instantly without page refresh
+* support case-insensitive category matching
+
+========================================
+TOP RIGHT PLUS BUTTON
+=====================
+
+Keep the top-right plus button.
+
+Convert it into:
+"Add Marketplace"
+or
+"Add Platform"
+
+When clicked:
+open a modal/sheet that allows users to submit a new marketplace/platform.
+
+Fields:
+
+* Platform Name
+* Website URL
+* Description
+* Platform Type dropdown:
+
+  * Marketplace
+  * Auction
+  * Live Selling
+  * Estate Sales
+  * Storage Auctions
+  * Local Classifieds
+* Shipping Supported toggle
+* Scout Friendly toggle
+* Optional logo/image URL
+
+Save submissions into Supabase.
+
+========================================
+UPLOAD EVENT BUTTON
+===================
+
+Keep the "Upload Event" section/button lower on the page.
+
+This is separate from Add Platform.
+
+Upload Event should allow:
+
+* title
+* event type
+* marketplace/platform
+* date/time
+* location
+* image
+* external URL
+* shipping available
+* scout needed
+* category
+
+Save to Supabase external_listings/events table.
+
+========================================
+LISTINGS / EVENTS FEED
+======================
+
+All cards must pull ONLY from real database entries.
+
+Supported event types:
+
+* Auctions
+* Estate Sales
+* Yard Sales
+* Storage Auctions
+* Whatnot streams
+* Poshmark live shows
+* eBay listings
+* Facebook Marketplace listings
+
+NO hardcoded listings.
+
+========================================
+EMPTY STATES
+============
+
+If no listings exist:
+show:
+
+"No live sourcing events yet."
+
+and
+
+"Be the first to upload an auction, estate sale, yard sale, or marketplace listing."
+
+========================================
+UI CLEANUP
+==========
+
+The page should feel like:
+
+* a reseller sourcing dashboard
+* auction/event intelligence hub
+* marketplace discovery feed
+
+NOT:
+
+* a game
+* a social ranking app
+* a fake community simulator
+
+========================================
+FINAL REQUIREMENTS
+==================
+
+Make sure:
+
+* all buttons function
+* all filters work
+* mobile layout is clean
+* no fake/demo content remains anywhere
+* page is fully database-driven
+* Supabase queries are optimized
+* app republishes successfully after changes
