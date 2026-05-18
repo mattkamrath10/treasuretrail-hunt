@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Gavel, Plus, X, Clock, ExternalLink,
+  ArrowLeft, Gavel, X, Clock, ExternalLink,
   Upload, ToggleLeft, ToggleRight, ChevronDown,
   Search, SlidersHorizontal, MapPin, Calendar,
   Truck, Package, UserCheck, AlertCircle, ChevronRight,
+  Store, Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -27,7 +28,7 @@ interface ExternalListing {
   created_at: string;
 }
 
-type TypeFilter = 'all' | 'auctions' | 'estate' | 'yard' | 'storage' | 'scout_needed';
+type TypeFilter = 'all' | 'auctions' | 'estate' | 'yard' | 'storage';
 type DateFilter = 'all' | 'today' | 'tomorrow' | 'this_weekend' | 'next_weekend' | 'this_week' | 'this_month' | 'custom';
 type SortKey = 'newest' | 'soonest' | 'ending_soon';
 
@@ -39,7 +40,6 @@ const TYPE_FILTERS: { key: TypeFilter; label: string }[] = [
   { key: 'estate', label: 'Estate Sales' },
   { key: 'yard', label: 'Yard Sales' },
   { key: 'storage', label: 'Storage Lockers' },
-  { key: 'scout_needed', label: 'Scout Needed' },
 ];
 
 const DATE_FILTERS: { key: DateFilter; label: string }[] = [
@@ -145,7 +145,6 @@ function applyAll(
     case 'estate':       result = result.filter((l) => l.listing_type === 'estate_sale'); break;
     case 'yard':         result = result.filter((l) => l.listing_type === 'yard_sale'); break;
     case 'storage':      result = result.filter((l) => l.listing_type === 'storage_auction'); break;
-    case 'scout_needed': result = result.filter((l) => l.scout_needed); break;
     default: break;
   }
 
@@ -247,6 +246,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   const [showFilters,      setShowFilters]      = useState(false);
   const [showAddPlatform,  setShowAddPlatform]  = useState(false);
   const [showUploadEvent,  setShowUploadEvent]  = useState(false);
+  const [showScouts,       setShowScouts]       = useState(false);
   const [selectedListing,  setSelectedListing]  = useState<ExternalListing | null>(null);
 
   const fetchListings = () => {
@@ -287,9 +287,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
             <span style={st.liveChip}><span style={st.liveDot} />{liveCount} LIVE</span>
           )}
         </div>
-        <button onClick={() => setShowAddPlatform(true)} style={st.addBtn} title="Add Marketplace">
-          <Plus size={17} style={{ color: 'var(--color-primary-600)' }} />
-        </button>
+        <div style={{ width: '36px' }} />
       </header>
 
       {/* ── Search bar ── */}
@@ -353,11 +351,18 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         ))}
       </div>
 
-      {/* ── Upload event bar ── */}
-      <div style={st.uploadBar}>
-        <span style={st.uploadBarText}>Have a sale or auction to share?</span>
-        <button onClick={() => setShowUploadEvent(true)} style={st.uploadBarBtn}>
-          <Upload size={11} />Upload Event
+      {/* ── Primary action buttons ── */}
+      <div style={st.actionArea}>
+        <button onClick={() => setShowAddPlatform(true)} style={st.actionBtnPrimary}>
+          <Store size={15} style={{ color: '#fff' }} />
+          <span style={st.actionBtnLabel}>Add Marketplace</span>
+        </button>
+        <button onClick={() => setShowScouts(true)} style={st.actionBtnSecondary}>
+          <Users size={15} style={{ color: 'var(--color-primary-600)' }} />
+          <div style={st.actionBtnInner}>
+            <span style={st.actionBtnLabel2}>Scouts</span>
+            <span style={st.actionBtnSub}>Find pickup help and local sourcing assistance</span>
+          </div>
         </button>
       </div>
 
@@ -441,6 +446,9 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           onClose={() => setShowUploadEvent(false)}
           onSuccess={() => { setShowUploadEvent(false); fetchListings(); }}
         />
+      )}
+      {showScouts && (
+        <ScoutsModal onClose={() => setShowScouts(false)} />
       )}
     </div>
   );
@@ -874,6 +882,69 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
   );
 }
 
+// ─── Scouts modal ─────────────────────────────────────────────────────────────
+
+const SCOUT_OPTIONS = [
+  { icon: UserCheck, label: 'Offer Scout Services', sub: 'Let buyers know you can scout locally', color: 'var(--color-success-600)', bg: 'var(--color-success-50)', border: 'var(--color-success-200)' },
+  { icon: MapPin,    label: 'Need Pickup Help',      sub: 'Request a local scout for pickup or inspection', color: 'var(--color-primary-600)', bg: 'var(--color-primary-50)', border: 'var(--color-primary-200)' },
+  { icon: Truck,     label: 'Shipping Coordination', sub: 'Connect with shippers for remote purchases', color: 'var(--color-secondary-600)', bg: 'var(--color-secondary-50)', border: 'var(--color-secondary-200)' },
+  { icon: Package,   label: 'Local Sourcing Help',   sub: 'Find resellers who know the local market', color: 'var(--color-warning-600)', bg: 'var(--color-warning-50)', border: 'var(--color-warning-200)' },
+];
+
+function ScoutsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={mo.sheet}>
+        <div style={mo.handle} />
+        <div style={mo.header}>
+          <span style={mo.title}>Scout Coordination</span>
+          <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
+        </div>
+        <div style={mo.body}>
+          <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-500)', lineHeight: 1.5, marginBottom: 'var(--space-4)' }}>
+            Connect with local scouts, arrange pickup help, and coordinate sourcing assistance for live events and auctions.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            {SCOUT_OPTIONS.map(({ icon: Icon, label, sub, color, bg, border }) => (
+              <button
+                key={label}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                  padding: '14px var(--space-4)', borderRadius: 'var(--radius-lg)',
+                  backgroundColor: bg, border: `1.5px solid ${border}`, width: '100%', textAlign: 'left',
+                }}
+              >
+                <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', backgroundColor: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon size={17} style={{ color: '#fff' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-neutral-900)', marginBottom: '2px' }}>{label}</p>
+                  <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', lineHeight: 1.3 }}>{sub}</p>
+                </div>
+                <ChevronRight size={16} style={{ color: 'var(--color-neutral-300)', flexShrink: 0 }} />
+              </button>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 'var(--space-5)', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)' }}>
+            <p style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-neutral-700)', marginBottom: 'var(--space-2)' }}>
+              About Scout Coordination
+            </p>
+            <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', lineHeight: 1.5 }}>
+              Scouts are local resellers who can inspect items, attend auctions on your behalf, coordinate local pickup, or help ship items you win remotely. Mark events as "Scout Needed" when uploading to attract available scouts in the area.
+            </p>
+          </div>
+
+          <button onClick={onClose} style={{ ...mo.submitBtn, marginTop: 'var(--space-4)', background: 'var(--color-neutral-800)' }}>
+            Got It
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const st: Record<string, React.CSSProperties> = {
@@ -885,7 +956,6 @@ const st: Record<string, React.CSSProperties> = {
   headerTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
   liveChip: { display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-50)', border: '1px solid var(--color-error-200)', fontSize: '10px', fontWeight: 700, color: 'var(--color-error-700)' },
   liveDot: { width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-error-500)', animation: 'pulse 2s infinite', flexShrink: 0 },
-  addBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
 
   searchRow: { display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
   searchBox: { flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-150)' },
@@ -904,9 +974,13 @@ const st: Record<string, React.CSSProperties> = {
   chip: { flexShrink: 0, padding: '5px 11px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-neutral-600)', backgroundColor: 'var(--color-neutral-100)', border: '1px solid transparent' },
   chipActive: { backgroundColor: 'var(--color-primary-600)', color: 'var(--color-neutral-0)', border: '1px solid var(--color-primary-600)' },
 
-  uploadBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px var(--space-4)', backgroundColor: 'var(--color-neutral-50)', borderTop: '1px solid var(--color-neutral-100)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
-  uploadBarText: { fontSize: '11px', color: 'var(--color-neutral-500)' },
-  uploadBarBtn: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: 'var(--color-primary-600)', padding: '5px 11px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
+  actionArea: { display: 'flex', flexDirection: 'column' as const, gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4)', borderTop: '1px solid var(--color-neutral-100)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
+  actionBtnPrimary: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', cursor: 'pointer' },
+  actionBtnLabel: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: '#fff' },
+  actionBtnSecondary: { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '11px 16px', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-200)', cursor: 'pointer' },
+  actionBtnInner: { display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', gap: '1px' },
+  actionBtnLabel2: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-primary-700)' },
+  actionBtnSub: { fontSize: '10px', color: 'var(--color-primary-500)', lineHeight: 1.3 },
 
   resultsBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px var(--space-4)', flexShrink: 0 },
   resultsText: { fontSize: '11px', color: 'var(--color-neutral-400)' },

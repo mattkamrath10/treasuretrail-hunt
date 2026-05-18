@@ -1,0 +1,140 @@
+Update and declutter the Live Events page layout.
+
+========================================
+TOP RIGHT PLUS BUTTON
+=====================
+
+Delete the top-right floating plus button completely.
+
+Remove:
+
+* Add Marketplace button/icon from the upper-right corner
+* any related floating action button logic
+
+The top area should remain clean and uncluttered.
+
+========================================
+MAIN ACTION BUTTONS
+===================
+
+Currently underneath the category chips there is a button:
+"Upload Event"
+
+Change this button to:
+
+"Add Marketplace"
+
+This becomes the primary action button for:
+
+* adding OfferUp
+* Bonanza
+* Mercari
+* Craigslist
+* auction houses
+* reseller platforms
+* local marketplaces
+* storage auction sites
+* custom sourcing websites
+
+========================================
+SCOUTS BUTTON RESTRUCTURE
+=========================
+
+Currently there is a Scouts button/chip located too far right beside the Storage Lockers chip.
+
+This layout feels cluttered.
+
+Remove the Scouts chip/button entirely from the horizontal chip row.
+
+DELETE:
+
+* Scouts chip from the top filter row
+
+========================================
+NEW SCOUT BUTTON LOCATION
+=========================
+
+Create a separate standalone button BELOW the main "Add Marketplace" button.
+
+Button text:
+"Scouts"
+
+Optional subtitle:
+"Find pickup help and local sourcing assistance"
+
+This gives scouts their own dedicated section without cluttering the category chips.
+
+========================================
+SCOUT BUTTON FUNCTION
+=====================
+
+When clicking the Scouts button:
+open:
+
+* scout availability
+* scout requests
+* local pickup coordination
+* shipping assistance
+* scout discussion tools
+
+This should feel separate from filtering categories.
+
+========================================
+LAYOUT GOALS
+============
+
+The page should feel:
+
+* clean
+* spacious
+* organized
+* marketplace-focused
+
+NOT:
+
+* overcrowded
+* button-heavy
+* game-like
+
+========================================
+FINAL UI STRUCTURE
+==================
+
+Top:
+
+* Live Events title
+* Search bar
+
+Marketplace shortcut row:
+
+* Poshmark
+* Whatnot
+* eBay
+* Facebook Marketplace
+
+Filter chips:
+
+* All
+* Auctions
+* Estate Sales
+* Yard Sales
+* Storage Lockers
+
+Main centered buttons underneath:
+
+1. Add Marketplace
+2. Scouts
+
+========================================
+FINAL QA
+========
+
+Verify:
+
+* no layout overflow
+* chips fit cleanly on mobile
+* spacing feels balanced
+* Scouts no longer appears in the top chip row
+* Add Marketplace button works properly
+* floating plus button fully removed
+* mobile responsiveness preserved
