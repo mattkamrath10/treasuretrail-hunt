@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, Truck, Zap, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2 } from 'lucide-react';
+import { useEffect } from 'react';
+import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, Truck, Zap, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
+import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity' | 'scouts';
 
@@ -226,6 +228,12 @@ function ProfileHeader({ profile }: { profile: any }) {
         <span style={styles.rankBadge}>{profile?.treasure_rank || 'Hunter'}</span>
         <span style={styles.levelBadge}>Lv. {profile?.level || 1}</span>
         <span style={styles.xpBadge}>{profile?.xp || 0} XP</span>
+        {profile?.membership_tier === 'pro' && (
+          <span style={proStyles.proBadge}>
+            <Crown size={11} style={{ color: 'var(--color-neutral-0)' }} />
+            <span>PRO</span>
+          </span>
+        )}
       </div>
       <span style={styles.joinDate}>Member since {joinDate}</span>
 
@@ -254,10 +262,79 @@ function ProfileHeader({ profile }: { profile: any }) {
   );
 }
 
+function AiScanUsageCard() {
+  const [usage, setUsage] = useState<AiScanUsage | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAiScanUsage().then((u) => {
+      if (cancelled) return;
+      setUsage(u);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={proStyles.usageCard}>
+        <div style={proStyles.usageHeader}>
+          <Sparkles size={16} style={{ color: 'var(--color-primary-500)' }} />
+          <span style={proStyles.usageTitle}>AI Treasure Scans</span>
+        </div>
+        <span style={proStyles.usageSub}>Loading…</span>
+      </div>
+    );
+  }
+  if (!usage) return null;
+
+  const isPro = usage.tier === 'pro';
+  const pct = isPro ? 0 : Math.min(100, (usage.used / usage.limit) * 100);
+
+  return (
+    <div style={proStyles.usageCard}>
+      <div style={proStyles.usageHeader}>
+        <Sparkles size={16} style={{ color: 'var(--color-primary-500)' }} />
+        <span style={proStyles.usageTitle}>AI Treasure Scans</span>
+        {isPro && (
+          <span style={proStyles.proPill}>
+            <Crown size={10} style={{ color: 'var(--color-neutral-0)' }} />
+            PRO
+          </span>
+        )}
+      </div>
+      {isPro ? (
+        <>
+          <span style={proStyles.usageBig}>Unlimited</span>
+          <span style={proStyles.usageSub}>
+            {usage.used} used today (safety cap {usage.limit})
+          </span>
+        </>
+      ) : (
+        <>
+          <span style={proStyles.usageBig}>
+            {usage.remaining} <span style={proStyles.usageBigSuffix}>of {usage.limit} left today</span>
+          </span>
+          <div style={proStyles.usageBar}>
+            <div style={{ ...proStyles.usageFill, width: `${pct}%` }} />
+          </div>
+          <span style={proStyles.usageSub}>
+            {usage.remaining > 0
+              ? 'Resets 24 hours after each scan.'
+              : 'Come back tomorrow or upgrade to Pro for unlimited scans.'}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 function OverviewTab({ profile }: { profile: any }) {
   const repScore = profile?.reputation_score ?? 0;
   return (
     <>
+      <AiScanUsageCard />
       <div style={styles.reputationCard}>
         <div style={styles.repLeft}>
           <Award size={20} style={{ color: 'var(--color-primary-500)' }} />
@@ -476,6 +553,81 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+const proStyles: Record<string, React.CSSProperties> = {
+  proBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
+    padding: '2px 8px',
+    borderRadius: 'var(--radius-full)',
+    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700))',
+    color: 'var(--color-neutral-0)',
+    fontSize: '10px',
+    fontWeight: 'var(--font-weight-bold)',
+    letterSpacing: '0.5px',
+  },
+  proPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '2px',
+    marginLeft: 'auto',
+    padding: '1px 6px',
+    borderRadius: 'var(--radius-full)',
+    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700))',
+    color: 'var(--color-neutral-0)',
+    fontSize: '9px',
+    fontWeight: 'var(--font-weight-bold)',
+    letterSpacing: '0.5px',
+  },
+  usageCard: {
+    padding: 'var(--space-4)',
+    backgroundColor: 'var(--color-neutral-0)',
+    borderRadius: 'var(--radius-lg)',
+    marginBottom: 'var(--space-4)',
+    border: '1px solid var(--color-primary-100)',
+    boxShadow: 'var(--shadow-sm)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-2)',
+  },
+  usageHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--space-2)',
+  },
+  usageTitle: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-800)',
+  },
+  usageBig: {
+    fontSize: 'var(--font-size-xl)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-primary-700)',
+  },
+  usageBigSuffix: {
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-medium)',
+    color: 'var(--color-neutral-500)',
+  },
+  usageBar: {
+    height: '6px',
+    width: '100%',
+    backgroundColor: 'var(--color-neutral-100)',
+    borderRadius: 'var(--radius-full)',
+    overflow: 'hidden',
+  },
+  usageFill: {
+    height: '100%',
+    background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-600))',
+    borderRadius: 'var(--radius-full)',
+  },
+  usageSub: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-500)',
+  },
+};
 
 const settingsStyles: Record<string, React.CSSProperties> = {
   overlay: {

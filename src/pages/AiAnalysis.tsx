@@ -1,75 +1,219 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, ChartBar as BarChart3, Share2, Bookmark, Send, Eye, Zap, CircleCheck as CheckCircle, Loader } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import {
+  ArrowLeft,
+  Sparkles,
+  ChartBar as BarChart3,
+  Share2,
+  Bookmark,
+  Send,
+  Eye,
+  Zap,
+  CircleCheck as CheckCircle,
+  Loader,
+  TriangleAlert as AlertTriangle,
+  Crown,
+} from 'lucide-react';
+import { compressImage } from '../lib/imageCompress';
+import {
+  runAiScan,
+  AiScanError,
+  type AiAnalysisResult,
+  type AiScanResponse,
+} from '../lib/aiAnalysis';
 
-type AnalysisView = 'loading' | 'results';
+type AnalysisView = 'loading' | 'results' | 'error';
 
 interface AnalysisProps {
-  form: { title: string; category: string; notes: string; price: string; location: string };
+  photoUrl: string | null;
+  form: {
+    title: string;
+    category: string;
+    notes: string;
+    price: string;
+    location: string;
+  };
   onDone: () => void;
   onBack: () => void;
+  onUsageUpdate?: (info: { tier: 'free' | 'pro'; used: number; limit: number; remaining: number }) => void;
   submitting?: boolean;
   submitError?: string;
 }
 
 const LOADING_STAGES = [
-  { label: 'Identifying Item', duration: 800 },
-  { label: 'Scanning Marketplace Trends', duration: 700 },
-  { label: 'Comparing Similar Finds', duration: 900 },
-  { label: 'Estimating Value', duration: 600 },
-  { label: 'Detecting Brand & Era', duration: 500 },
-  { label: 'Calculating Rarity', duration: 700 },
+  'Compressing image',
+  'Identifying item',
+  'Detecting brand & era',
+  'Estimating resale value',
+  'Scoring rarity',
+  'Drafting reseller tips',
 ];
 
-
-
-export default function AiAnalysis({ form, onDone, onBack, submitting, submitError }: AnalysisProps) {
+export default function AiAnalysis({
+  photoUrl,
+  form,
+  onDone,
+  onBack,
+  onUsageUpdate,
+  submitting,
+  submitError,
+}: AnalysisProps) {
   const [view, setView] = useState<AnalysisView>('loading');
+  const [result, setResult] = useState<AiAnalysisResult | null>(null);
+  const [meta, setMeta] = useState<{
+    cached: boolean;
+    tier: 'free' | 'pro';
+    used: number;
+    limit: number;
+    remaining: number;
+  } | null>(null);
+  const [errorState, setErrorState] = useState<{
+    message: string;
+    limitHit?: boolean;
+    needsAuth?: boolean;
+    tier?: 'free' | 'pro';
+    used?: number;
+    limit?: number;
+  } | null>(null);
 
-  return view === 'loading'
-    ? <LoadingExperience onComplete={() => setView('results')} />
-    : <ResultsScreen form={form} onDone={onDone} onBack={onBack} submitting={submitting} submitError={submitError} />;
-}
-
-function LoadingExperience({ onComplete }: { onComplete: () => void }) {
-  const [currentStage, setCurrentStage] = useState(0);
-  const [progress, setProgress] = useState(0);
+  const ranOnce = useRef(false);
 
   useEffect(() => {
-    const totalDuration = LOADING_STAGES.reduce((sum, s) => sum + s.duration, 0);
+    if (ranOnce.current) return;
+    ranOnce.current = true;
+
+    async function run() {
+      if (!photoUrl) {
+        setErrorState({ message: 'No photo to analyze. Please go back and add a photo.' });
+        setView('error');
+        return;
+      }
+
+      try {
+        const compressed = await compressImage(photoUrl, 1024, 0.82);
+
+        const userContext = [
+          form.title && `User titled it: "${form.title}".`,
+          form.category && `User category: ${form.category}.`,
+          form.location && `Found at: ${form.location}.`,
+          form.price && `Acquired for: $${form.price}.`,
+          form.notes && `Notes: ${form.notes}.`,
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        const response: AiScanResponse = await runAiScan(compressed, userContext);
+        setResult(response.result);
+        setMeta({
+          cached: response.cached,
+          tier: response.tier,
+          used: response.used,
+          limit: response.limit,
+          remaining: response.remaining,
+        });
+        onUsageUpdate?.({
+          tier: response.tier,
+          used: response.used,
+          limit: response.limit,
+          remaining: response.remaining,
+        });
+        setView('results');
+      } catch (err: any) {
+        if (err instanceof AiScanError) {
+          if (err.status === 401) {
+            setErrorState({ message: err.message, needsAuth: true });
+          } else if (err.status === 429) {
+            setErrorState({
+              message: err.message,
+              limitHit: true,
+              tier: err.usage?.tier,
+              used: err.usage?.used,
+              limit: err.usage?.limit,
+            });
+            if (err.usage) onUsageUpdate?.(err.usage);
+          } else {
+            setErrorState({ message: err.message });
+          }
+        } else {
+          setErrorState({ message: err?.message || 'AI scan failed. Please try again.' });
+        }
+        setView('error');
+      }
+    }
+
+    run();
+  }, [photoUrl, form, onUsageUpdate]);
+
+  if (view === 'loading') return <LoadingExperience photoUrl={photoUrl} />;
+
+  if (view === 'error') {
+    return (
+      <ErrorScreen
+        onBack={onBack}
+        message={errorState?.message ?? 'AI scan failed.'}
+        limitHit={errorState?.limitHit}
+        used={errorState?.used}
+        limit={errorState?.limit}
+        tier={errorState?.tier}
+      />
+    );
+  }
+
+  return (
+    <ResultsScreen
+      photoUrl={photoUrl}
+      form={form}
+      result={result!}
+      meta={meta!}
+      onDone={onDone}
+      onBack={onBack}
+      submitting={submitting}
+      submitError={submitError}
+    />
+  );
+}
+
+function LoadingExperience({ photoUrl }: { photoUrl: string | null }) {
+  const [currentStage, setCurrentStage] = useState(0);
+  const [progress, setProgress] = useState(8);
+
+  useEffect(() => {
+    let cancelled = false;
     let elapsed = 0;
 
     const interval = setInterval(() => {
-      elapsed += 50;
-      setProgress(Math.min((elapsed / totalDuration) * 100, 100));
+      if (cancelled) return;
+      elapsed += 200;
+      // Asymptotic crawl toward 92% — we never auto-complete; the parent swaps view.
+      setProgress((p) => Math.min(92, p + (92 - p) * 0.05));
+      setCurrentStage(() => Math.min(LOADING_STAGES.length - 1, Math.floor(elapsed / 1100)));
+    }, 200);
 
-      let cumulative = 0;
-      for (let i = 0; i < LOADING_STAGES.length; i++) {
-        cumulative += LOADING_STAGES[i].duration;
-        if (elapsed < cumulative) {
-          setCurrentStage(i);
-          break;
-        }
-        if (i === LOADING_STAGES.length - 1) {
-          setCurrentStage(i);
-        }
-      }
-
-      if (elapsed >= totalDuration) {
-        clearInterval(interval);
-        setTimeout(onComplete, 400);
-      }
-    }, 50);
-
-    return () => clearInterval(interval);
-  }, [onComplete]);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   return (
     <div style={styles.loadingContainer}>
       <div style={styles.loadingContent}>
         <div style={styles.loadingImageWrap}>
-          <div style={{ ...styles.loadingImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-md)' }}>
-            <Sparkles size={48} style={{ color: 'var(--color-primary-400)' }} />
-          </div>
+          {photoUrl ? (
+            <img src={photoUrl} alt="Analyzing" style={styles.loadingImage} />
+          ) : (
+            <div
+              style={{
+                ...styles.loadingImage,
+                backgroundColor: 'var(--color-neutral-100)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 'var(--radius-md)',
+              }}
+            >
+              <Sparkles size={48} style={{ color: 'var(--color-primary-400)' }} />
+            </div>
+          )}
           <div style={styles.scanOverlay}>
             <div style={{ ...styles.scanLine, top: `${(progress % 100) * 0.9}%` }} />
           </div>
@@ -91,9 +235,9 @@ function LoadingExperience({ onComplete }: { onComplete: () => void }) {
         </div>
 
         <div style={styles.stagesList}>
-          {LOADING_STAGES.map((stage, index) => (
+          {LOADING_STAGES.map((label, index) => (
             <div
-              key={stage.label}
+              key={label}
               style={{
                 ...styles.stageItem,
                 opacity: index <= currentStage ? 1 : 0.3,
@@ -102,28 +246,33 @@ function LoadingExperience({ onComplete }: { onComplete: () => void }) {
               <div
                 style={{
                   ...styles.stageDot,
-                  backgroundColor: index < currentStage
-                    ? 'var(--color-success-500)'
-                    : index === currentStage
-                    ? 'var(--color-primary-500)'
-                    : 'var(--color-neutral-200)',
+                  backgroundColor:
+                    index < currentStage
+                      ? 'var(--color-success-500)'
+                      : index === currentStage
+                      ? 'var(--color-primary-500)'
+                      : 'var(--color-neutral-200)',
                 }}
               />
               <span
                 style={{
                   ...styles.stageLabel,
-                  fontWeight: index === currentStage ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)',
-                  color: index === currentStage ? 'var(--color-neutral-900)' : 'var(--color-neutral-500)',
+                  fontWeight:
+                    index === currentStage
+                      ? 'var(--font-weight-semibold)'
+                      : 'var(--font-weight-medium)',
+                  color:
+                    index === currentStage
+                      ? 'var(--color-neutral-900)'
+                      : 'var(--color-neutral-500)',
                 }}
               >
-                {stage.label}
+                {label}
               </span>
               {index < currentStage && (
                 <CheckCircle size={12} style={{ color: 'var(--color-success-500)' }} />
               )}
-              {index === currentStage && (
-                <div style={styles.stageSpinner} />
-              )}
+              {index === currentStage && <div style={styles.stageSpinner} />}
             </div>
           ))}
         </div>
@@ -132,8 +281,95 @@ function LoadingExperience({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-function ResultsScreen({ form, onDone, onBack, submitting, submitError }: AnalysisProps) {
+function ErrorScreen({
+  onBack,
+  message,
+  limitHit,
+  used,
+  limit,
+  tier,
+}: {
+  onBack: () => void;
+  message: string;
+  limitHit?: boolean;
+  used?: number;
+  limit?: number;
+  tier?: 'free' | 'pro';
+}) {
+  return (
+    <div style={styles.container}>
+      <header style={styles.stepHeader}>
+        <button onClick={onBack} style={styles.backBtn}>
+          <ArrowLeft size={20} />
+        </button>
+        <span style={styles.stepLabel}>AI Analysis</span>
+        <div style={{ width: 36 }} />
+      </header>
+
+      <div style={styles.errorContent}>
+        <div style={styles.errorIconWrap}>
+          {limitHit ? (
+            <Crown size={36} style={{ color: 'var(--color-primary-500)' }} />
+          ) : (
+            <AlertTriangle size={36} style={{ color: 'var(--color-warning-500)' }} />
+          )}
+        </div>
+        <h2 style={styles.errorTitle}>
+          {limitHit ? 'Daily scan limit reached' : "We couldn't finish that scan"}
+        </h2>
+        <p style={styles.errorMessage}>{message}</p>
+
+        {limitHit && typeof used === 'number' && typeof limit === 'number' && (
+          <div style={styles.usagePill}>
+            Used {used} / {limit} {tier === 'pro' ? '(Pro safety cap)' : 'free scans today'}
+          </div>
+        )}
+
+        <div style={styles.errorActions}>
+          <button onClick={onBack} style={styles.errorSecondaryBtn}>
+            Back to details
+          </button>
+          {limitHit && tier !== 'pro' && (
+            <button onClick={onBack} style={styles.errorPrimaryBtn}>
+              <Crown size={16} style={{ color: 'var(--color-neutral-0)' }} />
+              <span style={styles.errorPrimaryText}>Upgrade to Pro</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResultsScreen({
+  photoUrl,
+  form,
+  result,
+  meta,
+  onDone,
+  onBack,
+  submitting,
+  submitError,
+}: {
+  photoUrl: string | null;
+  form: AnalysisProps['form'];
+  result: AiAnalysisResult;
+  meta: { cached: boolean; tier: 'free' | 'pro'; used: number; limit: number; remaining: number };
+  onDone: () => void;
+  onBack: () => void;
+  submitting?: boolean;
+  submitError?: string;
+}) {
   const purchasePrice = form.price ? parseFloat(form.price) : null;
+  const { estimated_value: ev } = result;
+  const midValue = ev ? (ev.low + ev.high) / 2 : null;
+  const profitLow = purchasePrice !== null && ev ? ev.low - purchasePrice : null;
+  const profitHigh = purchasePrice !== null && ev ? ev.high - purchasePrice : null;
+
+  const remainingLabel =
+    meta.tier === 'pro'
+      ? 'Pro · unlimited scans'
+      : `${meta.remaining} of ${meta.limit} free scans left today`;
 
   return (
     <div style={styles.container}>
@@ -147,90 +383,167 @@ function ResultsScreen({ form, onDone, onBack, submitting, submitError }: Analys
 
       <div style={styles.resultsContent}>
         <div style={styles.resultHero}>
-          <div style={{ ...styles.resultImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Sparkles size={48} style={{ color: 'var(--color-primary-300)' }} />
-          </div>
+          {photoUrl ? (
+            <img src={photoUrl} alt={result.title || 'Your find'} style={styles.resultImage} />
+          ) : (
+            <div
+              style={{
+                ...styles.resultImage,
+                backgroundColor: 'var(--color-neutral-100)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Sparkles size={48} style={{ color: 'var(--color-primary-300)' }} />
+            </div>
+          )}
           <div style={styles.resultHeroOverlay}>
             <div style={styles.aiConfidence}>
               <Sparkles size={12} style={{ color: 'var(--color-primary-400)' }} />
-              <span style={styles.confidenceText}>94% confidence</span>
+              <span style={styles.confidenceText}>
+                {Math.round(result.confidence ?? 0)}% confidence
+              </span>
             </div>
           </div>
         </div>
 
         <div style={styles.resultBody}>
-          <h2 style={styles.resultTitle}>
-            {form.title || 'Untitled Item'}
-          </h2>
+          <div style={styles.usageBanner}>
+            <Sparkles size={12} style={{ color: 'var(--color-primary-500)' }} />
+            <span style={styles.usageBannerText}>
+              {meta.cached ? 'Reused recent scan · ' : ''}
+              {remainingLabel}
+            </span>
+          </div>
 
-          {form.category && (
-            <div style={styles.resultTags}>
-              <span style={styles.resultTag}>{form.category}</span>
-            </div>
-          )}
+          <h2 style={styles.resultTitle}>{result.title || form.title || 'Untitled Item'}</h2>
 
-          {/* Core metrics */}
+          <div style={styles.resultTags}>
+            {result.category && <span style={styles.resultTag}>{result.category}</span>}
+            {result.era && <span style={styles.resultTag}>{result.era}</span>}
+            {result.brand && <span style={styles.resultTag}>{result.brand}</span>}
+            {result.condition_estimate && (
+              <span style={styles.resultTag}>{result.condition_estimate}</span>
+            )}
+          </div>
+
+          {result.summary && <p style={styles.summaryText}>{result.summary}</p>}
+
           <div style={styles.metricsGrid}>
             <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Purchase Price</span>
-              <span style={styles.metricValue}>{form.price ? `$${form.price}` : '—'}</span>
+              <span style={styles.metricLabel}>Est. Resale</span>
+              <span style={styles.metricValueGreen}>
+                {ev ? `$${formatMoney(ev.low)} – $${formatMoney(ev.high)}` : '—'}
+              </span>
             </div>
             <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>AI Analysis</span>
-              <span style={styles.metricValue}>Pending</span>
-            </div>
-          </div>
-
-          {/* Detail attributes */}
-          <div style={styles.attributesSection}>
-            <h3 style={styles.sectionTitle}>Item Details</h3>
-            <div style={styles.attributesList}>
-              {form.category && (
-                <div style={styles.attrRow}>
-                  <span style={styles.attrLabel}>Category</span>
-                  <span style={styles.attrValue}>{form.category}</span>
+              <span style={styles.metricLabel}>Rarity</span>
+              <div style={styles.scoreRow}>
+                <div style={styles.scoreBar}>
+                  <div
+                    style={{
+                      ...styles.scoreFill,
+                      width: `${Math.min(100, (result.rarity_score ?? 0) * 10)}%`,
+                    }}
+                  />
                 </div>
-              )}
-              {form.location && (
-                <div style={styles.attrRow}>
-                  <span style={styles.attrLabel}>Location</span>
-                  <span style={styles.attrValue}>{form.location}</span>
-                </div>
-              )}
-              {form.notes && (
-                <div style={styles.attrRow}>
-                  <span style={styles.attrLabel}>Notes</span>
-                  <span style={styles.attrValue}>{form.notes}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Marketplace comparison */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>Marketplace Comparison</h3>
-            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '0.85rem' }}>
-              Connect an AI backend to enable live market price comparisons.
-            </div>
-          </div>
-
-          {/* Profit estimator */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>Profit Estimator</h3>
-            <div style={styles.profitCard}>
-              {purchasePrice !== null && (
-                <div style={styles.profitRow}>
-                  <span style={styles.profitLabel}>Purchase Price</span>
-                  <span style={styles.profitValue}>-${purchasePrice}</span>
-                </div>
-              )}
-              <div style={{ padding: '8px 0', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '0.85rem' }}>
-                Connect an AI backend to enable profit estimates.
+                <span style={styles.scoreNum}>{(result.rarity_score ?? 0).toFixed(1)}/10</span>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
+          {result.highlights?.length > 0 && (
+            <div style={styles.attributesSection}>
+              <h3 style={styles.sectionTitle}>Why it matters</h3>
+              <div style={styles.attributesList}>
+                {result.highlights.map((h, i) => (
+                  <div key={i} style={styles.bulletRow}>
+                    <span style={styles.bulletDot} />
+                    <span style={styles.bulletText}>{h}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={styles.attributesSection}>
+            <h3 style={styles.sectionTitle}>Item Details</h3>
+            <div style={styles.attributesList}>
+              <DetailRow label="Identified" value={result.identified ? 'Yes' : 'Uncertain'} />
+              {result.brand && <DetailRow label="Brand" value={result.brand} />}
+              {result.era && <DetailRow label="Era" value={result.era} />}
+              {result.condition_estimate && (
+                <DetailRow label="Condition" value={result.condition_estimate} />
+              )}
+              {form.location && <DetailRow label="Location" value={form.location} />}
+              {form.notes && <DetailRow label="Notes" value={form.notes} />}
+            </div>
+          </div>
+
+          {(profitLow !== null || midValue !== null) && (
+            <div style={styles.section}>
+              <h3 style={styles.sectionTitle}>Profit Estimator</h3>
+              <div style={styles.profitCard}>
+                {purchasePrice !== null && (
+                  <div style={styles.profitRow}>
+                    <span style={styles.profitLabel}>Purchase price</span>
+                    <span style={styles.profitValue}>-${formatMoney(purchasePrice)}</span>
+                  </div>
+                )}
+                {ev && (
+                  <div style={styles.profitRow}>
+                    <span style={styles.profitLabel}>Est. resale (mid)</span>
+                    <span style={styles.profitValueGreen}>+${formatMoney(midValue!)}</span>
+                  </div>
+                )}
+                {profitLow !== null && profitHigh !== null && (
+                  <>
+                    <div style={styles.profitDivider} />
+                    <div style={styles.profitRow}>
+                      <span style={styles.profitLabelBold}>Projected profit</span>
+                      <span style={styles.profitTotal}>
+                        {profitLow >= 0 ? '+' : ''}${formatMoney(profitLow)} to{' '}
+                        {profitHigh >= 0 ? '+' : ''}${formatMoney(profitHigh)}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {result.selling_tips?.length > 0 && (
+            <div style={styles.section}>
+              <h3 style={styles.sectionTitle}>Reseller Tips</h3>
+              <div style={styles.attributesList}>
+                {result.selling_tips.map((t, i) => (
+                  <div key={i} style={styles.bulletRow}>
+                    <span style={{ ...styles.bulletDot, backgroundColor: 'var(--color-success-500)' }} />
+                    <span style={styles.bulletText}>{t}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.watch_outs?.length > 0 && (
+            <div style={styles.section}>
+              <h3 style={styles.sectionTitle}>Watch-outs</h3>
+              <div style={styles.attributesList}>
+                {result.watch_outs.map((w, i) => (
+                  <div key={i} style={styles.bulletRow}>
+                    <AlertTriangle
+                      size={12}
+                      style={{ color: 'var(--color-warning-500)', flexShrink: 0, marginTop: 3 }}
+                    />
+                    <span style={styles.bulletText}>{w}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>Actions</h3>
             <div style={styles.actionsGrid}>
@@ -261,18 +574,24 @@ function ResultsScreen({ form, onDone, onBack, submitting, submitError }: Analys
             </div>
           </div>
 
-          {submitError && (
-            <p style={styles.errorText}>{submitError}</p>
-          )}
+          {submitError && <p style={styles.errorText}>{submitError}</p>}
+
           <button
             onClick={onDone}
             disabled={submitting}
             style={{ ...styles.primaryBtn, opacity: submitting ? 0.7 : 1 }}
           >
-            {submitting
-              ? <Loader size={18} style={{ color: 'var(--color-neutral-0)', animation: 'spin 1s linear infinite' }} />
-              : <CheckCircle size={18} style={{ color: 'var(--color-neutral-0)' }} />
-            }
+            {submitting ? (
+              <Loader
+                size={18}
+                style={{
+                  color: 'var(--color-neutral-0)',
+                  animation: 'spin 1s linear infinite',
+                }}
+              />
+            ) : (
+              <CheckCircle size={18} style={{ color: 'var(--color-neutral-0)' }} />
+            )}
             <span style={styles.primaryBtnText}>
               {submitting ? 'Posting…' : 'Post This Find'}
             </span>
@@ -283,9 +602,23 @@ function ResultsScreen({ form, onDone, onBack, submitting, submitError }: Analys
   );
 }
 
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={styles.attrRow}>
+      <span style={styles.attrLabel}>{label}</span>
+      <span style={styles.attrValue}>{value}</span>
+    </div>
+  );
+}
+
+function formatMoney(n: number): string {
+  if (!Number.isFinite(n)) return '0';
+  if (Math.abs(n) >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
 
 const styles: Record<string, React.CSSProperties> = {
-  // Loading screen
+  // Loading
   loadingContainer: {
     height: '100%',
     display: 'flex',
@@ -311,16 +644,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 'var(--space-5)',
     boxShadow: 'var(--shadow-lg)',
   },
-  loadingImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
-  scanOverlay: {
-    position: 'absolute',
-    inset: 0,
-    overflow: 'hidden',
-  },
+  loadingImage: { width: '100%', height: '100%', objectFit: 'cover' },
+  scanOverlay: { position: 'absolute', inset: 0, overflow: 'hidden' },
   scanLine: {
     position: 'absolute',
     left: 0,
@@ -329,10 +654,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'linear-gradient(90deg, transparent, var(--color-primary-400), transparent)',
     boxShadow: '0 0 8px var(--color-primary-400)',
   },
-  loadingInfo: {
-    textAlign: 'center',
-    marginBottom: 'var(--space-5)',
-  },
+  loadingInfo: { textAlign: 'center', marginBottom: 'var(--space-5)' },
   sparkleIcon: {
     display: 'flex',
     justifyContent: 'center',
@@ -345,10 +667,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-900)',
     marginBottom: 'var(--space-1)',
   },
-  loadingSubtitle: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-500)',
-  },
+  loadingSubtitle: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-500)' },
   progressSection: {
     width: '100%',
     display: 'flex',
@@ -367,7 +686,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-600))',
     borderRadius: 'var(--radius-full)',
-    transition: 'width 0.1s linear',
+    transition: 'width 0.4s ease',
   },
   progressPercent: {
     fontSize: 'var(--font-size-xs)',
@@ -376,12 +695,7 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: '36px',
     textAlign: 'right',
   },
-  stagesList: {
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-3)',
-  },
+  stagesList: { width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' },
   stageItem: {
     display: 'flex',
     alignItems: 'center',
@@ -395,11 +709,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
     transition: 'background-color 0.3s ease',
   },
-  stageLabel: {
-    fontSize: 'var(--font-size-sm)',
-    flex: 1,
-    transition: 'all 0.3s ease',
-  },
+  stageLabel: { fontSize: 'var(--font-size-sm)', flex: 1, transition: 'all 0.3s ease' },
   stageSpinner: {
     width: '12px',
     height: '12px',
@@ -409,7 +719,77 @@ const styles: Record<string, React.CSSProperties> = {
     animation: 'spin 0.8s linear infinite',
   },
 
-  // Results screen
+  // Error
+  errorContent: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 'var(--space-6)',
+    textAlign: 'center',
+  },
+  errorIconWrap: {
+    width: '64px',
+    height: '64px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-100)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 'var(--space-4)',
+  },
+  errorTitle: {
+    fontSize: 'var(--font-size-lg)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
+    marginBottom: 'var(--space-2)',
+  },
+  errorMessage: {
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-600)',
+    lineHeight: 'var(--line-height-snug)',
+    maxWidth: '320px',
+    marginBottom: 'var(--space-4)',
+  },
+  usagePill: {
+    padding: 'var(--space-1) var(--space-3)',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-50)',
+    color: 'var(--color-primary-700)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+    marginBottom: 'var(--space-5)',
+  },
+  errorActions: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', width: '100%', maxWidth: '320px' },
+  errorSecondaryBtn: {
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-0)',
+    color: 'var(--color-neutral-700)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    cursor: 'pointer',
+  },
+  errorPrimaryBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-primary-500)',
+    border: 'none',
+    cursor: 'pointer',
+  },
+  errorPrimaryText: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-0)',
+  },
+
+  // Results
   container: {
     height: '100%',
     display: 'flex',
@@ -439,25 +819,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-900)',
   },
-  resultsContent: {
-    flex: 1,
-    overflow: 'auto',
-  },
-  resultHero: {
-    position: 'relative',
-    aspectRatio: '16/9',
-    overflow: 'hidden',
-  },
-  resultImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
-  resultHeroOverlay: {
-    position: 'absolute',
-    bottom: 'var(--space-3)',
-    right: 'var(--space-3)',
-  },
+  resultsContent: { flex: 1, overflow: 'auto' },
+  resultHero: { position: 'relative', aspectRatio: '16/9', overflow: 'hidden' },
+  resultImage: { width: '100%', height: '100%', objectFit: 'cover' },
+  resultHeroOverlay: { position: 'absolute', bottom: 'var(--space-3)', right: 'var(--space-3)' },
   aiConfidence: {
     display: 'flex',
     alignItems: 'center',
@@ -472,8 +837,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'var(--font-weight-bold)',
     color: 'var(--color-neutral-0)',
   },
-  resultBody: {
-    padding: 'var(--space-4)',
+  resultBody: { padding: 'var(--space-4)' },
+  usageBanner: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 10px',
+    backgroundColor: 'var(--color-primary-50)',
+    borderRadius: 'var(--radius-full)',
+    marginBottom: 'var(--space-3)',
+  },
+  usageBannerText: {
+    fontSize: '11px',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-primary-700)',
   },
   resultTitle: {
     fontSize: 'var(--font-size-lg)',
@@ -486,7 +863,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexWrap: 'wrap',
     gap: 'var(--space-2)',
-    marginBottom: 'var(--space-4)',
+    marginBottom: 'var(--space-3)',
   },
   resultTag: {
     padding: '2px 10px',
@@ -494,10 +871,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-medium)',
     backgroundColor: 'var(--color-neutral-100)',
-    color: 'var(--color-neutral-600)',
+    color: 'var(--color-neutral-700)',
+  },
+  summaryText: {
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-700)',
+    lineHeight: 'var(--line-height-snug)',
+    marginBottom: 'var(--space-4)',
   },
 
-  // Metrics
   metricsGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
@@ -519,21 +901,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
     marginBottom: '4px',
   },
-  metricValue: {
-    fontSize: 'var(--font-size-base)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
-  },
   metricValueGreen: {
     fontSize: 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-bold)',
     color: 'var(--color-success-600)',
   },
-  scoreRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-  },
+  scoreRow: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
   scoreBar: {
     flex: 1,
     height: '6px',
@@ -552,21 +925,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-700)',
   },
 
-  // Attributes
-  attributesSection: {
-    marginBottom: 'var(--space-5)',
-  },
+  attributesSection: { marginBottom: 'var(--space-5)' },
   sectionTitle: {
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-800)',
     marginBottom: 'var(--space-3)',
   },
-  attributesList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
-  },
+  attributesList: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' },
   attrRow: {
     display: 'flex',
     alignItems: 'center',
@@ -575,103 +941,39 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'var(--color-neutral-50)',
     borderRadius: 'var(--radius-sm)',
   },
-  attrLabel: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-  },
+  attrLabel: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' },
   attrValue: {
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-800)',
-  },
-  attrValueTrend: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-success-600)',
+    textAlign: 'right',
+    maxWidth: '60%',
   },
 
-  // Sections
-  section: {
-    marginBottom: 'var(--space-5)',
-  },
-
-  // Marketplace
-  marketplaceList: {
+  bulletRow: {
     display: 'flex',
-    flexDirection: 'column',
     gap: 'var(--space-2)',
+    alignItems: 'flex-start',
+    padding: 'var(--space-2) var(--space-3)',
+    backgroundColor: 'var(--color-neutral-50)',
+    borderRadius: 'var(--radius-sm)',
   },
-  mpCard: {
-    padding: 'var(--space-3)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-100)',
-  },
-  mpHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-    marginBottom: 'var(--space-2)',
-  },
-  mpDot: {
-    width: '8px',
-    height: '8px',
+  bulletDot: {
+    width: '6px',
+    height: '6px',
     borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-500)',
+    marginTop: '6px',
+    flexShrink: 0,
   },
-  mpName: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
-    flex: 1,
-  },
-  mpBody: {
-    display: 'flex',
-    gap: 'var(--space-3)',
-  },
-  mpCol: {
-    flex: 1,
-  },
-  mpLabel: {
-    fontSize: '10px',
-    color: 'var(--color-neutral-400)',
-    display: 'block',
-    marginBottom: '1px',
-  },
-  mpValue: {
+  bulletText: {
     fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-medium)',
     color: 'var(--color-neutral-700)',
+    lineHeight: 'var(--line-height-snug)',
   },
 
-  // Recommendations
-  recsGrid: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
-  },
-  recCard: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-3) var(--space-4)',
-    borderRadius: 'var(--radius-md)',
-  },
-  recInfo: {
-    flex: 1,
-  },
-  recLabel: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-bold)',
-    display: 'block',
-  },
-  recDesc: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-600)',
-  },
+  section: { marginBottom: 'var(--space-5)' },
 
-  // Profit estimator
   profitCard: {
     padding: 'var(--space-4)',
     backgroundColor: 'var(--color-neutral-50)',
@@ -684,10 +986,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     padding: 'var(--space-2) 0',
   },
-  profitLabel: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-600)',
-  },
+  profitLabel: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)' },
   profitLabelBold: {
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-bold)',
@@ -714,7 +1013,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-success-600)',
   },
 
-  // Action buttons
   actionsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
@@ -735,36 +1033,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'var(--font-weight-medium)',
     color: 'var(--color-neutral-700)',
     textAlign: 'center',
-    lineHeight: '1.3',
   },
-
-  // Primary CTA
   primaryBtn: {
+    width: '100%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 'var(--space-2)',
-    width: '100%',
-    padding: 'var(--space-4)',
+    padding: 'var(--space-3)',
     borderRadius: 'var(--radius-md)',
-    background: 'linear-gradient(135deg, var(--color-primary-600), var(--color-accent-500))',
-    boxShadow: '0 4px 16px rgba(234, 179, 8, 0.3)',
-    marginTop: 'var(--space-4)',
-    marginBottom: 'var(--space-4)',
+    backgroundColor: 'var(--color-primary-500)',
+    border: 'none',
+    cursor: 'pointer',
+    marginTop: 'var(--space-2)',
   },
   primaryBtnText: {
-    color: 'var(--color-neutral-0)',
-    fontSize: 'var(--font-size-base)',
+    fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-0)',
   },
   errorText: {
-    fontSize: 'var(--font-size-sm)',
+    fontSize: 'var(--font-size-xs)',
     color: 'var(--color-error-500)',
-    textAlign: 'center',
-    marginBottom: 'var(--space-3)',
-    padding: 'var(--space-2) var(--space-3)',
-    backgroundColor: 'var(--color-error-50)',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-error-200)',
+    marginBottom: 'var(--space-2)',
   },
 };

@@ -170,7 +170,7 @@ export default function FlashFinds() {
       <div style={{ height: '100%', position: 'relative' }}>
         <GuestOverlay
           title="Flash Finds"
-          subtitle="Snap photos of your finds, get instant AI valuations, and share with the community."
+          subtitle="Create a free account to use AI Treasure Scan. Snap photos of your finds, get instant AI valuations, and share with the community."
         />
       </div>
     );
@@ -225,6 +225,7 @@ export default function FlashFinds() {
 
       {step === 'ai-analysis' && (
         <AiAnalysisPage
+          photoUrl={photoUrl}
           form={form}
           onDone={handleAiDone}
           onBack={() => setStep('details')}

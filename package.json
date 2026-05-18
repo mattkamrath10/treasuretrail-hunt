@@ -4,19 +4,35 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n web,api -c blue,magenta \"vite\" \"tsx watch server/index.ts\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch server/index.ts",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "tsx server/index.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.9.0",
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.6",
+    "drizzle-zod": "^0.8.3",
+    "express": "^5.2.1",
     "lucide-react": "^1.16.0",
+    "openai": "^6.38.0",
+    "p-limit": "^7.3.0",
+    "p-retry": "^7.1.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.15.1"
+    "react-router-dom": "^7.15.1",
+    "tsx": "^4.22.2",
+    "zod": "^4.4.3",
+    "zod-validation-error": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
