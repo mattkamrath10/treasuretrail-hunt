@@ -26,6 +26,14 @@ export async function createCommunityPost(post: {
   scout_assisted?: boolean;
   for_sale?: boolean;
   category?: string;
+  general_location?: string;
+  exact_address_private?: string;
+  address_reveal_policy?: string;
+  pickup_type?: string[];
+  shipping_available?: boolean;
+  scout_needed?: boolean;
+  scouts_available?: boolean;
+  meetup_notes?: string;
 }): Promise<{ data: CommunityPost | null; error: string | null }> {
   const { data, error } = await supabase
     .from('community_posts')
@@ -78,6 +86,15 @@ export async function createMarketplaceListing(listing: {
   image_url?: string;
   auction_enabled?: boolean;
   local_pickup?: boolean;
+  general_location?: string;
+  exact_address_private?: string;
+  address_reveal_policy?: string;
+  pickup_type?: string[];
+  shipping_available?: boolean;
+  scout_needed?: boolean;
+  scouts_available?: boolean;
+  meetup_notes?: string;
+  marketplace_found?: string;
 }): Promise<{ data: MarketplaceListing | null; error: string | null }> {
   const { data, error } = await supabase
     .from('marketplace_listings')

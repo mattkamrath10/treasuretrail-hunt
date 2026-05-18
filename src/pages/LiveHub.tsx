@@ -9,6 +9,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
+import PickupTypeChips from '../components/listing/PickupTypeChips';
+import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
+import ScoutToggles from '../components/listing/ScoutToggles';
+import SafetyReminder from '../components/listing/SafetyReminder';
+import LogisticsBlock from '../components/listing/LogisticsBlock';
+import ReportListingButton from '../components/listing/ReportListingButton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -255,7 +262,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
     setLoading(true);
     supabase
       .from('external_listings')
-      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,ends_at,scout_needed,ships_available,status,created_at')
+      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,ends_at,scout_needed,ships_available,status,created_at,general_location,marketplace_found,pickup_type,scouts_available,meetup_notes,address_reveal_policy')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(100)
@@ -567,6 +574,26 @@ function EventDetailModal({ listing, onClose, onScout }: {
               : <span style={st.badgeLocal}><Package size={10} />Local Pickup Only</span>}
           </div>
 
+          <div style={{ marginBottom: 'var(--space-3)' }}>
+            <LogisticsBlock
+              generalLocation={(listing as ExternalListing & Record<string, unknown>).general_location as string}
+              marketplaceFound={(listing as ExternalListing & Record<string, unknown>).marketplace_found as string}
+              pickupType={(listing as ExternalListing & Record<string, unknown>).pickup_type as string[]}
+              shippingAvailable={listing.ships_available}
+              scoutNeeded={listing.scout_needed}
+              scoutsAvailable={(listing as ExternalListing & Record<string, unknown>).scouts_available as boolean}
+              meetupNotes={(listing as ExternalListing & Record<string, unknown>).meetup_notes as string}
+              hasPrivateAddress={Boolean((listing as ExternalListing & Record<string, unknown>).exact_address_private)}
+              addressRevealPolicy={(listing as ExternalListing & Record<string, unknown>).address_reveal_policy as string}
+            />
+          </div>
+
+          <SafetyReminder variant="inline" />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+            <ReportListingButton table="external_listings" listingId={listing.id} />
+          </div>
+
           {/* Scout action buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
             <button onClick={onScout} style={det.scoutOfferBtn}>
@@ -784,6 +811,14 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
     price_display: '', category: '', image_url: '', ends_at: '',
     scout_needed: false, ships_available: false,
   });
+  const [loc, setLoc] = useState<LocationValue>({
+    general_location: '', exact_address_private: '', address_reveal_policy: 'on_contact',
+  });
+  const [pickupType, setPickupType] = useState<string[]>([]);
+  const [scoutsAvailable, setScoutsAvailable] = useState(false);
+  const [meetupNotes, setMeetupNotes] = useState('');
+  const [marketplaceKey, setMarketplaceKey] = useState('');
+  const [marketplaceCustom, setMarketplaceCustom] = useState('');
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState('');
   const [success, setSuccess] = useState('');
@@ -806,8 +841,20 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       setError('Image URL must be a valid http or https link.');
       return;
     }
+    if (!isValidGeneralLocation(loc.general_location)) {
+      setError('Add a general location — ZIP or "City, ST" — so attendees can filter.');
+      return;
+    }
+    if (marketplaceKey === 'other' && !marketplaceCustom.trim()) {
+      setError('Please enter the marketplace name, or pick a different option.');
+      return;
+    }
 
     setSaving(true);
+    const marketplaceValue = marketplaceKey === 'other' && marketplaceCustom.trim()
+      ? `custom:${marketplaceCustom.trim()}`
+      : marketplaceKey || null;
+    const shipping = form.ships_available || pickupType.includes('shipping_available') || pickupType.includes('nationwide_shipping');
     const { error: err } = await supabase.from('external_listings').insert({
       user_id: userId,
       title: form.title.trim(),
@@ -819,9 +866,17 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       image_url: form.image_url.trim() || null,
       ends_at: form.ends_at || null,
       scout_needed: form.scout_needed,
-      ships_available: form.ships_available,
-      local_pickup: !form.ships_available,
+      ships_available: shipping,
+      local_pickup: pickupType.includes('local_pickup') || !shipping,
       status: 'active',
+      location: loc.general_location,
+      general_location: loc.general_location,
+      exact_address_private: loc.exact_address_private.trim() || null,
+      address_reveal_policy: loc.address_reveal_policy,
+      pickup_type: pickupType,
+      scouts_available: scoutsAvailable,
+      meetup_notes: meetupNotes.trim() || null,
+      marketplace_found: marketplaceValue,
     });
     setSaving(false);
     if (err) {
@@ -895,20 +950,45 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
           <input style={mo.input} type="datetime-local" value={form.ends_at} onChange={(e) => set('ends_at', e.target.value)} />
           <label style={mo.label}>Image URL</label>
           <input style={mo.input} placeholder="https://…" value={form.image_url} onChange={(e) => set('image_url', e.target.value)} />
-          <div style={mo.toggleRow}>
-            <div style={mo.toggleItem}>
-              <span style={mo.toggleLabel}>Shipping Available</span>
-              <button onClick={() => set('ships_available', !form.ships_available)} style={mo.toggleBtn}>
-                {form.ships_available ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
-              </button>
-            </div>
-            <div style={mo.toggleItem}>
-              <span style={mo.toggleLabel}>Scout Needed</span>
-              <button onClick={() => set('scout_needed', !form.scout_needed)} style={mo.toggleBtn}>
-                {form.scout_needed ? <ToggleRight size={28} style={{ color: 'var(--color-warning-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
-              </button>
-            </div>
+
+          <div style={{ marginTop: 12 }}>
+            <LocationFields value={loc} onChange={setLoc} />
           </div>
+
+          <div style={{ marginTop: 12 }}>
+            <MarketplaceFoundSelect
+              value={marketplaceKey}
+              customValue={marketplaceCustom}
+              onChange={(key, custom) => { setMarketplaceKey(key); setMarketplaceCustom(custom); }}
+              label="Marketplace / Source (optional)"
+            />
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <PickupTypeChips value={pickupType} onChange={setPickupType} />
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <ScoutToggles
+              scoutNeeded={form.scout_needed}
+              scoutsAvailable={scoutsAvailable}
+              onChange={(v) => { set('scout_needed', v.scout_needed); setScoutsAvailable(v.scouts_available); }}
+            />
+          </div>
+
+          <label style={{ ...mo.label, marginTop: 12 }}>Meetup Notes (optional)</label>
+          <textarea
+            style={{ ...mo.input, minHeight: 60, fontFamily: 'inherit' as const, resize: 'vertical' as const }}
+            placeholder="Parking, gate codes, best times…"
+            value={meetupNotes}
+            onChange={(e) => setMeetupNotes(e.target.value)}
+            rows={2}
+          />
+
+          <div style={{ marginTop: 12 }}>
+            <SafetyReminder />
+          </div>
+
           {error && <p style={mo.errorText}>{error}</p>}
           {success && <p style={mo.successText}>{success}</p>}
           <button onClick={handleSubmit} disabled={saving || !!success} style={{ ...mo.submitBtn, opacity: saving || success ? 0.7 : 1 }}>

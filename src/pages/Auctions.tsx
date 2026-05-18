@@ -7,6 +7,13 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
+import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
+import PickupTypeChips from '../components/listing/PickupTypeChips';
+import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
+import ScoutToggles from '../components/listing/ScoutToggles';
+import SafetyReminder from '../components/listing/SafetyReminder';
+import LogisticsBlock from '../components/listing/LogisticsBlock';
+import ReportListingButton from '../components/listing/ReportListingButton';
 
 type HubView = 'feed' | 'detail' | 'submit';
 
@@ -468,6 +475,26 @@ function ListingDetail({
             )}
           </div>
 
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            <LogisticsBlock
+              generalLocation={(listing as ExternalListing & Record<string, unknown>).general_location as string || listing.location}
+              marketplaceFound={(listing as ExternalListing & Record<string, unknown>).marketplace_found as string}
+              pickupType={(listing as ExternalListing & Record<string, unknown>).pickup_type as string[]}
+              shippingAvailable={listing.ships_available}
+              scoutNeeded={listing.scout_needed}
+              scoutsAvailable={(listing as ExternalListing & Record<string, unknown>).scouts_available as boolean}
+              meetupNotes={(listing as ExternalListing & Record<string, unknown>).meetup_notes as string}
+              hasPrivateAddress={Boolean((listing as ExternalListing & Record<string, unknown>).exact_address_private)}
+              addressRevealPolicy={(listing as ExternalListing & Record<string, unknown>).address_reveal_policy as string}
+            />
+          </div>
+
+          <SafetyReminder variant="detail" />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
+            <ReportListingButton table="external_listings" listingId={listing.id} />
+          </div>
+
           <div style={st.scoutBlock}>
             <h3 style={st.scoutBlockTitle}>Scout Coordination</h3>
             <p style={st.scoutBlockDesc}>
@@ -529,6 +556,14 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     ends_at: '',
     location: '',
     scout_needed: false,
+    general_location: '',
+    exact_address_private: '',
+    address_reveal_policy: 'on_contact' as 'on_contact' | 'on_appointment' | 'on_purchase' | 'never',
+    pickup_type: [] as string[],
+    scouts_available: false,
+    meetup_notes: '',
+    marketplace_key: '',
+    marketplace_custom: '',
   });
 
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
@@ -540,6 +575,19 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     if (!user) return;
     setSaving(true);
     setError('');
+    if (!isValidGeneralLocation(form.general_location)) {
+      setError('Add a general location — ZIP or "City, ST" — so buyers can filter.');
+      setSaving(false);
+      return;
+    }
+    if (form.marketplace_key === 'other' && !form.marketplace_custom.trim()) {
+      setError('Please enter the marketplace name, or pick a different option.');
+      setSaving(false);
+      return;
+    }
+    const marketplaceValue = form.marketplace_key === 'other' && form.marketplace_custom.trim()
+      ? `custom:${form.marketplace_custom.trim()}`
+      : form.marketplace_key || null;
     const { error: err } = await supabase.from('external_listings').insert({
       user_id: user.id,
       platform: form.platform,
@@ -552,12 +600,19 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       price_display: form.price_display.trim(),
       category: form.category,
       condition: form.condition,
-      ships_available: form.ships_available,
-      local_pickup: form.local_pickup,
+      ships_available: form.ships_available || form.pickup_type.includes('shipping_available') || form.pickup_type.includes('nationwide_shipping'),
+      local_pickup: form.local_pickup || form.pickup_type.includes('local_pickup'),
       ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
-      location: form.location.trim(),
+      location: form.general_location || form.location.trim(),
       scout_needed: form.scout_needed,
       status: 'active',
+      general_location: form.general_location,
+      exact_address_private: form.exact_address_private.trim() || null,
+      address_reveal_policy: form.address_reveal_policy,
+      pickup_type: form.pickup_type,
+      scouts_available: form.scouts_available,
+      meetup_notes: form.meetup_notes.trim() || null,
+      marketplace_found: marketplaceValue,
     });
     setSaving(false);
     if (err) { setError(err.message); return; }
@@ -732,42 +787,61 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 style={sh.input}
               />
 
-              <label style={{ ...sh.label, marginTop: '12px' }}>Location (optional)</label>
-              <input
-                placeholder="City, State or Online"
-                value={form.location}
-                onChange={(e) => set('location', e.target.value)}
-                style={sh.input}
+              <div style={{ marginTop: 12 }}>
+                <LocationFields
+                  value={{
+                    general_location: form.general_location,
+                    exact_address_private: form.exact_address_private,
+                    address_reveal_policy: form.address_reveal_policy,
+                  }}
+                  onChange={(v: LocationValue) => {
+                    set('general_location', v.general_location);
+                    set('exact_address_private', v.exact_address_private);
+                    set('address_reveal_policy', v.address_reveal_policy);
+                    set('location', v.general_location);
+                  }}
+                />
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <MarketplaceFoundSelect
+                  value={form.marketplace_key}
+                  customValue={form.marketplace_custom}
+                  onChange={(key, custom) => { set('marketplace_key', key); set('marketplace_custom', custom); }}
+                  label="Source / Marketplace (optional)"
+                />
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <PickupTypeChips
+                  value={form.pickup_type}
+                  onChange={(next) => {
+                    set('pickup_type', next);
+                    set('ships_available', next.includes('shipping_available') || next.includes('nationwide_shipping'));
+                    set('local_pickup', next.includes('local_pickup'));
+                  }}
+                />
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <ScoutToggles
+                  scoutNeeded={form.scout_needed}
+                  scoutsAvailable={form.scouts_available}
+                  onChange={(v) => { set('scout_needed', v.scout_needed); set('scouts_available', v.scouts_available); }}
+                />
+              </div>
+
+              <label style={{ ...sh.label, marginTop: '12px' }}>Meetup Notes (optional)</label>
+              <textarea
+                placeholder="Pickup logistics, best times, parking…"
+                value={form.meetup_notes}
+                onChange={(e) => set('meetup_notes', e.target.value)}
+                style={sh.textarea}
+                rows={2}
               />
 
-              <div style={sh.toggleRow}>
-                <label style={sh.toggleLabel}>Ships Nationwide</label>
-                <button
-                  onClick={() => set('ships_available', !form.ships_available)}
-                  style={{ ...sh.toggle, ...(form.ships_available ? sh.toggleOn : {}) }}
-                >
-                  <div style={{ ...sh.toggleThumb, ...(form.ships_available ? sh.toggleThumbOn : {}) }} />
-                </button>
-              </div>
-
-              <div style={sh.toggleRow}>
-                <label style={sh.toggleLabel}>Local Pickup</label>
-                <button
-                  onClick={() => set('local_pickup', !form.local_pickup)}
-                  style={{ ...sh.toggle, ...(form.local_pickup ? sh.toggleOn : {}) }}
-                >
-                  <div style={{ ...sh.toggleThumb, ...(form.local_pickup ? sh.toggleThumbOn : {}) }} />
-                </button>
-              </div>
-
-              <div style={sh.toggleRow}>
-                <label style={sh.toggleLabel}>I need a local scout</label>
-                <button
-                  onClick={() => set('scout_needed', !form.scout_needed)}
-                  style={{ ...sh.toggle, ...(form.scout_needed ? sh.toggleOn : {}) }}
-                >
-                  <div style={{ ...sh.toggleThumb, ...(form.scout_needed ? sh.toggleThumbOn : {}) }} />
-                </button>
+              <div style={{ marginTop: 12 }}>
+                <SafetyReminder />
               </div>
 
               {error && <p style={sh.errorText}>{error}</p>}

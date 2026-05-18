@@ -1,0 +1,284 @@
+Enhance TreasureTrail’s seller/event-host ecosystem with safer location sharing, scout coordination, and marketplace logistics features.
+
+========================================
+GOAL
+====
+
+Make TreasureTrail highly attractive to:
+
+* yard sale hosts
+* estate sale companies
+* auction houses
+* local sellers
+* storage locker sellers
+* marketplace flippers
+* Whatnot/live sellers
+
+The platform should help sellers:
+
+* reach more buyers
+* coordinate pickups
+* use scouts
+* safely share locations
+* increase exposure beyond local audiences
+
+WITHOUT exposing unsafe private information publicly.
+
+========================================
+
+1. REQUIRED GENERAL LOCATION
+   ========================================
+
+For ALL:
+
+* listings
+* live events
+* auctions
+* estate sales
+* yard sales
+* marketplace submissions
+
+Require ONE of the following:
+
+* ZIP code
+  OR
+* City + State
+
+Examples:
+
+* Phoenix, AZ
+* 90210
+* Brooklyn, NY
+
+This becomes:
+
+* searchable
+* filterable
+* scout-compatible
+* visible publicly
+
+DO NOT require exact addresses publicly.
+
+========================================
+2. OPTIONAL EXACT LOCATION
+==========================
+
+Add an OPTIONAL field:
+
+"Exact Pickup Address"
+
+This should remain:
+
+* hidden by default
+* private
+* only visible after seller approval/contact
+
+Add optional toggle:
+"Reveal exact location after contact"
+
+OR
+
+"Address shared after appointment/purchase"
+
+========================================
+3. LOCATION/PICKUP TYPES
+========================
+
+Add selectable logistics/pickup badges:
+
+* Local Pickup
+* Shipping Available
+* Meetup Only
+* Scout Delivery Available
+* Nationwide Shipping
+* Appointment Required
+
+Display these badges on:
+
+* event cards
+* listing cards
+* item detail pages
+
+========================================
+4. SCOUT INTEGRATION
+====================
+
+Add seller-facing scout tools.
+
+New optional toggles:
+
+* Need a Scout
+* Scouts Available Nearby
+* Pickup Assistance Available
+
+If enabled:
+
+* nearby scouts can respond
+* buyers can coordinate pickups
+* scouts can offer transport/shipping help
+
+========================================
+5. NEW FORM FIELDS
+==================
+
+Update all upload forms to include:
+
+Required:
+
+* Title
+* Category
+* Marketplace Found
+* ZIP or City/State
+
+Optional:
+
+* Exact Address
+* Shipping Available
+* Scout Needed
+* Pickup Type
+* Meetup Notes
+
+========================================
+6. MARKETPLACE FOUND SYSTEM
+===========================
+
+Add dedicated field:
+
+"Marketplace Found"
+
+Options:
+
+* Facebook Marketplace
+* eBay
+* Whatnot
+* OfferUp
+* Craigslist
+* Mercari
+* Poshmark
+* HiBid
+* MaxSold
+* Etsy
+* Bonanza
+* Local Auction House
+* Other
+
+Allow custom manual entry if "Other" selected.
+
+========================================
+7. ITEM DETAIL PAGE ENHANCEMENTS
+================================
+
+Display clean sourcing/logistics information:
+
+Example:
+
+📍 Location Found:
+Phoenix, AZ
+
+🛒 Marketplace Found:
+Facebook Marketplace
+
+📦 Shipping:
+Available
+
+🚚 Pickup:
+Scout Delivery Available
+
+========================================
+8. FILTERING + SEARCH
+=====================
+
+Integrate all new fields into:
+
+* search
+* filters
+* sorting
+* scout coordination
+
+Allow filtering by:
+
+* shipping available
+* local pickup
+* scout needed
+* marketplace
+* location radius
+
+========================================
+9. TRUST + SAFETY FEATURES
+==========================
+
+Add structure for:
+
+* verified seller badges
+* seller ratings
+* scout ratings
+* scam reporting
+* meetup safety reminders
+
+Keep approximate location public by default.
+
+========================================
+10. MOBILE UX
+=============
+
+Optimize all new features for mobile:
+
+* clean stacked form layout
+* dropdown sheets
+* chip selectors
+* responsive badges
+* map/location compatibility later
+
+========================================
+11. DATABASE REQUIREMENTS
+=========================
+
+Update Supabase schema to support:
+
+* general_location
+* exact_address_private
+* marketplace_found
+* pickup_type
+* shipping_available
+* scout_needed
+* scouts_available
+* meetup_notes
+
+Ensure:
+
+* proper RLS policies
+* secure private address handling
+* public/general location separation
+
+========================================
+12. FINAL PRODUCT DIRECTION
+===========================
+
+TreasureTrail should feel like:
+
+* a reseller intelligence network
+* sourcing discovery platform
+* scout coordination system
+* auction/event marketplace
+* logistics ecosystem
+
+NOT:
+
+* a fake social media app
+* a game
+* a ranking simulator
+
+========================================
+13. FINAL QA
+============
+
+Verify:
+
+* location fields save correctly
+* approximate location required
+* exact addresses remain private
+* scout coordination works
+* filters/search work correctly
+* mobile responsiveness preserved
+* no fake/demo data remains
+* all uploads still function properly

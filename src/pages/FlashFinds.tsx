@@ -14,6 +14,31 @@ const CATEGORIES = [
   'Art', 'Jewelry', 'Watches', 'Toys', 'Tools', 'Clothing', 'Other',
 ];
 
+interface FlashFindForm {
+  title: string;
+  category: string;
+  notes: string;
+  price: string;
+  location: string;
+  marketplace: string;
+  marketplaceCustom: string;
+  general_location: string;
+  exact_address_private: string;
+  address_reveal_policy: 'on_contact' | 'on_appointment' | 'on_purchase' | 'never';
+  pickup_type: string[];
+  shipping_available: boolean;
+  scout_needed: boolean;
+  scouts_available: boolean;
+  meetup_notes: string;
+}
+
+import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
+import PickupTypeChips from '../components/listing/PickupTypeChips';
+import MarketplaceFoundSelect, { getMarketplaceLabel as _shared_getMarketplaceLabel } from '../components/listing/MarketplaceFoundSelect';
+import ScoutToggles from '../components/listing/ScoutToggles';
+import SafetyReminder from '../components/listing/SafetyReminder';
+
+// Legacy shape kept for callers that still import it from this file.
 const MARKETPLACES: { key: string; label: string }[] = [
   { key: 'facebook_marketplace', label: 'Facebook Marketplace' },
   { key: 'ebay',                 label: 'eBay' },
@@ -31,6 +56,8 @@ const MARKETPLACES: { key: string; label: string }[] = [
 ];
 
 export function getMarketplaceLabel(key?: string | null): string | null {
+  const shared = _shared_getMarketplaceLabel(key);
+  if (shared && shared !== key) return shared;
   if (!key) return null;
   const match = MARKETPLACES.find((m) => m.key === key);
   if (match && match.key !== 'other') return match.label;
@@ -42,7 +69,7 @@ export default function FlashFinds() {
   const navigate = useNavigate();
   const [step, setStep] = useState<FlowStep>('main');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<FlashFindForm>({
     title: '',
     category: '',
     notes: '',
@@ -50,6 +77,14 @@ export default function FlashFinds() {
     location: '',
     marketplace: '',
     marketplaceCustom: '',
+    general_location: '',
+    exact_address_private: '',
+    address_reveal_policy: 'on_contact',
+    pickup_type: [],
+    shipping_available: false,
+    scout_needed: false,
+    scouts_available: false,
+    meetup_notes: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -88,6 +123,10 @@ export default function FlashFinds() {
   const handleDetailsSubmit = () => {
     if (form.marketplace === 'other' && !form.marketplaceCustom.trim()) {
       setSubmitError('Please enter the marketplace name, or pick a different option.');
+      return;
+    }
+    if (!isValidGeneralLocation(form.general_location)) {
+      setSubmitError('Add a general location — a 5-digit ZIP or "City, ST" — so buyers can filter local finds.');
       return;
     }
     setSubmitError('');
@@ -131,11 +170,20 @@ export default function FlashFinds() {
         caption: form.notes || form.title || 'New find',
         image_url: imageUrl,
         tags: form.category ? [form.category] : [],
-        location: form.location || undefined,
-        location_found: form.location || undefined,
+        location: form.general_location || form.location || undefined,
+        location_found: form.general_location || form.location || undefined,
         marketplace_found: marketplaceValue,
         estimated_value: form.price ? parseFloat(form.price) : undefined,
         category: form.category || undefined,
+        general_location: form.general_location || undefined,
+        exact_address_private: form.exact_address_private.trim() || undefined,
+        address_reveal_policy: form.address_reveal_policy,
+        pickup_type: form.pickup_type.length ? form.pickup_type : undefined,
+        shipping_available:
+          form.shipping_available || form.pickup_type.includes('shipping_available') || form.pickup_type.includes('nationwide_shipping'),
+        scout_needed: form.scout_needed,
+        scouts_available: form.scouts_available,
+        meetup_notes: form.meetup_notes.trim() || undefined,
       });
 
       if (postErr) throw new Error(postErr);
@@ -161,7 +209,11 @@ export default function FlashFinds() {
   const handleReset = () => {
     setStep('main');
     setPhotoUrl(null);
-    setForm({ title: '', category: '', notes: '', price: '', location: '', marketplace: '', marketplaceCustom: '' });
+    setForm({
+      title: '', category: '', notes: '', price: '', location: '', marketplace: '', marketplaceCustom: '',
+      general_location: '', exact_address_private: '', address_reveal_policy: 'on_contact',
+      pickup_type: [], shipping_available: false, scout_needed: false, scouts_available: false, meetup_notes: '',
+    });
     setSubmitError('');
   };
 
@@ -392,8 +444,8 @@ function DetailsForm({
   error,
 }: {
   photoUrl: string | null;
-  form: { title: string; category: string; notes: string; price: string; location: string; marketplace: string; marketplaceCustom: string };
-  setForm: (f: typeof form) => void;
+  form: FlashFindForm;
+  setForm: (f: FlashFindForm) => void;
   onSubmit: () => void;
   onBack: () => void;
   error?: string;
@@ -472,54 +524,44 @@ function DetailsForm({
           </div>
 
           <div style={styles.field}>
-            <label style={styles.fieldLabel}>Location Found <span style={styles.fieldOptional}>(optional)</span></label>
-            <div style={styles.locationWrapper}>
-              <MapPin size={16} style={{ color: 'var(--color-neutral-400)' }} />
-              <input
-                type="text"
-                placeholder="Phoenix AZ, Storage Locker, Estate Sale…"
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                style={styles.locationInput}
-              />
-            </div>
+            <LocationFields
+              value={{
+                general_location: form.general_location,
+                exact_address_private: form.exact_address_private,
+                address_reveal_policy: form.address_reveal_policy,
+              }}
+              onChange={(v: LocationValue) => setForm({
+                ...form,
+                general_location: v.general_location,
+                exact_address_private: v.exact_address_private,
+                address_reveal_policy: v.address_reveal_policy,
+                location: v.general_location,
+              })}
+              hint="ZIP/City helps buyers filter local finds; exact address stays private."
+            />
           </div>
 
           <div style={styles.field}>
-            <label style={styles.fieldLabel}>Marketplace Found <span style={styles.fieldOptional}>(optional)</span></label>
-            <div style={styles.categoryGrid}>
-              {MARKETPLACES.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => {
-                    const isClearing = form.marketplace === m.key;
-                    setForm({
-                      ...form,
-                      marketplace: isClearing ? '' : m.key,
-                      marketplaceCustom: m.key === 'other' && !isClearing ? form.marketplaceCustom : '',
-                    });
-                  }}
-                  style={{
-                    ...styles.categoryChip,
-                    ...(form.marketplace === m.key ? styles.categoryChipActive : {}),
-                  }}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-            {form.marketplace === 'other' && (
-              <div style={{ ...styles.locationWrapper, marginTop: 'var(--space-2)' }}>
-                <ShoppingBag size={16} style={{ color: 'var(--color-neutral-400)' }} />
-                <input
-                  type="text"
-                  placeholder="Enter marketplace name"
-                  value={form.marketplaceCustom}
-                  onChange={(e) => setForm({ ...form, marketplaceCustom: e.target.value })}
-                  style={styles.locationInput}
-                />
-              </div>
-            )}
+            <MarketplaceFoundSelect
+              value={form.marketplace}
+              customValue={form.marketplaceCustom}
+              onChange={(key, custom) => setForm({ ...form, marketplace: key, marketplaceCustom: custom })}
+            />
+          </div>
+
+          <div style={styles.field}>
+            <PickupTypeChips
+              value={form.pickup_type}
+              onChange={(next) => setForm({ ...form, pickup_type: next })}
+            />
+          </div>
+
+          <div style={styles.field}>
+            <ScoutToggles
+              scoutNeeded={form.scout_needed}
+              scoutsAvailable={form.scouts_available}
+              onChange={(v) => setForm({ ...form, scout_needed: v.scout_needed, scouts_available: v.scouts_available })}
+            />
           </div>
 
           <div style={styles.field}>
@@ -531,6 +573,21 @@ function DetailsForm({
               style={styles.textarea}
               rows={3}
             />
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Meetup Notes <span style={styles.fieldOptional}>(optional)</span></label>
+            <textarea
+              placeholder="Best pickup times, parking, gate codes (shared after contact)…"
+              value={form.meetup_notes}
+              onChange={(e) => setForm({ ...form, meetup_notes: e.target.value })}
+              style={styles.textarea}
+              rows={2}
+            />
+          </div>
+
+          <div style={styles.field}>
+            <SafetyReminder />
           </div>
         </div>
 
@@ -556,7 +613,7 @@ function Confirmation({
   onEdit,
 }: {
   photoUrl: string | null;
-  form: { title: string; category: string; notes: string; price: string; location: string; marketplace: string; marketplaceCustom: string };
+  form: FlashFindForm;
   onPostAnother: () => void;
   onViewFeed: () => void;
   onEdit: () => void;

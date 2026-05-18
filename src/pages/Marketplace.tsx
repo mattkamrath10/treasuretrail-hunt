@@ -7,6 +7,13 @@ import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { fetchMarketplaceListings, createMarketplaceListing } from '../lib/database';
 import type { MarketplaceListing } from '../lib/supabase';
+import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
+import PickupTypeChips from '../components/listing/PickupTypeChips';
+import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
+import ScoutToggles from '../components/listing/ScoutToggles';
+import SafetyReminder from '../components/listing/SafetyReminder';
+import LogisticsBlock from '../components/listing/LogisticsBlock';
+import ReportListingButton from '../components/listing/ReportListingButton';
 
 type MarketView = 'home' | 'detail' | 'create' | 'offer' | 'checkout' | 'dashboard' | 'confirmation';
 
@@ -26,6 +33,15 @@ interface Listing {
   timeAgo: string;
   localPickup?: boolean;
   auction?: boolean;
+  general_location?: string;
+  marketplace_found?: string;
+  pickup_type?: string[];
+  shipping_available?: boolean;
+  scout_needed?: boolean;
+  scouts_available?: boolean;
+  meetup_notes?: string;
+  has_private_address?: boolean;
+  address_reveal_policy?: string;
 }
 
 
@@ -75,7 +91,7 @@ export default function Marketplace({ onBack }: { onBack: () => void }) {
   return <MarketHome onBack={onBack} onItemClick={openDetail} onCreateListing={() => setView('create')} onDashboard={() => setView('dashboard')} />;
 }
 
-function toListingShape(l: MarketplaceListing): Listing {
+function toListingShape(l: MarketplaceListing & Record<string, unknown>): Listing {
   return {
     id: l.id,
     image: l.image_url || '',
@@ -91,6 +107,15 @@ function toListingShape(l: MarketplaceListing): Listing {
     timeAgo: getMarketTimeAgo(l.created_at),
     localPickup: l.local_pickup,
     auction: l.auction_enabled,
+    general_location: (l.general_location as string) || undefined,
+    marketplace_found: (l.marketplace_found as string) || undefined,
+    pickup_type: (l.pickup_type as string[]) || [],
+    shipping_available: (l.shipping_available as boolean) ?? undefined,
+    scout_needed: (l.scout_needed as boolean) ?? false,
+    scouts_available: (l.scouts_available as boolean) ?? false,
+    meetup_notes: (l.meetup_notes as string) || undefined,
+    has_private_address: Boolean(l.exact_address_private),
+    address_reveal_policy: (l.address_reveal_policy as string) || undefined,
   };
 }
 
@@ -114,7 +139,9 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
 
   const filtered = listings.filter((item) => {
     if (activeCategory !== 'All' && item.category !== activeCategory) return false;
-    if (activeFilter === 'Local Pickup' && !item.localPickup) return false;
+    if (activeFilter === 'Local Pickup' && !item.localPickup && !item.pickup_type?.includes('local_pickup')) return false;
+    if (activeFilter === 'Shipping' && !item.shipping_available && !item.pickup_type?.includes('shipping_available') && !item.pickup_type?.includes('nationwide_shipping')) return false;
+    if (activeFilter === 'Scout Help' && !item.scout_needed && !item.scouts_available) return false;
     if (activeFilter === 'Auction' && !item.auction) return false;
     if (activeFilter === 'Scout Verified' && !item.verified) return false;
     return true;
@@ -124,7 +151,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
   const hotFinds = filtered.filter((l) => l.image).slice(0, 4);
   const recent = filtered;
 
-  const filters = ['Local Pickup', 'Auction', 'Buy Now', 'Scout Verified'];
+  const filters = ['Local Pickup', 'Shipping', 'Scout Help', 'Auction', 'Scout Verified'];
 
   const EmptyState = ({ label }: { label: string }) => (
     <div style={s.emptyState}>
@@ -356,6 +383,26 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
             </div>
           </div>
 
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            <LogisticsBlock
+              generalLocation={item.general_location}
+              marketplaceFound={item.marketplace_found}
+              pickupType={item.pickup_type}
+              shippingAvailable={item.shipping_available}
+              scoutNeeded={item.scout_needed}
+              scoutsAvailable={item.scouts_available}
+              meetupNotes={item.meetup_notes}
+              hasPrivateAddress={item.has_private_address}
+              addressRevealPolicy={item.address_reveal_policy}
+            />
+          </div>
+
+          <SafetyReminder variant="detail" />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-3)' }}>
+            <ReportListingButton table="marketplace_listings" listingId={item.id} />
+          </div>
+
           {/* Trust */}
           <div style={s.trustSection}>
             <div style={s.trustItem}>
@@ -391,24 +438,65 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
 function CreateListing({ onBack, onPreview }: { onBack: () => void; onPreview: () => void }) {
   const { user } = useAuth();
   const [step, setStep] = useState<'photos' | 'details' | 'preview'>('photos');
-  const [title, setTitle] = useState('Vintage Brass Desk Lamp');
-  const [price, setPrice] = useState('145');
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState('');
   const [category, setCategory] = useState('Antiques');
   const [condition, setCondition] = useState('Good');
   const [publishing, setPublishing] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  const [loc, setLoc] = useState<LocationValue>({
+    general_location: '',
+    exact_address_private: '',
+    address_reveal_policy: 'on_contact',
+  });
+  const [pickupType, setPickupType] = useState<string[]>(['local_pickup']);
+  const [marketplaceKey, setMarketplaceKey] = useState('');
+  const [marketplaceCustom, setMarketplaceCustom] = useState('');
+  const [scoutNeeded, setScoutNeeded] = useState(false);
+  const [scoutsAvailable, setScoutsAvailable] = useState(false);
+  const [meetupNotes, setMeetupNotes] = useState('');
+  const [auctionEnabled, setAuctionEnabled] = useState(false);
 
   const handlePublish = async () => {
     if (!user) return;
+    setCreateError('');
+    if (!title.trim()) { setCreateError('Add a title.'); return; }
+    if (!price || isNaN(parseFloat(price))) { setCreateError('Set a price.'); return; }
+    if (!isValidGeneralLocation(loc.general_location)) {
+      setCreateError('Add a general location — ZIP or "City, ST".');
+      return;
+    }
+    if (marketplaceKey === 'other' && !marketplaceCustom.trim()) {
+      setCreateError('Please enter the marketplace name, or pick a different option.');
+      return;
+    }
     setPublishing(true);
-    await createMarketplaceListing({
+    const marketplaceValue = marketplaceKey === 'other' && marketplaceCustom.trim()
+      ? `custom:${marketplaceCustom.trim()}`
+      : marketplaceKey || undefined;
+    const shipping =
+      pickupType.includes('shipping_available') || pickupType.includes('nationwide_shipping');
+    const { error } = await createMarketplaceListing({
       seller_id: user.id,
-      title,
+      title: title.trim(),
       price: parseFloat(price) || 0,
       category,
       condition,
-      local_pickup: true,
+      local_pickup: pickupType.includes('local_pickup'),
+      auction_enabled: auctionEnabled,
+      general_location: loc.general_location,
+      exact_address_private: loc.exact_address_private.trim() || undefined,
+      address_reveal_policy: loc.address_reveal_policy,
+      pickup_type: pickupType,
+      shipping_available: shipping,
+      scout_needed: scoutNeeded,
+      scouts_available: scoutsAvailable,
+      meetup_notes: meetupNotes.trim() || undefined,
+      marketplace_found: marketplaceValue,
     });
     setPublishing(false);
+    if (error) { setCreateError(error); return; }
     onPreview();
   };
 
@@ -494,26 +582,62 @@ function CreateListing({ onBack, onPreview }: { onBack: () => void; onPreview: (
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.formLabel}>Options</label>
-              <div style={s.toggleList}>
-                <div style={s.toggleRow}>
-                  <span style={s.toggleLabel}>Local Pickup</span>
-                  <div style={{ ...s.toggle, backgroundColor: 'var(--color-primary-500)' }}><div style={{ ...s.toggleKnob, transform: 'translateX(14px)' }} /></div>
-                </div>
-                <div style={s.toggleRow}>
-                  <span style={s.toggleLabel}>Shipping Available</span>
-                  <div style={{ ...s.toggle, backgroundColor: 'var(--color-primary-500)' }}><div style={{ ...s.toggleKnob, transform: 'translateX(14px)' }} /></div>
-                </div>
-                <div style={s.toggleRow}>
-                  <span style={s.toggleLabel}>Enable Auction</span>
-                  <div style={s.toggle}><div style={s.toggleKnob} /></div>
-                </div>
-                <div style={s.toggleRow}>
-                  <span style={s.toggleLabel}>Scout Verification</span>
-                  <div style={{ ...s.toggle, backgroundColor: 'var(--color-primary-500)' }}><div style={{ ...s.toggleKnob, transform: 'translateX(14px)' }} /></div>
-                </div>
+              <LocationFields value={loc} onChange={setLoc} />
+            </div>
+
+            <div style={s.formGroup}>
+              <MarketplaceFoundSelect
+                value={marketplaceKey}
+                customValue={marketplaceCustom}
+                onChange={(key, custom) => { setMarketplaceKey(key); setMarketplaceCustom(custom); }}
+                label="Where Did You Source It? (optional)"
+              />
+            </div>
+
+            <div style={s.formGroup}>
+              <PickupTypeChips value={pickupType} onChange={setPickupType} />
+            </div>
+
+            <div style={s.formGroup}>
+              <ScoutToggles
+                scoutNeeded={scoutNeeded}
+                scoutsAvailable={scoutsAvailable}
+                onChange={(v) => { setScoutNeeded(v.scout_needed); setScoutsAvailable(v.scouts_available); }}
+              />
+            </div>
+
+            <div style={s.formGroup}>
+              <label style={s.formLabel}>Meetup Notes (optional)</label>
+              <textarea
+                value={meetupNotes}
+                onChange={(e) => setMeetupNotes(e.target.value)}
+                placeholder="Best pickup times, parking, gate codes (shared after contact)…"
+                style={{ ...s.formInput, minHeight: 60, fontFamily: 'inherit' as const }}
+                rows={2}
+              />
+            </div>
+
+            <div style={s.formGroup}>
+              <label style={s.formLabel}>Enable Auction</label>
+              <div style={s.toggleRow}>
+                <span style={s.toggleLabel}>Accept bids for this listing</span>
+                <button
+                  type="button"
+                  onClick={() => setAuctionEnabled((v) => !v)}
+                  style={{ ...s.toggle, backgroundColor: auctionEnabled ? 'var(--color-primary-500)' : 'var(--color-neutral-200)', cursor: 'pointer', border: 'none' }}
+                >
+                  <div style={{ ...s.toggleKnob, transform: auctionEnabled ? 'translateX(14px)' : 'translateX(0)' }} />
+                </button>
               </div>
             </div>
+
+            <SafetyReminder />
+
+            {createError && (
+              <div style={{ color: 'var(--color-error-500)', fontSize: 'var(--font-size-sm)', marginTop: 'var(--space-2)' }}>
+                {createError}
+              </div>
+            )}
 
             <button onClick={() => setStep('preview')} style={s.continueBtn}>
               <span style={s.continueBtnText}>Preview Listing</span>
