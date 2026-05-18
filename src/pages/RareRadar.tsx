@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Search, Plus, MapPin, DollarSign, Star, ListFilter as Filter,
-  ArrowLeft, Camera, Sparkles, TrendingUp, Clock, User, ChevronRight,
+  ArrowLeft, Camera, Sparkles, TrendingUp, Clock, User, ChevronRight, X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestBlurOverlay } from '../components/GuestGate';
 
-type ViewState = 'feed' | 'create' | 'matches';
+type ViewState = 'create' | 'success' | 'feed' | 'matches';
 
 const CATEGORIES = [
   'Watches', 'Jewelry', 'Furniture', 'Antiques', 'Sneakers',
@@ -19,20 +19,17 @@ interface SearchRequest {
   id: string;
   title: string;
   category: string;
-  condition: string;
+  conditions: string[];
   budgetMin: string;
   budgetMax: string;
   notes: string;
+  location: string;
+  image: string;
   username: string;
   timePosted: string;
   scouts: number;
-  image: string;
   urgency: 'low' | 'medium' | 'high';
 }
-
-const feedItems: SearchRequest[] = [];
-
-const trendingSearches: { label: string; count: number }[] = [];
 
 const suggestedMatches: { id: string; title: string; price: string; source: string; matchScore: number; image: string }[] = [];
 
@@ -44,55 +41,98 @@ const urgencyColors = {
 
 export default function RareRadar() {
   const { isGuest } = useAuth();
-  const [view, setView] = useState<ViewState>('feed');
+  const [view, setView] = useState<ViewState>('create');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [hunts, setHunts] = useState<SearchRequest[]>([]);
+  const [lastHunt, setLastHunt] = useState<SearchRequest | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   if (isGuest) {
     return (
       <GuestBlurOverlay
         title="Unlock Rare Radar"
-        subtitle="AI-powered treasure matching that alerts you when rare items appear near you."
+        subtitle="Post what you're searching for and let the community help you find it."
       >
-        <FeedView
-          selectedCategory={null}
-          setSelectedCategory={() => {}}
-          onCreateRequest={() => {}}
+        <CreateRequest
+          onPosted={() => {}}
           onViewMatches={() => {}}
+          onViewFeed={() => {}}
+          huntCount={0}
         />
       </GuestBlurOverlay>
     );
   }
 
-  if (view === 'create') {
-    return <CreateRequest onBack={() => setView('feed')} />;
-  }
+  const handlePosted = (hunt: SearchRequest) => {
+    setHunts((prev) => [hunt, ...prev]);
+    setLastHunt(hunt);
+    setHighlightId(hunt.id);
+    setView('success');
+  };
 
   if (view === 'matches') {
-    return <MatchesView onBack={() => setView('feed')} />;
+    return <MatchesView onBack={() => setView('create')} />;
+  }
+
+  if (view === 'feed') {
+    return (
+      <FeedView
+        hunts={hunts}
+        highlightId={highlightId}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        onCreateRequest={() => setView('create')}
+        onViewMatches={() => setView('matches')}
+        onClearHighlight={() => setHighlightId(null)}
+      />
+    );
+  }
+
+  if (view === 'success' && lastHunt) {
+    return (
+      <SuccessView
+        hunt={lastHunt}
+        onViewFeed={() => {
+          setSelectedCategory(null);
+          setHighlightId(lastHunt.id);
+          setView('feed');
+        }}
+        onPostAnother={() => setView('create')}
+      />
+    );
   }
 
   return (
-    <FeedView
-      selectedCategory={selectedCategory}
-      setSelectedCategory={setSelectedCategory}
-      onCreateRequest={() => setView('create')}
+    <CreateRequest
+      onPosted={handlePosted}
       onViewMatches={() => setView('matches')}
+      onViewFeed={() => setView('feed')}
+      huntCount={hunts.length}
     />
   );
 }
 
 function FeedView({
+  hunts,
+  highlightId,
   selectedCategory,
   setSelectedCategory,
   onCreateRequest,
   onViewMatches,
+  onClearHighlight,
 }: {
+  hunts: SearchRequest[];
+  highlightId: string | null;
   selectedCategory: string | null;
   setSelectedCategory: (c: string | null) => void;
   onCreateRequest: () => void;
   onViewMatches: () => void;
+  onClearHighlight?: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const highlightRef = useRef<HTMLElement | null>(null);
+
+  const feedItems = hunts;
 
   const filteredItems = feedItems.filter((i) => {
     const matchesCategory = selectedCategory ? i.category === selectedCategory : true;
@@ -104,6 +144,28 @@ function FeedView({
       : true;
     return matchesCategory && matchesSearch;
   });
+
+  const highlightedItemVisible = highlightId
+    ? filteredItems.some((i) => i.id === highlightId)
+    : false;
+  const highlightedHunt = highlightId
+    ? feedItems.find((i) => i.id === highlightId) ?? null
+    : null;
+
+  useEffect(() => {
+    if (highlightId && highlightedItemVisible && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const t = setTimeout(() => onClearHighlight?.(), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [highlightId, highlightedItemVisible, onClearHighlight]);
+
+  const handleResetForHighlight = () => {
+    setSearchQuery('');
+    setSelectedCategory(null);
+  };
+
+  const trendingSearches: { label: string; count: number }[] = [];
 
   const hasActiveSearch = searchQuery.trim().length > 0 || selectedCategory !== null;
 
@@ -177,6 +239,17 @@ function FeedView({
           <span style={styles.postButtonText}>Post What You're Looking For</span>
         </button>
 
+        {highlightId && highlightedHunt && !highlightedItemVisible && (
+          <div style={styles.highlightBanner} role="status">
+            <span style={styles.highlightBannerText}>
+              Your new hunt "<strong>{highlightedHunt.title}</strong>" is hidden by your current filters.
+            </span>
+            <button onClick={handleResetForHighlight} style={styles.highlightBannerBtn}>
+              Show it
+            </button>
+          </div>
+        )}
+
         <div style={styles.sectionRow}>
           <h3 style={styles.sectionTitle}>Active Hunts</h3>
           <span style={styles.count}>{filteredItems.length} requests</span>
@@ -210,12 +283,19 @@ function FeedView({
         )}
 
         <div style={styles.feedList}>
-          {filteredItems.map((item, index) => (
+          {filteredItems.map((item, index) => {
+            const isHighlighted = item.id === highlightId;
+            return (
             <article
               key={item.id}
+              ref={(el) => { if (isHighlighted) highlightRef.current = el; }}
               style={{
                 ...styles.feedCard,
                 animationDelay: `${index * 80}ms`,
+                ...(isHighlighted ? {
+                  outline: '2px solid var(--color-primary-500)',
+                  boxShadow: '0 0 0 4px rgba(234, 179, 8, 0.15), var(--shadow-md)',
+                } : {}),
               }}
             >
               <div style={styles.feedCardTop}>
@@ -235,12 +315,16 @@ function FeedView({
                     </span>
                   </div>
                   <div style={styles.feedCardDetails}>
-                    <span style={styles.feedCardBudget}>
-                      <DollarSign size={12} /> ${item.budgetMin} - ${item.budgetMax}
-                    </span>
-                    <span style={styles.feedCardCondition}>
-                      <Star size={12} /> {item.condition}
-                    </span>
+                    {(item.budgetMin || item.budgetMax) && (
+                      <span style={styles.feedCardBudget}>
+                        <DollarSign size={12} /> ${item.budgetMin || '0'} - ${item.budgetMax || '—'}
+                      </span>
+                    )}
+                    {item.conditions.length > 0 && (
+                      <span style={styles.feedCardCondition}>
+                        <Star size={12} /> {item.conditions.join(', ')}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -266,7 +350,8 @@ function FeedView({
                 <span style={styles.scoutCount}>{item.scouts} scouts watching</span>
               </div>
             </article>
-          ))}
+          );
+          })}
         </div>
 
         <div style={styles.trendingSection}>
@@ -290,68 +375,117 @@ function FeedView({
   );
 }
 
-function CreateRequest({ onBack }: { onBack: () => void }) {
+const PLACEHOLDER_IMG = 'https://images.pexels.com/photos/1670766/pexels-photo-1670766.jpeg?auto=compress&cs=tinysrgb&w=400';
+
+function CreateRequest({
+  onPosted,
+  onViewMatches,
+  onViewFeed,
+  huntCount,
+}: {
+  onPosted: (hunt: SearchRequest) => void;
+  onViewMatches: () => void;
+  onViewFeed: () => void;
+  huntCount: number;
+}) {
+  const { user } = useAuth();
   const [form, setForm] = useState({
     title: '',
     category: '',
-    condition: '',
+    conditions: [] as string[],
     budgetMin: '',
     budgetMax: '',
     notes: '',
     location: '',
   });
-  const [submitted, setSubmitted] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string>('');
+  const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (submitted) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.successContent}>
-          <div style={styles.successIcon}>
-            <Sparkles size={36} style={{ color: 'var(--color-primary-500)' }} />
-          </div>
-          <h2 style={styles.successTitle}>Hunt Posted!</h2>
-          <p style={styles.successSubtitle}>
-            Scouts in your area will be notified. You'll get alerts when matches are found.
-          </p>
-          <div style={styles.successCard}>
-            <h3 style={styles.successCardTitle}>{form.title || 'Your Item'}</h3>
-            <div style={styles.successCardMeta}>
-              {form.category && <span style={styles.successTag}>{form.category}</span>}
-              {form.condition && <span style={styles.successTag}>{form.condition}</span>}
-            </div>
-            {form.budgetMin && form.budgetMax && (
-              <p style={styles.successBudget}>${form.budgetMin} - ${form.budgetMax}</p>
-            )}
-          </div>
-          <div style={styles.successActions}>
-            <button onClick={onBack} style={styles.viewFeedBtn}>View in Feed</button>
-            <button
-              onClick={() => {
-                setForm({ title: '', category: '', condition: '', budgetMin: '', budgetMax: '', notes: '', location: '' });
-                setSubmitted(false);
-              }}
-              style={styles.postAnotherBtn}
-            >
-              <Plus size={16} style={{ color: 'var(--color-neutral-0)' }} />
-              <span style={{ color: 'var(--color-neutral-0)' }}>Post Another</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const toggleCondition = useCallback((cond: string) => {
+    setForm((prev) => ({
+      ...prev,
+      conditions: prev.conditions.includes(cond)
+        ? prev.conditions.filter((c) => c !== cond)
+        : [...prev.conditions, cond],
+    }));
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file.');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setError('Image is too large (max 8 MB).');
+      return;
+    }
+    setError('');
+    const reader = new FileReader();
+    reader.onload = () => setPhotoUrl(typeof reader.result === 'string' ? reader.result : '');
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!form.title.trim()) { setError('Tell us what you\'re hunting for.'); return; }
+    if (!form.category) { setError('Pick a category.'); return; }
+    const min = form.budgetMin ? parseFloat(form.budgetMin) : NaN;
+    const max = form.budgetMax ? parseFloat(form.budgetMax) : NaN;
+    if (form.budgetMin && form.budgetMax && !isNaN(min) && !isNaN(max) && min > max) {
+      setError('Min budget can\'t be more than max.');
+      return;
+    }
+
+    const username = (user?.user_metadata as { username?: string } | undefined)?.username
+      || user?.email?.split('@')[0]
+      || 'you';
+
+    const hunt: SearchRequest = {
+      id: (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+        ? crypto.randomUUID()
+        : `hunt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      title: form.title.trim(),
+      category: form.category,
+      conditions: form.conditions,
+      budgetMin: form.budgetMin.trim(),
+      budgetMax: form.budgetMax.trim(),
+      notes: form.notes.trim(),
+      location: form.location.trim(),
+      image: photoUrl || PLACEHOLDER_IMG,
+      username,
+      timePosted: 'just now',
+      scouts: 0,
+      urgency: 'medium',
+    };
+    onPosted(hunt);
+  };
 
   return (
     <div style={styles.container}>
-      <header style={styles.stepHeader}>
-        <button onClick={onBack} style={styles.backBtn}>
-          <ArrowLeft size={20} />
-        </button>
-        <span style={styles.stepLabel}>Create Search Request</span>
-        <div style={{ width: 36 }} />
+      <header style={styles.header}>
+        <div style={styles.headerTop}>
+          <div>
+            <h1 style={styles.title}>Rare Radar</h1>
+            <p style={styles.subtitle}>Post what you're searching for and let the community help you find it.</p>
+          </div>
+          <button onClick={onViewMatches} style={styles.matchesBtn} aria-label="View matches">
+            <Sparkles size={16} style={{ color: 'var(--color-primary-600)' }} />
+            <span style={styles.matchesBtnText}>Matches</span>
+          </button>
+        </div>
+        {huntCount > 0 && (
+          <button onClick={onViewFeed} style={styles.feedLinkBtn}>
+            <Search size={14} style={{ color: 'var(--color-primary-600)' }} />
+            <span>View {huntCount} active hunt{huntCount === 1 ? '' : 's'}</span>
+          </button>
+        )}
       </header>
 
-      <div style={styles.createContent}>
+      <form onSubmit={handleSubmit} style={styles.createContent}>
         <div style={styles.createFields}>
           <div style={styles.field}>
             <label style={styles.fieldLabel}>What are you looking for?</label>
@@ -361,6 +495,7 @@ function CreateRequest({ onBack }: { onBack: () => void }) {
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               style={styles.input}
+              autoCapitalize="words"
             />
           </div>
 
@@ -370,6 +505,7 @@ function CreateRequest({ onBack }: { onBack: () => void }) {
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat}
+                  type="button"
                   onClick={() => setForm({ ...form, category: cat })}
                   style={{
                     ...styles.selectChip,
@@ -383,20 +519,28 @@ function CreateRequest({ onBack }: { onBack: () => void }) {
           </div>
 
           <div style={styles.field}>
-            <label style={styles.fieldLabel}>Preferred Condition</label>
+            <label style={styles.fieldLabel}>
+              Preferred Condition <span style={styles.fieldHint}>(pick any)</span>
+            </label>
             <div style={styles.conditionRow}>
-              {CONDITIONS.map((cond) => (
-                <button
-                  key={cond}
-                  onClick={() => setForm({ ...form, condition: cond })}
-                  style={{
-                    ...styles.conditionChip,
-                    ...(form.condition === cond ? styles.conditionChipActive : {}),
-                  }}
-                >
-                  {cond}
-                </button>
-              ))}
+              {CONDITIONS.map((cond) => {
+                const active = form.conditions.includes(cond);
+                return (
+                  <button
+                    key={cond}
+                    type="button"
+                    onClick={() => toggleCondition(cond)}
+                    aria-pressed={active}
+                    style={{
+                      ...styles.conditionChip,
+                      ...(active ? styles.conditionChipActive : {}),
+                    }}
+                  >
+                    {active && <span style={styles.condCheck} aria-hidden>✓</span>}
+                    {cond}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -407,6 +551,7 @@ function CreateRequest({ onBack }: { onBack: () => void }) {
                 <DollarSign size={14} style={{ color: 'var(--color-neutral-400)' }} />
                 <input
                   type="text"
+                  inputMode="decimal"
                   placeholder="Min"
                   value={form.budgetMin}
                   onChange={(e) => setForm({ ...form, budgetMin: e.target.value })}
@@ -418,6 +563,7 @@ function CreateRequest({ onBack }: { onBack: () => void }) {
                 <DollarSign size={14} style={{ color: 'var(--color-neutral-400)' }} />
                 <input
                   type="text"
+                  inputMode="decimal"
                   placeholder="Max"
                   value={form.budgetMax}
                   onChange={(e) => setForm({ ...form, budgetMax: e.target.value })}
@@ -429,10 +575,46 @@ function CreateRequest({ onBack }: { onBack: () => void }) {
 
           <div style={styles.field}>
             <label style={styles.fieldLabel}>Reference Photo (optional)</label>
-            <div style={styles.photoUpload}>
-              <Camera size={24} style={{ color: 'var(--color-neutral-300)' }} />
-              <span style={styles.photoUploadText}>Tap to add reference image</span>
-            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+            {photoUrl ? (
+              <div style={styles.photoPreviewWrap}>
+                <img src={photoUrl} alt="Reference preview" style={styles.photoPreview} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoUrl('');
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  style={styles.photoRemoveBtn}
+                  aria-label="Remove reference photo"
+                >
+                  <X size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={styles.photoReplaceBtn}
+                >
+                  Replace
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={styles.photoUpload}
+              >
+                <Camera size={24} style={{ color: 'var(--color-neutral-400)' }} />
+                <span style={styles.photoUploadText}>Tap to add reference image</span>
+                <span style={styles.photoUploadHint}>From camera roll or take a new photo</span>
+              </button>
+            )}
           </div>
 
           <div style={styles.field}>
@@ -459,12 +641,66 @@ function CreateRequest({ onBack }: { onBack: () => void }) {
               rows={3}
             />
           </div>
+
+          {error && <p style={styles.errorText} role="alert">{error}</p>}
         </div>
 
-        <button onClick={() => setSubmitted(true)} style={styles.submitBtn}>
+        <button type="submit" style={styles.submitBtn}>
           <Search size={18} style={{ color: 'var(--color-neutral-0)' }} />
           <span style={styles.submitBtnText}>Start the Hunt</span>
         </button>
+      </form>
+    </div>
+  );
+}
+
+function SuccessView({
+  hunt,
+  onViewFeed,
+  onPostAnother,
+}: {
+  hunt: SearchRequest;
+  onViewFeed: () => void;
+  onPostAnother: () => void;
+}) {
+  return (
+    <div style={styles.container}>
+      <div style={styles.successContent}>
+        <div style={styles.successIcon}>
+          <Sparkles size={36} style={{ color: 'var(--color-primary-500)' }} />
+        </div>
+        <h2 style={styles.successTitle}>Your hunt has been posted!</h2>
+        <p style={styles.successSubtitle}>
+          Scouts in your area will be notified. You'll get alerts when matches are found.
+        </p>
+        <div style={styles.successCard}>
+          {hunt.image && hunt.image !== PLACEHOLDER_IMG && (
+            <img src={hunt.image} alt={hunt.title} style={styles.successCardImg} />
+          )}
+          <h3 style={styles.successCardTitle}>{hunt.title}</h3>
+          <div style={styles.successCardMeta}>
+            {hunt.category && <span style={styles.successTag}>{hunt.category}</span>}
+            {hunt.conditions.map((c) => (
+              <span key={c} style={styles.successTag}>{c}</span>
+            ))}
+          </div>
+          {(hunt.budgetMin || hunt.budgetMax) && (
+            <p style={styles.successBudget}>${hunt.budgetMin || '0'} - ${hunt.budgetMax || '—'}</p>
+          )}
+        </div>
+        <div style={styles.successActions}>
+          <button
+            onClick={onPostAnother}
+            style={styles.viewFeedBtn}
+          >
+            <Plus size={14} style={{ color: 'var(--color-neutral-700)', display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+            Post Another Hunt
+          </button>
+          <button onClick={onViewFeed} style={styles.postAnotherBtn}>
+            <Search size={16} style={{ color: 'var(--color-neutral-0)' }} />
+            <span style={{ color: 'var(--color-neutral-0)' }}>View in Feed</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -994,21 +1230,133 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
   },
   conditionChip: {
-    flex: '1 0 auto',
+    flex: '1 1 calc(50% - var(--space-2))',
+    minHeight: '44px',
     padding: 'var(--space-3)',
     borderRadius: 'var(--radius-md)',
-    fontSize: 'var(--font-size-xs)',
+    fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-medium)',
     backgroundColor: 'var(--color-neutral-50)',
     color: 'var(--color-neutral-600)',
     border: '1px solid var(--color-neutral-200)',
     textAlign: 'center',
     transition: 'all var(--transition-fast)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'var(--space-1)',
   },
   conditionChipActive: {
-    backgroundColor: 'var(--color-secondary-50)',
-    color: 'var(--color-secondary-700)',
-    border: '1px solid var(--color-secondary-200)',
+    backgroundColor: 'var(--color-primary-50)',
+    color: 'var(--color-primary-700)',
+    border: '1.5px solid var(--color-primary-500)',
+    fontWeight: 'var(--font-weight-semibold)',
+  },
+  condCheck: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-primary-600)',
+  },
+  fieldHint: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-400)',
+    fontWeight: 'var(--font-weight-normal)',
+    marginLeft: '4px',
+  },
+  feedLinkBtn: {
+    marginTop: 'var(--space-3)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-2) var(--space-3)',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-50)',
+    color: 'var(--color-primary-700)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+    border: '1px solid var(--color-primary-100)',
+  },
+  photoPreviewWrap: {
+    position: 'relative',
+    width: '100%',
+    borderRadius: 'var(--radius-md)',
+    overflow: 'hidden',
+    backgroundColor: 'var(--color-neutral-50)',
+    border: '1px solid var(--color-neutral-200)',
+  },
+  photoPreview: {
+    display: 'block',
+    width: '100%',
+    maxHeight: '260px',
+    objectFit: 'cover',
+  },
+  photoRemoveBtn: {
+    position: 'absolute',
+    top: 'var(--space-2)',
+    right: 'var(--space-2)',
+    width: '32px',
+    height: '32px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    color: 'var(--color-neutral-0)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoReplaceBtn: {
+    position: 'absolute',
+    bottom: 'var(--space-2)',
+    right: 'var(--space-2)',
+    padding: '6px 12px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    color: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+  },
+  photoUploadHint: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-400)',
+  },
+  errorText: {
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-error-600)',
+    backgroundColor: 'var(--color-error-50)',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-error-100)',
+  },
+  highlightBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 'var(--space-3)',
+    padding: 'var(--space-3) var(--space-4)',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-primary-50)',
+    border: '1px solid var(--color-primary-200)',
+    marginBottom: 'var(--space-3)',
+  },
+  highlightBannerText: {
+    flex: 1,
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-primary-700)',
+  },
+  highlightBannerBtn: {
+    padding: '6px 12px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-600)',
+    color: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+    flexShrink: 0,
+  },
+  successCardImg: {
+    width: '100%',
+    maxHeight: '160px',
+    objectFit: 'cover',
+    borderRadius: 'var(--radius-sm)',
+    marginBottom: 'var(--space-3)',
   },
   budgetRow: {
     display: 'flex',

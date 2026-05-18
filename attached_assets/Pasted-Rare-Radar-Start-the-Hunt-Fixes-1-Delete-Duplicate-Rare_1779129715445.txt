@@ -1,0 +1,176 @@
+Rare Radar / Start the Hunt Fixes
+1. Delete Duplicate “Rare Radar” Landing Page
+
+Right now:
+
+Rare Radar page →
+immediately redirects/jumps →
+“Start the Hunt” page
+
+This makes the first page unnecessary.
+
+Fix:
+
+Remove the first “Rare Radar” screen completely.
+
+The current “Start the Hunt” page should become the main Rare Radar page.
+
+Update:
+
+Add this title/header to the top of the current Start the Hunt page:
+
+Rare Radar
+
+Optional subtitle:
+
+Post what you're searching for and let the community help you find it.
+2. Preferred Condition Buttons Need Multi-Select
+
+Current issue:
+The Preferred Condition section does not work properly.
+
+Desired behavior:
+Users can select ANY combination of:
+
+Mint
+Good
+Fair
+Parts/Repair
+
+Examples:
+
+only Mint
+Good + Fair
+all four
+Parts/Repair only
+Mint + Good + Fair
+
+This should behave like toggle chips/buttons.
+
+Required Logic
+
+Each condition button should:
+
+toggle ON when tapped
+toggle OFF when tapped again
+allow multiple selections simultaneously
+
+Example data structure:
+
+preferredConditions: []
+
+Example:
+
+preferredConditions = ["Good", "Fair"]
+UI Behavior
+
+Selected button:
+
+highlighted
+darker background
+visible border/checkmark
+
+Unselected:
+
+neutral background
+3. Reference Photo Upload Is Broken
+
+Current issue:
+Tapping “Reference Photo” does nothing.
+
+Fix Required
+
+The upload button must:
+
+open image picker on mobile
+allow camera roll selection
+optionally allow camera capture
+upload/store image correctly
+generate preview thumbnail after selection
+Required Mobile Support
+
+Support:
+
+iPhone Safari
+Android Chrome
+
+Use:
+
+<input type="file" accept="image/*">
+
+Optional:
+
+capture="environment"
+4. After Upload → “View in Feed” Goes to Wrong Page
+
+Current issue:
+
+After posting:
+
+app says “View in Feed”
+tapping it redirects back to deleted Rare Radar page
+
+This is incorrect.
+
+Correct Behavior
+
+After posting:
+
+“View in Feed” should open:
+
+the exact newly created hunt post
+OR
+scroll directly to it inside the feed
+
+NOT redirect back to old page.
+
+Required Fix
+
+After successful post creation:
+
+Capture the new post ID.
+
+Example:
+
+const newPostId = createdPost.id;
+
+Then navigate to:
+
+/rare-radar/feed/${newPostId}
+
+OR:
+
+/feed?highlight=${newPostId}
+5. Recommended UX Improvement
+
+After successful upload:
+
+Show:
+
+Your hunt has been posted successfully.
+
+Buttons:
+
+View in Feed
+Post Another Hunt
+6. Important Mobile UX Notes
+
+Make sure:
+
+buttons are thumb-friendly
+image upload preview is visible immediately
+selected condition chips remain selected when scrolling
+page does NOT refresh unexpectedly after upload
+Summary of Required Changes
+Remove:
+duplicate Rare Radar intro page
+Rename:
+Start the Hunt page → Rare Radar
+Fix:
+Preferred Condition multi-select
+Reference Photo upload
+View in Feed redirect
+Add:
+proper uploaded-post navigation
+image preview
+success confirmation
