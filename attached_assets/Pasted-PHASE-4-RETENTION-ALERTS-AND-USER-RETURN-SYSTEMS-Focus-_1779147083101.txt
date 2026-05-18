@@ -1,0 +1,280 @@
+PHASE 4 — RETENTION, ALERTS, AND USER RETURN SYSTEMS
+
+Focus ONLY on:
+
+* notifications
+* saved searches
+* alerts
+* reminders
+* user return loops
+* engagement systems
+
+Do NOT add:
+
+* advanced AI
+* gamification
+* fake activity systems
+* ranking systems
+
+TreasureTrail now has:
+
+* working feeds
+* marketplace infrastructure
+* real persistence
+* polished UI
+
+This phase should make users COME BACK regularly.
+
+========================================
+
+1. NOTIFICATION INFRASTRUCTURE
+   ========================================
+
+Create a real notification system using Supabase-backed data.
+
+Notifications should support:
+
+* in-app notifications
+* future push compatibility
+* unread indicators
+* timestamps
+* notification categories
+
+Required notification types:
+
+* New Rare Radar match
+* New local marketplace listing
+* Scout response
+* Event reminder
+* Saved search match
+* New message
+* New follower/follow activity
+* Listing saved/shared
+
+========================================
+2. NOTIFICATIONS TABLE
+======================
+
+Verify or create notifications table with:
+
+* id
+* created_at
+* user_id
+* actor_user_id
+* type
+* title
+* body
+* related_item_id
+* related_item_type
+* read
+* metadata
+
+Enable:
+
+* RLS
+* authenticated access
+* owner-only reads
+
+========================================
+3. NOTIFICATION CENTER UI
+=========================
+
+Add a Notification Center accessible from:
+
+* top nav
+  OR
+* profile area
+
+Features:
+
+* unread badge count
+* grouped notifications
+* timestamps
+* mark as read
+* clear read notifications
+
+========================================
+4. SAVED SEARCHES
+=================
+
+Allow users to save searches.
+
+Examples:
+
+* "Mid-century furniture"
+* "Storage lockers"
+* "Pokemon cards"
+* "Whatnot electronics"
+
+Saved searches should store:
+
+* keywords
+* category filters
+* marketplace filters
+* location filters
+
+========================================
+5. SEARCH ALERTS
+================
+
+When new matching items appear:
+generate notifications.
+
+Examples:
+
+* "3 new furniture finds near Phoenix"
+* "New Whatnot electronics listing posted"
+* "New estate sale matches your search"
+
+========================================
+6. EVENT REMINDERS
+==================
+
+Allow users to:
+
+* save events
+* follow events
+* bookmark auctions
+
+Then notify:
+
+* 24 hours before
+* 1 hour before
+* event start
+
+========================================
+7. SCOUT RESPONSE ALERTS
+========================
+
+When:
+
+* a scout responds
+* scout availability changes
+* pickup help offered
+
+Generate:
+
+* notification
+* unread badge
+* quick access link
+
+========================================
+8. MESSAGE ALERTS
+=================
+
+When users receive:
+
+* new messages
+* scout responses
+* marketplace inquiries
+
+Show:
+
+* unread count
+* notification preview
+* quick navigation
+
+========================================
+9. FOLLOW SYSTEM (LIGHTWEIGHT)
+==============================
+
+Add OPTIONAL lightweight follow system.
+
+Users can follow:
+
+* scouts
+* sellers
+* collectors
+* marketplace contributors
+
+NOT:
+
+* social-media vanity metrics
+* fake influencer mechanics
+
+========================================
+10. FOLLOW ACTIVITY
+===================
+
+Generate notifications for:
+
+* followed user posted new find
+* followed scout available nearby
+* followed seller posted event
+
+========================================
+11. LOCAL ALERTS
+================
+
+Allow users to enable:
+
+* nearby listings alerts
+* nearby estate sale alerts
+* nearby yard sale alerts
+* nearby storage locker alerts
+
+Use:
+
+* city/state
+* ZIP
+* approximate location
+
+NO fake distance calculations without real geo data.
+
+========================================
+12. DIGEST SYSTEM
+=================
+
+Prepare infrastructure for:
+
+* daily digest
+* weekly digest
+* "new this week near you"
+
+Even if email/push delivery is not fully implemented yet.
+
+========================================
+13. RETENTION UX
+================
+
+Add:
+
+* subtle unread badges
+* activity indicators
+* return prompts
+* "new since last visit"
+
+WITHOUT becoming:
+
+* noisy
+* spammy
+* social-media clutter
+
+========================================
+14. MOBILE OPTIMIZATION
+=======================
+
+Notifications should:
+
+* work smoothly on mobile
+* support touch-friendly interactions
+* avoid excessive popups
+* maintain clean UX
+
+========================================
+15. FINAL QA
+============
+
+Verify:
+
+* notifications persist correctly
+* unread counts work
+* saved searches persist
+* alerts trigger properly
+* event reminders work
+* no fake activity generated
+* no dead notification buttons
+* mobile UX clean
+* TypeScript clean
+* no console errors
+* republish after completion

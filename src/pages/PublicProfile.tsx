@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Shield, Star, Award, MapPin, ArrowLeft } from 'lucide-react';
+import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
+import { notifyUser } from '../lib/notifications';
 
 export default function PublicProfile() {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
 
   useEffect(() => {
     if (!username) { setNotFound(true); setLoading(false); return; }
@@ -23,6 +30,39 @@ export default function PublicProfile() {
         setLoading(false);
       });
   }, [username]);
+
+  useEffect(() => {
+    if (!user || !profile?.id || user.id === profile.id) return;
+    checkIsFollowing(user.id, profile.id).then(setFollowing).catch(() => {});
+  }, [user, profile?.id]);
+
+  const isSelf = !!user && !!profile && user.id === profile.id;
+
+  const handleToggleFollow = async () => {
+    if (!user || !profile?.id || isSelf || followBusy) return;
+    setFollowBusy(true);
+    if (following) {
+      await unfollowUser(user.id, profile.id);
+      setFollowing(false);
+      setProfile((p: any) => p ? { ...p, follower_count: Math.max(0, (p.follower_count ?? 0) - 1) } : p);
+    } else {
+      const { error } = await followUser(user.id, profile.id);
+      if (!error) {
+        setFollowing(true);
+        setProfile((p: any) => p ? { ...p, follower_count: (p.follower_count ?? 0) + 1 } : p);
+        // Notify the followed user via the SECURITY DEFINER RPC; ignore failures.
+        notifyUser({
+          target_user_id: profile.id,
+          type: 'follow',
+          title: 'New follower',
+          content: 'You have a new follower.',
+          related_item_id: user.id,
+          related_item_type: 'profile',
+        }).catch(() => {});
+      }
+    }
+    setFollowBusy(false);
+  };
 
   const joinDate = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -106,12 +146,23 @@ export default function PublicProfile() {
           </div>
         </div>
 
+        {!isSelf && user && (
+          <button
+            onClick={handleToggleFollow}
+            disabled={followBusy}
+            style={following ? followStyles.unfollow : followStyles.follow}
+          >
+            {followBusy ? <Loader size={14} /> : following ? <UserCheck size={14} /> : <UserPlus size={14} />}
+            <span>{following ? 'Following' : 'Follow'}</span>
+          </button>
+        )}
+
         <div style={s.repCard}>
           <Award size={18} style={{ color: 'var(--color-primary-500)' }} />
           <div style={s.repInfo}>
             <span style={s.repTitle}>Reputation Score</span>
             <span style={s.repSub}>
-              {(profile.reputation_score ?? 0) >= 4.5 ? 'Top 15% of hunters' : 'Building reputation'}
+              {(profile.reputation_score ?? 0) > 0 ? 'Based on activity' : 'No ratings yet'}
             </span>
           </div>
           <div style={s.repScore}>
@@ -142,7 +193,26 @@ export default function PublicProfile() {
   );
 }
 
-const s: Record<string, React.CSSProperties> = {
+const followStyles: Record<string, CSSProperties> = {
+  follow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    width: '100%', minHeight: 44, marginBottom: 'var(--space-3)',
+    padding: '0 var(--space-4)',
+    backgroundColor: 'var(--color-primary-500)', color: '#fff',
+    border: 'none', borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--font-size-sm)', fontWeight: 600, cursor: 'pointer',
+  },
+  unfollow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    width: '100%', minHeight: 44, marginBottom: 'var(--space-3)',
+    padding: '0 var(--space-4)',
+    backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-800)',
+    border: '1px solid var(--color-neutral-200)', borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--font-size-sm)', fontWeight: 600, cursor: 'pointer',
+  },
+};
+
+const s: Record<string, CSSProperties> = {
   page: {
     minHeight: '100vh',
     backgroundColor: 'var(--color-neutral-50)',

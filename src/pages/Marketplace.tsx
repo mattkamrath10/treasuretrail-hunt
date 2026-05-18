@@ -4,9 +4,12 @@ import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import {
   ArrowLeft, Search, Star, Shield, TrendingUp, MapPin,
-  Heart, Zap, ChevronRight, Package, Truck, Users,
+  Heart, Zap, ChevronRight, Package, Truck, Users, Bookmark,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from '../components/NotificationBell';
+import SavedSearchesPanel from '../components/SavedSearchesPanel';
+import { checkSavedSearchMatches, type SavedSearch } from '../lib/savedSearches';
 import { useGuestAction } from '../components/GuestGate';
 import { fetchMarketplaceListings, createMarketplaceListing } from '../lib/database';
 import type { MarketplaceListing } from '../lib/supabase';
@@ -129,17 +132,35 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
   onDashboard: () => void;
 }) {
   const { requireAuth } = useGuestAction();
+  const { user } = useAuth();
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSavedSearches, setShowSavedSearches] = useState(false);
 
   useEffect(() => {
     fetchMarketplaceListings(50).then((data) => {
       setListings(data.map(toListingShape));
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  // Run saved-search match check in the background on mount.
+  useEffect(() => {
+    if (!user?.id) return;
+    checkSavedSearchMatches(user.id).catch(() => {});
+  }, [user?.id]);
+
+  const runSavedSearch = (search: SavedSearch) => {
+    setSearchQuery(search.keywords || '');
+    if (search.categories && search.categories.length > 0) {
+      setActiveCategory(search.categories[0]);
+    } else {
+      setActiveCategory('All');
+    }
+    setShowSavedSearches(false);
+  };
 
   const filtered = listings.filter((item) => {
     if (activeCategory !== 'All' && item.category !== activeCategory) return false;
@@ -174,9 +195,12 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn}><ArrowLeft size={20} /></button>
         <h1 style={s.headerTitle}>Marketplace</h1>
-        <button onClick={onDashboard} style={s.dashBtn}>
-          <TrendingUp size={16} style={{ color: 'var(--color-primary-600)' }} />
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <NotificationBell />
+          <button onClick={onDashboard} style={s.dashBtn} aria-label="Dashboard">
+            <TrendingUp size={16} style={{ color: 'var(--color-primary-600)' }} />
+          </button>
+        </div>
       </header>
 
       <div style={s.scrollContent}>
@@ -190,6 +214,18 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          <button
+            onClick={() => setShowSavedSearches(true)}
+            aria-label="Saved searches"
+            style={{
+              minWidth: 44, minHeight: 44, width: 44, height: 44, padding: 6, marginLeft: 4,
+              borderRadius: 'var(--radius-md)', border: 'none',
+              backgroundColor: 'var(--color-primary-50)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Bookmark size={16} style={{ color: 'var(--color-primary-600)' }} />
+          </button>
         </div>
 
         {/* Categories */}
@@ -342,6 +378,18 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
       <button onClick={() => requireAuth(onCreateListing)} style={s.fab}>
         <Package size={20} style={{ color: 'var(--color-neutral-0)' }} />
       </button>
+
+      <SavedSearchesPanel
+        open={showSavedSearches}
+        onClose={() => setShowSavedSearches(false)}
+        onRun={runSavedSearch}
+        draft={{
+          keywords: searchQuery,
+          categories: activeCategory !== 'All' ? [activeCategory] : [],
+          marketplaces: [],
+          location_text: '',
+        }}
+      />
     </div>
   );
 }

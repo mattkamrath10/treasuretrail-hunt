@@ -1,284 +1,298 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Tag, Radar, Heart, MessageCircle, TrendingUp } from 'lucide-react';
+import {
+  Bell, Tag, Radar, Heart, MessageCircle, TrendingUp,
+  UserPlus, Calendar, Bookmark, ShoppingBag, CheckCheck, Trash2,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fetchNotifications } from '../lib/database';
+import {
+  fetchNotificationsList, markRead, markAllRead, clearRead, subscribeNotifications,
+} from '../lib/notifications';
 import { GuestOverlay } from '../components/GuestGate';
 import type { Notification } from '../lib/supabase';
 
-interface AlertItem {
-  id: string;
-  type: 'match' | 'price_drop' | 'scout' | 'like' | 'comment' | 'trending';
-  title: string;
-  description: string;
-  timeAgo: string;
-  isRead: boolean;
-}
-
-
-function getAlertTimeAgo(dateStr: string): string {
+function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString();
 }
 
-const alertIcons = {
-  match: Radar,
+function bucketFor(dateStr: string): 'today' | 'yesterday' | 'earlier' {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+  const t = d.getTime();
+  if (t >= startOfToday) return 'today';
+  if (t >= startOfYesterday) return 'yesterday';
+  return 'earlier';
+}
+
+const iconForType: Record<string, typeof Bell> = {
+  rare_radar_match: Radar,
+  marketplace_match: ShoppingBag,
+  scout_response: Radar,
+  event_reminder: Calendar,
+  saved_search_match: Bookmark,
+  message: MessageCircle,
+  follow: UserPlus,
+  listing_saved: Heart,
+  listing_shared: TrendingUp,
   price_drop: Tag,
-  scout: Radar,
-  like: Heart,
-  comment: MessageCircle,
-  trending: TrendingUp,
+  general: Bell,
 };
 
-const alertColors = {
-  match: 'var(--color-primary-500)',
+const colorForType: Record<string, string> = {
+  rare_radar_match: 'var(--color-primary-500)',
+  marketplace_match: 'var(--color-accent-500)',
+  scout_response: 'var(--color-secondary-500)',
+  event_reminder: 'var(--color-success-500)',
+  saved_search_match: 'var(--color-primary-600)',
+  message: 'var(--color-accent-500)',
+  follow: 'var(--color-secondary-500)',
+  listing_saved: 'var(--color-error-400)',
+  listing_shared: 'var(--color-warning-500)',
   price_drop: 'var(--color-success-500)',
-  scout: 'var(--color-secondary-500)',
-  like: 'var(--color-error-400)',
-  comment: 'var(--color-accent-500)',
-  trending: 'var(--color-warning-500)',
+  general: 'var(--color-neutral-500)',
 };
 
 export default function Alerts() {
   const navigate = useNavigate();
   const { user, isGuest } = useAuth();
-  const [realNotifs, setRealNotifs] = useState<Notification[]>([]);
+  const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchNotifications(user.id).then(setRealNotifs).catch(() => {});
-    }
+    if (!user) { setLoading(false); return; }
+    let cancelled = false;
+    fetchNotificationsList(user.id, { limit: 100 }).then((rows) => {
+      if (!cancelled) { setNotifs(rows); setLoading(false); }
+    }).catch(() => { if (!cancelled) setLoading(false); });
+    const sub = subscribeNotifications(user.id, () => {
+      fetchNotificationsList(user.id, { limit: 100 }).then((rows) => {
+        if (!cancelled) setNotifs(rows);
+      }).catch(() => {});
+    });
+    return () => { cancelled = true; sub.unsubscribe(); };
   }, [user]);
 
-  const realAlerts: AlertItem[] = realNotifs.map((n) => ({
-    id: n.id,
-    type: (n.type as AlertItem['type']) || 'match',
-    title: n.title,
-    description: n.content,
-    timeAgo: getAlertTimeAgo(n.created_at),
-    isRead: n.read_status,
-  }));
+  const grouped = useMemo(() => {
+    const today: Notification[] = [];
+    const yesterday: Notification[] = [];
+    const earlier: Notification[] = [];
+    for (const n of notifs) {
+      const b = bucketFor(n.created_at);
+      if (b === 'today') today.push(n);
+      else if (b === 'yesterday') yesterday.push(n);
+      else earlier.push(n);
+    }
+    return { today, yesterday, earlier };
+  }, [notifs]);
 
-  const allAlerts = realAlerts;
-  const unreadCount = allAlerts.filter((a) => !a.isRead).length;
+  const unreadCount = notifs.filter((n) => !n.read_status).length;
+
+  const handleOpen = async (n: Notification) => {
+    if (!n.read_status) {
+      await markRead(n.id);
+      setNotifs((cur) => cur.map((x) => x.id === n.id ? { ...x, read_status: true } : x));
+    }
+    if (n.related_item_type === 'message') navigate('/messages');
+    else if (n.related_item_type === 'live_event' || n.related_item_type === 'local_event') navigate('/events');
+    else if (n.related_item_type === 'saved_search') navigate('/marketplace');
+    else if (n.related_item_type === 'marketplace_listing') navigate('/marketplace');
+  };
+
+  const handleMarkAll = async () => {
+    if (!user) return;
+    await markAllRead(user.id);
+    setNotifs((cur) => cur.map((n) => ({ ...n, read_status: true })));
+  };
+
+  const handleClearRead = async () => {
+    if (!user) return;
+    await clearRead(user.id);
+    setNotifs((cur) => cur.filter((n) => !n.read_status));
+  };
 
   if (isGuest) {
     return (
-      <div style={styles.container}>
+      <div style={s.container}>
         <GuestOverlay
           title="Real-Time Alerts"
-          subtitle="Create a free account to get Rare Radar matches, auction alerts, and price drop notifications."
+          subtitle="Create a free account to get Rare Radar matches, marketplace alerts, and event reminders."
         />
       </div>
     );
   }
 
-  return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <div style={styles.headerTop}>
-          <div style={styles.titleGroup}>
-            <h1 style={styles.title}>Alerts</h1>
-            {unreadCount > 0 && (
-              <span style={styles.badge}>{unreadCount} new</span>
-            )}
-          </div>
-          <button onClick={() => navigate('/messages')} style={styles.messagesBtn}>
-            <MessageCircle size={16} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={styles.messagesBtnText}>Messages</span>
-            </button>
-        </div>
-        <p style={styles.subtitle}>Real-time match alerts and activity</p>
-      </header>
-
-      <div style={styles.content}>
-        {allAlerts.map((alert, index) => {
-          const Icon = alertIcons[alert.type] || Bell;
+  const renderGroup = (label: string, rows: Notification[]) => {
+    if (rows.length === 0) return null;
+    return (
+      <section key={label} style={s.group}>
+        <h2 style={s.groupLabel}>{label}</h2>
+        {rows.map((n, i) => {
+          const Icon = iconForType[n.type] || Bell;
+          const color = colorForType[n.type] || 'var(--color-neutral-500)';
           return (
-            <div
-              key={alert.id}
-              style={{
-                ...styles.alertCard,
-                ...(!alert.isRead ? styles.unread : {}),
-                animationDelay: `${index * 60}ms`,
-              }}
+            <button
+              key={n.id}
+              onClick={() => handleOpen(n)}
+              style={{ ...s.card, ...(n.read_status ? {} : s.cardUnread), animationDelay: `${i * 40}ms` }}
             >
-              <div
-                style={{
-                  ...styles.iconCircle,
-                  backgroundColor: `${alertColors[alert.type] || 'var(--color-neutral-500)'}15`,
-                }}
-              >
-                <Icon size={18} style={{ color: alertColors[alert.type] || 'var(--color-neutral-500)' }} />
+              <div style={{ ...s.iconCircle, backgroundColor: `${color}15` }}>
+                <Icon size={18} style={{ color }} />
               </div>
-              <div style={styles.alertContent}>
-                <div style={styles.alertHeader}>
-                  <h3 style={styles.alertTitle}>{alert.title}</h3>
-                  <span style={styles.alertTime}>{alert.timeAgo}</span>
+              <div style={s.cardBody}>
+                <div style={s.cardHead}>
+                  <span style={s.cardTitle}>{n.title}</span>
+                  <span style={s.cardTime}>{timeAgo(n.created_at)}</span>
                 </div>
-                <p style={styles.alertDesc}>{alert.description}</p>
+                {n.content && <p style={s.cardDesc}>{n.content}</p>}
               </div>
-              {!alert.isRead && <span style={styles.dot} />}
-            </div>
+              {!n.read_status && <span style={s.dot} aria-hidden />}
+            </button>
           );
         })}
+      </section>
+    );
+  };
 
-        <div style={styles.emptyFooter}>
-          <Bell size={24} style={{ color: 'var(--color-neutral-300)' }} />
-          <p style={styles.emptyText}>You're all caught up</p>
+  return (
+    <div style={s.container}>
+      <header style={s.header}>
+        <div style={s.headerTop}>
+          <div style={s.titleGroup}>
+            <h1 style={s.title}>Alerts</h1>
+            {unreadCount > 0 && <span style={s.badge}>{unreadCount} new</span>}
+          </div>
+          <button onClick={() => navigate('/messages')} style={s.messagesBtn} aria-label="Messages">
+            <MessageCircle size={16} style={{ color: 'var(--color-primary-600)' }} />
+            <span style={s.messagesBtnText}>Messages</span>
+          </button>
         </div>
+        <p style={s.subtitle}>Real-time match alerts and activity</p>
+        {notifs.length > 0 && (
+          <div style={s.actionsRow}>
+            <button onClick={handleMarkAll} disabled={unreadCount === 0} style={s.actionBtn}>
+              <CheckCheck size={14} /> Mark all read
+            </button>
+            <button
+              onClick={handleClearRead}
+              disabled={notifs.every((n) => !n.read_status)}
+              style={{ ...s.actionBtn, color: 'var(--color-error-600)' }}
+            >
+              <Trash2 size={14} /> Clear read
+            </button>
+          </div>
+        )}
+      </header>
+
+      <div style={s.content}>
+        {loading ? (
+          <div style={s.emptyFooter}>
+            <Bell size={20} style={{ color: 'var(--color-neutral-300)' }} />
+            <p style={s.emptyText}>Loading…</p>
+          </div>
+        ) : notifs.length === 0 ? (
+          <div style={s.emptyFooter}>
+            <Bell size={32} style={{ color: 'var(--color-neutral-300)' }} />
+            <p style={s.emptyTitle}>No alerts yet</p>
+            <p style={s.emptyText}>Save a search or follow a hunter to start getting alerts.</p>
+          </div>
+        ) : (
+          <>
+            {renderGroup('Today', grouped.today)}
+            {renderGroup('Yesterday', grouped.yesterday)}
+            {renderGroup('Earlier', grouped.earlier)}
+            <div style={s.emptyFooter}>
+              <Bell size={20} style={{ color: 'var(--color-neutral-300)' }} />
+              <p style={s.emptyText}>You're all caught up</p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-  },
+const s: Record<string, CSSProperties> = {
+  container: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
   header: {
     padding: 'var(--space-4)',
     backgroundColor: 'var(--color-neutral-0)',
     borderBottom: '1px solid var(--color-neutral-100)',
     flexShrink: 0,
   },
-  headerTop: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  titleGroup: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)' },
+  title: { fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
+  badge: {
+    fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-0)', backgroundColor: 'var(--color-error-500)',
+    padding: '2px var(--space-2)', borderRadius: 'var(--radius-full)',
   },
-  titleGroup: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-  },
+  subtitle: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-500)', marginTop: '2px' },
   messagesBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    padding: 'var(--space-1) var(--space-3)',
+    display: 'flex', alignItems: 'center', gap: 4,
+    minHeight: 44, padding: 'var(--space-1) var(--space-3)',
     borderRadius: 'var(--radius-full)',
     backgroundColor: 'var(--color-primary-50)',
     border: '1px solid var(--color-primary-200)',
+    cursor: 'pointer',
   },
-  messagesBtnText: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-primary-700)',
-  },
-  messagesBadge: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-0)',
-    backgroundColor: 'var(--color-primary-500)',
-    width: '16px',
-    height: '16px',
+  messagesBtnText: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-primary-700)' },
+  actionsRow: { display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)' },
+  actionBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    minHeight: 44, padding: '8px 14px',
+    fontSize: 'var(--font-size-xs)', fontWeight: 600,
+    backgroundColor: 'transparent',
+    border: '1px solid var(--color-neutral-200)',
     borderRadius: 'var(--radius-full)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    color: 'var(--color-neutral-700)',
+    cursor: 'pointer',
   },
-  title: {
-    fontSize: 'var(--font-size-xl)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
+  content: { flex: 1, overflow: 'auto', padding: 'var(--space-2)' },
+  group: { marginBottom: 'var(--space-3)' },
+  groupLabel: {
+    fontSize: 'var(--font-size-xs)', fontWeight: 700, textTransform: 'uppercase',
+    letterSpacing: '0.04em', color: 'var(--color-neutral-500)',
+    padding: 'var(--space-2) var(--space-3) var(--space-1)',
   },
-  badge: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-0)',
-    backgroundColor: 'var(--color-error-500)',
-    padding: '2px var(--space-2)',
-    borderRadius: 'var(--radius-full)',
-  },
-  subtitle: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-500)',
-    marginTop: '2px',
-  },
-  content: {
-    flex: 1,
-    overflow: 'auto',
-    padding: 'var(--space-2)',
-  },
-  alertCard: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-4)',
-    borderRadius: 'var(--radius-md)',
+  card: {
+    display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
+    width: '100%', textAlign: 'left',
+    padding: 'var(--space-4)', borderRadius: 'var(--radius-md)',
+    backgroundColor: 'transparent', border: 'none', cursor: 'pointer',
     transition: 'background-color var(--transition-fast)',
-    animation: 'fadeIn 0.3s ease forwards',
-    opacity: 0,
-    animationFillMode: 'forwards',
+    animation: 'fadeIn 0.3s ease forwards', opacity: 0, animationFillMode: 'forwards',
     position: 'relative',
   },
-  unread: {
-    backgroundColor: 'var(--color-primary-50)',
-  },
+  cardUnread: { backgroundColor: 'var(--color-primary-50)' },
   iconCircle: {
-    width: '40px',
-    height: '40px',
-    borderRadius: 'var(--radius-full)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 40, height: 40, borderRadius: 'var(--radius-full)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  alertContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-  alertHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 'var(--space-2)',
-    marginBottom: '2px',
-  },
-  alertTitle: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-900)',
-  },
-  alertTime: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-400)',
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
-  },
-  alertDesc: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-600)',
-    lineHeight: 'var(--line-height-normal)',
-  },
+  cardBody: { flex: 1, minWidth: 0 },
+  cardHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)', marginBottom: 2 },
+  cardTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-900)' },
+  cardTime: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-400)', whiteSpace: 'nowrap', flexShrink: 0 },
+  cardDesc: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)', lineHeight: 'var(--line-height-normal)' },
   dot: {
-    position: 'absolute',
-    top: 'var(--space-4)',
-    right: 'var(--space-4)',
-    width: '8px',
-    height: '8px',
-    borderRadius: 'var(--radius-full)',
+    position: 'absolute', top: 'var(--space-4)', right: 'var(--space-4)',
+    width: 8, height: 8, borderRadius: 'var(--radius-full)',
     backgroundColor: 'var(--color-primary-500)',
   },
   emptyFooter: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-8)',
-    marginTop: 'var(--space-4)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)',
+    padding: 'var(--space-8)', marginTop: 'var(--space-4)',
   },
-  emptyText: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-400)',
-  },
+  emptyTitle: { fontSize: 'var(--font-size-md)', fontWeight: 600, color: 'var(--color-neutral-700)' },
+  emptyText: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-400)', textAlign: 'center' },
 };

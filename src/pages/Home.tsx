@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye } from 'lucide-react';
+import NotificationBell from '../components/NotificationBell';
+import { checkLocalReminders } from '../lib/localReminders';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
 import { fetchCommunityPosts, togglePostLike, fetchUserLikes } from '../lib/database';
 import { useAuth } from '../context/AuthContext';
@@ -311,6 +313,13 @@ export default function Home() {
     loadAll();
   }, [loadAll]);
 
+  // Independent of the one-shot initial load: re-check reminders whenever
+  // the authenticated user becomes known (e.g. after a delayed session restore).
+  useEffect(() => {
+    if (!user?.id) return;
+    checkLocalReminders(user.id).catch(() => {});
+  }, [user?.id]);
+
   // When a user navigates back to Home from a post-create flow, the navigation
   // state includes highlightPostId; refetch so the brand-new post is in view.
   // Skip if this is the first mount (already covered by initial load above).
@@ -449,6 +458,7 @@ export default function Home() {
       <header style={styles.header}>
         <TreasureChestBrand />
         <div style={styles.headerActions}>
+          <NotificationBell />
           <TooltipBtn onClick={() => setShowInfo(true)} btnStyle={styles.infoBtn} label="How It Works" desc="Learn what TreasureTrail does">
             <HelpCircle size={15} style={{ color: 'var(--color-neutral-500)' }} />
           </TooltipBtn>

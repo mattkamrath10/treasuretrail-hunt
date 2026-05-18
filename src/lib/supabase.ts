@@ -72,4 +72,8 @@ export type Notification = {
   content: string;
   read_status: boolean;
   created_at: string;
+  actor_user_id?: string | null;
+  related_item_id?: string | null;
+  related_item_type?: string | null;
+  metadata?: Record<string, unknown> | null;
 };

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import {
   ArrowLeft, MapPin, Users, Star, Clock, Trophy, Zap,
   Shield, Award, Crown, Target, Flag, Eye,
-  Calendar, TrendingUp, Lock,
+  Calendar, TrendingUp, Lock, Bell, BellOff,
 } from 'lucide-react';
 import { TreasureChestLogo } from '../components/TreasureChestLogo';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import NotificationBell from '../components/NotificationBell';
+import { toggleLocalReminder, isReminderOn, checkLocalReminders } from '../lib/localReminders';
 
 type EventsView = 'hub' | 'detail' | 'missions' | 'squads' | 'leaderboards' | 'passport' | 'battle';
 
@@ -84,15 +86,85 @@ export default function Events({ onBack }: { onBack: () => void }) {
   return <EventsHub onBack={onBack} onNavigate={setView} />;
 }
 
+function parseEventStart(dateLabel: string, timeLabel: string): string {
+  // events use "May 24" + "9:00 AM"; assume the current/next year so reminders trigger sensibly.
+  const now = new Date();
+  const parsed = new Date(`${dateLabel} ${now.getFullYear()} ${timeLabel}`);
+  if (Number.isNaN(parsed.getTime())) return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  if (parsed.getTime() < now.getTime() - 24 * 60 * 60 * 1000) {
+    parsed.setFullYear(now.getFullYear() + 1);
+  }
+  return parsed.toISOString();
+}
+
+function EventCardWithReminder({ event, onOpen }: { event: EventItem; onOpen: () => void }) {
+  const [reminding, setReminding] = useState<boolean>(() => isReminderOn(event.id));
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = toggleLocalReminder({
+      eventId: event.id,
+      title: event.title,
+      startsAtISO: parseEventStart(event.date, event.time),
+      remindBeforeMinutes: 60,
+    });
+    setReminding(next);
+  };
+  return (
+    <button onClick={onOpen} style={st.eventCard}>
+      <div style={st.eventImgWrap}>
+        <img src={event.image} alt={event.title} style={st.eventImg} />
+        <span style={st.eventTypeBadge}>{event.type}</span>
+        {event.trending && <span style={st.eventTrendBadge}><TrendingUp size={8} /> Trending</span>}
+        {event.vip && <span style={st.eventVipBadge}><Crown size={8} /> VIP</span>}
+        <button
+          onClick={handleToggle}
+          aria-label={reminding ? 'Turn off reminder' : 'Remind me'}
+          style={{
+            position: 'absolute', top: 8, right: 8,
+            minWidth: 44, minHeight: 44, width: 44, height: 44, borderRadius: '50%',
+            backgroundColor: reminding ? 'var(--color-primary-500)' : 'rgba(0,0,0,0.55)',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {reminding ? <Bell size={16} color="#fff" /> : <BellOff size={16} color="#fff" />}
+        </button>
+      </div>
+      <div style={st.eventInfo}>
+        <span style={st.eventTitle}>{event.title}</span>
+        <div style={st.eventMeta}>
+          <span style={st.eventMetaItem}><MapPin size={10} /> {event.location}</span>
+          <span style={st.eventMetaItem}><Calendar size={10} /> {event.date}, {event.time}</span>
+        </div>
+        <div style={st.eventFooter}>
+          <span style={st.eventAttendees}><Users size={10} /> {event.attendees}</span>
+          <span style={st.eventDifficulty}>{event.difficulty}</span>
+          <span style={st.eventRarity}>{event.rarity}</span>
+        </div>
+        <div style={st.eventHost}>
+          <span style={st.eventHostText}>Hosted by {event.host}</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function EventsHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v: EventsView) => void }) {
+  const { user } = useAuth();
+  useEffect(() => {
+    if (user?.id) checkLocalReminders(user.id).catch(() => {});
+  }, [user?.id]);
   return (
     <div style={st.container}>
       <header style={st.header}>
         <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
         <span style={st.headerTitle}>Live Events</span>
-        <button onClick={() => onNavigate('passport')} style={st.passportBtn}>
-          <Flag size={14} style={{ color: 'var(--color-primary-700)' }} />
-        </button>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <NotificationBell />
+          <button onClick={() => onNavigate('passport')} style={st.passportBtn} aria-label="Passport">
+            <Flag size={14} style={{ color: 'var(--color-primary-700)' }} />
+          </button>
+        </div>
       </header>
 
       <div style={st.scrollContent}>
@@ -168,29 +240,7 @@ function EventsHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v:
           </div>
 
           {events.map((event) => (
-            <button key={event.id} onClick={() => onNavigate('detail')} style={st.eventCard}>
-              <div style={st.eventImgWrap}>
-                <img src={event.image} alt={event.title} style={st.eventImg} />
-                <span style={st.eventTypeBadge}>{event.type}</span>
-                {event.trending && <span style={st.eventTrendBadge}><TrendingUp size={8} /> Trending</span>}
-                {event.vip && <span style={st.eventVipBadge}><Crown size={8} /> VIP</span>}
-              </div>
-              <div style={st.eventInfo}>
-                <span style={st.eventTitle}>{event.title}</span>
-                <div style={st.eventMeta}>
-                  <span style={st.eventMetaItem}><MapPin size={10} /> {event.location}</span>
-                  <span style={st.eventMetaItem}><Calendar size={10} /> {event.date}, {event.time}</span>
-                </div>
-                <div style={st.eventFooter}>
-                  <span style={st.eventAttendees}><Users size={10} /> {event.attendees}</span>
-                  <span style={st.eventDifficulty}>{event.difficulty}</span>
-                  <span style={st.eventRarity}>{event.rarity}</span>
-                </div>
-                <div style={st.eventHost}>
-                  <span style={st.eventHostText}>Hosted by {event.host}</span>
-                </div>
-              </div>
-            </button>
+            <EventCardWithReminder key={event.id} event={event} onOpen={() => onNavigate('detail')} />
           ))}
         </div>
       </div>
