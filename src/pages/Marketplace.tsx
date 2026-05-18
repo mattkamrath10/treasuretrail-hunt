@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { SkeletonList } from '../components/ui/Skeleton';
 import {
   ArrowLeft, Search, Star, Shield, TrendingUp, MapPin,
   Heart, Zap, ChevronRight, Package, Truck, Users,
@@ -216,8 +217,8 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
         </div>
 
         {loading ? (
-          <div style={s.emptyState}>
-            <span style={s.emptyStateText}>Loading listings…</span>
+          <div style={{ padding: 'var(--space-3)' }}>
+            <SkeletonList count={3} />
           </div>
         ) : (
           <>

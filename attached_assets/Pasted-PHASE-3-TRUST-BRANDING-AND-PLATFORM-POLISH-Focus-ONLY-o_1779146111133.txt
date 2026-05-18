@@ -1,0 +1,303 @@
+PHASE 3 — TRUST, BRANDING, AND PLATFORM POLISH
+
+Focus ONLY on:
+
+* trust
+* branding
+* visual polish
+* identity consistency
+* professional presentation
+* mobile UX refinement
+* deployment reliability
+
+Do NOT add:
+
+* advanced AI
+* gamification
+* ranking systems
+* complex new backend systems
+
+TreasureTrail now has real backend infrastructure.
+This phase should make the platform FEEL polished, trustworthy, and professional.
+
+========================================
+
+1. WEBSITE SHARE PREVIEWS
+   ========================================
+
+Fix TreasureTrail social/share previews.
+
+When users text or share:
+https://treasuretrail-hunt.com
+
+It should display:
+
+* TreasureTrail logo
+* site title
+* description
+* branded preview image
+
+Add:
+
+* Open Graph metadata
+* Twitter/X metadata
+* Apple touch metadata
+
+========================================
+2. FAVICON + APP ICONS
+======================
+
+Add:
+
+* favicon.ico
+* 32x32 favicon
+* 16x16 favicon
+* apple-touch-icon
+* Android/PWA icons
+
+Ensure icons display correctly in:
+
+* Safari
+* Chrome
+* iPhone
+* Android
+* browser tabs
+* home screen installs
+
+========================================
+3. SHARE PREVIEW IMAGE
+======================
+
+Create a polished share-preview image.
+
+Style:
+
+* TreasureTrail branding
+* marketplace/treasure-hunting aesthetic
+* modern mobile-app appearance
+
+Recommended size:
+1200x630
+
+Include:
+
+* logo
+* tagline
+* clean visual layout
+
+========================================
+4. LOADING STATES
+=================
+
+Replace abrupt blank loading behavior.
+
+Add:
+
+* skeleton loaders
+* shimmer placeholders
+* smooth loading transitions
+* image fade-ins
+
+For:
+
+* Home Feed
+* Marketplace cards
+* Rare Radar
+* Live Events
+* detail modals
+
+========================================
+5. EMPTY STATE POLISH
+=====================
+
+Improve empty states throughout the app.
+
+Examples:
+
+* "No marketplace finds yet"
+* "No nearby events yet"
+* "Be the first to post a Rare Radar request"
+
+Add:
+
+* icons/illustrations
+* clean spacing
+* onboarding guidance
+
+NO fake content.
+
+========================================
+6. PROFILE POLISH
+=================
+
+Improve Profile page professionalism.
+
+Add:
+
+* cleaner layout
+* consistent spacing
+* polished avatar handling
+* marketplace/sourcing identity feel
+
+Display:
+
+* member since
+* scout status
+* saved finds count
+* marketplace activity
+* recent uploads
+
+No fake stats.
+
+========================================
+7. TRUST INDICATORS
+===================
+
+Add lightweight trust systems.
+
+Examples:
+
+* Verified Seller
+* Trusted Scout
+* Shipping Available
+* Local Pickup
+* Identity Verified
+
+These should be visually subtle and professional.
+
+========================================
+8. CONSISTENT BADGE SYSTEM
+==========================
+
+Standardize badge styles across:
+
+* marketplace cards
+* Home Feed
+* Rare Radar
+* Live Events
+* detail views
+
+Badge categories:
+
+* Marketplace
+* Scout Needed
+* Shipping
+* Pickup
+* Event Type
+* Verified
+
+========================================
+9. MOBILE UX REFINEMENT
+=======================
+
+Improve:
+
+* spacing
+* touch targets
+* modal transitions
+* feed scrolling
+* keyboard handling
+* image loading
+* sticky headers/search bars
+
+Ensure:
+
+* no horizontal overflow
+* no clipped cards
+* smooth interaction flow
+
+========================================
+10. CACHE + DEPLOYMENT FIXES
+============================
+
+Fix stale deployment issues.
+
+Implement:
+
+* proper cache busting
+* service worker update handling
+* versioned assets
+* deployment refresh detection
+
+Users should receive new deployments automatically without manually clearing cache.
+
+========================================
+11. ERROR STATES
+================
+
+Improve user-facing error handling.
+
+Replace:
+
+* raw technical errors
+* blank screens
+* silent failures
+
+With:
+
+* readable messages
+* retry buttons
+* graceful fallbacks
+
+========================================
+12. IMAGE OPTIMIZATION
+======================
+
+Improve image handling:
+
+* compression before upload
+* lazy loading
+* placeholders
+* fade-in loading
+* failed image fallback
+
+========================================
+13. VISUAL CONSISTENCY
+======================
+
+Audit:
+
+* fonts
+* spacing
+* button styles
+* card shadows
+* modal layouts
+* chip styles
+* icon sizing
+
+Ensure the app feels visually unified.
+
+========================================
+14. ONBOARDING POLISH
+=====================
+
+Refine onboarding/login/signup flow.
+
+Goal:
+TreasureTrail should immediately communicate:
+
+* treasure hunting
+* marketplace discovery
+* auctions
+* scouts
+* sourcing intelligence
+
+without feeling cluttered.
+
+========================================
+15. FINAL QA
+============
+
+Verify:
+
+* share previews work in iMessage/social apps
+* favicon/icons display correctly
+* loading states smooth
+* no fake content
+* mobile UX polished
+* profile page professional
+* deployment updates reliable
+* no dead buttons
+* TypeScript clean
+* no console errors
+* republish after completion

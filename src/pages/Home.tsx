@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
 import type { CommunityPost } from '../lib/supabase';
+import { SkeletonList } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
 
 type FilterId =
   | 'all'
@@ -578,24 +580,35 @@ export default function Home() {
         )}
 
         {loading && (
-          <div style={styles.emptyState}>
-            <p style={styles.emptyText}>Loading the latest finds…</p>
-          </div>
+          <SkeletonList count={3} />
         )}
 
-        {!loading && orderedItems.length === 0 && (
-          <div style={styles.emptyState}>
-            <p style={styles.emptyTitle}>Nothing matches those filters</p>
-            <p style={styles.emptyText}>
-              {activeFilter === 'all'
-                ? 'Try clearing your location filter to see more finds.'
-                : 'Try a different category or clear your filters.'}
-            </p>
-            <button onClick={() => { setActiveFilter('all'); setLocationQuery(''); setSearchQuery(''); setActiveSort('newest'); }} style={styles.emptyBtn}>
-              Reset Filters
-            </button>
-          </div>
-        )}
+        {!loading && orderedItems.length === 0 && (() => {
+          const isTrulyEmpty = activeFilter === 'all' && !searchQuery && !locationQuery;
+          return (
+            <EmptyState
+              icon={Search}
+              title={isTrulyEmpty ? 'No finds yet' : 'Nothing matches those filters'}
+              body={
+                isTrulyEmpty
+                  ? 'Be the first to share a find — your post will appear in the feed for the whole TreasureTrail community.'
+                  : activeFilter === 'all'
+                    ? 'Try clearing your location filter to see more finds.'
+                    : 'Try a different category or clear your filters.'
+              }
+              action={
+                isTrulyEmpty ? undefined : (
+                  <button
+                    onClick={() => { setActiveFilter('all'); setLocationQuery(''); setSearchQuery(''); setActiveSort('newest'); }}
+                    style={styles.emptyBtn}
+                  >
+                    Reset Filters
+                  </button>
+                )
+              }
+            />
+          );
+        })()}
 
         {orderedItems.map((item, index) => {
           const isHL = item.id === highlightId;
