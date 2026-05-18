@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#0f1419"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#f97316"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="960" cy="315" r="380" fill="url(#glow)"/>
+  <g transform="translate(110 175)">
+    <rect width="180" height="180" rx="40" fill="url(#brand)"/>
+    <path d="M90 34c-22 0-40 18-40 40 0 30 40 74 40 74s40-44 40-74c0-22-18-40-40-40zm0 54a14 14 0 1 1 0-28 14 14 0 0 1 0 28z" fill="#ffffff"/>
+  </g>
+  <text x="320" y="290" font-family="Inter, -apple-system, system-ui, sans-serif" font-size="92" font-weight="700" fill="#ffffff" letter-spacing="-2">TreasureTrail</text>
+  <text x="320" y="350" font-family="Inter, -apple-system, system-ui, sans-serif" font-size="34" font-weight="500" fill="#eab308">Every find tells a story</text>
+  <text x="110" y="500" font-family="Inter, -apple-system, system-ui, sans-serif" font-size="26" font-weight="400" fill="#9ca3af">Discover yard sales, estate sales, auctions, rare finds &amp; reseller deals</text>
+  <g transform="translate(110 540)" font-family="Inter, -apple-system, system-ui, sans-serif" font-size="22" font-weight="600" fill="#f97316">
+    <text x="0" y="20">Flash Finds</text>
+    <text x="170" y="20">·</text>
+    <text x="190" y="20">Rare Radar</text>
+    <text x="360" y="20">·</text>
+    <text x="380" y="20">Scout Map</text>
+    <text x="540" y="20">·</text>
+    <text x="560" y="20">Live Auctions</text>
+  </g>
+</svg>

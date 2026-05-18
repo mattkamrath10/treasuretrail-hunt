@@ -1,0 +1,165 @@
+Fix TreasureTrail website metadata, social previews, app icons, and rich link sharing so links display properly in iMessage, Safari, social media, and messaging apps.
+
+========================================
+
+1. CURRENT PROBLEM
+   ========================================
+
+When TreasureTrail links are texted/shared:
+
+* no logo appears
+* no rich preview appears
+* no website card appears
+* no app branding appears
+
+The link displays as a plain/basic URL.
+
+========================================
+2. ADD PROPER FAVICON SUPPORT
+=============================
+
+Add:
+
+* favicon.ico
+* favicon-32x32.png
+* favicon-16x16.png
+
+Ensure favicon loads correctly across:
+
+* Safari
+* Chrome
+* iPhone
+* Android
+* desktop browsers
+
+========================================
+3. ADD APPLE TOUCH ICON
+=======================
+
+Add:
+apple-touch-icon.png
+
+Used for:
+
+* iPhone home screen
+* Safari pinned tabs
+* iMessage previews
+* Apple sharing previews
+
+Recommended size:
+180x180
+
+========================================
+4. ADD OPEN GRAPH META TAGS
+===========================
+
+Add full Open Graph metadata to the app <head>.
+
+Include:
+
+og:title
+TreasureTrail
+
+og:description
+Discover hidden treasures, auctions, yard sales, estate sales, rare finds, scouts, and reseller opportunities.
+
+og:image
+(publicly accessible preview image)
+
+og:url
+https://treasuretrail-hunt.com
+
+og:type
+website
+
+========================================
+5. ADD TWITTER/X META TAGS
+==========================
+
+Add:
+twitter:card
+twitter:title
+twitter:description
+twitter:image
+
+========================================
+6. CREATE SHARE PREVIEW IMAGE
+=============================
+
+Create a proper social/share preview image.
+
+Recommended:
+
+* TreasureTrail logo
+* dark/light branded background
+* tagline
+* visually polished marketplace aesthetic
+
+Recommended size:
+1200x630
+
+========================================
+7. ADD WEB APP MANIFEST
+=======================
+
+Ensure manifest.json includes:
+
+* app name
+* short name
+* theme color
+* background color
+* app icons
+
+========================================
+8. VERIFY PUBLIC ACCESSIBILITY
+==============================
+
+Ensure:
+
+* favicon
+* OG image
+* touch icon
+
+are all publicly accessible URLs.
+
+========================================
+9. MOBILE SHARE TESTING
+=======================
+
+Verify previews work in:
+
+* iMessage
+* Safari
+* Facebook
+* Discord
+* X/Twitter
+* Slack
+* Messenger
+
+========================================
+10. BRANDING GOAL
+=================
+
+TreasureTrail links should feel like:
+
+* a real mobile marketplace platform
+* a polished reseller app
+* a professional startup
+
+NOT:
+
+* a plain unfinished URL
+
+========================================
+11. FINAL QA
+============
+
+Verify:
+
+* logo appears when links are texted
+* iMessage preview works
+* favicon appears in browser tabs
+* social previews render correctly
+* mobile app icons display properly
+* no broken image URLs
+* deploy after completion
