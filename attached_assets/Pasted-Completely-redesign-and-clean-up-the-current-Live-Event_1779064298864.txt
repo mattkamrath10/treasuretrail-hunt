@@ -1,0 +1,189 @@
+Completely redesign and clean up the current "Live Events" page.
+
+========================================
+REMOVE ALL FAKE/MOCK CONTENT
+============================
+
+Delete ALL hardcoded/demo/fake content including:
+
+* fake event listings
+* fake usernames
+* fake hosts
+* fake attendee counts
+* fake team members/story circles at the top
+* fake missions
+* fake squads
+* fake battles
+* fake rankings
+* any placeholder/demo cards
+
+The page must pull ONLY from Supabase real data.
+
+If there is no real data:
+
+* show proper empty states
+* encourage users to upload auctions/events
+
+========================================
+TOP HEADER CLEANUP
+==================
+
+Remove:
+
+* all circular user/team icons at the top
+* fake member initials
+* fake social/team system
+
+Replace the top area with:
+
+* page title:
+  "Auction Radar"
+  OR
+  "Live Auctions"
+
+and a short subtitle:
+"Discover auctions, estate sales, yard sales, and live sourcing opportunities."
+
+========================================
+REPLACE THE 4 TOP BUTTONS
+=========================
+
+Current buttons:
+
+* Missions
+* Squads
+* Battles
+* Ranks
+
+Replace with:
+
+1. Auctions
+   Icon: gavel or hammer
+   Description:
+   Live and upcoming auctions
+
+2. Estate Sales
+   Icon: house/building
+   Description:
+   Browse estate liquidation events
+
+3. Yard Sales
+   Icon: map pin or garage
+   Description:
+   Local garage and yard sales
+
+4. Upload Event
+   Icon: plus/upload
+   Description:
+   Users can submit auctions or sourcing events
+
+========================================
+UPLOAD EVENT FUNCTION
+=====================
+
+The Upload Event button should:
+
+* open a modal or sheet
+* allow users to submit:
+
+  * title
+  * platform/source
+  * date/time
+  * location
+  * shipping available toggle
+  * scout needed toggle
+  * category
+  * external URL
+  * image URL
+
+Save into Supabase external_listings/events table.
+
+========================================
+EVENT FEED REBUILD
+==================
+
+Replace fake listings with:
+
+* real Supabase event data only
+
+Supported event types:
+
+* auctions
+* Whatnot streams
+* estate sales
+* yard sales
+* HiBid auctions
+* Poshmark live shows
+* flea markets
+* storage auctions
+
+Requirements:
+
+* dynamic cards
+* proper empty states
+* category filtering
+* live/upcoming labels
+* mobile optimized
+
+========================================
+REMOVE GAMIFICATION
+===================
+
+Delete ALL remaining:
+
+* rankings
+* battle systems
+* team systems
+* fake social mechanics
+* fake hunter progression
+* fake streak systems
+
+This page should feel like:
+
+* a live sourcing radar
+* reseller intelligence feed
+* auction discovery platform
+
+NOT a game.
+
+========================================
+ADD FILTER CHIPS
+================
+
+Add chips for:
+
+* All
+* Auctions
+* Estate Sales
+* Yard Sales
+* Whatnot
+* Poshmark
+* Flea Markets
+* Storage Auctions
+
+These must filter real Supabase data.
+
+========================================
+EMPTY STATES
+============
+
+If no events exist:
+Show:
+"No live sourcing events yet."
+and:
+"Be the first to upload an auction, estate sale, or yard sale."
+
+========================================
+FINAL CLEANUP
+=============
+
+Make sure:
+
+* no fake content remains anywhere on this page
+* no hardcoded arrays remain
+* all listings are database-driven
+* all buttons function
+* upload flow works
+* mobile layout remains clean
+
+Republish after completion.

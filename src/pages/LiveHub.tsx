@@ -1,503 +1,555 @@
 import { useState, useEffect } from 'react';
 import {
-  ArrowLeft, Target, Zap, Users, Clock, Star,
-  MapPin, Crown, Shield, Award, TrendingUp, Play, Lock,
-  ChevronRight, Eye,
+  ArrowLeft, Gavel, Home, MapPin, Plus, X, Clock, ExternalLink,
+  Upload, ToggleLeft, ToggleRight, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
-import { TreasureChestLogo } from '../components/TreasureChestLogo';
 
-type HubView = 'main' | 'missions' | 'events' | 'activity';
-
-interface Mission {
+interface ExternalListing {
   id: string;
+  platform: string;
+  listing_type: string;
+  external_url: string;
   title: string;
-  description: string;
-  type: string;
-  rarity: string;
-  xp_reward: number;
-  coin_reward: number;
-  difficulty: string;
-  category: string;
-  region: string;
-  participant_count: number;
-  total_steps: number;
-  ends_at: string | null;
-  status: string;
-  rarity_multiplier: number;
-  pro_exclusive: boolean;
-}
-
-interface LiveEvent {
-  id: string;
-  title: string;
-  description: string;
-  type: string;
+  price_display: string | null;
+  category: string | null;
   image_url: string | null;
-  region: string;
-  starts_at: string;
   ends_at: string | null;
-  participant_count: number;
-  rarity_boost: number;
-  reward_tier: string;
-  reward_xp: number;
+  scout_needed: boolean;
+  ships_available: boolean;
   status: string;
-  featured: boolean;
-  pro_exclusive: boolean;
-}
-
-interface ActivityEntry {
-  id: string;
-  activity_type: string;
-  content: string;
-  region: string;
-  rarity_level: string;
   created_at: string;
 }
 
-export default function LiveHub({ onBack }: { onBack: () => void }) {
-  const [view, setView] = useState<HubView>('main');
+type FilterKey = 'all' | 'auctions' | 'estate' | 'yard' | 'whatnot' | 'poshmark' | 'flea' | 'storage';
 
-  if (view === 'main') return <MainHub onBack={onBack} onNavigate={setView} />;
-  if (view === 'missions') return <MissionsView onBack={() => setView('main')} />;
-  if (view === 'events') return <EventsView onBack={() => setView('main')} />;
-  if (view === 'activity') return <ActivityView onBack={() => setView('main')} />;
-  return <MainHub onBack={onBack} onNavigate={setView} />;
-}
-
-function MainHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v: HubView) => void }) {
-  const { profile } = useAuth();
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [events, setEvents] = useState<LiveEvent[]>([]);
-  const [activity, setActivity] = useState<ActivityEntry[]>([]);
-
-  useEffect(() => {
-    supabase.from('hunt_missions').select('*').eq('status', 'active').order('ends_at', { ascending: true }).limit(3).then(({ data }) => {
-      if (data) setMissions(data);
-    });
-    supabase.from('live_events').select('*').in('status', ['active', 'upcoming']).order('starts_at', { ascending: true }).limit(2).then(({ data }) => {
-      if (data) setEvents(data);
-    });
-    supabase.from('live_activity_feed').select('*').order('created_at', { ascending: false }).limit(5).then(({ data }) => {
-      if (data) setActivity(data);
-    });
-  }, []);
-
-  return (
-    <div style={st.container}>
-      <header style={st.header}>
-        <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
-        <span style={st.headerTitle}>Live Hub</span>
-        <div style={st.xpPill}><Zap size={10} style={{ color: 'var(--color-primary-700)' }} /><span style={st.xpText}>{profile?.xp || 0} XP</span></div>
-      </header>
-
-      <div style={st.scrollContent}>
-        {/* Live pulse banner */}
-        <div style={st.liveBanner}>
-          <div style={st.liveDot} />
-          <span style={st.liveText}>{events.length > 0 ? `${events.filter(e => e.status === 'active').length} events active now` : 'Live hub — missions and events'}</span>
-        </div>
-
-        {/* Quick nav */}
-        <div style={st.quickNav}>
-          <button onClick={() => onNavigate('missions')} style={st.qnBtn}>
-            <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-primary-50)' }}><Target size={18} style={{ color: 'var(--color-primary-600)' }} /></div>
-            <span style={st.qnLabel}>Missions</span>
-          </button>
-          <button onClick={() => onNavigate('events')} style={st.qnBtn}>
-            <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-error-50)' }}><Play size={18} style={{ color: 'var(--color-error-500)' }} /></div>
-            <span style={st.qnLabel}>Events</span>
-          </button>
-          <button onClick={() => onNavigate('activity')} style={st.qnBtn}>
-            <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-success-50)' }}><TrendingUp size={18} style={{ color: 'var(--color-success-500)' }} /></div>
-            <span style={st.qnLabel}>Activity</span>
-          </button>
-        </div>
-
-        {/* Active missions preview */}
-        <div style={st.section}>
-          <div style={st.sectionRow}>
-            <h3 style={st.sectionTitle}>Active Missions</h3>
-            <button onClick={() => onNavigate('missions')} style={st.seeAll}><span style={st.seeAllText}>See All</span><ChevronRight size={12} style={{ color: 'var(--color-primary-600)' }} /></button>
-          </div>
-          {missions.map((m) => <MissionCard key={m.id} mission={m} compact />)}
-        </div>
-
-        {/* Featured events */}
-        <div style={st.section}>
-          <div style={st.sectionRow}>
-            <h3 style={st.sectionTitle}>Live Events</h3>
-            <button onClick={() => onNavigate('events')} style={st.seeAll}><span style={st.seeAllText}>See All</span><ChevronRight size={12} style={{ color: 'var(--color-primary-600)' }} /></button>
-          </div>
-          {events.map((e) => <EventCard key={e.id} event={e} />)}
-        </div>
-
-        {/* Activity stream */}
-        <div style={st.section}>
-          <div style={st.sectionRow}>
-            <h3 style={st.sectionTitle}>Live Activity</h3>
-            <button onClick={() => onNavigate('activity')} style={st.seeAll}><span style={st.seeAllText}>See All</span><ChevronRight size={12} style={{ color: 'var(--color-primary-600)' }} /></button>
-          </div>
-          <div style={st.activityStream}>
-            {activity.map((a) => <ActivityRow key={a.id} entry={a} />)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const HUB_LEVELS = [
-  { name: 'Rookie Hunter', minXp: 0, maxXp: 500 },
-  { name: 'Treasure Scout', minXp: 500, maxXp: 1500 },
-  { name: 'Elite Picker', minXp: 1500, maxXp: 4000 },
-  { name: 'Master Collector', minXp: 4000, maxXp: 8000 },
-  { name: 'Legendary Hunter', minXp: 8000, maxXp: 15000 },
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'auctions', label: 'Auctions' },
+  { key: 'estate', label: 'Estate Sales' },
+  { key: 'yard', label: 'Yard Sales' },
+  { key: 'whatnot', label: 'Whatnot' },
+  { key: 'poshmark', label: 'Poshmark' },
+  { key: 'flea', label: 'Flea Markets' },
+  { key: 'storage', label: 'Storage' },
 ];
-function getHubLevel(xp: number) {
-  const level = HUB_LEVELS.find((l) => xp >= l.minXp && xp < l.maxXp) || HUB_LEVELS[HUB_LEVELS.length - 1];
-  const progress = Math.min(((xp - level.minXp) / (level.maxXp - level.minXp)) * 100, 100);
-  const xpToNext = Math.max(level.maxXp - xp, 0);
-  return { name: level.name, progress, xpToNext };
+
+const PLATFORM_COLORS: Record<string, string> = {
+  whatnot: '#FF5C00',
+  poshmark: '#C13584',
+  ebay: '#E53238',
+  hibid: '#1A3668',
+  maxsold: '#007A74',
+  estatesales: '#7B4F2E',
+  facebook: '#1877F2',
+  other: '#6B7280',
+};
+
+const LISTING_TYPE_LABELS: Record<string, string> = {
+  live_stream: 'Live Stream',
+  auction: 'Auction',
+  estate_sale: 'Estate Sale',
+  yard_sale: 'Yard Sale',
+  flea_market: 'Flea Market',
+  storage_auction: 'Storage Auction',
+  fixed_price: 'For Sale',
+};
+
+function applyFilter(listings: ExternalListing[], filter: FilterKey): ExternalListing[] {
+  switch (filter) {
+    case 'auctions': return listings.filter((l) => l.listing_type === 'auction' || l.listing_type === 'live_stream');
+    case 'estate': return listings.filter((l) => l.listing_type === 'estate_sale');
+    case 'yard': return listings.filter((l) => l.listing_type === 'yard_sale');
+    case 'whatnot': return listings.filter((l) => l.platform === 'whatnot');
+    case 'poshmark': return listings.filter((l) => l.platform === 'poshmark');
+    case 'flea': return listings.filter((l) => l.listing_type === 'flea_market');
+    case 'storage': return listings.filter((l) => l.listing_type === 'storage_auction');
+    default: return listings;
+  }
 }
 
-function MissionsView({ onBack }: { onBack: () => void }) {
-  const { profile } = useAuth();
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [filter, setFilter] = useState('all');
+export default function LiveHub({ onBack }: { onBack: () => void }) {
+  const { user } = useAuth();
+  const [listings, setListings] = useState<ExternalListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [showUpload, setShowUpload] = useState(false);
+
+  const fetchListings = () => {
+    setLoading(true);
+    supabase
+      .from('external_listings')
+      .select('*')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        if (data) setListings(data as ExternalListing[]);
+        setLoading(false);
+      });
+  };
 
   useEffect(() => {
-    supabase.from('hunt_missions').select('*').eq('status', 'active').order('ends_at', { ascending: true }).then(({ data }) => {
-      if (data) setMissions(data);
-    });
+    fetchListings();
   }, []);
 
-  const filtered = filter === 'all' ? missions : missions.filter((m) => m.type === filter);
-  const filters = ['all', 'daily', 'weekly', 'seasonal', 'limited', 'team'];
-  const xp = profile?.xp ?? 0;
-  const { name: levelName, progress: levelProgress, xpToNext } = getHubLevel(xp);
+  const filtered = applyFilter(listings, filter);
+  const liveCount = listings.filter((l) => l.listing_type === 'live_stream').length;
 
   return (
     <div style={st.container}>
+      {/* Header */}
       <header style={st.header}>
         <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
-        <span style={st.headerTitle}>Hunt Missions</span>
-        <div style={{ width: 36 }} />
+        <div style={st.headerCenter}>
+          <span style={st.headerTitle}>Auction Radar</span>
+          {liveCount > 0 && (
+            <span style={st.liveChip}>
+              <span style={st.liveDot} />
+              {liveCount} LIVE
+            </span>
+          )}
+        </div>
+        <button onClick={() => setShowUpload(true)} style={st.uploadBtn} aria-label="Upload event">
+          <Plus size={18} style={{ color: 'var(--color-primary-600)' }} />
+        </button>
       </header>
 
-      <div style={st.scrollContent}>
-        {/* Level progress */}
-        <div style={st.levelBanner}>
-          <TreasureChestLogo size={28} glow />
-          <div style={st.levelInfo}>
-            <span style={st.levelTitle}>{levelName}</span>
-            <div style={st.levelBar}><div style={{ ...st.levelFill, width: `${levelProgress}%` }} /></div>
-            <span style={st.levelSub}>{xpToNext > 0 ? `${xpToNext.toLocaleString()} XP to next level` : 'Max level reached'}</span>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div style={st.filterRow}>
-          {filters.map((f) => (
-            <button key={f} onClick={() => setFilter(f)} style={{ ...st.filterChip, ...(filter === f ? st.filterActive : {}) }}>
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        {/* Mission list */}
-        {filtered.map((m) => <MissionCard key={m.id} mission={m} />)}
+      {/* Subtitle */}
+      <div style={st.subtitle}>
+        <span style={st.subtitleText}>Discover auctions, estate sales, yard sales, and live sourcing opportunities.</span>
       </div>
-    </div>
-  );
-}
 
-function EventsView({ onBack }: { onBack: () => void }) {
-  const [events, setEvents] = useState<LiveEvent[]>([]);
+      {/* Quick nav */}
+      <div style={st.quickNav}>
+        <button onClick={() => setFilter('auctions')} style={{ ...st.qnBtn, ...(filter === 'auctions' ? st.qnBtnActive : {}) }}>
+          <div style={{ ...st.qnIcon, backgroundColor: filter === 'auctions' ? 'var(--color-primary-100)' : 'var(--color-primary-50)' }}>
+            <Gavel size={18} style={{ color: 'var(--color-primary-600)' }} />
+          </div>
+          <span style={st.qnLabel}>Auctions</span>
+          <span style={st.qnSub}>Live &amp; upcoming</span>
+        </button>
+        <button onClick={() => setFilter('estate')} style={{ ...st.qnBtn, ...(filter === 'estate' ? st.qnBtnActive : {}) }}>
+          <div style={{ ...st.qnIcon, backgroundColor: filter === 'estate' ? 'var(--color-accent-100)' : 'var(--color-accent-50)' }}>
+            <Home size={18} style={{ color: 'var(--color-accent-600)' }} />
+          </div>
+          <span style={st.qnLabel}>Estate Sales</span>
+          <span style={st.qnSub}>Liquidation events</span>
+        </button>
+        <button onClick={() => setFilter('yard')} style={{ ...st.qnBtn, ...(filter === 'yard' ? st.qnBtnActive : {}) }}>
+          <div style={{ ...st.qnIcon, backgroundColor: filter === 'yard' ? 'var(--color-success-100)' : 'var(--color-success-50)' }}>
+            <MapPin size={18} style={{ color: 'var(--color-success-600)' }} />
+          </div>
+          <span style={st.qnLabel}>Yard Sales</span>
+          <span style={st.qnSub}>Local &amp; nearby</span>
+        </button>
+        <button onClick={() => setShowUpload(true)} style={st.qnBtn}>
+          <div style={{ ...st.qnIcon, backgroundColor: 'var(--color-secondary-50)' }}>
+            <Upload size={18} style={{ color: 'var(--color-secondary-600)' }} />
+          </div>
+          <span style={st.qnLabel}>Upload</span>
+          <span style={st.qnSub}>Add an event</span>
+        </button>
+      </div>
 
-  useEffect(() => {
-    supabase.from('live_events').select('*').in('status', ['active', 'upcoming']).order('starts_at', { ascending: true }).then(({ data }) => {
-      if (data) setEvents(data);
-    });
-  }, []);
+      {/* Filter chips */}
+      <div style={st.filterRow}>
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            style={{ ...st.chip, ...(filter === f.key ? st.chipActive : {}) }}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
-  const active = events.filter((e) => e.status === 'active');
-  const upcoming = events.filter((e) => e.status === 'upcoming');
-
-  return (
-    <div style={st.container}>
-      <header style={st.header}>
-        <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
-        <span style={st.headerTitle}>Live Events</span>
-        <div style={{ width: 36 }} />
-      </header>
-
-      <div style={st.scrollContent}>
-        {active.length > 0 && (
-          <div style={st.section}>
-            <div style={st.sectionRow}>
-              <div style={st.liveDot} />
-              <h3 style={st.sectionTitle}>Happening Now</h3>
-            </div>
-            {active.map((e) => <EventCard key={e.id} event={e} />)}
+      {/* Feed */}
+      <div style={st.feed}>
+        {loading && (
+          <div style={st.emptyState}>
+            <p style={st.emptyText}>Loading sourcing events...</p>
           </div>
         )}
 
-        <div style={st.section}>
-          <h3 style={st.sectionTitle}>Upcoming</h3>
-          {upcoming.map((e) => <EventCard key={e.id} event={e} />)}
-        </div>
+        {!loading && filtered.length === 0 && (
+          <div style={st.emptyState}>
+            <Gavel size={36} style={{ color: 'var(--color-neutral-200)', marginBottom: '12px' }} />
+            <p style={st.emptyTitle}>No live sourcing events yet</p>
+            <p style={st.emptyText}>Be the first to upload an auction, estate sale, or yard sale.</p>
+            <button onClick={() => setShowUpload(true)} style={st.emptyBtn}>
+              <Plus size={14} />
+              Upload an Event
+            </button>
+          </div>
+        )}
+
+        {!loading && filtered.map((listing) => (
+          <ListingCard key={listing.id} listing={listing} />
+        ))}
       </div>
+
+      {/* Upload modal */}
+      {showUpload && (
+        <UploadModal
+          userId={user?.id}
+          onClose={() => setShowUpload(false)}
+          onSuccess={() => { setShowUpload(false); fetchListings(); }}
+        />
+      )}
     </div>
   );
 }
 
+function ListingCard({ listing }: { listing: ExternalListing }) {
+  const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
+  const platformLabel = listing.platform.charAt(0).toUpperCase() + listing.platform.slice(1);
+  const typeLabel = LISTING_TYPE_LABELS[listing.listing_type] ?? listing.listing_type;
+  const isLive = listing.listing_type === 'live_stream';
 
-function ActivityView({ onBack }: { onBack: () => void }) {
-  const [entries, setEntries] = useState<ActivityEntry[]>([]);
-
-  useEffect(() => {
-    supabase.from('live_activity_feed').select('*').order('created_at', { ascending: false }).limit(25).then(({ data }) => {
-      if (data) setEntries(data);
-    });
-  }, []);
-
-  return (
-    <div style={st.container}>
-      <header style={st.header}>
-        <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
-        <span style={st.headerTitle}>Live Activity</span>
-        <div style={st.liveDot} />
-      </header>
-
-      <div style={st.scrollContent}>
-        <div style={st.activityStream}>
-          {entries.map((a) => <ActivityRow key={a.id} entry={a} />)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// Shared components
-
-function MissionCard({ mission, compact }: { mission: Mission; compact?: boolean }) {
-  const { requireAuth } = useGuestAction();
-  const rarityColors: Record<string, string> = { common: 'var(--color-neutral-500)', rare: 'var(--color-primary-500)', epic: 'var(--color-secondary-500)', legendary: 'var(--color-warning-500)' };
-  const rarityBg: Record<string, string> = { common: 'var(--color-neutral-50)', rare: 'var(--color-primary-50)', epic: 'var(--color-secondary-50)', legendary: 'var(--color-warning-50)' };
-  const difficultyColors: Record<string, string> = { easy: 'var(--color-success-600)', medium: 'var(--color-warning-600)', hard: 'var(--color-error-500)', expert: 'var(--color-error-600)' };
-
-  const timeLeft = mission.ends_at ? getCountdown(mission.ends_at) : '';
+  const timeInfo = (() => {
+    if (!listing.ends_at) return null;
+    const diff = new Date(listing.ends_at).getTime() - Date.now();
+    if (diff <= 0) return 'Ended';
+    const hours = Math.floor(diff / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    if (hours >= 24) return `Ends in ${Math.floor(hours / 24)}d ${hours % 24}h`;
+    if (hours >= 1) return `Ends in ${hours}h ${mins}m`;
+    return `Ends in ${mins}m`;
+  })();
 
   return (
-    <div style={{ ...st.missionCard, borderLeftColor: rarityColors[mission.rarity] || 'var(--color-neutral-300)' }}>
-      <div style={st.missionTop}>
-        <div style={st.missionTitleRow}>
-          <span style={st.missionTitle}>{mission.title}</span>
-          {mission.pro_exclusive && <Lock size={10} style={{ color: 'var(--color-secondary-500)' }} />}
-        </div>
-        <span style={{ ...st.rarityBadge, color: rarityColors[mission.rarity], backgroundColor: rarityBg[mission.rarity] }}>{mission.rarity}</span>
-      </div>
-
-      {!compact && <p style={st.missionDesc}>{mission.description}</p>}
-
-      <div style={st.missionMeta}>
-        <span style={st.missionMetaItem}><Zap size={10} /> {mission.xp_reward} XP</span>
-        {mission.rarity_multiplier > 1 && <span style={st.missionMultiplier}>{mission.rarity_multiplier}x</span>}
-        <span style={{ ...st.missionDiff, color: difficultyColors[mission.difficulty] || 'var(--color-neutral-500)' }}>{mission.difficulty}</span>
-        <span style={st.missionMetaItem}><Users size={10} /> {mission.participant_count}</span>
-      </div>
-
-      <div style={st.missionBottom}>
-        {timeLeft && <span style={st.missionTimer}><Clock size={10} /> {timeLeft}</span>}
-        <span style={st.missionType}>{mission.type}</span>
-        <button onClick={() => requireAuth(() => {})} style={st.joinMissionBtn}><span style={st.joinMissionText}>Join</span></button>
-      </div>
-    </div>
-  );
-}
-
-function EventCard({ event }: { event: LiveEvent }) {
-  const { requireAuth } = useGuestAction();
-  const isLive = event.status === 'active';
-  const tierColors: Record<string, string> = { bronze: 'var(--color-accent-600)', silver: 'var(--color-neutral-500)', gold: 'var(--color-primary-500)', platinum: 'var(--color-secondary-500)', legendary: 'var(--color-warning-500)' };
-
-  return (
-    <div style={st.eventCard}>
-      {event.image_url && (
-        <div style={st.eventImgWrap}>
-          <img src={event.image_url} alt={event.title} style={st.eventImg} />
-          {isLive && <div style={st.eventLiveBadge}><div style={st.eventLiveDot} /><span style={st.eventLiveText}>LIVE</span></div>}
-          {event.pro_exclusive && <div style={st.eventProBadge}><Crown size={8} /> PRO</div>}
-          <div style={st.eventTierBadge}><Star size={8} style={{ color: tierColors[event.reward_tier] }} /><span style={{ ...st.eventTierText, color: tierColors[event.reward_tier] }}>{event.reward_tier}</span></div>
+    <div style={st.card}>
+      {listing.image_url && (
+        <div style={st.cardImgWrap}>
+          <img src={listing.image_url} alt={listing.title} style={st.cardImg} />
+          {isLive && (
+            <span style={st.liveBadge}>
+              <span style={st.liveBadgeDot} />
+              LIVE
+            </span>
+          )}
         </div>
       )}
-      <div style={st.eventInfo}>
-        <span style={st.eventTitle}>{event.title}</span>
-        <div style={st.eventMetaRow}>
-          <span style={st.eventMetaItem}><MapPin size={10} /> {event.region}</span>
-          <span style={st.eventMetaItem}><Users size={10} /> {event.participant_count}</span>
-          <span style={st.eventMetaItem}><Zap size={10} /> {event.reward_xp} XP</span>
+
+      <div style={st.cardBody}>
+        <div style={st.cardTop}>
+          <span style={{ ...st.platformBadge, backgroundColor: `${color}18`, color }}>
+            {platformLabel}
+          </span>
+          <span style={st.typeBadge}>{typeLabel}</span>
+          {listing.price_display && (
+            <span style={st.price}>{listing.price_display}</span>
+          )}
         </div>
-        {event.rarity_boost > 1 && <span style={st.eventBoost}>{event.rarity_boost}x Rarity Boost</span>}
-        <div style={st.eventActions}>
-          <span style={st.eventCountdown}><Clock size={10} /> {isLive ? getCountdown(event.ends_at || '') : `Starts ${getRelativeTime(event.starts_at)}`}</span>
-          <button onClick={() => requireAuth(() => {})} style={st.joinEventBtn}><span style={st.joinEventText}>{isLive ? 'Join Now' : 'Notify Me'}</span></button>
+
+        <p style={st.cardTitle}>{listing.title}</p>
+
+        {listing.category && (
+          <span style={st.categoryTag}>{listing.category}</span>
+        )}
+
+        <div style={st.cardMeta}>
+          {timeInfo && (
+            <span style={st.metaItem}>
+              <Clock size={10} />
+              {timeInfo}
+            </span>
+          )}
+          {listing.scout_needed && (
+            <span style={st.scoutTag}>Scout Needed</span>
+          )}
+          {listing.ships_available && (
+            <span style={st.shipsTag}>Ships</span>
+          )}
+        </div>
+
+        <div style={st.cardActions}>
+          <a
+            href={listing.external_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={st.viewBtn}
+          >
+            <ExternalLink size={12} />
+            View Listing
+          </a>
         </div>
       </div>
     </div>
   );
 }
 
-function ActivityRow({ entry }: { entry: ActivityEntry }) {
-  const typeIcons: Record<string, typeof Star> = { find: Eye, auction: Zap, radar: Target, mission: Award, trending: TrendingUp, event: Play, scout: Shield };
-  const rarityDot: Record<string, string> = { common: 'var(--color-neutral-400)', rare: 'var(--color-primary-500)', epic: 'var(--color-secondary-500)', legendary: 'var(--color-warning-500)' };
-  const Icon = typeIcons[entry.activity_type] || Star;
+interface UploadForm {
+  title: string;
+  platform: string;
+  listing_type: string;
+  external_url: string;
+  price_display: string;
+  category: string;
+  image_url: string;
+  ends_at: string;
+  scout_needed: boolean;
+  ships_available: boolean;
+}
+
+function UploadModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
+  const [form, setForm] = useState<UploadForm>({
+    title: '',
+    platform: 'other',
+    listing_type: 'auction',
+    external_url: '',
+    price_display: '',
+    category: '',
+    image_url: '',
+    ends_at: '',
+    scout_needed: false,
+    ships_available: false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const set = (field: keyof UploadForm, value: string | boolean) =>
+    setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSubmit = async () => {
+    if (!form.title.trim()) { setError('Title is required.'); return; }
+    if (!form.external_url.trim()) { setError('External URL is required.'); return; }
+    setError('');
+    setSaving(true);
+    const payload = {
+      title: form.title.trim(),
+      platform: form.platform,
+      listing_type: form.listing_type,
+      external_url: form.external_url.trim(),
+      price_display: form.price_display.trim() || null,
+      category: form.category.trim() || null,
+      image_url: form.image_url.trim() || null,
+      ends_at: form.ends_at || null,
+      scout_needed: form.scout_needed,
+      ships_available: form.ships_available,
+      status: 'active',
+      submitted_by: userId ?? null,
+    };
+    const { error: err } = await supabase.from('external_listings').insert(payload);
+    setSaving(false);
+    if (err) { setError('Failed to submit. Please try again.'); return; }
+    onSuccess();
+  };
 
   return (
-    <div style={st.actRow}>
-      <div style={{ ...st.actDot, backgroundColor: rarityDot[entry.rarity_level] || 'var(--color-neutral-400)' }} />
-      <Icon size={12} style={{ color: 'var(--color-neutral-400)', flexShrink: 0 }} />
-      <span style={st.actText}>{entry.content}</span>
-      <span style={st.actRegion}>{entry.region}</span>
+    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={mo.sheet}>
+        <div style={mo.handle} />
+        <div style={mo.header}>
+          <span style={mo.title}>Upload an Event</span>
+          <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
+        </div>
+
+        <div style={mo.body}>
+          {/* Title */}
+          <label style={mo.label}>Title <span style={mo.req}>*</span></label>
+          <input
+            style={mo.input}
+            placeholder="e.g. HiBid Estate Auction — Chicago"
+            value={form.title}
+            onChange={(e) => set('title', e.target.value)}
+          />
+
+          {/* Platform + Type row */}
+          <div style={mo.row}>
+            <div style={{ flex: 1 }}>
+              <label style={mo.label}>Platform</label>
+              <div style={mo.selectWrap}>
+                <select style={mo.select} value={form.platform} onChange={(e) => set('platform', e.target.value)}>
+                  <option value="whatnot">Whatnot</option>
+                  <option value="poshmark">Poshmark</option>
+                  <option value="ebay">eBay</option>
+                  <option value="hibid">HiBid</option>
+                  <option value="maxsold">MaxSold</option>
+                  <option value="estatesales">EstateSales.net</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="other">Other</option>
+                </select>
+                <ChevronDown size={13} style={mo.selectIcon} />
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={mo.label}>Type</label>
+              <div style={mo.selectWrap}>
+                <select style={mo.select} value={form.listing_type} onChange={(e) => set('listing_type', e.target.value)}>
+                  <option value="auction">Auction</option>
+                  <option value="live_stream">Live Stream</option>
+                  <option value="estate_sale">Estate Sale</option>
+                  <option value="yard_sale">Yard Sale</option>
+                  <option value="flea_market">Flea Market</option>
+                  <option value="storage_auction">Storage Auction</option>
+                  <option value="fixed_price">For Sale</option>
+                </select>
+                <ChevronDown size={13} style={mo.selectIcon} />
+              </div>
+            </div>
+          </div>
+
+          {/* External URL */}
+          <label style={mo.label}>External URL <span style={mo.req}>*</span></label>
+          <input
+            style={mo.input}
+            placeholder="https://..."
+            value={form.external_url}
+            onChange={(e) => set('external_url', e.target.value)}
+            type="url"
+          />
+
+          {/* Price + Category row */}
+          <div style={mo.row}>
+            <div style={{ flex: 1 }}>
+              <label style={mo.label}>Starting Price</label>
+              <input
+                style={mo.input}
+                placeholder="e.g. $25 or Free"
+                value={form.price_display}
+                onChange={(e) => set('price_display', e.target.value)}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={mo.label}>Category</label>
+              <input
+                style={mo.input}
+                placeholder="e.g. Antiques"
+                value={form.category}
+                onChange={(e) => set('category', e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* End date */}
+          <label style={mo.label}>End Date / Time</label>
+          <input
+            style={mo.input}
+            type="datetime-local"
+            value={form.ends_at}
+            onChange={(e) => set('ends_at', e.target.value)}
+          />
+
+          {/* Image URL */}
+          <label style={mo.label}>Image URL</label>
+          <input
+            style={mo.input}
+            placeholder="https://..."
+            value={form.image_url}
+            onChange={(e) => set('image_url', e.target.value)}
+          />
+
+          {/* Toggles */}
+          <div style={mo.toggleRow}>
+            <div style={mo.toggleItem}>
+              <span style={mo.toggleLabel}>Shipping Available</span>
+              <button onClick={() => set('ships_available', !form.ships_available)} style={mo.toggleBtn}>
+                {form.ships_available
+                  ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} />
+                  : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
+              </button>
+            </div>
+            <div style={mo.toggleItem}>
+              <span style={mo.toggleLabel}>Scout Needed</span>
+              <button onClick={() => set('scout_needed', !form.scout_needed)} style={mo.toggleBtn}>
+                {form.scout_needed
+                  ? <ToggleRight size={28} style={{ color: 'var(--color-warning-500)' }} />
+                  : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
+              </button>
+            </div>
+          </div>
+
+          {error && <p style={mo.errorText}>{error}</p>}
+
+          <button onClick={handleSubmit} disabled={saving} style={{ ...mo.submitBtn, opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Submitting...' : 'Submit Event'}
+          </button>
+        </div>
+      </div>
     </div>
   );
-}
-
-// Helpers
-
-function getCountdown(endStr: string): string {
-  const diff = new Date(endStr).getTime() - Date.now();
-  if (diff <= 0) return 'Ended';
-  const hours = Math.floor(diff / 3600000);
-  const mins = Math.floor((diff % 3600000) / 60000);
-  if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
-  return `${hours}h ${mins}m`;
-}
-
-function getRelativeTime(dateStr: string): string {
-  const diff = new Date(dateStr).getTime() - Date.now();
-  if (diff <= 0) return 'now';
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 24) return `in ${hours}h`;
-  return `in ${Math.floor(hours / 24)}d`;
 }
 
 const st: Record<string, React.CSSProperties> = {
   container: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--color-neutral-0)' },
+
+  // Header
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
   backBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-600)' },
+  headerCenter: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
   headerTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
-  xpPill: { display: 'flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
-  xpText: { fontSize: '10px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-primary-700)' },
-  scrollContent: { flex: 1, overflow: 'auto' },
+  liveChip: { display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-50)', border: '1px solid var(--color-error-200)' },
+  liveDot: { width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-error-500)', animation: 'pulse 2s infinite', flexShrink: 0 },
+  uploadBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' },
 
-  // Live banner
-  liveBanner: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', backgroundColor: 'var(--color-error-50)', borderBottom: '1px solid var(--color-error-100)' },
-  liveDot: { width: '8px', height: '8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-500)', animation: 'pulse 2s infinite', flexShrink: 0 },
-  liveText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-error-700)', fontWeight: 'var(--font-weight-medium)' },
+  // Subtitle
+  subtitle: { padding: '8px var(--space-4) 0', flexShrink: 0 },
+  subtitleText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', lineHeight: 1.4 },
 
   // Quick nav
-  quickNav: { display: 'flex', justifyContent: 'space-around', padding: 'var(--space-4) var(--space-2)', borderBottom: '1px solid var(--color-neutral-50)' },
-  qnBtn: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' },
+  quickNav: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
+  qnBtn: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: 'var(--space-2) var(--space-1)', borderRadius: 'var(--radius-md)', border: '1px solid transparent', transition: 'border-color 0.15s' },
+  qnBtnActive: { border: '1px solid var(--color-primary-200)', backgroundColor: 'var(--color-primary-50)' },
   qnIcon: { width: '40px', height: '40px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  qnLabel: { fontSize: '10px', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-600)' },
+  qnLabel: { fontSize: '10px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-800)', textAlign: 'center' as const },
+  qnSub: { fontSize: '9px', color: 'var(--color-neutral-400)', textAlign: 'center' as const, lineHeight: 1.2 },
 
-  // Sections
-  section: { padding: 'var(--space-4)' },
-  sectionRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)', gap: 'var(--space-2)' },
-  sectionTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-800)' },
-  seeAll: { display: 'flex', alignItems: 'center', gap: '2px' },
-  seeAllText: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-primary-600)' },
+  // Filter chips
+  filterRow: { display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0, borderBottom: '1px solid var(--color-neutral-50)' },
+  chip: { flexShrink: 0, padding: '5px 12px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-neutral-600)', backgroundColor: 'var(--color-neutral-100)', border: '1px solid transparent' },
+  chipActive: { backgroundColor: 'var(--color-primary-600)', color: 'var(--color-neutral-0)', border: '1px solid var(--color-primary-600)' },
 
-  // Mission card
-  missionCard: { padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-100)', borderLeftWidth: '3px', borderLeftStyle: 'solid', marginBottom: 'var(--space-3)' },
-  missionTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' },
-  missionTitleRow: { display: 'flex', alignItems: 'center', gap: '4px' },
-  missionTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
-  missionDesc: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', marginBottom: 'var(--space-2)', lineHeight: '1.4' },
-  rarityBadge: { fontSize: '9px', fontWeight: 'var(--font-weight-bold)', padding: '2px 6px', borderRadius: 'var(--radius-full)', textTransform: 'capitalize' as const },
-  missionMeta: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' },
-  missionMetaItem: { display: 'flex', alignItems: 'center', gap: '2px', fontSize: '10px', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-neutral-600)' },
-  missionMultiplier: { fontSize: '9px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-warning-600)', backgroundColor: 'var(--color-warning-50)', padding: '1px 5px', borderRadius: 'var(--radius-full)' },
-  missionDiff: { fontSize: '9px', fontWeight: 'var(--font-weight-bold)', textTransform: 'capitalize' as const },
-  missionBottom: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
-  missionTimer: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--color-error-600)', fontWeight: 'var(--font-weight-medium)' },
-  missionType: { fontSize: '9px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-500)', backgroundColor: 'var(--color-neutral-100)', padding: '1px 5px', borderRadius: 'var(--radius-full)', textTransform: 'capitalize' as const },
-  joinMissionBtn: { marginLeft: 'auto', padding: '4px 12px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))' },
-  joinMissionText: { fontSize: '10px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-0)' },
+  // Feed
+  feed: { flex: 1, overflowY: 'auto', padding: 'var(--space-3) var(--space-4)' },
+  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '56px 24px', textAlign: 'center' },
+  emptyTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-700)', marginBottom: '6px' },
+  emptyText: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-400)', marginBottom: '20px', lineHeight: 1.5 },
+  emptyBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-600)', color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)' },
 
-  // Event card
-  eventCard: { borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-100)', overflow: 'hidden', marginBottom: 'var(--space-3)' },
-  eventImgWrap: { position: 'relative', height: '100px' },
-  eventImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  eventLiveBadge: { position: 'absolute', top: 'var(--space-2)', left: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-500)' },
-  eventLiveDot: { width: '6px', height: '6px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-neutral-0)' },
-  eventLiveText: { fontSize: '9px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-0)' },
-  eventProBadge: { position: 'absolute', top: 'var(--space-2)', right: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: '2px', padding: '2px 6px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-secondary-500)', color: 'var(--color-neutral-0)', fontSize: '9px', fontWeight: 'var(--font-weight-bold)' },
-  eventTierBadge: { position: 'absolute', bottom: 'var(--space-2)', right: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: '2px', padding: '2px 6px', borderRadius: 'var(--radius-full)', backgroundColor: 'rgba(0,0,0,0.7)' },
-  eventTierText: { fontSize: '9px', fontWeight: 'var(--font-weight-bold)', textTransform: 'capitalize' as const },
-  eventInfo: { padding: 'var(--space-3)' },
-  eventTitle: { display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)', marginBottom: '4px' },
-  eventMetaRow: { display: 'flex', gap: 'var(--space-3)', marginBottom: '4px' },
-  eventMetaItem: { display: 'flex', alignItems: 'center', gap: '2px', fontSize: '10px', color: 'var(--color-neutral-500)' },
-  eventBoost: { fontSize: '9px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-warning-600)', backgroundColor: 'var(--color-warning-50)', padding: '1px 6px', borderRadius: 'var(--radius-full)', display: 'inline-block', marginBottom: '6px' },
-  eventActions: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  eventCountdown: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--color-neutral-500)' },
-  joinEventBtn: { padding: '5px 14px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))' },
-  joinEventText: { fontSize: '10px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-0)' },
+  // Listing card
+  card: { borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-neutral-100)', overflow: 'hidden', marginBottom: 'var(--space-3)', backgroundColor: 'var(--color-neutral-0)' },
+  cardImgWrap: { position: 'relative', height: '160px', backgroundColor: 'var(--color-neutral-50)' },
+  cardImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  liveBadge: { position: 'absolute', top: '10px', left: '10px', display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-500)', color: '#fff', fontSize: '10px', fontWeight: 700 },
+  liveBadgeDot: { width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#fff', animation: 'pulse 1.5s infinite' },
+  cardBody: { padding: 'var(--space-3)' },
+  cardTop: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap' as const },
+  platformBadge: { fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px' },
+  typeBadge: { fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '4px', backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)' },
+  price: { marginLeft: 'auto', fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-success-700)' },
+  cardTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-900)', lineHeight: 1.4, marginBottom: 'var(--space-2)' },
+  categoryTag: { display: 'inline-block', fontSize: '10px', color: 'var(--color-secondary-700)', backgroundColor: 'var(--color-secondary-50)', padding: '2px 7px', borderRadius: '4px', marginBottom: 'var(--space-2)' },
+  cardMeta: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap' as const },
+  metaItem: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--color-neutral-500)' },
+  scoutTag: { fontSize: '10px', fontWeight: 600, color: 'var(--color-warning-700)', backgroundColor: 'var(--color-warning-50)', padding: '2px 7px', borderRadius: '4px' },
+  shipsTag: { fontSize: '10px', fontWeight: 600, color: 'var(--color-success-700)', backgroundColor: 'var(--color-success-50)', padding: '2px 7px', borderRadius: '4px' },
+  cardActions: { display: 'flex', justifyContent: 'flex-end' },
+  viewBtn: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-primary-600)', padding: '6px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', textDecoration: 'none' },
+};
 
-  // Activity
-  activityStream: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' },
-  actRow: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-2) 0', borderBottom: '1px solid var(--color-neutral-50)' },
-  actDot: { width: '6px', height: '6px', borderRadius: 'var(--radius-full)', flexShrink: 0 },
-  actText: { flex: 1, fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-700)', lineHeight: '1.3' },
-  actRegion: { fontSize: '9px', color: 'var(--color-neutral-400)', flexShrink: 0 },
-
-  // Leaderboards
-  tabRow: { display: 'flex', gap: 'var(--space-1)', padding: 'var(--space-3) var(--space-4)', backgroundColor: 'var(--color-neutral-50)' },
-  tabBtn: { flex: 1, padding: 'var(--space-2)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-neutral-500)', textAlign: 'center' },
-  tabActive: { backgroundColor: 'var(--color-neutral-0)', color: 'var(--color-neutral-900)', fontWeight: 'var(--font-weight-bold)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
-  lbList: { padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' },
-  lbRow: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', backgroundColor: 'var(--color-neutral-50)', borderRadius: 'var(--radius-sm)' },
-  lbRank: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', width: '24px' },
-  lbAvatar: { width: '28px', height: '28px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-neutral-200)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  lbAvatarText: { fontSize: '10px', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-600)' },
-  lbInfo: { flex: 1 },
-  lbName: { display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-800)' },
-  lbMeta: { fontSize: '9px', color: 'var(--color-neutral-500)' },
-  lbScore: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-700)' },
-
-  // Level banner
-  levelBanner: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)', margin: 'var(--space-4)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--color-primary-50), var(--color-accent-50))', border: '1px solid var(--color-primary-100)' },
-  levelInfo: { flex: 1 },
-  levelTitle: { display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)', marginBottom: '4px' },
-  levelBar: { height: '6px', backgroundColor: 'var(--color-primary-200)', borderRadius: 'var(--radius-full)', overflow: 'hidden', marginBottom: '4px' },
-  levelFill: { height: '100%', background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-600))', borderRadius: 'var(--radius-full)' },
-  levelSub: { fontSize: '10px', color: 'var(--color-neutral-500)' },
-
-  // Filters
-  filterRow: { display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4)', overflow: 'auto', borderBottom: '1px solid var(--color-neutral-50)' },
-  filterChip: { padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)', whiteSpace: 'nowrap', flexShrink: 0 },
-  filterActive: { backgroundColor: 'var(--color-neutral-900)', color: 'var(--color-neutral-0)' },
-
-  // Clubs
-  seasonBanner: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4)', backgroundColor: 'var(--color-warning-50)', borderBottom: '1px solid var(--color-warning-100)' },
-  seasonText: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-warning-700)' },
-  clubRow: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-50)' },
-  clubRank: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', width: '24px' },
-  clubIcon: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  clubIconText: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-bold)' },
-  clubInfo: { flex: 1 },
-  clubName: { display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-800)' },
-  clubMeta: { fontSize: '10px', color: 'var(--color-neutral-500)' },
-  clubXp: { textAlign: 'right' },
-  clubXpVal: { display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-primary-600)' },
-  clubXpLabel: { fontSize: '9px', color: 'var(--color-neutral-400)' },
-  featGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' },
-  featCard: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-3)', backgroundColor: 'var(--color-neutral-50)', borderRadius: 'var(--radius-sm)' },
-  featLabel: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-neutral-700)' },
+const mo: Record<string, React.CSSProperties> = {
+  overlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.48)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' },
+  sheet: { width: '100%', maxHeight: '92vh', backgroundColor: 'var(--color-neutral-0)', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  handle: { width: '36px', height: '4px', borderRadius: '2px', backgroundColor: 'var(--color-neutral-200)', margin: '10px auto 0', flexShrink: 0 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
+  title: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
+  closeBtn: { width: '32px', height: '32px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-500)' },
+  body: { flex: 1, overflowY: 'auto', padding: 'var(--space-4)' },
+  label: { display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-600)', marginBottom: '5px', marginTop: 'var(--space-3)' },
+  req: { color: 'var(--color-error-500)', marginLeft: '2px' },
+  input: { width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)', backgroundColor: 'var(--color-neutral-0)', boxSizing: 'border-box' as const },
+  row: { display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)' },
+  selectWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
+  select: { width: '100%', padding: '9px 28px 9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)', backgroundColor: 'var(--color-neutral-0)', appearance: 'none', boxSizing: 'border-box' as const },
+  selectIcon: { position: 'absolute', right: '8px', color: 'var(--color-neutral-400)', pointerEvents: 'none' },
+  toggleRow: { display: 'flex', gap: 'var(--space-4)', marginTop: 'var(--space-4)' },
+  toggleItem: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)' },
+  toggleLabel: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-700)' },
+  toggleBtn: { background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 },
+  errorText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-error-600)', marginTop: 'var(--space-2)', padding: '8px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-error-50)' },
+  submitBtn: { width: '100%', padding: '13px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', color: '#fff', fontSize: 'var(--font-size-sm)', fontWeight: 700, marginTop: 'var(--space-4)', cursor: 'pointer', transition: 'opacity 0.2s' },
 };
