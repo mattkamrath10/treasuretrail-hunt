@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase';
 import type { CommunityPost } from '../lib/supabase';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Badge, type BadgeVariant } from '../components/ui/Badge';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
 
 type FilterId =
   | 'all'
@@ -125,11 +127,34 @@ function listingTypeFilterId(t: string): FilterId | null {
   return 'marketplace';
 }
 
-function postBadge(p: ExtendedPost): { label: string; bg: string; color: string } | null {
-  if (p.type === 'rare_radar')                          return { label: 'Looking For', bg: 'var(--color-accent-50)',    color: 'var(--color-accent-700)'   };
-  if (p.type === 'flash_find' || p.type === 'find')     return { label: 'Found',       bg: 'var(--color-success-50)',   color: 'var(--color-success-700)'  };
-  if (p.type === 'auction_win')                          return { label: 'Live Event',  bg: 'var(--color-error-50)',     color: 'var(--color-error-600)'    };
+function postBadge(p: ExtendedPost): { label: string; variant: BadgeVariant } | null {
+  if (p.type === 'rare_radar')                          return { label: 'Looking For', variant: 'marketplace' };
+  if (p.type === 'flash_find' || p.type === 'find')     return { label: 'Found',       variant: 'shipping'    };
+  if (p.type === 'auction_win')                          return { label: 'Live Event',  variant: 'event'       };
   return null;
+}
+
+function formatMarketplace(raw?: string | null): string {
+  if (!raw) return '';
+  const map: Record<string, string> = {
+    facebook_marketplace: 'Facebook Marketplace',
+    craigslist: 'Craigslist',
+    offerup: 'OfferUp',
+    ebay: 'eBay',
+    poshmark: 'Poshmark',
+    mercari: 'Mercari',
+    nextdoor: 'Nextdoor',
+    other: 'Other',
+  };
+  return map[raw] ?? raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function ImageFallback({ icon: Icon, size = 32 }: { icon: typeof Bookmark; size?: number }) {
+  return (
+    <div style={{ width: '100%', height: '100%', backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={size} style={{ color: 'var(--color-neutral-300)' }} />
+    </div>
+  );
 }
 
 function openExternalUrl(raw: string | null | undefined): void {
@@ -658,27 +683,20 @@ export default function Home() {
               style={{ ...baseStyle, ...hlStyle }}
             >
               <div style={styles.cardImageContainer}>
-                {p.image_url ? (
-                  <img src={p.image_url} alt={p.caption} style={styles.cardImage} loading="lazy" />
-                ) : (
-                  <div style={{ ...styles.cardImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Bookmark size={32} style={{ color: 'var(--color-neutral-300)' }} />
-                  </div>
-                )}
-                {badge && (
-                  <span style={{ ...styles.hotBadge, backgroundColor: badge.bg, color: badge.color }}>
-                    {badge.label}
-                  </span>
-                )}
-                {p.scout_needed && (
-                  <span style={{ ...styles.hotBadge, top: badge ? 36 : (styles.hotBadge as any).top, backgroundColor: 'var(--color-warning-500)', color: 'white' }}>
-                    Scout Needed
-                  </span>
-                )}
+                <ImageWithFade
+                  src={p.image_url}
+                  alt={p.caption}
+                  style={styles.cardImage}
+                  fallback={<ImageFallback icon={Bookmark} />}
+                />
+                <div style={styles.badgeStack}>
+                  {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
+                  {p.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
+                </div>
                 {p.marketplace_found && (
-                  <span style={styles.priceBadge}>
-                    {p.marketplace_found.replace(/_/g, ' ')}
-                  </span>
+                  <div style={styles.priceBadgeWrap}>
+                    <Badge variant="marketplace">{formatMarketplace(p.marketplace_found)}</Badge>
+                  </div>
                 )}
               </div>
 
@@ -803,25 +821,30 @@ function PostDetailModal({ post, onClose }: { post: ExtendedPost; onClose: () =>
           display: 'flex', flexDirection: 'column',
         }}
       >
-        <div style={{ position: 'relative' }}>
-          {post.image_url ? (
-            <img src={post.image_url} alt={post.caption} style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', display: 'block' }} loading="lazy" />
-          ) : (
-            <div style={{ width: '100%', height: '180px', backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Bookmark size={36} style={{ color: 'var(--color-neutral-300)' }} />
-            </div>
-          )}
+        <div style={{ position: 'relative', width: '100%', minHeight: 200, backgroundColor: 'var(--color-neutral-100)' }}>
+          <ImageWithFade
+            src={post.image_url}
+            alt={post.caption}
+            style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', display: 'block' }}
+            containerStyle={{ height: 'auto', minHeight: 200 }}
+            fallback={
+              <div style={{ width: '100%', height: 200, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Bookmark size={36} style={{ color: 'var(--color-neutral-300)' }} />
+              </div>
+            }
+          />
           <button
             onClick={onClose}
             aria-label="Close"
             style={{
               position: 'absolute', top: 12, right: 12,
-              width: 32, height: 32, borderRadius: '50%',
+              width: 44, height: 44, borderRadius: '50%',
               backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', cursor: 'pointer',
             }}
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
         <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -829,31 +852,11 @@ function PostDetailModal({ post, onClose }: { post: ExtendedPost; onClose: () =>
             {post.caption}
           </h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {post.category && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-secondary-50)', color: 'var(--color-secondary-700)', fontWeight: 600 }}>
-                {post.category}
-              </span>
-            )}
-            {post.marketplace_found && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)', fontWeight: 600 }}>
-                {post.marketplace_found.replace(/_/g, ' ')}
-              </span>
-            )}
-            {post.scout_needed && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-warning-50)', color: 'var(--color-warning-700)', fontWeight: 600 }}>
-                Scout Needed
-              </span>
-            )}
-            {post.type === 'rare_radar' && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)', fontWeight: 600 }}>
-                Looking For
-              </span>
-            )}
-            {(post.type === 'flash_find' || post.type === 'find') && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)', fontWeight: 600 }}>
-                Found
-              </span>
-            )}
+            {post.category && <Badge variant="category">{post.category}</Badge>}
+            {post.marketplace_found && <Badge variant="marketplace">{formatMarketplace(post.marketplace_found)}</Badge>}
+            {post.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
+            {post.type === 'rare_radar' && <Badge variant="marketplace">Looking For</Badge>}
+            {(post.type === 'flash_find' || post.type === 'find') && <Badge variant="shipping">Found</Badge>}
           </div>
           {loc && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)' }}>
@@ -883,27 +886,20 @@ function MarketplaceCard({
   onShare: () => void;
 }) {
   const priceDisplay = typeof listing.price === 'number' ? `$${listing.price.toFixed(2)}` : '';
-  const marketplaceLabel = listing.marketplace_found
-    ? listing.marketplace_found.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-    : 'Marketplace';
+  const marketplaceLabel = formatMarketplace(listing.marketplace_found);
   return (
     <article style={styles.card}>
       <div style={styles.cardImageContainer}>
-        {listing.image_url ? (
-          <img src={listing.image_url} alt={listing.title} style={styles.cardImage} loading="lazy" />
-        ) : (
-          <div style={{ ...styles.cardImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ShoppingBag size={32} style={{ color: 'var(--color-neutral-300)' }} />
-          </div>
-        )}
-        <span style={{ ...styles.hotBadge, backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)' }}>
-          {marketplaceLabel}
-        </span>
-        {listing.scout_needed && (
-          <span style={{ ...styles.hotBadge, top: 36, backgroundColor: 'var(--color-warning-500)', color: 'white' }}>
-            Scout Needed
-          </span>
-        )}
+        <ImageWithFade
+          src={listing.image_url}
+          alt={listing.title}
+          style={styles.cardImage}
+          fallback={<ImageFallback icon={ShoppingBag} />}
+        />
+        <div style={styles.badgeStack}>
+          {marketplaceLabel && <Badge variant="marketplace">{marketplaceLabel}</Badge>}
+          {listing.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
+        </div>
         {priceDisplay && (
           <span style={styles.priceBadge}>{priceDisplay}</span>
         )}
@@ -924,29 +920,11 @@ function MarketplaceCard({
           </p>
         )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {listing.category && (
-            <span style={styles.categoryTag}>{listing.category}</span>
-          )}
-          {listing.condition && (
-            <span style={{ ...styles.categoryTag, backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)' }}>
-              {listing.condition}
-            </span>
-          )}
-          {listing.local_pickup && (
-            <span style={{ ...styles.categoryTag, backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)' }}>
-              Local Pickup
-            </span>
-          )}
-          {listing.shipping_available && (
-            <span style={{ ...styles.categoryTag, backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)' }}>
-              Ships
-            </span>
-          )}
-          {listing.general_location && (
-            <span style={{ ...styles.categoryTag, backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)' }}>
-              {listing.general_location}
-            </span>
-          )}
+          {listing.category && <Badge variant="category">{listing.category}</Badge>}
+          {listing.condition && <Badge variant="neutral">{listing.condition}</Badge>}
+          {listing.local_pickup && <Badge variant="pickup" icon={MapPin}>Local Pickup</Badge>}
+          {listing.shipping_available && <Badge variant="shipping">Ships</Badge>}
+          {listing.general_location && <Badge variant="neutral" icon={MapPin}>{listing.general_location}</Badge>}
         </div>
         <div style={{ ...styles.cardActions, marginTop: 'var(--space-2)' }}>
           <button
@@ -997,9 +975,7 @@ function MarketplaceDetailModal({
   onClose: () => void;
 }) {
   const priceDisplay = typeof listing.price === 'number' ? `$${listing.price.toFixed(2)}` : '';
-  const marketplaceLabel = listing.marketplace_found
-    ? listing.marketplace_found.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-    : '';
+  const marketplaceLabel = formatMarketplace(listing.marketplace_found);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     const prev = (typeof document !== 'undefined' ? document.activeElement : null) as HTMLElement | null;
@@ -1031,26 +1007,31 @@ function MarketplaceDetailModal({
           display: 'flex', flexDirection: 'column',
         }}
       >
-        <div style={{ position: 'relative' }}>
-          {listing.image_url ? (
-            <img src={listing.image_url} alt={listing.title} style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', display: 'block' }} loading="lazy" />
-          ) : (
-            <div style={{ width: '100%', height: '180px', backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShoppingBag size={36} style={{ color: 'var(--color-neutral-300)' }} />
-            </div>
-          )}
+        <div style={{ position: 'relative', width: '100%', minHeight: 200, backgroundColor: 'var(--color-neutral-100)' }}>
+          <ImageWithFade
+            src={listing.image_url}
+            alt={listing.title}
+            style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', display: 'block' }}
+            containerStyle={{ height: 'auto', minHeight: 200 }}
+            fallback={
+              <div style={{ width: '100%', height: 200, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ShoppingBag size={36} style={{ color: 'var(--color-neutral-300)' }} />
+              </div>
+            }
+          />
           <button
             ref={closeBtnRef}
             onClick={onClose}
             aria-label="Close"
             style={{
               position: 'absolute', top: 12, right: 12,
-              width: 32, height: 32, borderRadius: '50%',
+              width: 44, height: 44, borderRadius: '50%',
               backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', cursor: 'pointer',
             }}
           >
-            <X size={16} />
+            <X size={18} />
           </button>
           {priceDisplay && (
             <span style={{ ...styles.priceBadge, top: 12, left: 12, fontSize: 'var(--font-size-base)' }}>
@@ -1063,31 +1044,12 @@ function MarketplaceDetailModal({
             {listing.title}
           </h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {marketplaceLabel && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)', fontWeight: 600 }}>
-                {marketplaceLabel}
-              </span>
-            )}
-            {listing.category && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-secondary-50)', color: 'var(--color-secondary-700)', fontWeight: 600 }}>
-                {listing.category}
-              </span>
-            )}
-            {listing.condition && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)', fontWeight: 600 }}>
-                {listing.condition}
-              </span>
-            )}
-            {listing.local_pickup && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)', fontWeight: 600 }}>
-                Local Pickup
-              </span>
-            )}
-            {listing.shipping_available && (
-              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)', fontWeight: 600 }}>
-                Ships
-              </span>
-            )}
+            {marketplaceLabel && <Badge variant="marketplace">{marketplaceLabel}</Badge>}
+            {listing.category && <Badge variant="category">{listing.category}</Badge>}
+            {listing.condition && <Badge variant="neutral">{listing.condition}</Badge>}
+            {listing.local_pickup && <Badge variant="pickup" icon={MapPin}>Local Pickup</Badge>}
+            {listing.shipping_available && <Badge variant="shipping">Ships</Badge>}
+            {listing.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
           </div>
           {listing.description && (
             <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
@@ -1836,6 +1798,26 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-500)',
     fontSize: 'var(--font-size-sm)',
     transition: 'color var(--transition-fast)',
+    minHeight: '44px',
+    minWidth: '44px',
+    padding: '0 6px',
+    border: 'none',
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
+  },
+  badgeStack: {
+    position: 'absolute',
+    top: 'var(--space-3)',
+    left: 'var(--space-3)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  priceBadgeWrap: {
+    position: 'absolute',
+    bottom: 'var(--space-3)',
+    left: 'var(--space-3)',
   },
   radarSection: {
     borderBottom: '1px solid var(--color-neutral-100)',
@@ -1941,13 +1923,16 @@ function AuctionRadarCard({ listing, onClick }: { listing: ExternalListing; onCl
       textAlign: 'left',
     }}>
       <div style={{ width: '100%', height: '72px', backgroundColor: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-        {listing.image_url ? (
-          <img src={listing.image_url} alt={listing.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <Gavel size={22} style={{ color }} />
-        )}
+        <ImageWithFade
+          src={listing.image_url}
+          alt={listing.title}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          fallback={<Gavel size={22} style={{ color }} />}
+        />
         {listing.listing_type === 'live_stream' && (
-          <span style={{ position: 'absolute', top: 4, left: 4, backgroundColor: 'var(--color-error-500)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px' }}>LIVE</span>
+          <div style={{ position: 'absolute', top: 4, left: 4 }}>
+            <Badge variant="warning" style={{ backgroundColor: 'var(--color-error-500)', color: '#fff' }}>LIVE</Badge>
+          </div>
         )}
       </div>
       <div style={{ padding: '6px 7px 7px' }}>
@@ -1988,17 +1973,17 @@ function ExternalListingCard({ listing, index, onClick }: { listing: ExternalLis
 
       {listing.image_url && (
         <div style={styles.cardImage}>
-          <img src={listing.image_url} alt={listing.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <ImageWithFade
+            src={listing.image_url}
+            alt={listing.title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
         </div>
       )}
 
       <div style={{ ...styles.cardActions, paddingTop: 'var(--space-2)' }}>
-        {listing.scout_needed && (
-          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-warning-700)', backgroundColor: 'var(--color-warning-50)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>Scout Needed</span>
-        )}
-        {listing.ships_available && (
-          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-success-700)', backgroundColor: 'var(--color-success-50)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>Ships</span>
-        )}
+        {listing.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
+        {listing.ships_available && <Badge variant="shipping">Ships</Badge>}
         <button onClick={onClick} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary-600)', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}>
           <ExternalLink size={12} />
           View

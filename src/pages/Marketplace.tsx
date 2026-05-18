@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SkeletonList } from '../components/ui/Skeleton';
+import { Badge } from '../components/ui/Badge';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
 import {
   ArrowLeft, Search, Star, Shield, TrendingUp, MapPin,
   Heart, Zap, ChevronRight, Package, Truck, Users,
@@ -235,20 +237,25 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                   {featured.map((item) => (
                     <button key={item.id} onClick={() => onItemClick(item)} style={s.featuredCard}>
                       <div style={s.featuredImgWrap}>
-                        {item.image ? (
-                          <img src={item.image} alt={item.title} style={s.featuredImg} />
-                        ) : (
-                          <div style={{ ...s.featuredImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Package size={24} style={{ color: 'var(--color-neutral-300)' }} />
-                          </div>
-                        )}
-                        <span style={s.rarityBadge}>{item.category}</span>
+                        <ImageWithFade
+                          src={item.image}
+                          alt={item.title}
+                          style={s.featuredImg as any}
+                          fallback={
+                            <div style={{ ...s.featuredImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Package size={24} style={{ color: 'var(--color-neutral-300)' }} />
+                            </div>
+                          }
+                        />
+                        <div style={{ position: 'absolute', top: 8, right: 8 }}>
+                          <Badge variant="category">{item.category}</Badge>
+                        </div>
                       </div>
                       <div style={s.featuredInfo}>
                         <span style={s.featuredTitle}>{item.title}</span>
                         <span style={s.featuredPrice}>{item.price}</span>
                         <div style={s.sellerRow}>
-                          <Shield size={10} style={{ color: item.verified ? 'var(--color-secondary-500)' : 'var(--color-neutral-300)' }} />
+                          {item.verified && <Shield size={10} style={{ color: 'var(--color-secondary-500)' }} aria-label="Verified seller" />}
                           <span style={s.sellerName}>@{item.seller}</span>
                         </div>
                       </div>
@@ -268,7 +275,16 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                 <div style={s.hotGrid}>
                   {hotFinds.filter((l) => l.image).slice(0, 4).map((item) => (
                     <button key={item.id} onClick={() => onItemClick(item)} style={s.hotCard}>
-                      <img src={item.image} alt={item.title} style={s.hotImg} />
+                      <ImageWithFade
+                        src={item.image}
+                        alt={item.title}
+                        style={s.hotImg as any}
+                        fallback={
+                          <div style={{ ...s.hotImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Package size={20} style={{ color: 'var(--color-neutral-300)' }} />
+                          </div>
+                        }
+                      />
                       <div style={s.hotOverlay}>
                         <span style={s.hotPrice}>{item.price}</span>
                       </div>
@@ -288,13 +304,18 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
               ) : (
                 recent.map((item) => (
                   <button key={item.id} onClick={() => onItemClick(item)} style={s.listingRow}>
-                    {item.image ? (
-                      <img src={item.image} alt={item.title} style={s.listingImg} />
-                    ) : (
-                      <div style={{ ...s.listingImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Package size={18} style={{ color: 'var(--color-neutral-300)' }} />
-                      </div>
-                    )}
+                    <div style={{ width: 64, height: 64, borderRadius: 'var(--radius-md)', overflow: 'hidden', flexShrink: 0 }}>
+                      <ImageWithFade
+                        src={item.image}
+                        alt={item.title}
+                        style={s.listingImg as any}
+                        fallback={
+                          <div style={{ ...s.listingImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Package size={18} style={{ color: 'var(--color-neutral-300)' }} />
+                          </div>
+                        }
+                      />
+                    </div>
                     <div style={s.listingInfo}>
                       <span style={s.listingTitle}>{item.title}</span>
                       <div style={s.listingMeta}>
@@ -303,9 +324,9 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                         <span style={s.listingTime}>{item.timeAgo}</span>
                       </div>
                       <div style={s.listingBottom}>
-                        {item.verified && <Shield size={10} style={{ color: 'var(--color-secondary-500)' }} />}
+                        {item.verified && <Shield size={10} style={{ color: 'var(--color-secondary-500)' }} aria-label="Verified seller" />}
                         <span style={s.listingSeller}>@{item.seller}</span>
-                        {item.localPickup && <span style={s.pickupBadge}><MapPin size={8} /> Local</span>}
+                        {item.localPickup && <Badge variant="pickup" icon={MapPin}>Local</Badge>}
                       </div>
                     </div>
                     <Heart size={16} style={{ color: 'var(--color-neutral-300)', opacity: 0.4 }} />
@@ -342,9 +363,24 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
       <div style={s.scrollContent}>
         {/* Image gallery */}
         <div style={s.detailImgWrap}>
-          <img src={item.image} alt={item.title} style={s.detailImg} />
-          <span style={s.detailRarity}>{item.rarity} Rarity</span>
-          {item.verified && <span style={s.detailVerified}><Shield size={10} /> Verified</span>}
+          <ImageWithFade
+            src={item.image}
+            alt={item.title}
+            style={s.detailImg as any}
+            fallback={
+              <div style={{ ...s.detailImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Package size={36} style={{ color: 'var(--color-neutral-300)' }} />
+              </div>
+            }
+          />
+          <div style={{ position: 'absolute', top: 'var(--space-3)', right: 'var(--space-3)' }}>
+            <Badge variant="category" size="md">{item.rarity} Rarity</Badge>
+          </div>
+          {item.verified && (
+            <div style={{ position: 'absolute', top: 'var(--space-3)', left: 'var(--space-3)' }}>
+              <Badge variant="verified" icon={Shield} size="md">Verified</Badge>
+            </div>
+          )}
         </div>
 
         {/* Title & price */}
@@ -1006,7 +1042,7 @@ const s: Record<string, React.CSSProperties> = {
 
   // Listing row
   listingRow: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3) 0', borderBottom: '1px solid var(--color-neutral-50)', width: '100%', textAlign: 'left' },
-  listingImg: { width: '56px', height: '56px', borderRadius: 'var(--radius-sm)', objectFit: 'cover', flexShrink: 0 },
+  listingImg: { width: '100%', height: '100%', borderRadius: 'var(--radius-sm)', objectFit: 'cover', flexShrink: 0 },
   listingInfo: { flex: 1, minWidth: 0 },
   listingTitle: { display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-800)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   listingMeta: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: '2px' },

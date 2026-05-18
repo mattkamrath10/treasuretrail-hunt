@@ -1,0 +1,246 @@
+PHASE 3 — VISUAL CONSISTENCY + TRUST PASS
+
+Focus ONLY on:
+
+* Badge system adoption
+* ImageWithFade adoption
+* trust indicators
+* visual consistency
+* perceived quality improvements
+
+Do NOT add:
+
+* new backend systems
+* gamification
+* advanced AI
+* ranking systems
+
+This phase is about making TreasureTrail feel visually unified, polished, and trustworthy.
+
+========================================
+
+1. GLOBAL BADGE SYSTEM ADOPTION
+   ========================================
+
+Adopt the shared <Badge> component across ALL pages and cards.
+
+Replace inconsistent:
+
+* chip styles
+* ad-hoc labels
+* raw spans/divs
+* mismatched badge colors
+
+Pages/components to audit:
+
+* Home Feed
+* Marketplace cards
+* Rare Radar
+* Live Events
+* Flash Finds
+* Scout cards
+* detail modals
+* profile page
+* marketplace detail modal
+
+========================================
+2. STANDARDIZE BADGE TYPES
+==========================
+
+Use consistent variants:
+
+marketplace
+scout
+shipping
+pickup
+verified
+warning
+event
+category
+neutral
+
+Examples:
+
+* Facebook Marketplace → marketplace
+* Scout Needed → scout
+* Shipping Available → shipping
+* Verified Seller → verified
+* Estate Sale → event
+
+========================================
+3. TRUST INDICATORS
+===================
+
+Add lightweight trust indicators using REAL data only.
+
+Potential badges:
+
+* Verified Seller
+* Trusted Scout
+* Shipping Available
+* Local Pickup
+* Identity Verified
+
+DO NOT fabricate:
+
+* fake ratings
+* fake reputation
+* fake verification
+
+If verification data doesn't exist:
+hide the badge.
+
+========================================
+4. ImageWithFade ADOPTION
+=========================
+
+Replace standard <img> usage with: <ImageWithFade>
+
+Across:
+
+* Home Feed cards
+* Marketplace cards
+* Rare Radar uploads
+* Flash Finds
+* detail modals
+* profile avatars where appropriate
+
+Benefits:
+
+* smoother perceived performance
+* polished loading
+* graceful fallback handling
+
+========================================
+5. IMAGE FAILURE STATES
+=======================
+
+If image fails:
+
+* show branded placeholder
+* preserve layout
+* avoid broken-image icons
+
+========================================
+6. CARD VISUAL CONSISTENCY
+==========================
+
+Audit ALL cards for:
+
+* spacing
+* shadows
+* border radius
+* typography
+* badge placement
+* image aspect ratios
+* action button placement
+
+Goal:
+cards should feel visually related across the app.
+
+========================================
+7. MODAL POLISH
+===============
+
+Standardize:
+
+* modal spacing
+* close buttons
+* transitions
+* focus handling
+* backdrop blur
+* title hierarchy
+
+Apply to:
+
+* marketplace detail modal
+* post detail modal
+* upload modals
+* scout modals
+
+========================================
+8. PROFILE TRUST LAYER
+======================
+
+Improve profile credibility indicators.
+
+Display ONLY real data:
+
+* member since
+* marketplace activity
+* upload count
+* scout availability
+* saved finds count
+
+No fake reputation systems.
+
+========================================
+9. MOBILE TOUCH TARGETS
+=======================
+
+Audit:
+
+* badges
+* chips
+* buttons
+* save/share actions
+
+Ensure:
+
+* minimum 44px touch targets
+* no cramped interactions
+* smooth thumb navigation
+
+========================================
+10. VISUAL HIERARCHY
+====================
+
+Improve hierarchy:
+
+* titles
+* prices
+* marketplace names
+* locations
+* timestamps
+
+Important info should stand out immediately.
+
+========================================
+11. ACCESSIBILITY
+=================
+
+Verify:
+
+* keyboard focus states
+* contrast ratios
+* reduced motion support
+* screen reader labels
+* Escape-to-close modals
+
+========================================
+12. PERFORMANCE
+===============
+
+Avoid:
+
+* layout shifts
+* image flickering
+* unnecessary rerenders
+* animation overload
+
+========================================
+13. FINAL QA
+============
+
+Verify:
+
+* badges visually consistent everywhere
+* ImageWithFade works correctly
+* no broken image states
+* trust indicators only use real data
+* cards feel unified
+* mobile interactions improved
+* no fake reputation systems
+* TypeScript clean
+* no console errors
+* republish after completion

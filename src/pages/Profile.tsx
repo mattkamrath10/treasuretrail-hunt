@@ -1,22 +1,27 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, Truck, Zap, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown } from 'lucide-react';
+import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
 import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
+import { Badge } from '../components/ui/Badge';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity' | 'scouts';
 
+type TrustIndicator = { label: string; icon: typeof Shield; earned: boolean };
 
-const verificationBadges = [
-  { label: 'Verified Scout', icon: Shield, earned: false },
-  { label: 'Pickup Helper', icon: Truck, earned: false },
-  { label: 'High Value Specialist', icon: Star, earned: false },
-  { label: 'Estate Sale Expert', icon: Award, earned: false },
-  { label: 'Auction Runner', icon: Zap, earned: false },
-];
+function getTrustIndicators(profile: any): TrustIndicator[] {
+  const isPro = profile?.membership_tier === 'pro';
+  return [
+    { label: 'Member since ' + (profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'), icon: Calendar, earned: !!profile?.created_at },
+    { label: 'Profile photo added', icon: ImageIcon, earned: !!profile?.avatar_url },
+    { label: 'Bio completed', icon: User, earned: !!(profile?.bio && profile.bio.trim().length > 0) },
+    { label: 'Categories chosen', icon: Tag, earned: !!(profile?.favorite_categories && profile.favorite_categories.length > 0) },
+    ...(isPro ? [{ label: 'Pro Member', icon: Crown, earned: true }] : []),
+  ];
+}
 
 export default function Profile() {
   const { profile, signOut, isGuest } = useAuth();
@@ -340,7 +345,7 @@ function OverviewTab({ profile }: { profile: any }) {
           <Award size={20} style={{ color: 'var(--color-primary-500)' }} />
           <div>
             <h3 style={styles.repTitle}>Reputation Score</h3>
-            <p style={styles.repSubtitle}>{repScore >= 4.5 ? 'Top 15% of hunters' : 'Building reputation'}</p>
+            <p style={styles.repSubtitle}>{repScore > 0 ? 'Based on your activity' : 'No ratings yet'}</p>
           </div>
         </div>
         <div style={styles.repScore}>
@@ -352,37 +357,40 @@ function OverviewTab({ profile }: { profile: any }) {
       <div style={styles.section}>
         <div style={styles.sectionHeader}>
           <Shield size={16} style={{ color: 'var(--color-secondary-500)' }} />
-          <h3 style={styles.sectionTitle}>Verification Badges</h3>
+          <h3 style={styles.sectionTitle}>Profile Trust</h3>
         </div>
         <div style={styles.badgesGrid}>
-          {verificationBadges.map((badge) => (
+          {getTrustIndicators(profile).map((ind) => (
             <div
-              key={badge.label}
+              key={ind.label}
               style={{
                 ...styles.badgeItem,
-                ...(badge.earned ? {} : styles.badgeItemLocked),
+                ...(ind.earned ? {} : styles.badgeItemLocked),
               }}
             >
-              <badge.icon
+              <ind.icon
                 size={18}
                 style={{
-                  color: badge.earned ? 'var(--color-primary-500)' : 'var(--color-neutral-300)',
+                  color: ind.earned ? 'var(--color-primary-500)' : 'var(--color-neutral-300)',
                 }}
               />
               <span
                 style={{
                   ...styles.badgeLabel,
-                  color: badge.earned ? 'var(--color-neutral-700)' : 'var(--color-neutral-400)',
+                  color: ind.earned ? 'var(--color-neutral-700)' : 'var(--color-neutral-400)',
                 }}
               >
-                {badge.label}
+                {ind.label}
               </span>
-              {badge.earned && (
-                <CheckCircle size={12} style={{ color: 'var(--color-success-500)' }} />
+              {ind.earned && (
+                <CheckCircle size={14} style={{ color: 'var(--color-success-500)' }} aria-label="Completed" />
               )}
             </div>
           ))}
         </div>
+        <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', marginTop: 'var(--space-2)', lineHeight: 1.4 }}>
+          Trust signals reflect your real profile completeness — no fake ratings.
+        </p>
       </div>
 
       {profile?.favorite_categories && profile.favorite_categories.length > 0 && (
@@ -390,9 +398,9 @@ function OverviewTab({ profile }: { profile: any }) {
           <div style={styles.sectionHeader}>
             <h3 style={styles.sectionTitle}>Favorite Categories</h3>
           </div>
-          <div style={styles.categoriesList}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {profile.favorite_categories.map((cat: string) => (
-              <span key={cat} style={styles.categoryTag}>{cat}</span>
+              <Badge key={cat} variant="category">{cat}</Badge>
             ))}
           </div>
         </div>
