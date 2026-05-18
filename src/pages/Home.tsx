@@ -67,6 +67,8 @@ interface MarketplaceListing {
   local_pickup: boolean | null;
   shipping_available?: boolean | null;
   general_location?: string | null;
+  marketplace_found?: string | null;
+  scout_needed?: boolean | null;
   status: string;
   created_at: string;
 }
@@ -160,16 +162,22 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [detailPost, setDetailPost] = useState<ExtendedPost | null>(null);
+  const [detailMarketplace, setDetailMarketplace] = useState<MarketplaceListing | null>(null);
   const { user } = useAuth();
   const { requireAuth } = useGuestAction();
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [savedMarketplaceIds, setSavedMarketplaceIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (user) fetchUserLikes(user.id).then(setUserLikes).catch(() => {});
     try {
       const raw = localStorage.getItem('tt_saved_posts');
       if (raw) setSavedIds(new Set(JSON.parse(raw)));
+    } catch {}
+    try {
+      const raw = localStorage.getItem('tt_saved_marketplace');
+      if (raw) setSavedMarketplaceIds(new Set(JSON.parse(raw)));
     } catch {}
   }, [user]);
 
@@ -197,6 +205,28 @@ export default function Home() {
       });
     });
   }, [requireAuth]);
+
+  const handleSaveMarketplace = useCallback((id: string) => {
+    requireAuth(() => {
+      setSavedMarketplaceIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        try { localStorage.setItem('tt_saved_marketplace', JSON.stringify([...next])); } catch {}
+        return next;
+      });
+    });
+  }, [requireAuth]);
+
+  const handleShareMarketplace = useCallback(async (m: MarketplaceListing) => {
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/marketplace` : '';
+    const text = m.title;
+    const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+    if (nav && 'share' in nav) {
+      try { await nav.share({ title: text, text, url }); } catch {}
+    } else if (nav?.clipboard) {
+      try { await nav.clipboard.writeText(`${text} ${url}`.trim()); } catch {}
+    }
+  }, []);
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   // Pull highlight target from navigation state (from Flash Finds / Rare Radar
@@ -222,7 +252,7 @@ export default function Home() {
         .limit(30),
       supabase
         .from('marketplace_listings')
-        .select('id,seller_id,title,description,price,condition,category,image_url,local_pickup,shipping_available,general_location,status,created_at')
+        .select('id,seller_id,title,description,price,condition,category,image_url,local_pickup,shipping_available,general_location,marketplace_found,scout_needed,status,created_at')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(30),
@@ -336,10 +366,10 @@ export default function Home() {
         raw: m,
         filterIds,
         location: loc,
-        searchText: [m.title, m.description, m.category, m.condition, loc].filter(Boolean).join(' ').toLowerCase(),
+        searchText: [m.title, m.description, m.category, m.condition, loc, m.marketplace_found, (m.marketplace_found || '').replace(/_/g, ' ')].filter(Boolean).join(' ').toLowerCase(),
         sortNewest: createdMs,
         sortTrending: 0,
-        sortMostWanted: 0,
+        sortMostWanted: m.scout_needed ? 1000 : 0,
         sortEndingSoon: Infinity,
       });
     }
@@ -596,7 +626,13 @@ export default function Home() {
                 ref={setItemRef(item.id)}
                 style={{ ...baseStyle, ...hlStyle }}
               >
-                <MarketplaceCard listing={m} onClick={() => navigate('/marketplace')} />
+                <MarketplaceCard
+                  listing={m}
+                  saved={savedMarketplaceIds.has(m.id)}
+                  onOpen={() => setDetailMarketplace(m)}
+                  onSave={() => handleSaveMarketplace(m.id)}
+                  onShare={() => handleShareMarketplace(m)}
+                />
               </div>
             );
           }
@@ -720,6 +756,15 @@ export default function Home() {
 
       {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
       {detailPost && <PostDetailModal post={detailPost} onClose={() => setDetailPost(null)} />}
+      {detailMarketplace && (
+        <MarketplaceDetailModal
+          listing={detailMarketplace}
+          saved={savedMarketplaceIds.has(detailMarketplace.id)}
+          onSave={() => handleSaveMarketplace(detailMarketplace.id)}
+          onShare={() => handleShareMarketplace(detailMarketplace)}
+          onClose={() => setDetailMarketplace(null)}
+        />
+      )}
     </div>
   );
 }
@@ -811,8 +856,23 @@ function PostDetailModal({ post, onClose }: { post: ExtendedPost; onClose: () =>
   );
 }
 
-function MarketplaceCard({ listing, onClick }: { listing: MarketplaceListing; onClick: () => void }) {
+function MarketplaceCard({
+  listing,
+  saved,
+  onOpen,
+  onSave,
+  onShare,
+}: {
+  listing: MarketplaceListing;
+  saved: boolean;
+  onOpen: () => void;
+  onSave: () => void;
+  onShare: () => void;
+}) {
   const priceDisplay = typeof listing.price === 'number' ? `$${listing.price.toFixed(2)}` : '';
+  const marketplaceLabel = listing.marketplace_found
+    ? listing.marketplace_found.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    : 'Marketplace';
   return (
     <article style={styles.card}>
       <div style={styles.cardImageContainer}>
@@ -824,8 +884,13 @@ function MarketplaceCard({ listing, onClick }: { listing: MarketplaceListing; on
           </div>
         )}
         <span style={{ ...styles.hotBadge, backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)' }}>
-          Marketplace
+          {marketplaceLabel}
         </span>
+        {listing.scout_needed && (
+          <span style={{ ...styles.hotBadge, top: 36, backgroundColor: 'var(--color-warning-500)', color: 'white' }}>
+            Scout Needed
+          </span>
+        )}
         {priceDisplay && (
           <span style={styles.priceBadge}>{priceDisplay}</span>
         )}
@@ -833,10 +898,10 @@ function MarketplaceCard({ listing, onClick }: { listing: MarketplaceListing; on
       <div style={styles.cardContent}>
         <h3
           style={{ ...styles.cardTitle, cursor: 'pointer' }}
-          onClick={onClick}
+          onClick={onOpen}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter') onClick(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
         >
           {listing.title}
         </h3>
@@ -870,8 +935,191 @@ function MarketplaceCard({ listing, onClick }: { listing: MarketplaceListing; on
             </span>
           )}
         </div>
+        <div style={{ ...styles.cardActions, marginTop: 'var(--space-2)' }}>
+          <button
+            style={styles.actionBtn}
+            aria-label={saved ? 'Unsave listing' : 'Save listing'}
+            onClick={onSave}
+          >
+            <Bookmark
+              size={18}
+              style={{
+                color: saved ? 'var(--color-primary-600)' : undefined,
+                fill: saved ? 'var(--color-primary-600)' : 'none',
+              }}
+            />
+          </button>
+          <button
+            style={styles.actionBtn}
+            aria-label="Share listing"
+            onClick={onShare}
+          >
+            <Share2 size={18} />
+          </button>
+          <button
+            style={{ ...styles.actionBtn, marginLeft: 'auto' }}
+            aria-label="View details"
+            onClick={onOpen}
+          >
+            <Eye size={18} />
+            <span style={{ fontSize: 'var(--font-size-xs)' }}>View</span>
+          </button>
+        </div>
       </div>
     </article>
+  );
+}
+
+function MarketplaceDetailModal({
+  listing,
+  saved,
+  onSave,
+  onShare,
+  onClose,
+}: {
+  listing: MarketplaceListing;
+  saved: boolean;
+  onSave: () => void;
+  onShare: () => void;
+  onClose: () => void;
+}) {
+  const priceDisplay = typeof listing.price === 'number' ? `$${listing.price.toFixed(2)}` : '';
+  const marketplaceLabel = listing.marketplace_found
+    ? listing.marketplace_found.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    : '';
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const prev = (typeof document !== 'undefined' ? document.activeElement : null) as HTMLElement | null;
+    closeBtnRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      try { prev?.focus(); } catch {}
+    };
+  }, [onClose]);
+  return (
+    <div
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={listing.title}
+      style={{
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: 'var(--space-4)',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: 'var(--color-neutral-0)', borderRadius: 'var(--radius-lg)',
+          maxWidth: '480px', width: '100%', maxHeight: '92vh', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        <div style={{ position: 'relative' }}>
+          {listing.image_url ? (
+            <img src={listing.image_url} alt={listing.title} style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', display: 'block' }} loading="lazy" />
+          ) : (
+            <div style={{ width: '100%', height: '180px', backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShoppingBag size={36} style={{ color: 'var(--color-neutral-300)' }} />
+            </div>
+          )}
+          <button
+            ref={closeBtnRef}
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              position: 'absolute', top: 12, right: 12,
+              width: 32, height: 32, borderRadius: '50%',
+              backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <X size={16} />
+          </button>
+          {priceDisplay && (
+            <span style={{ ...styles.priceBadge, top: 12, left: 12, fontSize: 'var(--font-size-base)' }}>
+              {priceDisplay}
+            </span>
+          )}
+        </div>
+        <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-neutral-900)', lineHeight: 1.3 }}>
+            {listing.title}
+          </h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {marketplaceLabel && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)', fontWeight: 600 }}>
+                {marketplaceLabel}
+              </span>
+            )}
+            {listing.category && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-secondary-50)', color: 'var(--color-secondary-700)', fontWeight: 600 }}>
+                {listing.category}
+              </span>
+            )}
+            {listing.condition && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)', fontWeight: 600 }}>
+                {listing.condition}
+              </span>
+            )}
+            {listing.local_pickup && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)', fontWeight: 600 }}>
+                Local Pickup
+              </span>
+            )}
+            {listing.shipping_available && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)', fontWeight: 600 }}>
+                Ships
+              </span>
+            )}
+          </div>
+          {listing.description && (
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+              {listing.description}
+            </p>
+          )}
+          {listing.general_location && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)' }}>
+              <MapPin size={14} /> {listing.general_location}
+            </div>
+          )}
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
+            Listed {new Date(listing.created_at).toLocaleString()}
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
+            <button
+              onClick={onSave}
+              style={{
+                flex: 1, padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-neutral-200)',
+                backgroundColor: saved ? 'var(--color-primary-50)' : 'var(--color-neutral-0)',
+                color: saved ? 'var(--color-primary-700)' : 'var(--color-neutral-800)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontSize: 'var(--font-size-sm)', fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              <Bookmark size={16} style={{ fill: saved ? 'var(--color-primary-600)' : 'none' }} />
+              {saved ? 'Saved' : 'Save'}
+            </button>
+            <button
+              onClick={onShare}
+              style={{
+                flex: 1, padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-neutral-200)',
+                backgroundColor: 'var(--color-neutral-0)', color: 'var(--color-neutral-800)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontSize: 'var(--font-size-sm)', fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              <Share2 size={16} /> Share
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

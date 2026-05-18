@@ -57,6 +57,10 @@ export type MarketplaceListing = {
   local_pickup: boolean;
   status: string;
   created_at: string;
+  general_location?: string | null;
+  shipping_available?: boolean | null;
+  scout_needed?: boolean | null;
+  marketplace_found?: string | null;
   profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
 };
 
