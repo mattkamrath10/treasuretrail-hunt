@@ -1,12 +1,1254 @@
 -- =============================================================================
--- TreasureTrail — Live Events / Auctions / External Listings migration
+-- TreasureTrail — FULL SCHEMA SETUP
 -- Paste this ENTIRE file into the Supabase SQL Editor and click "Run".
--- Safe to re-run (everything is idempotent: IF NOT EXISTS / OR REPLACE / DROP IF).
+-- Safe to re-run (everything is idempotent: IF NOT EXISTS / OR REPLACE / DROP IF EXISTS).
+-- Generated 2026-05-18T22:35:13Z from supabase/migrations/*.sql
 -- =============================================================================
 
+
 -- -----------------------------------------------------------------------------
--- 1) external_listings table
+-- FROM: 20260517052053_create_profiles_table.sql
 -- -----------------------------------------------------------------------------
+/*
+  # Create profiles table for TreasureTrail users
+
+  1. New Tables
+    - `profiles`
+      - `id` (uuid, primary key, references auth.users)
+      - `username` (text, unique, user's chosen display name)
+      - `bio` (text, short user biography)
+      - `avatar_url` (text, nullable, URL to profile photo)
+      - `favorite_categories` (text array, user's preferred hunting categories)
+      - `created_at` (timestamptz, when the profile was created)
+      - `updated_at` (timestamptz, last profile update)
+
+  2. Security
+    - Enable RLS on `profiles` table
+    - Add policy for authenticated users to read their own profile
+    - Add policy for authenticated users to insert their own profile
+    - Add policy for authenticated users to update their own profile
+    - Add policy for authenticated users to read other users' profiles (for social features)
+
+  3. Notes
+    - The `id` column references `auth.users(id)` to link profiles to Supabase auth
+    - `favorite_categories` stores an array of category strings chosen during onboarding
+    - Username has a minimum length constraint of 3 characters
+*/
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username text UNIQUE NOT NULL CHECK (char_length(username) >= 3),
+  bio text DEFAULT '',
+  avatar_url text,
+  favorite_categories text[] DEFAULT '{}',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read own profile"
+  ON profiles
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert own profile"
+  ON profiles
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile"
+  ON profiles
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can read other profiles for social features"
+  ON profiles
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() != id);
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260517081256_add_profile_fields_and_core_tables.sql
+-- -----------------------------------------------------------------------------
+/*
+  # Expand profiles and create core application tables
+
+  1. Modified Tables
+    - `profiles` - Added columns: treasure_rank, xp, level, reputation_score, 
+      scout_verified, pro_member, follower_count, following_count
+
+  2. New Tables
+    - `flash_finds` - User-uploaded treasure finds with rarity scores
+    - `marketplace_listings` - Items listed for sale/auction
+    - `messages` - Direct messages between users
+    - `auctions` - Auction data for listings
+    - `followers` - Follow relationships between users
+    - `notifications` - User notification entries
+    - `community_posts` - Social feed posts with types and engagement counts
+    - `post_likes` - Like tracking for community posts
+
+  3. Security
+    - RLS enabled on all new tables
+    - Policies ensure users can only access their own data or public data
+    - Insert/update/delete restricted to resource owners
+*/
+
+-- Expand profiles table with gamification and trust fields
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'treasure_rank'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN treasure_rank text DEFAULT 'Hunter';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'xp'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN xp integer DEFAULT 0;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'level'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN level integer DEFAULT 1;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'reputation_score'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN reputation_score numeric(3,1) DEFAULT 5.0;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'scout_verified'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN scout_verified boolean DEFAULT false;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'pro_member'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN pro_member boolean DEFAULT false;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'follower_count'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN follower_count integer DEFAULT 0;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'following_count'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN following_count integer DEFAULT 0;
+  END IF;
+END $$;
+
+-- Flash Finds
+CREATE TABLE IF NOT EXISTS flash_finds (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  description text DEFAULT '',
+  image_url text,
+  estimated_value numeric(10,2),
+  rarity_score numeric(3,1) DEFAULT 0,
+  category text DEFAULT 'other',
+  location text DEFAULT '',
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE flash_finds ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can read flash finds"
+  ON flash_finds FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can insert own flash finds"
+  ON flash_finds FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own flash finds"
+  ON flash_finds FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own flash finds"
+  ON flash_finds FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Marketplace Listings
+CREATE TABLE IF NOT EXISTS marketplace_listings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  seller_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  description text DEFAULT '',
+  price numeric(10,2) NOT NULL,
+  condition text DEFAULT 'good',
+  category text DEFAULT 'other',
+  image_url text,
+  auction_enabled boolean DEFAULT false,
+  local_pickup boolean DEFAULT false,
+  status text DEFAULT 'active',
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE marketplace_listings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view active listings"
+  ON marketplace_listings FOR SELECT
+  TO authenticated
+  USING (status = 'active' OR seller_id = auth.uid());
+
+CREATE POLICY "Users can create own listings"
+  ON marketplace_listings FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = seller_id);
+
+CREATE POLICY "Users can update own listings"
+  ON marketplace_listings FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = seller_id)
+  WITH CHECK (auth.uid() = seller_id);
+
+CREATE POLICY "Users can delete own listings"
+  ON marketplace_listings FOR DELETE
+  TO authenticated
+  USING (auth.uid() = seller_id);
+
+-- Messages
+CREATE TABLE IF NOT EXISTS messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  receiver_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  content text NOT NULL,
+  read_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own messages"
+  ON messages FOR SELECT
+  TO authenticated
+  USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+CREATE POLICY "Users can send messages"
+  ON messages FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = sender_id);
+
+CREATE POLICY "Users can update own sent messages"
+  ON messages FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = receiver_id)
+  WITH CHECK (auth.uid() = receiver_id);
+
+-- Auctions
+CREATE TABLE IF NOT EXISTS auctions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id uuid NOT NULL REFERENCES marketplace_listings(id) ON DELETE CASCADE,
+  current_bid numeric(10,2) DEFAULT 0,
+  highest_bidder_id uuid REFERENCES auth.users(id),
+  bid_count integer DEFAULT 0,
+  auction_end timestamptz NOT NULL,
+  scout_needed boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE auctions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view auctions"
+  ON auctions FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Listing owners can create auctions"
+  ON auctions FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM marketplace_listings
+      WHERE marketplace_listings.id = listing_id
+      AND marketplace_listings.seller_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Authenticated users can update auctions to bid"
+  ON auctions FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- Followers
+CREATE TABLE IF NOT EXISTS followers (
+  follower_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  following_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (follower_id, following_id)
+);
+
+ALTER TABLE followers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view follow relationships"
+  ON followers FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can follow others"
+  ON followers FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = follower_id AND follower_id != following_id);
+
+CREATE POLICY "Users can unfollow"
+  ON followers FOR DELETE
+  TO authenticated
+  USING (auth.uid() = follower_id);
+
+-- Notifications
+CREATE TABLE IF NOT EXISTS notifications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type text NOT NULL DEFAULT 'general',
+  title text NOT NULL,
+  content text DEFAULT '',
+  read_status boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read own notifications"
+  ON notifications FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "System can insert notifications for any user"
+  ON notifications FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own notifications"
+  ON notifications FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own notifications"
+  ON notifications FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Community Posts
+CREATE TABLE IF NOT EXISTS community_posts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type text DEFAULT 'find',
+  caption text DEFAULT '',
+  image_url text,
+  tags text[] DEFAULT '{}',
+  location text DEFAULT '',
+  rarity_score numeric(3,1),
+  estimated_value numeric(10,2),
+  scout_assisted boolean DEFAULT false,
+  for_sale boolean DEFAULT false,
+  category text DEFAULT 'other',
+  like_count integer DEFAULT 0,
+  comment_count integer DEFAULT 0,
+  share_count integer DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE community_posts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view community posts"
+  ON community_posts FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can create own posts"
+  ON community_posts FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own posts"
+  ON community_posts FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own posts"
+  ON community_posts FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Post Likes
+CREATE TABLE IF NOT EXISTS post_likes (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  post_id uuid NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (user_id, post_id)
+);
+
+ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view likes"
+  ON post_likes FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can like posts"
+  ON post_likes FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can unlike posts"
+  ON post_likes FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_flash_finds_user ON flash_finds(user_id);
+CREATE INDEX IF NOT EXISTS idx_flash_finds_created ON flash_finds(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_marketplace_status ON marketplace_listings(status);
+CREATE INDEX IF NOT EXISTS idx_marketplace_seller ON marketplace_listings(seller_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read_status);
+CREATE INDEX IF NOT EXISTS idx_community_posts_user ON community_posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_posts_created ON community_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_followers_following ON followers(following_id);
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260517081357_create_counter_rpc_functions.sql
+-- -----------------------------------------------------------------------------
+/*
+  # Create RPC functions for safe counter operations
+
+  1. New Functions
+    - `increment_post_likes` - Atomically increment like_count on community_posts
+    - `decrement_post_likes` - Atomically decrement like_count on community_posts
+    - `increment_follower_count` - Atomically increment follower_count on profiles
+    - `decrement_follower_count` - Atomically decrement follower_count on profiles
+    - `increment_following_count` - Atomically increment following_count on profiles
+    - `decrement_following_count` - Atomically decrement following_count on profiles
+
+  2. Notes
+    - These functions use atomic updates to avoid race conditions
+    - Decrement functions ensure counts never go below 0
+*/
+
+CREATE OR REPLACE FUNCTION increment_post_likes(post_id_input uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE community_posts
+  SET like_count = like_count + 1
+  WHERE id = post_id_input;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION decrement_post_likes(post_id_input uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE community_posts
+  SET like_count = GREATEST(like_count - 1, 0)
+  WHERE id = post_id_input;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION increment_follower_count(target_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE profiles
+  SET follower_count = follower_count + 1
+  WHERE id = target_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION decrement_follower_count(target_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE profiles
+  SET follower_count = GREATEST(follower_count - 1, 0)
+  WHERE id = target_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION increment_following_count(target_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE profiles
+  SET following_count = following_count + 1
+  WHERE id = target_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION decrement_following_count(target_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE profiles
+  SET following_count = GREATEST(following_count - 1, 0)
+  WHERE id = target_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260517082835_create_live_events_and_missions_tables.sql
+-- -----------------------------------------------------------------------------
+/*
+  # Create Live Events, Hunt Missions, and Competition Tables
+
+  1. New Tables
+    - `hunt_missions` - Gamified missions with XP rewards, timers, and rarity tiers
+      - id, title, description, type, rarity, xp_reward, difficulty, category,
+        region, participant_count, max_participants, starts_at, ends_at, status
+    - `mission_progress` - User progress on individual missions
+      - id, user_id, mission_id, progress, total, completed, completed_at, created_at
+    - `live_events` - Community events with live activity
+      - id, title, description, type, image_url, region, starts_at, ends_at,
+        participant_count, rarity_boost, reward_tier, status, featured
+    - `event_participants` - Users joined to events
+      - id, user_id, event_id, joined_at, score
+    - `club_rankings` - Competitive club leaderboard data
+      - id, club_name, xp_total, member_count, rank, season, region
+    - `user_rewards` - Earned rewards and badges
+      - id, user_id, reward_type, reward_name, reward_tier, earned_at
+    - `live_activity_feed` - Global activity stream entries
+      - id, user_id, activity_type, content, region, rarity_level, created_at
+
+  2. Security
+    - RLS enabled on all tables
+    - Authenticated users can read all public data
+    - Users can only modify their own progress/participation records
+
+  3. Notes
+    - Indexes added for performance on common query patterns
+    - Reward tiers: bronze, silver, gold, platinum, legendary
+    - Mission rarities: common, rare, epic, legendary
+*/
+
+-- Hunt Missions
+CREATE TABLE IF NOT EXISTS hunt_missions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  description text DEFAULT '',
+  type text NOT NULL DEFAULT 'daily',
+  rarity text NOT NULL DEFAULT 'common',
+  xp_reward integer NOT NULL DEFAULT 100,
+  coin_reward integer DEFAULT 0,
+  difficulty text DEFAULT 'medium',
+  category text DEFAULT 'general',
+  region text DEFAULT '',
+  participant_count integer DEFAULT 0,
+  max_participants integer DEFAULT 0,
+  total_steps integer DEFAULT 1,
+  starts_at timestamptz DEFAULT now(),
+  ends_at timestamptz,
+  status text DEFAULT 'active',
+  rarity_multiplier numeric(3,1) DEFAULT 1.0,
+  pro_exclusive boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE hunt_missions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view missions"
+  ON hunt_missions FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Only system can create missions"
+  ON hunt_missions FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+-- Mission Progress
+CREATE TABLE IF NOT EXISTS mission_progress (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  mission_id uuid NOT NULL REFERENCES hunt_missions(id) ON DELETE CASCADE,
+  progress integer DEFAULT 0,
+  total integer DEFAULT 1,
+  completed boolean DEFAULT false,
+  completed_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, mission_id)
+);
+
+ALTER TABLE mission_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own mission progress"
+  ON mission_progress FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own progress"
+  ON mission_progress FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own progress"
+  ON mission_progress FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Live Events
+CREATE TABLE IF NOT EXISTS live_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  description text DEFAULT '',
+  type text NOT NULL DEFAULT 'community',
+  image_url text,
+  region text DEFAULT '',
+  starts_at timestamptz NOT NULL DEFAULT now(),
+  ends_at timestamptz,
+  participant_count integer DEFAULT 0,
+  rarity_boost numeric(3,1) DEFAULT 1.0,
+  reward_tier text DEFAULT 'bronze',
+  reward_xp integer DEFAULT 100,
+  status text DEFAULT 'upcoming',
+  featured boolean DEFAULT false,
+  pro_exclusive boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE live_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view events"
+  ON live_events FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "System can create events"
+  ON live_events FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+-- Event Participants
+CREATE TABLE IF NOT EXISTS event_participants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  event_id uuid NOT NULL REFERENCES live_events(id) ON DELETE CASCADE,
+  joined_at timestamptz DEFAULT now(),
+  score integer DEFAULT 0,
+  UNIQUE(user_id, event_id)
+);
+
+ALTER TABLE event_participants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view event participants"
+  ON event_participants FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can join events"
+  ON event_participants FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own event score"
+  ON event_participants FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Club Rankings
+CREATE TABLE IF NOT EXISTS club_rankings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  club_name text NOT NULL,
+  xp_total integer DEFAULT 0,
+  member_count integer DEFAULT 0,
+  rank integer DEFAULT 0,
+  season text DEFAULT 'spring_2026',
+  region text DEFAULT '',
+  icon text DEFAULT '',
+  color text DEFAULT '',
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE club_rankings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view club rankings"
+  ON club_rankings FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- User Rewards
+CREATE TABLE IF NOT EXISTS user_rewards (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  reward_type text NOT NULL DEFAULT 'badge',
+  reward_name text NOT NULL,
+  reward_tier text DEFAULT 'bronze',
+  mission_id uuid REFERENCES hunt_missions(id),
+  event_id uuid REFERENCES live_events(id),
+  earned_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE user_rewards ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own rewards"
+  ON user_rewards FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can earn rewards"
+  ON user_rewards FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- Live Activity Feed
+CREATE TABLE IF NOT EXISTS live_activity_feed (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  activity_type text NOT NULL DEFAULT 'find',
+  content text NOT NULL,
+  region text DEFAULT '',
+  rarity_level text DEFAULT 'common',
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE live_activity_feed ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone authenticated can view activity feed"
+  ON live_activity_feed FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can post activity"
+  ON live_activity_feed FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_hunt_missions_status ON hunt_missions(status);
+CREATE INDEX IF NOT EXISTS idx_hunt_missions_type ON hunt_missions(type);
+CREATE INDEX IF NOT EXISTS idx_mission_progress_user ON mission_progress(user_id);
+CREATE INDEX IF NOT EXISTS idx_live_events_status ON live_events(status);
+CREATE INDEX IF NOT EXISTS idx_live_events_starts ON live_events(starts_at DESC);
+CREATE INDEX IF NOT EXISTS idx_event_participants_event ON event_participants(event_id);
+CREATE INDEX IF NOT EXISTS idx_user_rewards_user ON user_rewards(user_id);
+CREATE INDEX IF NOT EXISTS idx_live_activity_created ON live_activity_feed(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_club_rankings_season ON club_rankings(season, rank);
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260517210833_create_avatars_storage_bucket.sql
+-- -----------------------------------------------------------------------------
+/*
+  # Create avatars storage bucket
+
+  1. Storage
+    - Creates a public `avatars` bucket for user profile photos
+  2. Policies
+    - Authenticated users can upload to their own folder (user_id/*)
+    - Authenticated users can update/delete their own files
+    - Anyone can read avatar images (public bucket)
+*/
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Users can upload their own avatar"
+  ON storage.objects
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'avatars' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+CREATE POLICY "Users can update their own avatar"
+  ON storage.objects
+  FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id = 'avatars' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+CREATE POLICY "Users can delete their own avatar"
+  ON storage.objects
+  FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'avatars' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+CREATE POLICY "Anyone can view avatars"
+  ON storage.objects
+  FOR SELECT
+  TO public
+  USING (bucket_id = 'avatars');
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260517230210_security_hardening.sql
+-- -----------------------------------------------------------------------------
+/*
+  # Production Security Hardening
+
+  ## Vulnerabilities Fixed
+
+  1. hunt_missions INSERT — open WITH CHECK (true) allowed any authenticated user to create fake missions
+  2. live_events INSERT — same; any user could inject fake events
+  3. live_activity_feed INSERT — no user_id check; any user could post activity attributed to anyone
+  4. auctions UPDATE — fully open WITH CHECK (true); any user could self-declare as auction winner
+  5. profiles UPDATE — users could directly write xp, level, pro_member, scout_verified, treasure_rank, reputation_score
+  6. user_rewards INSERT — users could self-grant arbitrary badges/achievements
+  7. event_participants UPDATE — users could set their own competition score to any value
+  8. Counter RPCs — increment_post_likes could be called repeatedly without verifying a post_likes record exists
+  9. mission_progress UPDATE — users could fraudulently self-complete missions or reduce progress
+  10. Misleading notification policy renamed for audit clarity
+*/
+
+-- ============================================================
+-- FIX 1 & 2: hunt_missions and live_events
+-- Remove the open INSERT policies. Service role bypasses RLS
+-- entirely, so admin/backend can still create missions/events.
+-- Authenticated clients can no longer insert directly.
+-- ============================================================
+
+DROP POLICY IF EXISTS "Only system can create missions" ON hunt_missions;
+DROP POLICY IF EXISTS "System can create events" ON live_events;
+
+-- Explicitly deny INSERT, UPDATE, DELETE on admin-only tables
+-- (belt-and-suspenders; RLS default-deny applies once policies are dropped,
+--  but explicit FALSE policies make the intent clear in the audit trail)
+CREATE POLICY "No client inserts on hunt_missions"
+  ON hunt_missions FOR INSERT
+  TO authenticated
+  WITH CHECK (false);
+
+CREATE POLICY "No client inserts on live_events"
+  ON live_events FOR INSERT
+  TO authenticated
+  WITH CHECK (false);
+
+CREATE POLICY "No client updates on hunt_missions"
+  ON hunt_missions FOR UPDATE
+  TO authenticated
+  USING (false);
+
+CREATE POLICY "No client deletes on hunt_missions"
+  ON hunt_missions FOR DELETE
+  TO authenticated
+  USING (false);
+
+CREATE POLICY "No client updates on live_events"
+  ON live_events FOR UPDATE
+  TO authenticated
+  USING (false);
+
+CREATE POLICY "No client deletes on live_events"
+  ON live_events FOR DELETE
+  TO authenticated
+  USING (false);
+
+-- Protect club_rankings too (no policies existed, but be explicit)
+CREATE POLICY "No client inserts on club_rankings"
+  ON club_rankings FOR INSERT
+  TO authenticated
+  WITH CHECK (false);
+
+CREATE POLICY "No client updates on club_rankings"
+  ON club_rankings FOR UPDATE
+  TO authenticated
+  USING (false);
+
+CREATE POLICY "No client deletes on club_rankings"
+  ON club_rankings FOR DELETE
+  TO authenticated
+  USING (false);
+
+
+-- ============================================================
+-- FIX 3: live_activity_feed
+-- Add user_id ownership check so users can only post activity
+-- attributed to themselves.
+-- ============================================================
+
+DROP POLICY IF EXISTS "Users can post activity" ON live_activity_feed;
+
+CREATE POLICY "Users can post own activity"
+  ON live_activity_feed FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- Prevent clients from modifying or deleting activity feed entries
+CREATE POLICY "No client updates on live_activity_feed"
+  ON live_activity_feed FOR UPDATE
+  TO authenticated
+  USING (false);
+
+CREATE POLICY "No client deletes on live_activity_feed"
+  ON live_activity_feed FOR DELETE
+  TO authenticated
+  USING (false);
+
+
+-- ============================================================
+-- FIX 4: auctions
+-- Replace the completely open UPDATE policy with a proper
+-- place_bid SECURITY DEFINER RPC that validates all bid rules.
+-- Direct client UPDATE is removed.
+-- ============================================================
+
+DROP POLICY IF EXISTS "Authenticated users can update auctions to bid" ON auctions;
+
+CREATE OR REPLACE FUNCTION place_bid(auction_id_input uuid, bid_amount numeric)
+RETURNS jsonb AS $$
+DECLARE
+  v_auction auctions%ROWTYPE;
+  v_listing marketplace_listings%ROWTYPE;
+BEGIN
+  -- Lock the row to prevent race conditions
+  SELECT * INTO v_auction
+  FROM auctions
+  WHERE id = auction_id_input
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('error', 'Auction not found');
+  END IF;
+
+  -- Auction must still be open
+  IF v_auction.auction_end < now() THEN
+    RETURN jsonb_build_object('error', 'Auction has already ended');
+  END IF;
+
+  -- Bid must strictly exceed current bid
+  IF bid_amount <= v_auction.current_bid THEN
+    RETURN jsonb_build_object(
+      'error',
+      'Bid must exceed current bid of ' || v_auction.current_bid
+    );
+  END IF;
+
+  -- Sellers cannot bid on their own listings
+  SELECT * INTO v_listing
+  FROM marketplace_listings
+  WHERE id = v_auction.listing_id;
+
+  IF v_listing.seller_id = auth.uid() THEN
+    RETURN jsonb_build_object('error', 'Sellers cannot bid on their own auctions');
+  END IF;
+
+  -- Place the bid atomically
+  UPDATE auctions
+  SET
+    current_bid       = bid_amount,
+    highest_bidder_id = auth.uid(),
+    bid_count         = bid_count + 1
+  WHERE id = auction_id_input;
+
+  RETURN jsonb_build_object('success', true, 'bid', bid_amount);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Only authenticated users may call place_bid; revoke from anon
+REVOKE EXECUTE ON FUNCTION place_bid(uuid, numeric) FROM anon;
+GRANT  EXECUTE ON FUNCTION place_bid(uuid, numeric) TO authenticated;
+
+
+-- ============================================================
+-- FIX 5: profiles — protect gamification/trust fields
+-- A BEFORE UPDATE trigger silently resets server-managed fields
+-- when the request originates from a JWT-authenticated client.
+-- Service-role calls (no JWT context, e.g. backend admin)
+-- are allowed to update these fields normally.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION prevent_profile_field_escalation()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- request.jwt.claims is set for every Supabase client request (anon or authenticated JWT).
+  -- It is NULL/empty for direct service-role or postgres connections.
+  IF current_setting('request.jwt.claims', true) IS NOT NULL
+     AND current_setting('request.jwt.claims', true) != ''
+  THEN
+    -- Silently preserve server-managed fields; client-supplied values are ignored
+    NEW.xp               = OLD.xp;
+    NEW.level            = OLD.level;
+    NEW.reputation_score = OLD.reputation_score;
+    NEW.pro_member       = OLD.pro_member;
+    NEW.scout_verified   = OLD.scout_verified;
+    NEW.treasure_rank    = OLD.treasure_rank;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS enforce_profile_field_protection ON profiles;
+CREATE TRIGGER enforce_profile_field_protection
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION prevent_profile_field_escalation();
+
+
+-- ============================================================
+-- FIX 6: user_rewards
+-- Remove the open INSERT for authenticated users.
+-- Rewards must be granted by server-side logic (service role).
+-- Users can still read their own rewards.
+-- ============================================================
+
+DROP POLICY IF EXISTS "Users can earn rewards" ON user_rewards;
+
+CREATE POLICY "No client inserts on user_rewards"
+  ON user_rewards FOR INSERT
+  TO authenticated
+  WITH CHECK (false);
+
+CREATE POLICY "No client deletes on user_rewards"
+  ON user_rewards FOR DELETE
+  TO authenticated
+  USING (false);
+
+
+-- ============================================================
+-- FIX 7: event_participants
+-- Remove the open score UPDATE. Users may still join events
+-- (INSERT) and read participants (SELECT). Score updates must
+-- go through a server-side function (service role).
+-- ============================================================
+
+DROP POLICY IF EXISTS "Users can update own event score" ON event_participants;
+
+CREATE POLICY "No client score updates on event_participants"
+  ON event_participants FOR UPDATE
+  TO authenticated
+  USING (false);
+
+
+-- ============================================================
+-- FIX 8 & 9: Counter RPCs — add idempotency guards
+-- increment_post_likes now verifies the post_likes record
+-- exists before incrementing (prevents repeated call abuse).
+-- decrement_post_likes verifies the record is gone first.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION increment_post_likes(post_id_input uuid)
+RETURNS void AS $$
+BEGIN
+  -- Only increment if this user actually has a like record for the post
+  IF EXISTS (
+    SELECT 1 FROM post_likes
+    WHERE post_id = post_id_input
+      AND user_id = auth.uid()
+  ) THEN
+    UPDATE community_posts
+    SET like_count = like_count + 1
+    WHERE id = post_id_input;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION decrement_post_likes(post_id_input uuid)
+RETURNS void AS $$
+BEGIN
+  -- Only decrement if the like record no longer exists (unlike was processed)
+  IF NOT EXISTS (
+    SELECT 1 FROM post_likes
+    WHERE post_id = post_id_input
+      AND user_id = auth.uid()
+  ) THEN
+    UPDATE community_posts
+    SET like_count = GREATEST(like_count - 1, 0)
+    WHERE id = post_id_input;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Follow counter RPCs: guard against calling outside the followers table transaction
+CREATE OR REPLACE FUNCTION increment_follower_count(target_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM followers
+    WHERE following_id = target_user_id
+      AND follower_id = auth.uid()
+  ) THEN
+    UPDATE profiles
+    SET follower_count = follower_count + 1
+    WHERE id = target_user_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION decrement_follower_count(target_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM followers
+    WHERE following_id = target_user_id
+      AND follower_id = auth.uid()
+  ) THEN
+    UPDATE profiles
+    SET follower_count = GREATEST(follower_count - 1, 0)
+    WHERE id = target_user_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION increment_following_count(target_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM followers
+    WHERE follower_id = target_user_id
+      AND following_id = auth.uid()
+  ) THEN
+    UPDATE profiles
+    SET following_count = following_count + 1
+    WHERE id = target_user_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION decrement_following_count(target_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM followers
+    WHERE follower_id = target_user_id
+      AND following_id = auth.uid()
+  ) THEN
+    UPDATE profiles
+    SET following_count = GREATEST(following_count - 1, 0)
+    WHERE id = target_user_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Revoke all counter/bid RPCs from unauthenticated (anon) role
+REVOKE EXECUTE ON FUNCTION increment_post_likes(uuid)      FROM anon;
+REVOKE EXECUTE ON FUNCTION decrement_post_likes(uuid)      FROM anon;
+REVOKE EXECUTE ON FUNCTION increment_follower_count(uuid)  FROM anon;
+REVOKE EXECUTE ON FUNCTION decrement_follower_count(uuid)  FROM anon;
+REVOKE EXECUTE ON FUNCTION increment_following_count(uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION decrement_following_count(uuid) FROM anon;
+
+
+-- ============================================================
+-- FIX 9: mission_progress
+-- Prevent users from fraudulently self-completing missions
+-- or reducing their own progress count.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION validate_mission_progress()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Progress can only increase or stay the same (no rollbacks)
+  IF NEW.progress < OLD.progress THEN
+    NEW.progress = OLD.progress;
+  END IF;
+
+  -- completed and completed_at can only be set by the server (no JWT context)
+  IF current_setting('request.jwt.claims', true) IS NOT NULL
+     AND current_setting('request.jwt.claims', true) != ''
+  THEN
+    -- Client request: preserve server-controlled completion state
+    NEW.completed    = OLD.completed;
+    NEW.completed_at = OLD.completed_at;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS validate_mission_progress_trigger ON mission_progress;
+CREATE TRIGGER validate_mission_progress_trigger
+  BEFORE UPDATE ON mission_progress
+  FOR EACH ROW EXECUTE FUNCTION validate_mission_progress();
+
+
+-- ============================================================
+-- FIX 10: Rename misleading notification policy
+-- The old name "System can insert notifications for any user"
+-- implied a backdoor that didn't exist. The policy correctly
+-- restricts inserts to the user's own notifications only.
+-- ============================================================
+
+DROP POLICY IF EXISTS "System can insert notifications for any user" ON notifications;
+
+CREATE POLICY "Users can insert own notifications"
+  ON notifications FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260517231448_create_external_listings.sql
+-- -----------------------------------------------------------------------------
+/*
+  # External Marketplace & Live Selling Hub
+
+  1. New Table
+    - `external_listings` — user-submitted external platform links
+      Supports: Whatnot, Poshmark, eBay, HiBid, MaxSold, EstateSales.net,
+      Facebook Marketplace, and any other platform via `platform_label`.
+
+  2. Columns
+    - platform        text  — known platform id ('whatnot' | 'poshmark' | 'ebay' | ...)
+    - platform_label  text  — custom label when platform = 'other'
+    - listing_type    text  — 'live_stream' | 'auction' | 'fixed' | 'estate'
+    - external_url    text  — the link to the original listing
+    - price_display   text  — freeform price string ("$25", "Starting at $100", etc.)
+    - ships_available boolean
+    - local_pickup    boolean
+    - scout_needed    boolean
+    - ends_at         timestamptz (nullable)
+
+  3. Security
+    - RLS enabled; authenticated users can read active listings
+    - Users can only insert/update/delete their own records
+*/
+
 CREATE TABLE IF NOT EXISTS external_listings (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -31,26 +1273,22 @@ CREATE TABLE IF NOT EXISTS external_listings (
 
 ALTER TABLE external_listings ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Anyone authenticated can view active external listings" ON external_listings;
 CREATE POLICY "Anyone authenticated can view active external listings"
   ON external_listings FOR SELECT
   TO authenticated
   USING (status = 'active' OR user_id = auth.uid());
 
-DROP POLICY IF EXISTS "Users can submit external listings" ON external_listings;
 CREATE POLICY "Users can submit external listings"
   ON external_listings FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can update own external listings" ON external_listings;
 CREATE POLICY "Users can update own external listings"
   ON external_listings FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can delete own external listings" ON external_listings;
 CREATE POLICY "Users can delete own external listings"
   ON external_listings FOR DELETE
   TO authenticated
@@ -61,10 +1299,317 @@ CREATE INDEX IF NOT EXISTS idx_external_listings_user    ON external_listings(us
 CREATE INDEX IF NOT EXISTS idx_external_listings_type    ON external_listings(listing_type);
 CREATE INDEX IF NOT EXISTS idx_external_listings_created ON external_listings(created_at DESC);
 
+
 -- -----------------------------------------------------------------------------
--- 2) Logistics / scout / safety columns (idempotent)
---    These match the existing client code in src/pages/LiveHub.tsx
+-- FROM: 20260518000001_create_platform_submissions.sql
 -- -----------------------------------------------------------------------------
+create table if not exists platform_submissions (
+  id uuid primary key default gen_random_uuid(),
+  platform_name text not null,
+  website_url text,
+  description text,
+  platform_type text not null default 'marketplace',
+  shipping_supported boolean not null default false,
+  scout_friendly boolean not null default false,
+  logo_url text,
+  submitted_by uuid references profiles(id) on delete set null,
+  status text not null default 'pending',
+  created_at timestamptz not null default now()
+);
+
+alter table platform_submissions enable row level security;
+
+create policy "Anyone can submit platforms"
+  on platform_submissions for insert
+  to authenticated, anon
+  with check (true);
+
+create policy "Anyone can read platform submissions"
+  on platform_submissions for select
+  to authenticated, anon
+  using (true);
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260518000002_add_location_marketplace_to_community_posts.sql
+-- -----------------------------------------------------------------------------
+/*
+  # Flash Finds — Location Found & Marketplace Found
+
+  1. Purpose
+    - Ensures `community_posts` table exists (idempotent recreate of any missing
+      columns) so the schema cache lines up with what the app inserts.
+    - Adds two new reseller-focused metadata columns:
+        * `location_found`    — free text, where the item was physically found
+                                (e.g. "Phoenix AZ", "Storage Locker Auction")
+        * `marketplace_found` — slug for which online marketplace surfaced it
+                                (e.g. "facebook_marketplace", "ebay", "whatnot")
+
+  2. Notes
+    - `community_posts` already has a `location` column from the original
+      migration; we keep it for backwards-compatibility and ALSO write to the
+      new explicit `location_found` field going forward.
+    - `NOTIFY pgrst, 'reload schema'` forces PostgREST to refresh its schema
+      cache so the "Could not find the table 'public.community_posts' in the
+      schema cache" error disappears immediately after this migration runs.
+*/
+
+CREATE TABLE IF NOT EXISTS community_posts (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type            text DEFAULT 'find',
+  caption         text DEFAULT '',
+  image_url       text,
+  tags            text[] DEFAULT '{}',
+  location        text DEFAULT '',
+  rarity_score    numeric(3,1),
+  estimated_value numeric(10,2),
+  scout_assisted  boolean DEFAULT false,
+  for_sale        boolean DEFAULT false,
+  category        text DEFAULT 'other',
+  like_count      integer DEFAULT 0,
+  comment_count   integer DEFAULT 0,
+  share_count     integer DEFAULT 0,
+  created_at      timestamptz DEFAULT now()
+);
+
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS location_found    text DEFAULT '';
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS marketplace_found text DEFAULT '';
+
+ALTER TABLE community_posts ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Anyone authenticated can view community posts') THEN
+    CREATE POLICY "Anyone authenticated can view community posts"
+      ON community_posts FOR SELECT TO authenticated USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can create own posts') THEN
+    CREATE POLICY "Users can create own posts"
+      ON community_posts FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can update own posts') THEN
+    CREATE POLICY "Users can update own posts"
+      ON community_posts FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can delete own posts') THEN
+    CREATE POLICY "Users can delete own posts"
+      ON community_posts FOR DELETE TO authenticated USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_community_posts_marketplace ON community_posts(marketplace_found);
+CREATE INDEX IF NOT EXISTS idx_community_posts_user        ON community_posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_posts_created     ON community_posts(created_at DESC);
+
+NOTIFY pgrst, 'reload schema';
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260518000003_ai_scans_and_membership.sql
+-- -----------------------------------------------------------------------------
+/*
+  # AI Treasure Scan: usage logging & membership tiers
+
+  1. Profile changes
+    - Adds `membership_tier` text ('free' | 'pro') default 'free'.
+
+  2. New table: `ai_scans_log`
+    - One row per AI vision scan (success or cache hit).
+    - Used for rate limiting (free=5/24h, pro soft cap 100/24h).
+    - Stores image_hash so duplicate uploads within 24h can be served from cache.
+    - Stores result_json for re-display & analytics.
+
+  3. Security
+    - RLS enabled. Users may insert/read only their own rows.
+
+  4. Realtime / schema reload
+    - NOTIFY pgrst, 'reload schema' so PostgREST picks up new column immediately.
+*/
+
+-- Profiles: membership_tier
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'membership_tier'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN membership_tier text NOT NULL DEFAULT 'free'
+      CHECK (membership_tier IN ('free', 'pro'));
+  END IF;
+END $$;
+
+-- AI scans log
+CREATE TABLE IF NOT EXISTS ai_scans_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  model text NOT NULL DEFAULT 'gpt-5.4',
+  image_hash text,
+  result_json jsonb,
+  cached boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE ai_scans_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own scans" ON ai_scans_log;
+CREATE POLICY "Users can read own scans"
+  ON ai_scans_log FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own scans" ON ai_scans_log;
+CREATE POLICY "Users can insert own scans"
+  ON ai_scans_log FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_ai_scans_user_time
+  ON ai_scans_log(user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ai_scans_user_hash
+  ON ai_scans_log(user_id, image_hash);
+
+NOTIFY pgrst, 'reload schema';
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260518000004_ai_scan_atomic_claim.sql
+-- -----------------------------------------------------------------------------
+/*
+  # Atomic AI scan slot reservation
+
+  Rate-limit needs to be race-safe. Previously the server did:
+    count -> compare -> OpenAI -> insert
+  Two parallel requests could both pass the count check and both spend OpenAI
+  tokens, exceeding free/pro caps.
+
+  Fix: `claim_ai_scan_slot(p_limit)` takes a per-user advisory lock, counts
+  scans in the last 24h, and (if under limit) inserts a placeholder row in the
+  same critical section. The placeholder row immediately counts against the
+  user's limit. The server later updates the row with the OpenAI result, or
+  deletes it on failure.
+
+  Cache hits intentionally do NOT consume a slot or insert a row — the user is
+  re-served their own recent identical result for free. Frontend communicates
+  this with the "Reused recent scan" banner.
+*/
+
+CREATE OR REPLACE FUNCTION claim_ai_scan_slot(p_limit int)
+RETURNS TABLE (allowed boolean, used int, scan_id uuid)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_count int;
+  v_new_id uuid;
+BEGIN
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION 'unauthenticated' USING ERRCODE = '28000';
+  END IF;
+
+  -- Per-user advisory lock (auto-released at txn end).
+  PERFORM pg_advisory_xact_lock(hashtext(v_user::text));
+
+  SELECT COUNT(*) INTO v_count
+  FROM ai_scans_log
+  WHERE user_id = v_user
+    AND created_at >= now() - interval '24 hours';
+
+  IF v_count >= p_limit THEN
+    RETURN QUERY SELECT false, v_count, NULL::uuid;
+    RETURN;
+  END IF;
+
+  INSERT INTO ai_scans_log (user_id, model, image_hash, result_json, cached)
+  VALUES (v_user, 'gpt-5.4', NULL, NULL, false)
+  RETURNING id INTO v_new_id;
+
+  RETURN QUERY SELECT true, v_count + 1, v_new_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION claim_ai_scan_slot(int) FROM public;
+GRANT EXECUTE ON FUNCTION claim_ai_scan_slot(int) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+
+-- -----------------------------------------------------------------------------
+-- FROM: 20260518000005_listings_logistics_safety.sql
+-- -----------------------------------------------------------------------------
+/*
+  # Listings logistics, safety & scout coordination
+
+  Adds the structured fields that power TreasureTrail's reseller-friendly
+  upload forms, item detail pages, filters, and scout coordination — across
+  `community_posts` (Flash Finds), `marketplace_listings` (in-app store), and
+  `external_listings` (Auctions / Live / Estate / Yard / etc.).
+
+  New columns (idempotent, default-safe so existing rows keep working):
+
+    general_location        text   — required-at-form-layer ZIP or "City, ST"
+    exact_address_private   text   — optional precise pickup address; treated
+                                     as PRIVATE: the app never selects this
+                                     column in public reads. Owner-only fetch
+                                     via `get_my_exact_address(...)` RPC.
+    pickup_type             text[] — multi-select badges: local_pickup,
+                                     shipping_available, meetup_only,
+                                     scout_delivery_available,
+                                     nationwide_shipping, appointment_required
+    shipping_available      bool   — derived/explicit shipping flag for filters
+    scout_needed            bool   — seller asking for a scout
+    scouts_available        bool   — seller offering scout services
+    meetup_notes            text   — freeform meetup/pickup notes
+    marketplace_found       text   — present already on community_posts;
+                                     mirrored to marketplace_listings &
+                                     external_listings for cross-feature filters
+    address_reveal_policy   text   — 'on_contact' | 'on_appointment' |
+                                     'on_purchase' | 'never'
+
+  Also adds:
+    - `listing_reports` table for scam/safety reports (insert-only for users)
+    - `get_my_exact_address(p_table text, p_id uuid)` RPC — owner reads only
+*/
+
+------------------------------------------------------------------------------
+-- community_posts (Flash Finds)
+------------------------------------------------------------------------------
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS general_location      text DEFAULT '';
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS exact_address_private text;
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS pickup_type           text[] DEFAULT '{}';
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS shipping_available    boolean DEFAULT false;
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS scout_needed          boolean DEFAULT false;
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS scouts_available      boolean DEFAULT false;
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS meetup_notes          text DEFAULT '';
+ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS address_reveal_policy text DEFAULT 'on_contact';
+
+CREATE INDEX IF NOT EXISTS idx_cp_general_location ON community_posts(general_location);
+CREATE INDEX IF NOT EXISTS idx_cp_shipping         ON community_posts(shipping_available);
+CREATE INDEX IF NOT EXISTS idx_cp_scout_needed     ON community_posts(scout_needed);
+
+------------------------------------------------------------------------------
+-- marketplace_listings
+------------------------------------------------------------------------------
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS general_location      text DEFAULT '';
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS exact_address_private text;
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS pickup_type           text[] DEFAULT '{}';
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS shipping_available    boolean DEFAULT false;
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS scout_needed          boolean DEFAULT false;
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS scouts_available      boolean DEFAULT false;
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS meetup_notes          text DEFAULT '';
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS marketplace_found     text DEFAULT '';
+ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS address_reveal_policy text DEFAULT 'on_contact';
+
+CREATE INDEX IF NOT EXISTS idx_ml_general_location ON marketplace_listings(general_location);
+CREATE INDEX IF NOT EXISTS idx_ml_shipping         ON marketplace_listings(shipping_available);
+CREATE INDEX IF NOT EXISTS idx_ml_scout_needed     ON marketplace_listings(scout_needed);
+CREATE INDEX IF NOT EXISTS idx_ml_marketplace      ON marketplace_listings(marketplace_found);
+
+------------------------------------------------------------------------------
+-- external_listings (Auctions / LiveHub events)
+------------------------------------------------------------------------------
 ALTER TABLE external_listings ADD COLUMN IF NOT EXISTS general_location      text DEFAULT '';
 ALTER TABLE external_listings ADD COLUMN IF NOT EXISTS exact_address_private text;
 ALTER TABLE external_listings ADD COLUMN IF NOT EXISTS pickup_type           text[] DEFAULT '{}';
@@ -76,46 +1621,9 @@ ALTER TABLE external_listings ADD COLUMN IF NOT EXISTS address_reveal_policy tex
 CREATE INDEX IF NOT EXISTS idx_el_general_location ON external_listings(general_location);
 CREATE INDEX IF NOT EXISTS idx_el_marketplace      ON external_listings(marketplace_found);
 
--- -----------------------------------------------------------------------------
--- 3) Same logistics columns on community_posts & marketplace_listings
---    (only run-effective for tables you already have; wrapped in DO blocks)
--- -----------------------------------------------------------------------------
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='community_posts') THEN
-    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS general_location      text DEFAULT '';
-    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS exact_address_private text;
-    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS pickup_type           text[] DEFAULT '{}';
-    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS shipping_available    boolean DEFAULT false;
-    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS scout_needed          boolean DEFAULT false;
-    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS scouts_available      boolean DEFAULT false;
-    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS meetup_notes          text DEFAULT '';
-    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS address_reveal_policy text DEFAULT 'on_contact';
-    CREATE INDEX IF NOT EXISTS idx_cp_general_location ON community_posts(general_location);
-    CREATE INDEX IF NOT EXISTS idx_cp_shipping         ON community_posts(shipping_available);
-    CREATE INDEX IF NOT EXISTS idx_cp_scout_needed     ON community_posts(scout_needed);
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='marketplace_listings') THEN
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS general_location      text DEFAULT '';
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS exact_address_private text;
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS pickup_type           text[] DEFAULT '{}';
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS shipping_available    boolean DEFAULT false;
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS scout_needed          boolean DEFAULT false;
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS scouts_available      boolean DEFAULT false;
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS meetup_notes          text DEFAULT '';
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS marketplace_found     text DEFAULT '';
-    ALTER TABLE marketplace_listings ADD COLUMN IF NOT EXISTS address_reveal_policy text DEFAULT 'on_contact';
-    CREATE INDEX IF NOT EXISTS idx_ml_general_location ON marketplace_listings(general_location);
-    CREATE INDEX IF NOT EXISTS idx_ml_shipping         ON marketplace_listings(shipping_available);
-    CREATE INDEX IF NOT EXISTS idx_ml_scout_needed     ON marketplace_listings(scout_needed);
-    CREATE INDEX IF NOT EXISTS idx_ml_marketplace      ON marketplace_listings(marketplace_found);
-  END IF;
-END $$;
-
--- -----------------------------------------------------------------------------
--- 4) listing_reports — scam / safety report table
--- -----------------------------------------------------------------------------
+------------------------------------------------------------------------------
+-- listing_reports — scam / safety / inaccurate listing reports
+------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS listing_reports (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   reporter_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -145,9 +1653,12 @@ CREATE POLICY "Users can read own reports"
 CREATE INDEX IF NOT EXISTS idx_listing_reports_target
   ON listing_reports(listing_table, listing_id);
 
--- -----------------------------------------------------------------------------
--- 5) Owner-only RPC for revealing the private exact address
--- -----------------------------------------------------------------------------
+------------------------------------------------------------------------------
+-- Owner-only RPC for revealing the private exact address
+-- The app never SELECTs `exact_address_private` in normal feed queries.
+-- The owner can call this RPC to read their own row's address.
+-- Future buyer-approval flow will extend this with a second policy check.
+------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION get_my_exact_address(p_table text, p_id uuid)
 RETURNS text
 LANGUAGE plpgsql
@@ -187,32 +1698,23 @@ $$;
 REVOKE ALL ON FUNCTION get_my_exact_address(text, uuid) FROM public;
 GRANT EXECUTE ON FUNCTION get_my_exact_address(text, uuid) TO authenticated;
 
--- -----------------------------------------------------------------------------
--- 6) Column-level privacy: never leak exact_address_private via SELECT *
--- -----------------------------------------------------------------------------
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns
-             WHERE table_name='community_posts' AND column_name='exact_address_private') THEN
-    REVOKE SELECT (exact_address_private) ON community_posts FROM anon, authenticated;
-    GRANT INSERT (exact_address_private), UPDATE (exact_address_private)
-      ON community_posts TO authenticated;
-  END IF;
-  IF EXISTS (SELECT 1 FROM information_schema.columns
-             WHERE table_name='marketplace_listings' AND column_name='exact_address_private') THEN
-    REVOKE SELECT (exact_address_private) ON marketplace_listings FROM anon, authenticated;
-    GRANT INSERT (exact_address_private), UPDATE (exact_address_private)
-      ON marketplace_listings TO authenticated;
-  END IF;
-END $$;
+------------------------------------------------------------------------------
+-- Column-level privacy: exact_address_private must never leak via SELECT *.
+-- PostgREST honors column-level GRANTs, so revoking SELECT on this column
+-- from `anon` and `authenticated` means client `select('*')` calls simply
+-- cannot return it. Owner reads still work via the SECURITY DEFINER RPC.
+------------------------------------------------------------------------------
+REVOKE SELECT (exact_address_private) ON community_posts      FROM anon, authenticated;
+REVOKE SELECT (exact_address_private) ON marketplace_listings FROM anon, authenticated;
+REVOKE SELECT (exact_address_private) ON external_listings    FROM anon, authenticated;
 
-REVOKE SELECT (exact_address_private) ON external_listings FROM anon, authenticated;
+-- Owners still need to write/update this column on their own rows.
 GRANT INSERT (exact_address_private), UPDATE (exact_address_private)
-  ON external_listings TO authenticated;
+  ON community_posts      TO authenticated;
+GRANT INSERT (exact_address_private), UPDATE (exact_address_private)
+  ON marketplace_listings TO authenticated;
+GRANT INSERT (exact_address_private), UPDATE (exact_address_private)
+  ON external_listings    TO authenticated;
 
--- -----------------------------------------------------------------------------
--- 7) Force PostgREST to reload its schema cache so the new table is visible
--- -----------------------------------------------------------------------------
 NOTIFY pgrst, 'reload schema';
 
--- Done. You should see "Success. No rows returned" in the SQL editor.

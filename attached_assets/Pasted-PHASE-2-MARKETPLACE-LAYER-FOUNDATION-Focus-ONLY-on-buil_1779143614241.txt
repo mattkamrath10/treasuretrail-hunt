@@ -1,0 +1,270 @@
+PHASE 2 — MARKETPLACE LAYER FOUNDATION
+
+Focus ONLY on building the real marketplace listing system and integrating it cleanly into the Home Feed ecosystem.
+
+Do NOT add:
+
+* advanced AI
+* notifications
+* push systems
+* gamification
+* ranking systems
+
+Priority is:
+real marketplace functionality and stable listing architecture.
+
+========================================
+
+1. CREATE marketplace_listings TABLE
+   ========================================
+
+The audit revealed:
+marketplace_listings does not exist in Supabase.
+
+Create it properly.
+
+Required fields:
+
+* id
+* created_at
+* user_id
+* title
+* description
+* category
+* condition
+* image_url
+* marketplace_name
+* external_url
+* price
+* shipping_available
+* local_pickup
+* scout_needed
+* general_location
+* zip_code
+* city
+* state
+* status
+* tags
+* views_count
+* saves_count
+
+Enable:
+
+* RLS
+* authenticated inserts
+* public reads
+* owner-only edits/deletes
+
+========================================
+2. HOME FEED MARKETPLACE INTEGRATION
+====================================
+
+Marketplace listings must appear in:
+
+* Home Feed
+* category filters
+* search results
+* location filtering
+
+They should behave like first-class feed items.
+
+========================================
+3. MARKETPLACE LISTING CARDS
+============================
+
+Create polished marketplace cards displaying:
+
+* image
+* title
+* marketplace badge
+* price
+* category
+* location
+* shipping/pickup badges
+* scout-needed badge
+* save/share buttons
+
+Marketplace badges:
+
+* Facebook Marketplace
+* eBay
+* Whatnot
+* Poshmark
+* OfferUp
+* Mercari
+* Craigslist
+* HiBid
+* MaxSold
+* Etsy
+* Bonanza
+* Other
+
+========================================
+4. MARKETPLACE FILTERS
+======================
+
+Add marketplace-specific filtering:
+
+* All Marketplaces
+* Facebook Marketplace
+* eBay
+* Whatnot
+* Poshmark
+* OfferUp
+* Auctions
+* Estate Sales
+* Storage Lockers
+
+Filters must operate against real Supabase data only.
+
+========================================
+5. MARKETPLACE SEARCH
+=====================
+
+Marketplace listings should be searchable by:
+
+* title
+* category
+* marketplace
+* location
+* tags
+* description
+
+Search updates live while typing.
+
+========================================
+6. LISTING DETAIL VIEW
+======================
+
+Marketplace items should open a proper detail page/modal.
+
+Display:
+
+* images
+* description
+* marketplace source
+* external link
+* shipping/pickup
+* scout availability
+* approximate location
+* timestamp
+
+========================================
+7. EXTERNAL LINK SAFETY
+=======================
+
+Validate marketplace URLs before opening.
+
+Allow ONLY:
+
+* http://
+* https://
+
+Use:
+noopener,noreferrer
+
+Prevent malformed links.
+
+========================================
+8. SAVE / BOOKMARK SYSTEM
+=========================
+
+Marketplace listings should support:
+
+* save/bookmark
+* persistent saved state
+* local persistence
+* future cloud persistence compatibility
+
+========================================
+9. SHARE FLOW
+=============
+
+Marketplace listings should support:
+
+* native mobile share
+* copy link fallback
+* direct marketplace link sharing
+
+========================================
+10. EMPTY STATES
+================
+
+If no marketplace listings exist:
+show clean honest empty states.
+
+DO NOT:
+
+* show fake marketplace items
+* use placeholder listings
+* use demo cards
+
+========================================
+11. MOBILE OPTIMIZATION
+=======================
+
+Optimize marketplace cards for mobile:
+
+* responsive layout
+* lazy-loaded images
+* touch-friendly controls
+* smooth scrolling
+
+========================================
+12. PERFORMANCE
+===============
+
+Prevent:
+
+* duplicate fetches
+* excessive rerenders
+* broken loading states
+* image overload
+
+========================================
+13. TRUST + CLARITY
+===================
+
+Marketplace listings should clearly indicate:
+
+* external source
+* pickup availability
+* shipping availability
+* scout-needed status
+
+The app should feel:
+
+* trustworthy
+* structured
+* marketplace-intelligent
+
+========================================
+14. NO FAKE SYSTEMS
+===================
+
+Remove or disable:
+
+* mock marketplace cards
+* fake trending listings
+* fake pricing
+* placeholder marketplace feeds
+
+Only real Supabase data.
+
+========================================
+15. FINAL QA
+============
+
+Verify:
+
+* marketplace_listings table exists
+* listings save correctly
+* Home Feed integration works
+* filters/search work
+* detail views work
+* save/share works
+* no dead buttons
+* no schema errors
+* no fake data
+* TypeScript clean
+* republish after completion
