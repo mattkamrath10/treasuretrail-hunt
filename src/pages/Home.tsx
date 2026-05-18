@@ -43,12 +43,31 @@ interface ExternalListing {
   listing_type: string;
   external_url: string;
   title: string;
+  description?: string | null;
   price_display: string | null;
   category: string | null;
   image_url: string | null;
   ends_at: string | null;
   scout_needed: boolean;
   ships_available: boolean;
+  location?: string | null;
+  general_location?: string | null;
+  created_at: string;
+}
+
+interface MarketplaceListing {
+  id: string;
+  seller_id: string;
+  title: string;
+  description: string | null;
+  price: number;
+  condition: string | null;
+  category: string | null;
+  image_url: string | null;
+  local_pickup: boolean | null;
+  shipping_available?: boolean | null;
+  general_location?: string | null;
+  status: string;
   created_at: string;
 }
 
@@ -65,11 +84,12 @@ type ExtendedPost = CommunityPost & {
 };
 
 interface FeedItem {
-  kind: 'post' | 'listing';
+  kind: 'post' | 'listing' | 'marketplace';
   id: string;
-  raw: ExtendedPost | ExternalListing;
+  raw: ExtendedPost | ExternalListing | MarketplaceListing;
   filterIds: Set<FilterId>;
   location: string;
+  searchText: string;     // concatenated lowercase text for keyword search
   sortNewest: number;     // ms timestamp
   sortTrending: number;   // engagement score
   sortMostWanted: number; // scout-needed score
@@ -108,6 +128,17 @@ function postBadge(p: ExtendedPost): { label: string; bg: string; color: string 
   return null;
 }
 
+function openExternalUrl(raw: string | null | undefined): void {
+  if (!raw) return;
+  try {
+    const u = new URL(raw, window.location.origin);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+    window.open(u.toString(), '_blank', 'noopener,noreferrer');
+  } catch {
+    // Invalid URL — silently ignore so we don't navigate anywhere unsafe.
+  }
+}
+
 function locationMatches(itemLocation: string, query: string): boolean {
   if (!query.trim()) return true;
   if (!itemLocation) return false;
@@ -119,12 +150,15 @@ export default function Home() {
   const location = useLocation();
   const [posts, setPosts] = useState<ExtendedPost[]>([]);
   const [listings, setListings] = useState<ExternalListing[]>([]);
+  const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [activeSort, setActiveSort] = useState<SortId>('newest');
   const [locationQuery, setLocationQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [detailPost, setDetailPost] = useState<ExtendedPost | null>(null);
   const { user } = useAuth();
   const { requireAuth } = useGuestAction();
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
@@ -181,20 +215,41 @@ export default function Home() {
       fetchCommunityPosts(50),
       supabase
         .from('external_listings')
-        .select('id,platform,listing_type,external_url,title,price_display,category,image_url,ends_at,scout_needed,ships_available,created_at')
+        .select('id,platform,listing_type,external_url,title,description,price_display,category,image_url,ends_at,scout_needed,ships_available,location,general_location,created_at')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('marketplace_listings')
+        .select('id,seller_id,title,description,price,condition,category,image_url,local_pickup,shipping_available,general_location,status,created_at')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(30),
     ])
-      .then(([communityPosts, listingsRes]) => {
+      .then(([communityPosts, listingsRes, marketRes]) => {
         setPosts(communityPosts as ExtendedPost[]);
         if (listingsRes.data) setListings(listingsRes.data as ExternalListing[]);
+        if (marketRes.data) setMarketplaceItems(marketRes.data as MarketplaceListing[]);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  const didInitialLoadRef = useRef(false);
+  useEffect(() => {
+    if (didInitialLoadRef.current) return;
+    didInitialLoadRef.current = true;
+    loadAll();
+  }, [loadAll]);
+
+  // When a user navigates back to Home from a post-create flow, the navigation
+  // state includes highlightPostId; refetch so the brand-new post is in view.
+  // Skip if this is the first mount (already covered by initial load above).
+  useEffect(() => {
+    if (!didInitialLoadRef.current) return;
+    const navState = location.state as { highlightPostId?: string } | null;
+    if (navState?.highlightPostId) loadAll();
+  }, [location.state, loadAll]);
 
   // Once posts arrive, if we have a highlightId, scroll to it.
   useEffect(() => {
@@ -226,6 +281,7 @@ export default function Home() {
         raw: p,
         filterIds,
         location: loc,
+        searchText: [p.caption, p.category, loc, p.marketplace_found, p.type].filter(Boolean).join(' ').toLowerCase(),
         sortNewest: createdMs,
         sortTrending: (p.like_count || 0) * 2 + (p.comment_count || 0) + (p.share_count || 0),
         sortMostWanted: (p.scout_needed ? 1000 : 0) + (p.type === 'rare_radar' ? 500 : 0) + (p.like_count || 0),
@@ -239,6 +295,7 @@ export default function Home() {
       if (cat) filterIds.add(cat);
       const t = listingTypeFilterId(l.listing_type);
       if (t) filterIds.add(t);
+      const loc = l.general_location || l.location || '';
       const createdMs = new Date(l.created_at).getTime() || 0;
       const endsMs = l.ends_at ? new Date(l.ends_at).getTime() : NaN;
       out.push({
@@ -246,7 +303,8 @@ export default function Home() {
         id: l.id,
         raw: l,
         filterIds,
-        location: '',
+        location: loc,
+        searchText: [l.title, l.description, l.category, loc, l.platform].filter(Boolean).join(' ').toLowerCase(),
         sortNewest: createdMs,
         sortTrending: (l.listing_type === 'live_stream' || l.listing_type === 'auction') ? 100 : 0,
         sortMostWanted: l.scout_needed ? 1000 : 0,
@@ -254,13 +312,37 @@ export default function Home() {
       });
     }
 
+    for (const m of marketplaceItems) {
+      const filterIds = new Set<FilterId>(['all', 'marketplace']);
+      const cat = categoryToFilterId(m.category);
+      if (cat) filterIds.add(cat);
+      const loc = m.general_location || '';
+      const createdMs = new Date(m.created_at).getTime() || 0;
+      out.push({
+        kind: 'marketplace',
+        id: m.id,
+        raw: m,
+        filterIds,
+        location: loc,
+        searchText: [m.title, m.description, m.category, m.condition, loc].filter(Boolean).join(' ').toLowerCase(),
+        sortNewest: createdMs,
+        sortTrending: 0,
+        sortMostWanted: 0,
+        sortEndingSoon: Infinity,
+      });
+    }
+
     return out;
-  }, [posts, listings]);
+  }, [posts, listings, marketplaceItems]);
 
   const visibleItems = useMemo(() => {
     let v = items.filter((i) => i.filterIds.has(activeFilter));
     if (locationQuery.trim()) {
       v = v.filter((i) => locationMatches(i.location, locationQuery));
+    }
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      v = v.filter((i) => i.searchText.includes(q));
     }
     if (activeSort === 'ending_soon') {
       v = v.filter((i) => isFinite(i.sortEndingSoon));
@@ -272,7 +354,7 @@ export default function Home() {
       ending_soon: (a, b) => a.sortEndingSoon - b.sortEndingSoon,
     };
     return v.slice().sort(cmp[activeSort]);
-  }, [items, activeFilter, activeSort, locationQuery]);
+  }, [items, activeFilter, activeSort, locationQuery, searchQuery]);
 
   // Pin the highlighted item to the top so it's immediately visible.
   const orderedItems = useMemo(() => {
@@ -341,6 +423,25 @@ export default function Home() {
         ))}
       </div>
 
+      <div style={styles.searchRow}>
+        <div style={styles.searchField}>
+          <Search size={14} style={{ color: 'var(--color-neutral-400)' }} />
+          <input
+            type="text"
+            placeholder="Search titles, categories, marketplaces…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={styles.locationInput}
+            aria-label="Search feed"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} style={styles.locationClear} aria-label="Clear search">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
       <div style={styles.filterRow}>
         <div style={styles.locationField}>
           <MapPin size={13} style={{ color: 'var(--color-neutral-400)' }} />
@@ -390,7 +491,7 @@ export default function Home() {
             Your post is hidden by current filters.
           </span>
           <button
-            onClick={() => { setActiveFilter('all'); setLocationQuery(''); setActiveSort('newest'); }}
+            onClick={() => { setActiveFilter('all'); setLocationQuery(''); setSearchQuery(''); setActiveSort('newest'); }}
             style={styles.highlightBannerBtn}
           >
             Show it
@@ -420,7 +521,7 @@ export default function Home() {
                 ? 'Try clearing your location filter to see more finds.'
                 : 'Try a different category or clear your filters.'}
             </p>
-            <button onClick={() => { setActiveFilter('all'); setLocationQuery(''); setActiveSort('newest'); }} style={styles.emptyBtn}>
+            <button onClick={() => { setActiveFilter('all'); setLocationQuery(''); setSearchQuery(''); setActiveSort('newest'); }} style={styles.emptyBtn}>
               Reset Filters
             </button>
           </div>
@@ -443,7 +544,19 @@ export default function Home() {
                 ref={setItemRef(item.id)}
                 style={{ ...baseStyle, ...hlStyle }}
               >
-                <ExternalListingCard listing={l} index={index} onClick={() => window.open(l.external_url, '_blank', 'noopener')} />
+                <ExternalListingCard listing={l} index={index} onClick={() => openExternalUrl(l.external_url)} />
+              </div>
+            );
+          }
+          if (item.kind === 'marketplace') {
+            const m = item.raw as MarketplaceListing;
+            return (
+              <div
+                key={`m-${item.id}`}
+                ref={setItemRef(item.id)}
+                style={{ ...baseStyle, ...hlStyle }}
+              >
+                <MarketplaceCard listing={m} onClick={() => navigate('/marketplace')} />
               </div>
             );
           }
@@ -495,7 +608,15 @@ export default function Home() {
                   {p.category && <span style={styles.categoryTag}>{p.category}</span>}
                 </div>
 
-                <h3 style={styles.cardTitle}>{p.caption}</h3>
+                <h3
+                  style={{ ...styles.cardTitle, cursor: 'pointer' }}
+                  onClick={() => setDetailPost(p)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setDetailPost(p); }}
+                >
+                  {p.caption}
+                </h3>
 
                 <div style={styles.cardActions}>
                   <button
@@ -558,7 +679,159 @@ export default function Home() {
       </div>
 
       {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
+      {detailPost && <PostDetailModal post={detailPost} onClose={() => setDetailPost(null)} />}
     </div>
+  );
+}
+
+function PostDetailModal({ post, onClose }: { post: ExtendedPost; onClose: () => void }) {
+  const loc = post.general_location || post.location || '';
+  return (
+    <div
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: 'var(--space-4)',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: 'var(--color-neutral-0)', borderRadius: 'var(--radius-lg)',
+          maxWidth: '480px', width: '100%', maxHeight: '92vh', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        <div style={{ position: 'relative' }}>
+          {post.image_url ? (
+            <img src={post.image_url} alt={post.caption} style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', display: 'block' }} loading="lazy" />
+          ) : (
+            <div style={{ width: '100%', height: '180px', backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Bookmark size={36} style={{ color: 'var(--color-neutral-300)' }} />
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              position: 'absolute', top: 12, right: 12,
+              width: 32, height: 32, borderRadius: '50%',
+              backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-neutral-900)', lineHeight: 1.3 }}>
+            {post.caption}
+          </h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {post.category && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-secondary-50)', color: 'var(--color-secondary-700)', fontWeight: 600 }}>
+                {post.category}
+              </span>
+            )}
+            {post.marketplace_found && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)', fontWeight: 600 }}>
+                {post.marketplace_found.replace(/_/g, ' ')}
+              </span>
+            )}
+            {post.scout_needed && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-warning-50)', color: 'var(--color-warning-700)', fontWeight: 600 }}>
+                Scout Needed
+              </span>
+            )}
+            {post.type === 'rare_radar' && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)', fontWeight: 600 }}>
+                Looking For
+              </span>
+            )}
+            {(post.type === 'flash_find' || post.type === 'find') && (
+              <span style={{ fontSize: 'var(--font-size-xs)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)', fontWeight: 600 }}>
+                Found
+              </span>
+            )}
+          </div>
+          {loc && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)' }}>
+              <MapPin size={14} /> {loc}
+            </div>
+          )}
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
+            Posted by @{post.profiles?.username || 'hunter'} • {new Date(post.created_at).toLocaleString()}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MarketplaceCard({ listing, onClick }: { listing: MarketplaceListing; onClick: () => void }) {
+  const priceDisplay = typeof listing.price === 'number' ? `$${listing.price.toFixed(2)}` : '';
+  return (
+    <article style={styles.card}>
+      <div style={styles.cardImageContainer}>
+        {listing.image_url ? (
+          <img src={listing.image_url} alt={listing.title} style={styles.cardImage} loading="lazy" />
+        ) : (
+          <div style={{ ...styles.cardImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShoppingBag size={32} style={{ color: 'var(--color-neutral-300)' }} />
+          </div>
+        )}
+        <span style={{ ...styles.hotBadge, backgroundColor: 'var(--color-accent-50)', color: 'var(--color-accent-700)' }}>
+          Marketplace
+        </span>
+        {priceDisplay && (
+          <span style={styles.priceBadge}>{priceDisplay}</span>
+        )}
+      </div>
+      <div style={styles.cardContent}>
+        <h3
+          style={{ ...styles.cardTitle, cursor: 'pointer' }}
+          onClick={onClick}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter') onClick(); }}
+        >
+          {listing.title}
+        </h3>
+        {listing.description && (
+          <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)', marginBottom: 'var(--space-2)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {listing.description}
+          </p>
+        )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {listing.category && (
+            <span style={styles.categoryTag}>{listing.category}</span>
+          )}
+          {listing.condition && (
+            <span style={{ ...styles.categoryTag, backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)' }}>
+              {listing.condition}
+            </span>
+          )}
+          {listing.local_pickup && (
+            <span style={{ ...styles.categoryTag, backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)' }}>
+              Local Pickup
+            </span>
+          )}
+          {listing.shipping_available && (
+            <span style={{ ...styles.categoryTag, backgroundColor: 'var(--color-success-50)', color: 'var(--color-success-700)' }}>
+              Ships
+            </span>
+          )}
+          {listing.general_location && (
+            <span style={{ ...styles.categoryTag, backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)' }}>
+              {listing.general_location}
+            </span>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -1053,6 +1326,22 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'var(--color-neutral-0)',
     borderBottom: '1px solid var(--color-neutral-100)',
   },
+  searchRow: {
+    display: 'flex',
+    padding: '0 var(--space-4) var(--space-2)',
+    flexShrink: 0,
+    backgroundColor: 'var(--color-neutral-0)',
+  },
+  searchField: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 12px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-50)',
+    border: '1px solid var(--color-neutral-150)',
+  },
   locationField: {
     flex: 1,
     display: 'flex',
@@ -1352,7 +1641,7 @@ function AuctionRadarCard({ listing, onClick }: { listing: ExternalListing; onCl
     }}>
       <div style={{ width: '100%', height: '72px', backgroundColor: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
         {listing.image_url ? (
-          <img src={listing.image_url} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={listing.image_url} alt={listing.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <Gavel size={22} style={{ color }} />
         )}
@@ -1398,7 +1687,7 @@ function ExternalListingCard({ listing, index, onClick }: { listing: ExternalLis
 
       {listing.image_url && (
         <div style={styles.cardImage}>
-          <img src={listing.image_url} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={listing.image_url} alt={listing.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       )}
 

@@ -1,0 +1,232 @@
+PHASE 1 — CORE FEED STABILIZATION
+
+Focus ONLY on:
+
+* Home Feed reliability
+* post visibility
+* filtering
+* uploads
+* navigation
+* mobile responsiveness
+* bookmarks/sharing
+* real-time usability
+
+Do NOT add major new features in this phase.
+
+========================================
+
+1. HOME FEED = PRIMARY APP FEED
+   ========================================
+
+Rename bottom nav:
+"Home"
+→
+"Home Feed"
+
+This becomes the central live community feed for the entire app.
+
+========================================
+2. HOME FEED CONTENT
+====================
+
+The Home Feed should display ALL real user content from Supabase:
+
+* Flash Finds
+* Rare Radar posts
+* Live Events
+* Auction uploads
+* Marketplace finds
+* Scout-needed posts
+
+Newest posts first.
+
+NO fake/demo content.
+
+========================================
+3. POST VISIBILITY FIX
+======================
+
+Currently users can create posts but cannot easily find them afterward.
+
+Fix:
+
+* newly created posts MUST immediately appear in Home Feed
+* newly created posts MUST appear in their originating section
+* newly created posts should be highlighted briefly after posting
+
+Examples:
+
+* Rare Radar post → Rare Radar + Home Feed
+* Live Event → Live Events + Home Feed
+
+========================================
+4. FEED FILTER SYSTEM
+=====================
+
+Add stable filtering to Home Feed.
+
+Required filters:
+
+* All
+* Furniture
+* Electronics
+* Jewelry
+* Collectibles
+* Auctions
+* Estate Sales
+* Yard Sales
+* Rare Radar
+* Flash Finds
+* Marketplace Finds
+
+========================================
+5. LOCATION FILTERS
+===================
+
+Add location filtering:
+
+* Nearby
+* ZIP code
+* City/state
+* 10 miles
+* 25 miles
+* 50 miles
+* 100 miles
+
+Filters must work against real location data only.
+
+========================================
+6. SEARCH BAR
+=============
+
+Add a stable search bar to Home Feed.
+
+Search:
+
+* titles
+* categories
+* locations
+* marketplace names
+* descriptions
+
+Search updates dynamically while typing.
+
+========================================
+7. BOOKMARK/SAVE STABILITY
+==========================
+
+Ensure bookmarks/saves:
+
+* persist correctly
+* visually update instantly
+* remain after refresh/login
+
+No fake save counters.
+
+========================================
+8. SHARE FLOW
+=============
+
+Fix and stabilize sharing:
+
+* native mobile share sheet
+* copy link support
+* proper item URLs
+* no dead share buttons
+
+========================================
+9. IMAGE RELIABILITY
+====================
+
+Verify:
+
+* uploaded images persist
+* images render correctly in feeds
+* broken images show placeholders
+* mobile uploads work consistently
+
+========================================
+10. ITEM DETAIL PAGES
+=====================
+
+Ensure all feed items open functioning detail pages.
+
+Detail pages should display:
+
+* title
+* description
+* category
+* marketplace found
+* location found
+* shipping/pickup info
+* scout badges
+* images
+
+========================================
+11. EMPTY STATE CLEANUP
+=======================
+
+If no real posts exist:
+show clean empty states.
+
+DO NOT show:
+
+* fake content
+* placeholder cards
+* mock arrays
+
+========================================
+12. MOBILE OPTIMIZATION
+=======================
+
+Optimize Home Feed for mobile:
+
+* smooth scrolling
+* responsive cards
+* proper spacing
+* no overflow
+* lazy-loaded images
+* touch-friendly filters/buttons
+
+========================================
+13. PERFORMANCE
+===============
+
+Prevent:
+
+* duplicate fetches
+* feed flickering
+* stale state issues
+* broken refresh loops
+
+========================================
+14. ROUTING + NAVIGATION QA
+===========================
+
+Audit all:
+
+* feed links
+* post links
+* navigation buttons
+* bottom nav routes
+* detail page routes
+
+No dead buttons.
+
+========================================
+15. FINAL QA
+============
+
+Verify:
+
+* posts appear instantly
+* Home Feed works
+* filters/search work
+* images work
+* sharing works
+* bookmarks persist
+* mobile responsive
+* no fake/demo content remains
+* no console errors
+* TypeScript clean
+* republish after completion
