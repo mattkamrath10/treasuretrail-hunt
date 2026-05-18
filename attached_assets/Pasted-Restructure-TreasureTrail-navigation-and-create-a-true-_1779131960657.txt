@@ -1,0 +1,236 @@
+Restructure TreasureTrail navigation and create a true Home Feed system powered entirely by real Supabase content.
+
+========================================
+
+1. CURRENT UX PROBLEM
+   ========================================
+
+Rare Radar posts are being created successfully,
+BUT users cannot easily find/view them afterward.
+
+After posting:
+
+* there is no visible central feed
+* uploaded finds appear lost
+* users end up on empty states
+
+This breaks the app flow.
+
+========================================
+2. RENAME HOME TAB
+==================
+
+Bottom navigation:
+Change:
+
+Home
+
+TO:
+
+Home Feed
+
+This should become the central live activity feed for the entire app.
+
+========================================
+3. HOME FEED PURPOSE
+====================
+
+The Home Feed becomes the master community timeline.
+
+It should display:
+
+* Flash Finds posts
+* Rare Radar requests
+* marketplace discoveries
+* scout activity
+* live event uploads
+* auction finds
+* yard sale finds
+* estate sale finds
+* community uploads
+
+Newest posts appear first.
+
+========================================
+4. CONNECT RARE RADAR POSTS
+===========================
+
+When a user creates a Rare Radar post:
+
+It MUST immediately appear inside:
+
+* Home Feed
+  AND
+* Rare Radar feed
+
+The uploaded table request should appear automatically.
+
+========================================
+5. REMOVE EMPTY/DEAD STATES
+===========================
+
+If real posts exist:
+DO NOT show:
+"No finds yet"
+
+The feed should populate from Supabase.
+
+========================================
+6. HOME FEED FILTER SYSTEM
+==========================
+
+Add filtering controls directly on the Home Feed page.
+
+Required filters:
+
+* All
+* Furniture
+* Watches
+* Jewelry
+* Electronics
+* Collectibles
+* Auctions
+* Estate Sales
+* Yard Sales
+* Marketplace Finds
+* Rare Radar Requests
+* Flash Finds
+
+========================================
+7. LOCATION FILTERING
+=====================
+
+Add location-aware filtering:
+
+* Nearby
+* My Area
+* Within 10 miles
+* Within 25 miles
+* Within 50 miles
+* City/state filter
+* ZIP code filter
+
+Users should be able to browse:
+only local sourcing opportunities.
+
+========================================
+8. SORTING OPTIONS
+==================
+
+Add sorting:
+
+* Newest
+* Closest
+* Trending
+* Most Viewed
+* Most Wanted
+* Ending Soon
+
+========================================
+9. HOME FEED CARD TYPES
+=======================
+
+Different post types should visually differ:
+
+Rare Radar request:
+
+* "Looking For" badge
+
+Flash Find:
+
+* "Found" badge
+
+Auction:
+
+* "Live Event" badge
+
+Marketplace:
+
+* platform badge
+
+Scout request:
+
+* "Scout Needed"
+
+========================================
+10. FEED INTERACTION
+====================
+
+Allow:
+
+* save
+* share
+* message
+* send to scouts
+* repost
+* contact uploader
+
+========================================
+11. REAL DATA ONLY
+==================
+
+Feed must use ONLY:
+real Supabase data.
+
+Remove:
+
+* fake posts
+* mock arrays
+* placeholder cards
+* demo feeds
+
+========================================
+12. MOBILE UX
+=============
+
+Mobile feed should:
+
+* scroll smoothly
+* lazy load images
+* support infinite scroll
+* keep filters accessible
+* maintain fast performance
+
+========================================
+13. POST-SUBMISSION FLOW
+========================
+
+After posting:
+show:
+"View in Home Feed"
+
+Tapping it:
+
+* scrolls/highlights newly created post
+* confirms upload succeeded
+
+========================================
+14. APP STRUCTURE
+=================
+
+TreasureTrail should now behave like:
+
+* reseller sourcing network
+* community marketplace intelligence platform
+* local sourcing coordination system
+* auction discovery feed
+
+NOT:
+
+* isolated disconnected pages
+
+========================================
+15. FINAL QA
+============
+
+Verify:
+
+* Rare Radar posts appear in Home Feed
+* Home Feed loads correctly
+* filters work
+* location filters work
+* real uploads display
+* uploaded photos render
+* no fake content remains
+* mobile UX smooth
+* publish after completion

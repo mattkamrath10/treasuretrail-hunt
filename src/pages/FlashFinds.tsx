@@ -74,6 +74,7 @@ export default function FlashFinds() {
   const { isGuest, user } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState<FlowStep>('main');
+  const [lastPostId, setLastPostId] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [form, setForm] = useState<FlashFindForm>({
     title: '',
@@ -202,7 +203,7 @@ export default function FlashFinds() {
         });
         if (ffErr) throw new Error(ffErr);
 
-        const { error: postErr } = await createCommunityPost({
+        const { data: createdPost, error: postErr } = await createCommunityPost({
           user_id: user.id,
           type: 'flash_find',
           caption: mergedForm.notes || mergedForm.title || 'New find',
@@ -227,6 +228,7 @@ export default function FlashFinds() {
         });
 
         if (postErr) throw new Error(postErr);
+        if (createdPost?.id) setLastPostId(createdPost.id);
 
         if (actions.includes('post_flash_finds')) completed.push('Posted to Flash Finds');
         if (actions.includes('send_scouts')) completed.push('Scout request flagged');
@@ -303,6 +305,7 @@ export default function FlashFinds() {
 
   const handleReset = () => {
     setStep('main');
+    setLastPostId(null);
     setPhotoUrl(null);
     setForm({
       title: '', category: '', notes: '', price: '', location: '', marketplace: '', marketplaceCustom: '',
@@ -386,7 +389,7 @@ export default function FlashFinds() {
           photoUrl={photoUrl}
           form={form}
           onPostAnother={handleReset}
-          onViewFeed={() => navigate('/community')}
+          onViewHomeFeed={() => navigate('/', { state: lastPostId ? { highlightPostId: lastPostId } : undefined })}
           onEdit={() => setStep('details')}
         />
       )}
@@ -704,13 +707,13 @@ function Confirmation({
   photoUrl,
   form,
   onPostAnother,
-  onViewFeed,
+  onViewHomeFeed,
   onEdit,
 }: {
   photoUrl: string | null;
   form: FlashFindForm;
   onPostAnother: () => void;
-  onViewFeed: () => void;
+  onViewHomeFeed: () => void;
   onEdit: () => void;
 }) {
   const marketplaceLabel =
@@ -766,9 +769,9 @@ function Confirmation({
         </div>
 
         <div style={styles.confirmActions}>
-          <button onClick={onViewFeed} style={styles.viewFeedBtn}>
+          <button onClick={onViewHomeFeed} style={styles.viewFeedBtn}>
             <Eye size={18} />
-            <span>View in Feed</span>
+            <span>View in Home Feed</span>
           </button>
           <button onClick={onEdit} style={styles.editBtn}>
             <Pencil size={18} />

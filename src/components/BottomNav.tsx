@@ -8,7 +8,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Home', icon: Home },
+  { path: '/', label: 'Home Feed', icon: Home },
   { path: '/flash-finds', label: 'Flash Finds', icon: Zap },
   { path: '/rare-radar', label: 'Rare Radar', icon: Radar },
   { path: '/live', label: 'Live Events', icon: Gavel },

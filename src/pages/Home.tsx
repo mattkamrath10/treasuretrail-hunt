@@ -1,12 +1,39 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye } from 'lucide-react';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
 import { fetchCommunityPosts } from '../lib/database';
 import { supabase } from '../lib/supabase';
 import type { CommunityPost } from '../lib/supabase';
 
-const categories = ['All', 'Electronics', 'Furniture', 'Books', 'Collectibles', 'Antiques', 'Art', 'Jewelry', 'Fashion', 'Watches'];
+type FilterId =
+  | 'all'
+  | 'furniture' | 'watches' | 'jewelry' | 'electronics' | 'collectibles'
+  | 'auctions' | 'estate_sales' | 'yard_sales' | 'marketplace'
+  | 'rare_radar' | 'flash_finds';
+
+const FILTERS: { id: FilterId; label: string }[] = [
+  { id: 'all',           label: 'All' },
+  { id: 'furniture',     label: 'Furniture' },
+  { id: 'watches',       label: 'Watches' },
+  { id: 'jewelry',       label: 'Jewelry' },
+  { id: 'electronics',   label: 'Electronics' },
+  { id: 'collectibles',  label: 'Collectibles' },
+  { id: 'auctions',      label: 'Auctions' },
+  { id: 'estate_sales',  label: 'Estate Sales' },
+  { id: 'yard_sales',    label: 'Yard Sales' },
+  { id: 'marketplace',   label: 'Marketplace Finds' },
+  { id: 'rare_radar',    label: 'Rare Radar Requests' },
+  { id: 'flash_finds',   label: 'Flash Finds' },
+];
+
+type SortId = 'newest' | 'trending' | 'most_wanted' | 'ending_soon';
+const SORTS: { id: SortId; label: string }[] = [
+  { id: 'newest',      label: 'Newest' },
+  { id: 'trending',    label: 'Trending' },
+  { id: 'most_wanted', label: 'Most Wanted' },
+  { id: 'ending_soon', label: 'Ending Soon' },
+];
 
 interface ExternalListing {
   id: string;
@@ -29,42 +56,206 @@ const PLATFORM_COLORS: Record<string, string> = {
   facebook: '#1877F2', other: '#6B7280',
 };
 
+type ExtendedPost = CommunityPost & {
+  general_location?: string | null;
+  marketplace_found?: string | null;
+  scout_needed?: boolean | null;
+};
+
+interface FeedItem {
+  kind: 'post' | 'listing';
+  id: string;
+  raw: ExtendedPost | ExternalListing;
+  filterIds: Set<FilterId>;
+  location: string;
+  sortNewest: number;     // ms timestamp
+  sortTrending: number;   // engagement score
+  sortMostWanted: number; // scout-needed score
+  sortEndingSoon: number; // ms until end (Infinity if not an auction)
+}
+
+function categoryToFilterId(cat?: string | null): FilterId | null {
+  if (!cat) return null;
+  const c = cat.toLowerCase();
+  if (c.includes('furniture'))    return 'furniture';
+  if (c.includes('watch'))        return 'watches';
+  if (c.includes('jewelry'))      return 'jewelry';
+  if (c.includes('electronics'))  return 'electronics';
+  if (c.includes('collectible'))  return 'collectibles';
+  return null;
+}
+
+function postTypeFilterId(t: string): FilterId | null {
+  if (t === 'rare_radar')                return 'rare_radar';
+  if (t === 'flash_find' || t === 'find') return 'flash_finds';
+  if (t === 'auction_win')               return 'auctions';
+  return null;
+}
+
+function listingTypeFilterId(t: string): FilterId | null {
+  if (t === 'auction' || t === 'live_stream') return 'auctions';
+  if (t === 'estate_sale')                    return 'estate_sales';
+  if (t === 'yard_sale' || t === 'garage_sale') return 'yard_sales';
+  return 'marketplace';
+}
+
+function postBadge(p: ExtendedPost): { label: string; bg: string; color: string } | null {
+  if (p.type === 'rare_radar')                          return { label: 'Looking For', bg: 'var(--color-accent-50)',    color: 'var(--color-accent-700)'   };
+  if (p.type === 'flash_find' || p.type === 'find')     return { label: 'Found',       bg: 'var(--color-success-50)',   color: 'var(--color-success-700)'  };
+  if (p.type === 'auction_win')                          return { label: 'Live Event',  bg: 'var(--color-error-50)',     color: 'var(--color-error-600)'    };
+  return null;
+}
+
+function locationMatches(itemLocation: string, query: string): boolean {
+  if (!query.trim()) return true;
+  if (!itemLocation) return false;
+  return itemLocation.toLowerCase().includes(query.trim().toLowerCase());
+}
+
 export default function Home() {
   const navigate = useNavigate();
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const location = useLocation();
+  const [posts, setPosts] = useState<ExtendedPost[]>([]);
   const [listings, setListings] = useState<ExternalListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [activeFilter, setActiveFilter] = useState<FilterId>('all');
+  const [activeSort, setActiveSort] = useState<SortId>('newest');
+  const [locationQuery, setLocationQuery] = useState('');
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
 
+  // Pull highlight target from navigation state (from Flash Finds / Rare Radar
+  // post-submission flow).
   useEffect(() => {
-    fetchCommunityPosts()
-      .then(setPosts)
+    const navState = location.state as { highlightPostId?: string } | null;
+    if (navState?.highlightPostId) {
+      setHighlightId(navState.highlightPostId);
+      // Clear router state so a manual refresh doesn't re-highlight.
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  const loadAll = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      fetchCommunityPosts(50),
+      supabase
+        .from('external_listings')
+        .select('id,platform,listing_type,external_url,title,price_display,category,image_url,ends_at,scout_needed,ships_available,created_at')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(30),
+    ])
+      .then(([communityPosts, listingsRes]) => {
+        setPosts(communityPosts as ExtendedPost[]);
+        if (listingsRes.data) setListings(listingsRes.data as ExternalListing[]);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-    supabase
-      .from('external_listings')
-      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,ends_at,scout_needed,ships_available,created_at')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(30)
-      .then(({ data }) => { if (data) setListings(data as ExternalListing[]); });
   }, []);
 
-  const filteredPosts = activeCategory === 'All'
-    ? posts
-    : posts.filter((p) => (p.category ?? '').toLowerCase() === activeCategory.toLowerCase());
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-  const filteredListings = activeCategory === 'All'
-    ? listings
-    : listings.filter((l) => (l.category ?? '').toLowerCase() === activeCategory.toLowerCase());
+  // Once posts arrive, if we have a highlightId, scroll to it.
+  useEffect(() => {
+    if (!highlightId) return;
+    const el = itemRefs.current.get(highlightId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Auto-clear the highlight after the flash animation runs.
+      const t = window.setTimeout(() => setHighlightId(null), 3500);
+      return () => window.clearTimeout(t);
+    }
+  }, [highlightId, posts, listings]);
+
+  const items: FeedItem[] = useMemo(() => {
+    const out: FeedItem[] = [];
+
+    for (const p of posts) {
+      const filterIds = new Set<FilterId>(['all']);
+      const cat = categoryToFilterId(p.category);
+      if (cat) filterIds.add(cat);
+      const type = postTypeFilterId(p.type);
+      if (type) filterIds.add(type);
+      if (p.marketplace_found)                filterIds.add('marketplace');
+      const loc = p.general_location || p.location || '';
+      const createdMs = new Date(p.created_at).getTime() || 0;
+      out.push({
+        kind: 'post',
+        id: p.id,
+        raw: p,
+        filterIds,
+        location: loc,
+        sortNewest: createdMs,
+        sortTrending: (p.like_count || 0) * 2 + (p.comment_count || 0) + (p.share_count || 0),
+        sortMostWanted: (p.scout_needed ? 1000 : 0) + (p.type === 'rare_radar' ? 500 : 0) + (p.like_count || 0),
+        sortEndingSoon: Infinity,
+      });
+    }
+
+    for (const l of listings) {
+      const filterIds = new Set<FilterId>(['all']);
+      const cat = categoryToFilterId(l.category);
+      if (cat) filterIds.add(cat);
+      const t = listingTypeFilterId(l.listing_type);
+      if (t) filterIds.add(t);
+      const createdMs = new Date(l.created_at).getTime() || 0;
+      const endsMs = l.ends_at ? new Date(l.ends_at).getTime() : NaN;
+      out.push({
+        kind: 'listing',
+        id: l.id,
+        raw: l,
+        filterIds,
+        location: '',
+        sortNewest: createdMs,
+        sortTrending: (l.listing_type === 'live_stream' || l.listing_type === 'auction') ? 100 : 0,
+        sortMostWanted: l.scout_needed ? 1000 : 0,
+        sortEndingSoon: isFinite(endsMs) ? Math.max(0, endsMs - Date.now()) : Infinity,
+      });
+    }
+
+    return out;
+  }, [posts, listings]);
+
+  const visibleItems = useMemo(() => {
+    let v = items.filter((i) => i.filterIds.has(activeFilter));
+    if (locationQuery.trim()) {
+      v = v.filter((i) => locationMatches(i.location, locationQuery));
+    }
+    if (activeSort === 'ending_soon') {
+      v = v.filter((i) => isFinite(i.sortEndingSoon));
+    }
+    const cmp: Record<SortId, (a: FeedItem, b: FeedItem) => number> = {
+      newest:      (a, b) => b.sortNewest - a.sortNewest,
+      trending:    (a, b) => (b.sortTrending - a.sortTrending) || (b.sortNewest - a.sortNewest),
+      most_wanted: (a, b) => (b.sortMostWanted - a.sortMostWanted) || (b.sortNewest - a.sortNewest),
+      ending_soon: (a, b) => a.sortEndingSoon - b.sortEndingSoon,
+    };
+    return v.slice().sort(cmp[activeSort]);
+  }, [items, activeFilter, activeSort, locationQuery]);
+
+  // Pin the highlighted item to the top so it's immediately visible.
+  const orderedItems = useMemo(() => {
+    if (!highlightId) return visibleItems;
+    const idx = visibleItems.findIndex((i) => i.id === highlightId);
+    if (idx <= 0) return visibleItems;
+    return [visibleItems[idx], ...visibleItems.slice(0, idx), ...visibleItems.slice(idx + 1)];
+  }, [visibleItems, highlightId]);
 
   const radarListings = listings
     .filter((l) => l.listing_type === 'live_stream' || l.listing_type === 'auction')
     .slice(0, 6);
 
+  const setItemRef = (id: string) => (el: HTMLElement | null) => {
+    if (el) itemRefs.current.set(id, el);
+    else itemRefs.current.delete(id);
+  };
+
   return (
     <div style={styles.container}>
+      <style>{`@keyframes feedHighlight { 0% { box-shadow: 0 0 0 4px var(--color-primary-400); transform: scale(1.01); } 100% { box-shadow: var(--shadow-md); transform: scale(1); } }`}</style>
+
       <header style={styles.header}>
         <TreasureChestBrand />
         <div style={styles.headerActions}>
@@ -97,22 +288,49 @@ export default function Home() {
       </header>
 
       <div style={styles.categories}>
-        {categories.map((cat) => (
+        {FILTERS.map((f) => (
           <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
+            key={f.id}
+            onClick={() => setActiveFilter(f.id)}
             style={{
               ...styles.categoryChip,
-              ...(cat === activeCategory ? styles.categoryChipActive : {}),
+              ...(f.id === activeFilter ? styles.categoryChipActive : {}),
             }}
           >
-            {cat}
+            {f.label}
           </button>
         ))}
       </div>
 
-      {/* Auction Radar strip */}
-      {radarListings.length > 0 && (
+      <div style={styles.filterRow}>
+        <div style={styles.locationField}>
+          <MapPin size={13} style={{ color: 'var(--color-neutral-400)' }} />
+          <input
+            type="text"
+            placeholder="City, state, or ZIP"
+            value={locationQuery}
+            onChange={(e) => setLocationQuery(e.target.value)}
+            style={styles.locationInput}
+            aria-label="Filter by location"
+          />
+          {locationQuery && (
+            <button onClick={() => setLocationQuery('')} style={styles.locationClear} aria-label="Clear location">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <select
+          value={activeSort}
+          onChange={(e) => setActiveSort(e.target.value as SortId)}
+          style={styles.sortSelect}
+          aria-label="Sort feed"
+        >
+          {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+      </div>
+
+      {/* Auction Radar strip — only when no filter restricts the view */}
+      {activeFilter === 'all' && radarListings.length > 0 && (
         <div style={styles.radarSection}>
           <div style={styles.radarHeader}>
             <div style={styles.radarLiveDot} />
@@ -127,100 +345,166 @@ export default function Home() {
         </div>
       )}
 
+      {highlightId && !loading && !orderedItems.some((i) => i.id === highlightId) && (
+        <div style={styles.highlightBanner} role="status">
+          <span style={styles.highlightBannerText}>
+            Your post is hidden by current filters.
+          </span>
+          <button
+            onClick={() => { setActiveFilter('all'); setLocationQuery(''); setActiveSort('newest'); }}
+            style={styles.highlightBannerBtn}
+          >
+            Show it
+          </button>
+          <button
+            onClick={() => setHighlightId(null)}
+            style={{ ...styles.highlightBannerBtn, backgroundColor: 'transparent', color: 'var(--color-neutral-500)' }}
+            aria-label="Dismiss"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div style={styles.feed}>
         {loading && (
           <div style={styles.emptyState}>
-            <p style={styles.emptyText}>Loading finds...</p>
+            <p style={styles.emptyText}>Loading the latest finds…</p>
           </div>
         )}
 
-        {!loading && posts.length === 0 && listings.length === 0 && (
+        {!loading && orderedItems.length === 0 && (
           <div style={styles.emptyState}>
-            <p style={styles.emptyTitle}>No finds yet</p>
-            <p style={styles.emptyText}>Be the first to share a treasure find!</p>
-            <button onClick={() => navigate('/community')} style={styles.emptyBtn}>
-              Share a Find
+            <p style={styles.emptyTitle}>Nothing matches those filters</p>
+            <p style={styles.emptyText}>
+              {activeFilter === 'all'
+                ? 'Try clearing your location filter to see more finds.'
+                : 'Try a different category or clear your filters.'}
+            </p>
+            <button onClick={() => { setActiveFilter('all'); setLocationQuery(''); setActiveSort('newest'); }} style={styles.emptyBtn}>
+              Reset Filters
             </button>
           </div>
         )}
 
-        {!loading && (posts.length > 0 || listings.length > 0) && filteredPosts.length === 0 && filteredListings.length === 0 && (
-          <div style={styles.emptyState}>
-            <p style={styles.emptyTitle}>No {activeCategory} finds yet</p>
-            <p style={styles.emptyText}>Be the first to share a {activeCategory.toLowerCase()} treasure!</p>
-            <button onClick={() => navigate('/community')} style={styles.emptyBtn}>
-              Share a Find
-            </button>
-          </div>
-        )}
-
-        {filteredListings.map((listing, index) => (
-          <ExternalListingCard key={listing.id} listing={listing} index={index} onClick={() => navigate('/auctions')} />
-        ))}
-
-        {filteredPosts.map((post, index) => (
-          <article
-            key={post.id}
-            style={{
-              ...styles.card,
-              animationDelay: `${index * 80}ms`,
-            }}
-          >
-            <div style={styles.cardImageContainer}>
-              {post.image_url ? (
-                <img
-                  src={post.image_url}
-                  alt={post.caption}
-                  style={styles.cardImage}
-                  loading="lazy"
-                />
-              ) : (
-                <div style={{ ...styles.cardImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Bookmark size={32} style={{ color: 'var(--color-neutral-300)' }} />
-                </div>
-              )}
-              <span style={styles.priceBadge}>{post.for_sale ? 'For Sale' : post.type}</span>
-            </div>
-
-            <div style={styles.cardContent}>
-              <div style={styles.cardHeader}>
-                <div style={{ ...styles.avatar, backgroundColor: 'var(--color-primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: 'var(--color-primary-700)' }}>
-                  {(post.profiles?.username || 'U').slice(0, 1).toUpperCase()}
-                </div>
-                <div style={styles.cardMeta}>
-                  <span style={styles.username}>@{post.profiles?.username || 'hunter'}</span>
-                  <span style={styles.timeAgo}>{new Date(post.created_at).toLocaleDateString()}</span>
-                </div>
-                <span style={styles.categoryTag}>{post.category}</span>
+        {orderedItems.map((item, index) => {
+          const isHL = item.id === highlightId;
+          const baseStyle: React.CSSProperties = {
+            ...styles.card,
+            animationDelay: `${Math.min(index, 8) * 60}ms`,
+          };
+          const hlStyle: React.CSSProperties = isHL
+            ? { animation: 'feedHighlight 3.2s ease-out forwards' }
+            : {};
+          if (item.kind === 'listing') {
+            const l = item.raw as ExternalListing;
+            return (
+              <div
+                key={`l-${item.id}`}
+                ref={setItemRef(item.id)}
+                style={{ ...baseStyle, ...hlStyle }}
+              >
+                <ExternalListingCard listing={l} index={index} onClick={() => window.open(l.external_url, '_blank', 'noopener')} />
+              </div>
+            );
+          }
+          const p = item.raw as ExtendedPost;
+          const badge = postBadge(p);
+          return (
+            <article
+              key={`p-${item.id}`}
+              ref={setItemRef(item.id)}
+              style={{ ...baseStyle, ...hlStyle }}
+            >
+              <div style={styles.cardImageContainer}>
+                {p.image_url ? (
+                  <img src={p.image_url} alt={p.caption} style={styles.cardImage} loading="lazy" />
+                ) : (
+                  <div style={{ ...styles.cardImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Bookmark size={32} style={{ color: 'var(--color-neutral-300)' }} />
+                  </div>
+                )}
+                {badge && (
+                  <span style={{ ...styles.hotBadge, backgroundColor: badge.bg, color: badge.color }}>
+                    {badge.label}
+                  </span>
+                )}
+                {p.scout_needed && (
+                  <span style={{ ...styles.hotBadge, top: badge ? 36 : (styles.hotBadge as any).top, backgroundColor: 'var(--color-warning-500)', color: 'white' }}>
+                    Scout Needed
+                  </span>
+                )}
+                {p.marketplace_found && (
+                  <span style={styles.priceBadge}>
+                    {p.marketplace_found.replace(/_/g, ' ')}
+                  </span>
+                )}
               </div>
 
-              <h3 style={styles.cardTitle}>{post.caption}</h3>
+              <div style={styles.cardContent}>
+                <div style={styles.cardHeader}>
+                  <div style={{ ...styles.avatar, backgroundColor: 'var(--color-primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: 'var(--color-primary-700)' }}>
+                    {(p.profiles?.username || 'U').slice(0, 1).toUpperCase()}
+                  </div>
+                  <div style={styles.cardMeta}>
+                    <span style={styles.username}>@{p.profiles?.username || 'hunter'}</span>
+                    <span style={styles.timeAgo}>
+                      {new Date(p.created_at).toLocaleDateString()}
+                      {item.location ? ` • ${item.location}` : ''}
+                    </span>
+                  </div>
+                  {p.category && <span style={styles.categoryTag}>{p.category}</span>}
+                </div>
 
-              <div style={styles.cardActions}>
-                <button style={styles.actionBtn}>
-                  <Heart size={18} />
-                  <span>{post.like_count}</span>
-                </button>
-                <button style={styles.actionBtn}>
-                  <MessageCircle size={18} />
-                  <span>{post.comment_count}</span>
-                </button>
-                <button style={styles.actionBtn}>
-                  <Bookmark size={18} />
-                </button>
-                <button style={styles.actionBtn}>
-                  <Share2 size={18} />
-                </button>
+                <h3 style={styles.cardTitle}>{p.caption}</h3>
+
+                <div style={styles.cardActions}>
+                  <button style={styles.actionBtn} aria-label="Save">
+                    <Heart size={18} />
+                    <span>{p.like_count}</span>
+                  </button>
+                  <button style={styles.actionBtn} aria-label="Comment">
+                    <MessageCircle size={18} />
+                    <span>{p.comment_count}</span>
+                  </button>
+                  <button style={styles.actionBtn} aria-label="Bookmark">
+                    <Bookmark size={18} />
+                  </button>
+                  <button
+                    style={styles.actionBtn}
+                    aria-label="Share"
+                    onClick={async () => {
+                      const url = typeof window !== 'undefined' ? window.location.origin : '';
+                      const text = p.caption;
+                      const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+                      if (nav && 'share' in nav) {
+                        try { await nav.share({ title: text, text, url }); } catch {}
+                      } else if (nav?.clipboard) {
+                        try { await nav.clipboard.writeText(`${text} ${url}`.trim()); } catch {}
+                      }
+                    }}
+                  >
+                    <Share2 size={18} />
+                  </button>
+                  {p.type === 'rare_radar' && (
+                    <button style={styles.actionBtn} onClick={() => navigate('/rare-radar')} aria-label="Open in Rare Radar">
+                      <Eye size={18} />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
 
       {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
     </div>
   );
 }
+
+// Silence unused-import lints for icons reserved for upcoming feed actions.
+void Search;
 
 const FEATURES = [
   {
@@ -700,6 +984,83 @@ const styles: Record<string, React.CSSProperties> = {
     overflowX: 'auto',
     flexShrink: 0,
     backgroundColor: 'var(--color-neutral-0)',
+  },
+  filterRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--space-2)',
+    padding: '0 var(--space-4) var(--space-3)',
+    flexShrink: 0,
+    backgroundColor: 'var(--color-neutral-0)',
+    borderBottom: '1px solid var(--color-neutral-100)',
+  },
+  locationField: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 10px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-50)',
+    border: '1px solid var(--color-neutral-150)',
+  },
+  locationInput: {
+    flex: 1,
+    border: 'none',
+    outline: 'none',
+    background: 'transparent',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-800)',
+    minWidth: 0,
+  },
+  locationClear: {
+    width: 18,
+    height: 18,
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-200)',
+    color: 'var(--color-neutral-600)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  highlightBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--space-2)',
+    margin: 'var(--space-2) var(--space-4)',
+    padding: '8px 12px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-primary-50)',
+    border: '1px solid var(--color-primary-200)',
+    flexShrink: 0,
+  },
+  highlightBannerText: {
+    flex: 1,
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-primary-700)',
+    fontWeight: 'var(--font-weight-medium)',
+  },
+  highlightBannerBtn: {
+    padding: '4px 10px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-600)',
+    color: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sortSelect: {
+    padding: '6px 10px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-50)',
+    border: '1px solid var(--color-neutral-150)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-700)',
+    cursor: 'pointer',
   },
   categoryChip: {
     padding: 'var(--space-2) var(--space-4)',

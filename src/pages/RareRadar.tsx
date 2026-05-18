@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, MapPin, DollarSign, Star, ListFilter as Filter,
-  ArrowLeft, Camera, Sparkles, TrendingUp, Clock, User, ChevronRight, X,
+  ArrowLeft, Camera, Sparkles, TrendingUp, Clock, User, ChevronRight, X, Home as HomeIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestBlurOverlay } from '../components/GuestGate';
+import { createCommunityPost, fetchCommunityPosts } from '../lib/database';
 import {
   getRareRadarDrafts,
   clearRareRadarDraft,
@@ -68,11 +70,44 @@ const urgencyColors = {
 
 export default function RareRadar() {
   const { isGuest } = useAuth();
+  const navigate = useNavigate();
   const [view, setView] = useState<ViewState>('create');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [hunts, setHunts] = useState<SearchRequest[]>([]);
   const [lastHunt, setLastHunt] = useState<SearchRequest | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Hydrate already-posted Rare Radar requests from Supabase so the feed
+  // persists across sessions and matches what shows on Home Feed.
+  useEffect(() => {
+    fetchCommunityPosts(50)
+      .then((posts) => {
+        const radarPosts = posts.filter((p) => p.type === 'rare_radar');
+        if (radarPosts.length === 0) return;
+        const mapped: SearchRequest[] = radarPosts.map((p) => ({
+          id: p.id,
+          title: p.caption || 'Untitled hunt',
+          category: p.category || '',
+          conditions: ((p as unknown as { tags?: string[] }).tags ?? []).filter((t) =>
+            CONDITIONS.includes(t),
+          ),
+          budgetMin: '',
+          budgetMax: p.estimated_value != null ? String(p.estimated_value) : '',
+          notes: '',
+          location: p.location || '',
+          image: p.image_url || '',
+          username: p.profiles?.username || 'hunter',
+          timePosted: formatRelative(p.created_at),
+          scouts: 0,
+          urgency: 'medium',
+        }));
+        setHunts((prev) => {
+          const known = new Set(prev.map((h) => h.id));
+          return [...mapped.filter((m) => !known.has(m.id)), ...prev];
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   // Hydrate drafts that were shared from Flash Finds → AI Analysis.
   useEffect(() => {
@@ -119,7 +154,9 @@ export default function RareRadar() {
   }
 
   const handlePosted = (hunt: SearchRequest) => {
-    setHunts((prev) => [hunt, ...prev]);
+    // CreateRequest has already persisted to Supabase and replaced the local
+    // hunt id with the DB row id. Just hydrate UI state.
+    setHunts((prev) => [hunt, ...prev.filter((h) => h.id !== hunt.id)]);
     setLastHunt(hunt);
     setHighlightId(hunt.id);
     setView('success');
@@ -151,6 +188,9 @@ export default function RareRadar() {
           setSelectedCategory(null);
           setHighlightId(lastHunt.id);
           setView('feed');
+        }}
+        onViewHomeFeed={() => {
+          navigate('/', { state: { highlightPostId: lastHunt.id } });
         }}
         onPostAnother={() => setView('create')}
       />
@@ -354,7 +394,22 @@ function FeedView({
               }}
             >
               <div style={styles.feedCardTop}>
-                <img src={item.image} alt={item.title} style={styles.feedCardImage} />
+                {item.image ? (
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    style={styles.feedCardImage}
+                    loading="lazy"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div
+                    style={{ ...styles.feedCardImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    aria-label="No photo provided"
+                  >
+                    <Search size={20} style={{ color: 'var(--color-neutral-300)' }} />
+                  </div>
+                )}
                 <div style={styles.feedCardInfo}>
                   <h3 style={styles.feedCardTitle}>{item.title}</h3>
                   <div style={styles.feedCardMeta}>
@@ -483,7 +538,9 @@ function CreateRequest({
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!form.title.trim()) { setError('Tell us what you\'re hunting for.'); return; }
@@ -494,21 +551,51 @@ function CreateRequest({
       setError('Min budget can\'t be more than max.');
       return;
     }
+    if (!user?.id) { setError('Please sign in to post a hunt.'); return; }
 
-    const username = (user?.user_metadata as { username?: string } | undefined)?.username
-      || user?.email?.split('@')[0]
+    const username = (user.user_metadata as { username?: string } | undefined)?.username
+      || user.email?.split('@')[0]
       || 'you';
 
+    setSubmitting(true);
+
+    // Persist to Supabase so the hunt shows up in both Home Feed and
+    // Rare Radar feed (and survives reloads).
+    const budgetForDb =
+      !isNaN(max) ? max : !isNaN(min) ? min : undefined;
+    const noteParts = [
+      form.notes.trim(),
+      form.budgetMin || form.budgetMax
+        ? `Budget: $${form.budgetMin || '0'} - $${form.budgetMax || '—'}`
+        : '',
+    ].filter(Boolean);
+
+    const { data: created, error: dbErr } = await createCommunityPost({
+      user_id: user.id,
+      type: 'rare_radar',
+      caption: form.title.trim(),
+      image_url: photoUrl || undefined,
+      tags: form.conditions,
+      location: form.location.trim() || undefined,
+      general_location: form.location.trim() || undefined,
+      category: form.category,
+      estimated_value: budgetForDb,
+      scout_needed: true,
+    });
+    setSubmitting(false);
+    if (dbErr || !created) {
+      setError(dbErr || 'Could not post your hunt. Please try again.');
+      return;
+    }
+
     const hunt: SearchRequest = {
-      id: (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-        ? crypto.randomUUID()
-        : `hunt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: created.id,
       title: form.title.trim(),
       category: form.category,
       conditions: form.conditions,
       budgetMin: form.budgetMin.trim(),
       budgetMax: form.budgetMax.trim(),
-      notes: form.notes.trim(),
+      notes: noteParts.join(' • '),
       location: form.location.trim(),
       image: photoUrl || PLACEHOLDER_IMG,
       username,
@@ -700,9 +787,11 @@ function CreateRequest({
           {error && <p style={styles.errorText} role="alert">{error}</p>}
         </div>
 
-        <button type="submit" style={styles.submitBtn}>
+        <button type="submit" style={styles.submitBtn} disabled={submitting}>
           <Search size={18} style={{ color: 'var(--color-neutral-0)' }} />
-          <span style={styles.submitBtnText}>Start the Hunt</span>
+          <span style={styles.submitBtnText}>
+            {submitting ? 'Posting…' : 'Start the Hunt'}
+          </span>
         </button>
       </form>
     </div>
@@ -712,10 +801,12 @@ function CreateRequest({
 function SuccessView({
   hunt,
   onViewFeed,
+  onViewHomeFeed,
   onPostAnother,
 }: {
   hunt: SearchRequest;
   onViewFeed: () => void;
+  onViewHomeFeed: () => void;
   onPostAnother: () => void;
 }) {
   return (
@@ -751,9 +842,13 @@ function SuccessView({
             <Plus size={14} style={{ color: 'var(--color-neutral-700)', display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
             Post Another Hunt
           </button>
-          <button onClick={onViewFeed} style={styles.postAnotherBtn}>
-            <Search size={16} style={{ color: 'var(--color-neutral-0)' }} />
-            <span style={{ color: 'var(--color-neutral-0)' }}>View in Feed</span>
+          <button onClick={onViewFeed} style={styles.viewFeedBtn}>
+            <Search size={14} style={{ color: 'var(--color-neutral-700)', display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+            View in Rare Radar
+          </button>
+          <button onClick={onViewHomeFeed} style={styles.postAnotherBtn}>
+            <HomeIcon size={16} style={{ color: 'var(--color-neutral-0)' }} />
+            <span style={{ color: 'var(--color-neutral-0)' }}>View in Home Feed</span>
           </button>
         </div>
       </div>
