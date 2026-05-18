@@ -11,6 +11,7 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Users can upload their own avatar" ON storage.objects;
 CREATE POLICY "Users can upload their own avatar"
   ON storage.objects
   FOR INSERT
@@ -20,6 +21,7 @@ CREATE POLICY "Users can upload their own avatar"
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can update their own avatar" ON storage.objects;
 CREATE POLICY "Users can update their own avatar"
   ON storage.objects
   FOR UPDATE
@@ -29,6 +31,7 @@ CREATE POLICY "Users can update their own avatar"
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can delete their own avatar" ON storage.objects;
 CREATE POLICY "Users can delete their own avatar"
   ON storage.objects
   FOR DELETE
@@ -38,6 +41,7 @@ CREATE POLICY "Users can delete their own avatar"
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Anyone can view avatars" ON storage.objects;
 CREATE POLICY "Anyone can view avatars"
   ON storage.objects
   FOR SELECT

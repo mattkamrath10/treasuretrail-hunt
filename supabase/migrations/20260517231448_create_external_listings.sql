@@ -46,22 +46,26 @@ CREATE TABLE IF NOT EXISTS external_listings (
 
 ALTER TABLE external_listings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view active external listings" ON external_listings;
 CREATE POLICY "Anyone authenticated can view active external listings"
   ON external_listings FOR SELECT
   TO authenticated
   USING (status = 'active' OR user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can submit external listings" ON external_listings;
 CREATE POLICY "Users can submit external listings"
   ON external_listings FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own external listings" ON external_listings;
 CREATE POLICY "Users can update own external listings"
   ON external_listings FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own external listings" ON external_listings;
 CREATE POLICY "Users can delete own external listings"
   ON external_listings FOR DELETE
   TO authenticated

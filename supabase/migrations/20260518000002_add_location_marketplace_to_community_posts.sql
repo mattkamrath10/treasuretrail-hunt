@@ -45,18 +45,22 @@ ALTER TABLE community_posts ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Anyone authenticated can view community posts') THEN
+    DROP POLICY IF EXISTS "Anyone authenticated can view community posts" ON community_posts;
     CREATE POLICY "Anyone authenticated can view community posts"
       ON community_posts FOR SELECT TO authenticated USING (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can create own posts') THEN
+    DROP POLICY IF EXISTS "Users can create own posts" ON community_posts;
     CREATE POLICY "Users can create own posts"
       ON community_posts FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can update own posts') THEN
+    DROP POLICY IF EXISTS "Users can update own posts" ON community_posts;
     CREATE POLICY "Users can update own posts"
       ON community_posts FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can delete own posts') THEN
+    DROP POLICY IF EXISTS "Users can delete own posts" ON community_posts;
     CREATE POLICY "Users can delete own posts"
       ON community_posts FOR DELETE TO authenticated USING (auth.uid() = user_id);
   END IF;

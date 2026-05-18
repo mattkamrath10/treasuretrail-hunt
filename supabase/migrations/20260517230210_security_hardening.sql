@@ -28,47 +28,56 @@ DROP POLICY IF EXISTS "System can create events" ON live_events;
 -- Explicitly deny INSERT, UPDATE, DELETE on admin-only tables
 -- (belt-and-suspenders; RLS default-deny applies once policies are dropped,
 --  but explicit FALSE policies make the intent clear in the audit trail)
+DROP POLICY IF EXISTS "No client inserts on hunt_missions" ON hunt_missions;
 CREATE POLICY "No client inserts on hunt_missions"
   ON hunt_missions FOR INSERT
   TO authenticated
   WITH CHECK (false);
 
+DROP POLICY IF EXISTS "No client inserts on live_events" ON live_events;
 CREATE POLICY "No client inserts on live_events"
   ON live_events FOR INSERT
   TO authenticated
   WITH CHECK (false);
 
+DROP POLICY IF EXISTS "No client updates on hunt_missions" ON hunt_missions;
 CREATE POLICY "No client updates on hunt_missions"
   ON hunt_missions FOR UPDATE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client deletes on hunt_missions" ON hunt_missions;
 CREATE POLICY "No client deletes on hunt_missions"
   ON hunt_missions FOR DELETE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client updates on live_events" ON live_events;
 CREATE POLICY "No client updates on live_events"
   ON live_events FOR UPDATE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client deletes on live_events" ON live_events;
 CREATE POLICY "No client deletes on live_events"
   ON live_events FOR DELETE
   TO authenticated
   USING (false);
 
 -- Protect club_rankings too (no policies existed, but be explicit)
+DROP POLICY IF EXISTS "No client inserts on club_rankings" ON club_rankings;
 CREATE POLICY "No client inserts on club_rankings"
   ON club_rankings FOR INSERT
   TO authenticated
   WITH CHECK (false);
 
+DROP POLICY IF EXISTS "No client updates on club_rankings" ON club_rankings;
 CREATE POLICY "No client updates on club_rankings"
   ON club_rankings FOR UPDATE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client deletes on club_rankings" ON club_rankings;
 CREATE POLICY "No client deletes on club_rankings"
   ON club_rankings FOR DELETE
   TO authenticated
@@ -83,17 +92,20 @@ CREATE POLICY "No client deletes on club_rankings"
 
 DROP POLICY IF EXISTS "Users can post activity" ON live_activity_feed;
 
+DROP POLICY IF EXISTS "Users can post own activity" ON live_activity_feed;
 CREATE POLICY "Users can post own activity"
   ON live_activity_feed FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
 -- Prevent clients from modifying or deleting activity feed entries
+DROP POLICY IF EXISTS "No client updates on live_activity_feed" ON live_activity_feed;
 CREATE POLICY "No client updates on live_activity_feed"
   ON live_activity_feed FOR UPDATE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client deletes on live_activity_feed" ON live_activity_feed;
 CREATE POLICY "No client deletes on live_activity_feed"
   ON live_activity_feed FOR DELETE
   TO authenticated
@@ -207,11 +219,13 @@ CREATE TRIGGER enforce_profile_field_protection
 
 DROP POLICY IF EXISTS "Users can earn rewards" ON user_rewards;
 
+DROP POLICY IF EXISTS "No client inserts on user_rewards" ON user_rewards;
 CREATE POLICY "No client inserts on user_rewards"
   ON user_rewards FOR INSERT
   TO authenticated
   WITH CHECK (false);
 
+DROP POLICY IF EXISTS "No client deletes on user_rewards" ON user_rewards;
 CREATE POLICY "No client deletes on user_rewards"
   ON user_rewards FOR DELETE
   TO authenticated
@@ -227,6 +241,7 @@ CREATE POLICY "No client deletes on user_rewards"
 
 DROP POLICY IF EXISTS "Users can update own event score" ON event_participants;
 
+DROP POLICY IF EXISTS "No client score updates on event_participants" ON event_participants;
 CREATE POLICY "No client score updates on event_participants"
   ON event_participants FOR UPDATE
   TO authenticated
@@ -384,6 +399,7 @@ CREATE TRIGGER validate_mission_progress_trigger
 
 DROP POLICY IF EXISTS "System can insert notifications for any user" ON notifications;
 
+DROP POLICY IF EXISTS "Users can insert own notifications" ON notifications;
 CREATE POLICY "Users can insert own notifications"
   ON notifications FOR INSERT
   TO authenticated

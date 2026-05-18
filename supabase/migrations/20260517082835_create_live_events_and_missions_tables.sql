@@ -55,11 +55,13 @@ CREATE TABLE IF NOT EXISTS hunt_missions (
 
 ALTER TABLE hunt_missions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view missions" ON hunt_missions;
 CREATE POLICY "Anyone authenticated can view missions"
   ON hunt_missions FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Only system can create missions" ON hunt_missions;
 CREATE POLICY "Only system can create missions"
   ON hunt_missions FOR INSERT
   TO authenticated
@@ -80,16 +82,19 @@ CREATE TABLE IF NOT EXISTS mission_progress (
 
 ALTER TABLE mission_progress ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own mission progress" ON mission_progress;
 CREATE POLICY "Users can view own mission progress"
   ON mission_progress FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own progress" ON mission_progress;
 CREATE POLICY "Users can insert own progress"
   ON mission_progress FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own progress" ON mission_progress;
 CREATE POLICY "Users can update own progress"
   ON mission_progress FOR UPDATE
   TO authenticated
@@ -118,11 +123,13 @@ CREATE TABLE IF NOT EXISTS live_events (
 
 ALTER TABLE live_events ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view events" ON live_events;
 CREATE POLICY "Anyone authenticated can view events"
   ON live_events FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "System can create events" ON live_events;
 CREATE POLICY "System can create events"
   ON live_events FOR INSERT
   TO authenticated
@@ -140,16 +147,19 @@ CREATE TABLE IF NOT EXISTS event_participants (
 
 ALTER TABLE event_participants ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view event participants" ON event_participants;
 CREATE POLICY "Users can view event participants"
   ON event_participants FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can join events" ON event_participants;
 CREATE POLICY "Users can join events"
   ON event_participants FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own event score" ON event_participants;
 CREATE POLICY "Users can update own event score"
   ON event_participants FOR UPDATE
   TO authenticated
@@ -172,6 +182,7 @@ CREATE TABLE IF NOT EXISTS club_rankings (
 
 ALTER TABLE club_rankings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view club rankings" ON club_rankings;
 CREATE POLICY "Anyone authenticated can view club rankings"
   ON club_rankings FOR SELECT
   TO authenticated
@@ -191,11 +202,13 @@ CREATE TABLE IF NOT EXISTS user_rewards (
 
 ALTER TABLE user_rewards ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own rewards" ON user_rewards;
 CREATE POLICY "Users can view own rewards"
   ON user_rewards FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can earn rewards" ON user_rewards;
 CREATE POLICY "Users can earn rewards"
   ON user_rewards FOR INSERT
   TO authenticated
@@ -214,11 +227,13 @@ CREATE TABLE IF NOT EXISTS live_activity_feed (
 
 ALTER TABLE live_activity_feed ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view activity feed" ON live_activity_feed;
 CREATE POLICY "Anyone authenticated can view activity feed"
   ON live_activity_feed FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can post activity" ON live_activity_feed;
 CREATE POLICY "Users can post activity"
   ON live_activity_feed FOR INSERT
   TO authenticated

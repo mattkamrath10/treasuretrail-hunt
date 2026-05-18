@@ -1,8 +1,8 @@
 -- =============================================================================
 -- TreasureTrail — FULL SCHEMA SETUP
 -- Paste this ENTIRE file into the Supabase SQL Editor and click "Run".
--- Safe to re-run (everything is idempotent: IF NOT EXISTS / OR REPLACE / DROP IF EXISTS).
--- Generated 2026-05-18T22:54:40Z from supabase/migrations/*.sql
+-- Safe to re-run (idempotent: IF NOT EXISTS, OR REPLACE, DROP POLICY IF EXISTS).
+-- Generated 2026-05-18T23:05:14Z from supabase/migrations/*.sql
 -- =============================================================================
 
 
@@ -47,18 +47,21 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can read own profile" ON profiles;
 CREATE POLICY "Users can read own profile"
   ON profiles
   FOR SELECT
   TO authenticated
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
 CREATE POLICY "Users can insert own profile"
   ON profiles
   FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile"
   ON profiles
   FOR UPDATE
@@ -66,6 +69,7 @@ CREATE POLICY "Users can update own profile"
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can read other profiles for social features" ON profiles;
 CREATE POLICY "Users can read other profiles for social features"
   ON profiles
   FOR SELECT
@@ -196,22 +200,26 @@ CREATE TABLE IF NOT EXISTS flash_finds (
 
 ALTER TABLE flash_finds ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can read flash finds" ON flash_finds;
 CREATE POLICY "Anyone authenticated can read flash finds"
   ON flash_finds FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can insert own flash finds" ON flash_finds;
 CREATE POLICY "Users can insert own flash finds"
   ON flash_finds FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own flash finds" ON flash_finds;
 CREATE POLICY "Users can update own flash finds"
   ON flash_finds FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own flash finds" ON flash_finds;
 CREATE POLICY "Users can delete own flash finds"
   ON flash_finds FOR DELETE
   TO authenticated
@@ -235,22 +243,26 @@ CREATE TABLE IF NOT EXISTS marketplace_listings (
 
 ALTER TABLE marketplace_listings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view active listings" ON marketplace_listings;
 CREATE POLICY "Anyone authenticated can view active listings"
   ON marketplace_listings FOR SELECT
   TO authenticated
   USING (status = 'active' OR seller_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can create own listings" ON marketplace_listings;
 CREATE POLICY "Users can create own listings"
   ON marketplace_listings FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = seller_id);
 
+DROP POLICY IF EXISTS "Users can update own listings" ON marketplace_listings;
 CREATE POLICY "Users can update own listings"
   ON marketplace_listings FOR UPDATE
   TO authenticated
   USING (auth.uid() = seller_id)
   WITH CHECK (auth.uid() = seller_id);
 
+DROP POLICY IF EXISTS "Users can delete own listings" ON marketplace_listings;
 CREATE POLICY "Users can delete own listings"
   ON marketplace_listings FOR DELETE
   TO authenticated
@@ -268,16 +280,19 @@ CREATE TABLE IF NOT EXISTS messages (
 
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can read their own messages" ON messages;
 CREATE POLICY "Users can read their own messages"
   ON messages FOR SELECT
   TO authenticated
   USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
 
+DROP POLICY IF EXISTS "Users can send messages" ON messages;
 CREATE POLICY "Users can send messages"
   ON messages FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = sender_id);
 
+DROP POLICY IF EXISTS "Users can update own sent messages" ON messages;
 CREATE POLICY "Users can update own sent messages"
   ON messages FOR UPDATE
   TO authenticated
@@ -298,11 +313,13 @@ CREATE TABLE IF NOT EXISTS auctions (
 
 ALTER TABLE auctions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view auctions" ON auctions;
 CREATE POLICY "Anyone authenticated can view auctions"
   ON auctions FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Listing owners can create auctions" ON auctions;
 CREATE POLICY "Listing owners can create auctions"
   ON auctions FOR INSERT
   TO authenticated
@@ -314,6 +331,7 @@ CREATE POLICY "Listing owners can create auctions"
     )
   );
 
+DROP POLICY IF EXISTS "Authenticated users can update auctions to bid" ON auctions;
 CREATE POLICY "Authenticated users can update auctions to bid"
   ON auctions FOR UPDATE
   TO authenticated
@@ -330,16 +348,19 @@ CREATE TABLE IF NOT EXISTS followers (
 
 ALTER TABLE followers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view follow relationships" ON followers;
 CREATE POLICY "Anyone authenticated can view follow relationships"
   ON followers FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can follow others" ON followers;
 CREATE POLICY "Users can follow others"
   ON followers FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = follower_id AND follower_id != following_id);
 
+DROP POLICY IF EXISTS "Users can unfollow" ON followers;
 CREATE POLICY "Users can unfollow"
   ON followers FOR DELETE
   TO authenticated
@@ -358,22 +379,26 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can read own notifications" ON notifications;
 CREATE POLICY "Users can read own notifications"
   ON notifications FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "System can insert notifications for any user" ON notifications;
 CREATE POLICY "System can insert notifications for any user"
   ON notifications FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own notifications" ON notifications;
 CREATE POLICY "Users can update own notifications"
   ON notifications FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own notifications" ON notifications;
 CREATE POLICY "Users can delete own notifications"
   ON notifications FOR DELETE
   TO authenticated
@@ -401,22 +426,26 @@ CREATE TABLE IF NOT EXISTS community_posts (
 
 ALTER TABLE community_posts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view community posts" ON community_posts;
 CREATE POLICY "Anyone authenticated can view community posts"
   ON community_posts FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can create own posts" ON community_posts;
 CREATE POLICY "Users can create own posts"
   ON community_posts FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own posts" ON community_posts;
 CREATE POLICY "Users can update own posts"
   ON community_posts FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own posts" ON community_posts;
 CREATE POLICY "Users can delete own posts"
   ON community_posts FOR DELETE
   TO authenticated
@@ -432,16 +461,19 @@ CREATE TABLE IF NOT EXISTS post_likes (
 
 ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view likes" ON post_likes;
 CREATE POLICY "Anyone authenticated can view likes"
   ON post_likes FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can like posts" ON post_likes;
 CREATE POLICY "Users can like posts"
   ON post_likes FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can unlike posts" ON post_likes;
 CREATE POLICY "Users can unlike posts"
   ON post_likes FOR DELETE
   TO authenticated
@@ -594,11 +626,13 @@ CREATE TABLE IF NOT EXISTS hunt_missions (
 
 ALTER TABLE hunt_missions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view missions" ON hunt_missions;
 CREATE POLICY "Anyone authenticated can view missions"
   ON hunt_missions FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Only system can create missions" ON hunt_missions;
 CREATE POLICY "Only system can create missions"
   ON hunt_missions FOR INSERT
   TO authenticated
@@ -619,16 +653,19 @@ CREATE TABLE IF NOT EXISTS mission_progress (
 
 ALTER TABLE mission_progress ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own mission progress" ON mission_progress;
 CREATE POLICY "Users can view own mission progress"
   ON mission_progress FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own progress" ON mission_progress;
 CREATE POLICY "Users can insert own progress"
   ON mission_progress FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own progress" ON mission_progress;
 CREATE POLICY "Users can update own progress"
   ON mission_progress FOR UPDATE
   TO authenticated
@@ -657,11 +694,13 @@ CREATE TABLE IF NOT EXISTS live_events (
 
 ALTER TABLE live_events ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view events" ON live_events;
 CREATE POLICY "Anyone authenticated can view events"
   ON live_events FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "System can create events" ON live_events;
 CREATE POLICY "System can create events"
   ON live_events FOR INSERT
   TO authenticated
@@ -679,16 +718,19 @@ CREATE TABLE IF NOT EXISTS event_participants (
 
 ALTER TABLE event_participants ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view event participants" ON event_participants;
 CREATE POLICY "Users can view event participants"
   ON event_participants FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can join events" ON event_participants;
 CREATE POLICY "Users can join events"
   ON event_participants FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own event score" ON event_participants;
 CREATE POLICY "Users can update own event score"
   ON event_participants FOR UPDATE
   TO authenticated
@@ -711,6 +753,7 @@ CREATE TABLE IF NOT EXISTS club_rankings (
 
 ALTER TABLE club_rankings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view club rankings" ON club_rankings;
 CREATE POLICY "Anyone authenticated can view club rankings"
   ON club_rankings FOR SELECT
   TO authenticated
@@ -730,11 +773,13 @@ CREATE TABLE IF NOT EXISTS user_rewards (
 
 ALTER TABLE user_rewards ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own rewards" ON user_rewards;
 CREATE POLICY "Users can view own rewards"
   ON user_rewards FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can earn rewards" ON user_rewards;
 CREATE POLICY "Users can earn rewards"
   ON user_rewards FOR INSERT
   TO authenticated
@@ -753,11 +798,13 @@ CREATE TABLE IF NOT EXISTS live_activity_feed (
 
 ALTER TABLE live_activity_feed ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view activity feed" ON live_activity_feed;
 CREATE POLICY "Anyone authenticated can view activity feed"
   ON live_activity_feed FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can post activity" ON live_activity_feed;
 CREATE POLICY "Users can post activity"
   ON live_activity_feed FOR INSERT
   TO authenticated
@@ -791,6 +838,7 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Users can upload their own avatar" ON storage.objects;
 CREATE POLICY "Users can upload their own avatar"
   ON storage.objects
   FOR INSERT
@@ -800,6 +848,7 @@ CREATE POLICY "Users can upload their own avatar"
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can update their own avatar" ON storage.objects;
 CREATE POLICY "Users can update their own avatar"
   ON storage.objects
   FOR UPDATE
@@ -809,6 +858,7 @@ CREATE POLICY "Users can update their own avatar"
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can delete their own avatar" ON storage.objects;
 CREATE POLICY "Users can delete their own avatar"
   ON storage.objects
   FOR DELETE
@@ -818,6 +868,7 @@ CREATE POLICY "Users can delete their own avatar"
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Anyone can view avatars" ON storage.objects;
 CREATE POLICY "Anyone can view avatars"
   ON storage.objects
   FOR SELECT
@@ -858,47 +909,56 @@ DROP POLICY IF EXISTS "System can create events" ON live_events;
 -- Explicitly deny INSERT, UPDATE, DELETE on admin-only tables
 -- (belt-and-suspenders; RLS default-deny applies once policies are dropped,
 --  but explicit FALSE policies make the intent clear in the audit trail)
+DROP POLICY IF EXISTS "No client inserts on hunt_missions" ON hunt_missions;
 CREATE POLICY "No client inserts on hunt_missions"
   ON hunt_missions FOR INSERT
   TO authenticated
   WITH CHECK (false);
 
+DROP POLICY IF EXISTS "No client inserts on live_events" ON live_events;
 CREATE POLICY "No client inserts on live_events"
   ON live_events FOR INSERT
   TO authenticated
   WITH CHECK (false);
 
+DROP POLICY IF EXISTS "No client updates on hunt_missions" ON hunt_missions;
 CREATE POLICY "No client updates on hunt_missions"
   ON hunt_missions FOR UPDATE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client deletes on hunt_missions" ON hunt_missions;
 CREATE POLICY "No client deletes on hunt_missions"
   ON hunt_missions FOR DELETE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client updates on live_events" ON live_events;
 CREATE POLICY "No client updates on live_events"
   ON live_events FOR UPDATE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client deletes on live_events" ON live_events;
 CREATE POLICY "No client deletes on live_events"
   ON live_events FOR DELETE
   TO authenticated
   USING (false);
 
 -- Protect club_rankings too (no policies existed, but be explicit)
+DROP POLICY IF EXISTS "No client inserts on club_rankings" ON club_rankings;
 CREATE POLICY "No client inserts on club_rankings"
   ON club_rankings FOR INSERT
   TO authenticated
   WITH CHECK (false);
 
+DROP POLICY IF EXISTS "No client updates on club_rankings" ON club_rankings;
 CREATE POLICY "No client updates on club_rankings"
   ON club_rankings FOR UPDATE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client deletes on club_rankings" ON club_rankings;
 CREATE POLICY "No client deletes on club_rankings"
   ON club_rankings FOR DELETE
   TO authenticated
@@ -913,17 +973,20 @@ CREATE POLICY "No client deletes on club_rankings"
 
 DROP POLICY IF EXISTS "Users can post activity" ON live_activity_feed;
 
+DROP POLICY IF EXISTS "Users can post own activity" ON live_activity_feed;
 CREATE POLICY "Users can post own activity"
   ON live_activity_feed FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
 -- Prevent clients from modifying or deleting activity feed entries
+DROP POLICY IF EXISTS "No client updates on live_activity_feed" ON live_activity_feed;
 CREATE POLICY "No client updates on live_activity_feed"
   ON live_activity_feed FOR UPDATE
   TO authenticated
   USING (false);
 
+DROP POLICY IF EXISTS "No client deletes on live_activity_feed" ON live_activity_feed;
 CREATE POLICY "No client deletes on live_activity_feed"
   ON live_activity_feed FOR DELETE
   TO authenticated
@@ -1037,11 +1100,13 @@ CREATE TRIGGER enforce_profile_field_protection
 
 DROP POLICY IF EXISTS "Users can earn rewards" ON user_rewards;
 
+DROP POLICY IF EXISTS "No client inserts on user_rewards" ON user_rewards;
 CREATE POLICY "No client inserts on user_rewards"
   ON user_rewards FOR INSERT
   TO authenticated
   WITH CHECK (false);
 
+DROP POLICY IF EXISTS "No client deletes on user_rewards" ON user_rewards;
 CREATE POLICY "No client deletes on user_rewards"
   ON user_rewards FOR DELETE
   TO authenticated
@@ -1057,6 +1122,7 @@ CREATE POLICY "No client deletes on user_rewards"
 
 DROP POLICY IF EXISTS "Users can update own event score" ON event_participants;
 
+DROP POLICY IF EXISTS "No client score updates on event_participants" ON event_participants;
 CREATE POLICY "No client score updates on event_participants"
   ON event_participants FOR UPDATE
   TO authenticated
@@ -1214,6 +1280,7 @@ CREATE TRIGGER validate_mission_progress_trigger
 
 DROP POLICY IF EXISTS "System can insert notifications for any user" ON notifications;
 
+DROP POLICY IF EXISTS "Users can insert own notifications" ON notifications;
 CREATE POLICY "Users can insert own notifications"
   ON notifications FOR INSERT
   TO authenticated
@@ -1271,22 +1338,26 @@ CREATE TABLE IF NOT EXISTS external_listings (
 
 ALTER TABLE external_listings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view active external listings" ON external_listings;
 CREATE POLICY "Anyone authenticated can view active external listings"
   ON external_listings FOR SELECT
   TO authenticated
   USING (status = 'active' OR user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can submit external listings" ON external_listings;
 CREATE POLICY "Users can submit external listings"
   ON external_listings FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own external listings" ON external_listings;
 CREATE POLICY "Users can update own external listings"
   ON external_listings FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own external listings" ON external_listings;
 CREATE POLICY "Users can delete own external listings"
   ON external_listings FOR DELETE
   TO authenticated
@@ -1378,18 +1449,22 @@ ALTER TABLE community_posts ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Anyone authenticated can view community posts') THEN
+    DROP POLICY IF EXISTS "Anyone authenticated can view community posts" ON community_posts;
     CREATE POLICY "Anyone authenticated can view community posts"
       ON community_posts FOR SELECT TO authenticated USING (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can create own posts') THEN
+    DROP POLICY IF EXISTS "Users can create own posts" ON community_posts;
     CREATE POLICY "Users can create own posts"
       ON community_posts FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can update own posts') THEN
+    DROP POLICY IF EXISTS "Users can update own posts" ON community_posts;
     CREATE POLICY "Users can update own posts"
       ON community_posts FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'community_posts' AND policyname = 'Users can delete own posts') THEN
+    DROP POLICY IF EXISTS "Users can delete own posts" ON community_posts;
     CREATE POLICY "Users can delete own posts"
       ON community_posts FOR DELETE TO authenticated USING (auth.uid() = user_id);
   END IF;
