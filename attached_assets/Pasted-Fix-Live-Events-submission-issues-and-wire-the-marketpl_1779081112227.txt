@@ -1,0 +1,145 @@
+Fix Live Events submission issues and wire the marketplace shortcut buttons to their real external URLs.
+
+========================================
+
+1. FIX EVENT SUBMISSION
+   ========================================
+
+Currently the "Submit Event" form opens but does not successfully submit.
+
+Investigate and fix the submission flow.
+
+Verify:
+
+* form validation
+* Supabase insert query
+* required fields
+* enum/type mismatches
+* RLS permissions
+* async submit handling
+* modal state resets
+* loading state handling
+* error handling visibility
+
+Ensure successful submissions:
+
+* insert correctly into Supabase
+* immediately appear in the Live Events feed
+* respect current filters/search
+* persist after refresh
+
+========================================
+2. IMPROVE ERROR HANDLING
+=========================
+
+Currently failed submissions provide poor feedback.
+
+Add proper error handling:
+
+* display readable error messages
+* highlight missing required fields
+* show success confirmation after successful upload
+
+Examples:
+
+* "Event uploaded successfully"
+* "Please enter a valid URL"
+* "Title is required"
+
+========================================
+3. MARKETPLACE BUTTON EXTERNAL LINKS
+====================================
+
+The top marketplace buttons should directly open the real marketplace/live-stream pages in a new browser tab.
+
+========================================
+POSHMARK BUTTON
+===============
+
+When clicking the Poshmark button:
+open:
+
+https://poshmark.com/shows
+
+Use:
+target="_blank"
+rel="noopener noreferrer"
+
+========================================
+EBAY BUTTON
+===========
+
+When clicking the eBay button:
+open:
+
+https://www.ebay.com/ebaylive
+
+Open in new tab.
+
+========================================
+FACEBOOK BUTTON
+===============
+
+When clicking the Facebook Marketplace button:
+open:
+
+https://www.facebook.com/marketplace
+
+Open in new tab.
+
+========================================
+WHATNOT BUTTON
+==============
+
+When clicking the Whatnot button:
+open:
+
+https://www.whatnot.com/browse
+
+Open in new tab.
+
+========================================
+4. BUTTON UX IMPROVEMENTS
+=========================
+
+Marketplace buttons should visually feel:
+
+* tappable
+* external
+* responsive
+
+Add:
+
+* hover states
+* active states
+* subtle press animation
+* optional external-link icon
+
+========================================
+5. SAFETY + VALIDATION
+======================
+
+Validate uploaded event URLs before submission.
+
+Accept only:
+
+* proper http/https URLs
+
+Reject:
+
+* malformed URLs
+* blank URLs
+
+========================================
+6. FINAL QA
+===========
+
+Verify:
+
+* event submissions now work
+* Supabase inserts succeed
+* uploaded events appear in feed
+* marketplace buttons open correct URLs
+* mobile responsiveness preserved
+* no console errors
+* no fake data reintroduced

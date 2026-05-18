@@ -60,11 +60,20 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ];
 
 const PLATFORM_TABS = [
-  { key: 'poshmark', label: 'Poshmark', color: '#C13584', bg: '#FDF0F8' },
-  { key: 'whatnot',  label: 'Whatnot',  color: '#FF5C00', bg: '#FFF3EE' },
-  { key: 'ebay',     label: 'eBay',     color: '#E53238', bg: '#FEF0F0' },
-  { key: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#EFF5FE' },
+  { key: 'poshmark', label: 'Poshmark', color: '#C13584', bg: '#FDF0F8', url: 'https://poshmark.com/shows' },
+  { key: 'whatnot',  label: 'Whatnot',  color: '#FF5C00', bg: '#FFF3EE', url: 'https://www.whatnot.com/browse' },
+  { key: 'ebay',     label: 'eBay',     color: '#E53238', bg: '#FEF0F0', url: 'https://www.ebay.com/ebaylive' },
+  { key: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#EFF5FE', url: 'https://www.facebook.com/marketplace' },
 ];
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 const PLATFORM_COLORS: Record<string, string> = {
   whatnot: '#FF5C00', poshmark: '#C13584', ebay: '#E53238',
@@ -124,7 +133,6 @@ function applyAll(
   listings: ExternalListing[],
   opts: {
     typeFilter: TypeFilter;
-    platformFilter: string | null;
     searchQuery: string;
     locationQuery: string;
     dateFilter: DateFilter;
@@ -133,11 +141,6 @@ function applyAll(
   },
 ): ExternalListing[] {
   let result = [...listings];
-
-  // Platform tab filter
-  if (opts.platformFilter) {
-    result = result.filter((l) => l.platform === opts.platformFilter);
-  }
 
   // Type chip filter
   switch (opts.typeFilter) {
@@ -236,7 +239,6 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   // Filters
   const [searchQuery,    setSearchQuery]    = useState('');
   const [typeFilter,     setTypeFilter]     = useState<TypeFilter>('all');
-  const [platformFilter, setPlatformFilter] = useState<string | null>(null);
   const [dateFilter,     setDateFilter]     = useState<DateFilter>('all');
   const [customDate,     setCustomDate]     = useState('');
   const [sortBy,         setSortBy]         = useState<SortKey>('newest');
@@ -266,8 +268,8 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   useEffect(() => { fetchListings(); }, []);
 
   const filtered = useMemo(
-    () => applyAll(listings, { typeFilter, platformFilter, searchQuery, locationQuery, dateFilter, customDate, sortBy }),
-    [listings, typeFilter, platformFilter, searchQuery, locationQuery, dateFilter, customDate, sortBy],
+    () => applyAll(listings, { typeFilter, searchQuery, locationQuery, dateFilter, customDate, sortBy }),
+    [listings, typeFilter, searchQuery, locationQuery, dateFilter, customDate, sortBy],
   );
 
   const liveCount = listings.filter((l) => l.listing_type === 'live_stream').length;
@@ -315,27 +317,21 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         </button>
       </div>
 
-      {/* ── Platform tabs ── */}
+      {/* ── Platform external link tabs ── */}
       <div style={st.platformTabs}>
-        {PLATFORM_TABS.map((p) => {
-          const isActive = platformFilter === p.key;
-          return (
-            <button
-              key={p.key}
-              onClick={() => setPlatformFilter(isActive ? null : p.key)}
-              style={{
-                ...st.platformTab,
-                backgroundColor: isActive ? p.bg : 'var(--color-neutral-50)',
-                border: `1.5px solid ${isActive ? p.color : 'var(--color-neutral-100)'}`,
-              }}
-            >
-              <span style={{ ...st.platformTabDot, backgroundColor: p.color }} />
-              <span style={{ ...st.platformTabLabel, color: isActive ? p.color : 'var(--color-neutral-700)' }}>
-                {p.label}
-              </span>
-            </button>
-          );
-        })}
+        {PLATFORM_TABS.map((p) => (
+          <a
+            key={p.key}
+            href={p.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ ...st.platformTab, backgroundColor: p.bg, border: `1.5px solid ${p.color}33` }}
+          >
+            <ExternalLink size={11} style={{ position: 'absolute', top: '6px', right: '6px', color: `${p.color}99` }} />
+            <span style={{ ...st.platformTabDot, backgroundColor: p.color }} />
+            <span style={{ ...st.platformTabLabel, color: p.color }}>{p.label}</span>
+          </a>
+        ))}
       </div>
 
       {/* ── Type filter chips ── */}
@@ -693,13 +689,21 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
     platform_name: '', website_url: '', description: '', platform_type: 'marketplace',
     shipping_supported: false, scout_friendly: false, logo_url: '',
   });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
+  const [success, setSuccess] = useState('');
   const set = (k: keyof PlatformForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
+    setError(''); setSuccess('');
     if (!form.platform_name.trim()) { setError('Platform name is required.'); return; }
-    setError(''); setSaving(true);
+    if (form.website_url.trim() && !isValidHttpUrl(form.website_url.trim())) {
+      setError('Please enter a valid http or https website URL.'); return;
+    }
+    if (form.logo_url.trim() && !isValidHttpUrl(form.logo_url.trim())) {
+      setError('Logo URL must be a valid http or https link.'); return;
+    }
+    setSaving(true);
     const { error: err } = await supabase.from('platform_submissions').insert({
       platform_name: form.platform_name.trim(), website_url: form.website_url.trim() || null,
       description: form.description.trim() || null, platform_type: form.platform_type,
@@ -707,8 +711,9 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
       logo_url: form.logo_url.trim() || null, submitted_by: userId ?? null,
     });
     setSaving(false);
-    if (err) { setError('Failed to submit. Please try again.'); return; }
-    onSuccess();
+    if (err) { setError(err.message || 'Failed to submit. Please try again.'); return; }
+    setSuccess('Marketplace submitted successfully.');
+    setTimeout(() => onSuccess(), 1100);
   };
 
   return (
@@ -755,8 +760,9 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
             </div>
           </div>
           {error && <p style={mo.errorText}>{error}</p>}
-          <button onClick={handleSubmit} disabled={saving} style={{ ...mo.submitBtn, opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Submitting…' : 'Submit Marketplace'}
+          {success && <p style={mo.successText}>{success}</p>}
+          <button onClick={handleSubmit} disabled={saving || !!success} style={{ ...mo.submitBtn, opacity: saving || success ? 0.7 : 1 }}>
+            {success ? 'Submitted' : saving ? 'Submitting…' : 'Submit Marketplace'}
           </button>
         </div>
       </div>
@@ -778,24 +784,55 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
     price_display: '', category: '', image_url: '', ends_at: '',
     scout_needed: false, ships_available: false,
   });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
+  const [success, setSuccess] = useState('');
   const set = (k: keyof EventForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
-    if (!form.title.trim()) { setError('Title is required.'); return; }
-    if (!form.external_url.trim()) { setError('External URL is required.'); return; }
-    setError(''); setSaving(true);
+    setError(''); setSuccess('');
+
+    if (!userId) {
+      setError('Please sign in to upload events. Guest mode is read-only.');
+      return;
+    }
+    if (!form.title.trim())                      { setError('Title is required.'); return; }
+    if (!form.external_url.trim())               { setError('External URL is required.'); return; }
+    if (!isValidHttpUrl(form.external_url.trim())) {
+      setError('Please enter a valid http or https URL (e.g. https://www.ebay.com/…).');
+      return;
+    }
+    if (form.image_url.trim() && !isValidHttpUrl(form.image_url.trim())) {
+      setError('Image URL must be a valid http or https link.');
+      return;
+    }
+
+    setSaving(true);
     const { error: err } = await supabase.from('external_listings').insert({
-      title: form.title.trim(), platform: form.platform, listing_type: form.listing_type,
-      external_url: form.external_url.trim(), price_display: form.price_display.trim() || null,
-      category: form.category.trim() || null, image_url: form.image_url.trim() || null,
-      ends_at: form.ends_at || null, scout_needed: form.scout_needed,
-      ships_available: form.ships_available, status: 'active', submitted_by: userId ?? null,
+      user_id: userId,
+      title: form.title.trim(),
+      platform: form.platform,
+      listing_type: form.listing_type,
+      external_url: form.external_url.trim(),
+      price_display: form.price_display.trim() || '',
+      category: form.category.trim() || 'other',
+      image_url: form.image_url.trim() || null,
+      ends_at: form.ends_at || null,
+      scout_needed: form.scout_needed,
+      ships_available: form.ships_available,
+      local_pickup: !form.ships_available,
+      status: 'active',
     });
     setSaving(false);
-    if (err) { setError('Failed to submit. Please try again.'); return; }
-    onSuccess();
+    if (err) {
+      const msg = err.message?.includes('row-level security')
+        ? 'You do not have permission to submit events. Please sign in again.'
+        : err.message || 'Failed to submit. Please try again.';
+      setError(msg);
+      return;
+    }
+    setSuccess('Event uploaded successfully.');
+    setTimeout(() => onSuccess(), 1100);
   };
 
   return (
@@ -873,8 +910,9 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
             </div>
           </div>
           {error && <p style={mo.errorText}>{error}</p>}
-          <button onClick={handleSubmit} disabled={saving} style={{ ...mo.submitBtn, opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Submitting…' : 'Submit Event'}
+          {success && <p style={mo.successText}>{success}</p>}
+          <button onClick={handleSubmit} disabled={saving || !!success} style={{ ...mo.submitBtn, opacity: saving || success ? 0.7 : 1 }}>
+            {success ? 'Submitted' : saving ? 'Submitting…' : 'Submit Event'}
           </button>
         </div>
       </div>
@@ -966,7 +1004,7 @@ const st: Record<string, React.CSSProperties> = {
   filterBadge: { position: 'absolute', top: '-4px', right: '-4px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--color-primary-500)', color: '#fff', fontSize: '9px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' },
 
   platformTabs: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', flexShrink: 0 },
-  platformTab: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: '8px var(--space-1)', borderRadius: 'var(--radius-md)', transition: 'background 0.15s, border-color 0.15s' },
+  platformTab: { position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '10px var(--space-1) 8px', borderRadius: 'var(--radius-md)', transition: 'transform 0.12s ease, box-shadow 0.12s ease', cursor: 'pointer', textDecoration: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' },
   platformTabDot: { width: '9px', height: '9px', borderRadius: '50%' },
   platformTabLabel: { fontSize: '10px', fontWeight: 700, textAlign: 'center' as const },
 
@@ -1047,6 +1085,7 @@ const mo: Record<string, React.CSSProperties> = {
   toggleItem: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)' },
   toggleLabel: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-700)' },
   toggleBtn: { background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 },
-  errorText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-error-600)', marginTop: 'var(--space-2)', padding: '8px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-error-50)' },
+  errorText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-error-600)', marginTop: 'var(--space-3)', padding: '10px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-error-50)', border: '1px solid var(--color-error-200)', lineHeight: 1.4 },
+  successText: { fontSize: 'var(--font-size-xs)', color: 'var(--color-success-700)', marginTop: 'var(--space-3)', padding: '10px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-success-50)', border: '1px solid var(--color-success-200)', lineHeight: 1.4, fontWeight: 600 },
   submitBtn: { width: '100%', padding: '13px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', color: '#fff', fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: 'pointer', transition: 'opacity 0.2s' },
 };
