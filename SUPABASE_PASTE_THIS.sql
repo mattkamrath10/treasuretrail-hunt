@@ -2,7 +2,7 @@
 -- TreasureTrail — FULL SCHEMA SETUP
 -- Paste this ENTIRE file into the Supabase SQL Editor and click "Run".
 -- Safe to re-run (everything is idempotent: IF NOT EXISTS / OR REPLACE / DROP IF EXISTS).
--- Generated 2026-05-18T22:35:13Z from supabase/migrations/*.sql
+-- Generated 2026-05-18T22:54:40Z from supabase/migrations/*.sql
 -- =============================================================================
 
 
@@ -778,16 +778,14 @@ CREATE INDEX IF NOT EXISTS idx_club_rankings_season ON club_rankings(season, ran
 -- -----------------------------------------------------------------------------
 -- FROM: 20260517210833_create_avatars_storage_bucket.sql
 -- -----------------------------------------------------------------------------
-/*
-  # Create avatars storage bucket
-
-  1. Storage
-    - Creates a public `avatars` bucket for user profile photos
-  2. Policies
-    - Authenticated users can upload to their own folder (user_id/*)
-    - Authenticated users can update/delete their own files
-    - Anyone can read avatar images (public bucket)
-*/
+-- # Create avatars storage bucket
+--
+-- 1. Storage
+--   - Creates a public `avatars` bucket for user profile photos
+-- 2. Policies
+--   - Authenticated users can upload to their own folder (user_id/...)
+--   - Authenticated users can update/delete their own files
+--   - Anyone can read avatar images (public bucket)
 
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
