@@ -1027,10 +1027,13 @@ function ScoutsModal({ onClose }: { onClose: () => void }) {
             {SCOUT_OPTIONS.map(({ icon: Icon, label, sub, color, bg, border }) => (
               <button
                 key={label}
+                disabled
+                title="Coming soon"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                   padding: '14px var(--space-4)', borderRadius: 'var(--radius-lg)',
                   backgroundColor: bg, border: `1.5px solid ${border}`, width: '100%', textAlign: 'left',
+                  opacity: 0.55, cursor: 'not-allowed',
                 }}
               >
                 <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', backgroundColor: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

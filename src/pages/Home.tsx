@@ -152,6 +152,7 @@ export default function Home() {
   const [listings, setListings] = useState<ExternalListing[]>([]);
   const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [activeSort, setActiveSort] = useState<SortId>('newest');
@@ -230,8 +231,19 @@ export default function Home() {
         setPosts(communityPosts as ExtendedPost[]);
         if (listingsRes.data) setListings(listingsRes.data as ExternalListing[]);
         if (marketRes.data) setMarketplaceItems(marketRes.data as MarketplaceListing[]);
+        if (listingsRes.error) console.error('[Home] external_listings load failed', listingsRes.error);
+        // marketplace_listings is optional — a PGRST205 (missing table) means the
+        // marketplace surface hasn't been provisioned yet, which is not a user-facing failure.
+        if (marketRes.error && marketRes.error.code !== 'PGRST205') {
+          console.error('[Home] marketplace_listings load failed', marketRes.error);
+        }
+        const realFailures = [listingsRes.error, marketRes.error?.code === 'PGRST205' ? null : marketRes.error].filter(Boolean);
+        setLoadError(realFailures.length > 0 ? 'Some items could not load. Pull to refresh.' : null);
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('[Home] loadAll failed', err);
+        setLoadError('Could not load the feed. Check your connection and try again.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -507,6 +519,34 @@ export default function Home() {
       )}
 
       <div style={styles.feed}>
+        {loadError && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-4)',
+            margin: '0 var(--space-4) var(--space-3)',
+            backgroundColor: 'var(--color-error-50)',
+            border: '1px solid var(--color-error-200)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--color-error-700)',
+            fontSize: 'var(--font-size-sm)',
+          }} role="alert">
+            <span>{loadError}</span>
+            <button
+              onClick={() => loadAll()}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--color-error-600)',
+                color: 'var(--color-neutral-0)',
+                fontSize: 'var(--font-size-xs)',
+                fontWeight: 600,
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {loading && (
           <div style={styles.emptyState}>
             <p style={styles.emptyText}>Loading the latest finds…</p>

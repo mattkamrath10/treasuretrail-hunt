@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, MapPin, DollarSign, Star, ListFilter as Filter,
-  ArrowLeft, Camera, Sparkles, TrendingUp, Clock, User, ChevronRight, X, Home as HomeIcon,
+  ArrowLeft, Camera, Sparkles, Clock, User, X, Home as HomeIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestBlurOverlay } from '../components/GuestGate';
@@ -37,8 +37,6 @@ interface SearchRequest {
   scouts: number;
   urgency: 'low' | 'medium' | 'high';
 }
-
-const suggestedMatches: { id: string; title: string; price: string; source: string; matchScore: number; image: string }[] = [];
 
 function conditionKeyToLabel(key: 'mint' | 'good' | 'fair' | 'parts'): string {
   switch (key) {
@@ -260,8 +258,6 @@ function FeedView({
     setSelectedCategory(null);
   };
 
-  const trendingSearches: { label: string; count: number }[] = [];
-
   const hasActiveSearch = searchQuery.trim().length > 0 || selectedCategory !== null;
 
   return (
@@ -464,22 +460,6 @@ function FeedView({
           })}
         </div>
 
-        <div style={styles.trendingSection}>
-          <div style={styles.sectionRow}>
-            <div style={styles.trendingHeader}>
-              <TrendingUp size={16} style={{ color: 'var(--color-primary-500)' }} />
-              <h3 style={styles.sectionTitle}>Trending Searches</h3>
-            </div>
-          </div>
-          <div style={styles.trendingList}>
-            {trendingSearches.map((item) => (
-              <div key={item.label} style={styles.trendingItem}>
-                <span style={styles.trendingLabel}>{item.label}</span>
-                <span style={styles.trendingCount}>{item.count} hunters</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -876,89 +856,17 @@ function MatchesView({ onBack }: { onBack: () => void }) {
           <p style={styles.matchesSubtitle}>Based on your active hunts and similar finds</p>
         </div>
 
-        <div style={styles.matchesList}>
-          {suggestedMatches.map((match, index) => (
-            <div
-              key={match.id}
-              style={{
-                ...styles.matchCard,
-                animationDelay: `${index * 100}ms`,
-              }}
-            >
-              <img src={match.image} alt={match.title} style={styles.matchImage} />
-              <div style={styles.matchInfo}>
-                <h3 style={styles.matchTitle}>{match.title}</h3>
-                <span style={styles.matchPrice}>{match.price}</span>
-                <span style={styles.matchSource}>
-                  <MapPin size={10} /> {match.source}
-                </span>
-              </div>
-              <div style={styles.matchScoreBadge}>
-                <span style={styles.matchScoreText}>{match.matchScore}%</span>
-                <span style={styles.matchScoreLabel}>match</span>
-              </div>
-            </div>
-          ))}
+        <div style={{
+          padding: 'var(--space-6) var(--space-4)',
+          textAlign: 'center',
+          color: 'var(--color-neutral-500)',
+          fontSize: 'var(--font-size-sm)',
+          lineHeight: 1.5,
+        }}>
+          AI match suggestions arrive here once your hunts attract scout activity.
+          Post a hunt to get started.
         </div>
 
-        <div style={styles.similarSection}>
-          <div style={styles.sectionRow}>
-            <h3 style={styles.sectionTitle}>Similar Finds Nearby</h3>
-            <ChevronRight size={16} style={{ color: 'var(--color-neutral-400)' }} />
-          </div>
-          <div style={styles.similarGrid}>
-            <div style={styles.similarCard}>
-              <img
-                src="https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=200"
-                alt="Similar item"
-                style={styles.similarImage}
-              />
-              <span style={styles.similarPrice}>$4,500</span>
-            </div>
-            <div style={styles.similarCard}>
-              <img
-                src="https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=200"
-                alt="Similar item"
-                style={styles.similarImage}
-              />
-              <span style={styles.similarPrice}>$2,800</span>
-            </div>
-            <div style={styles.similarCard}>
-              <img
-                src="https://images.pexels.com/photos/1464625/pexels-photo-1464625.jpeg?auto=compress&cs=tinysrgb&w=200"
-                alt="Similar item"
-                style={styles.similarImage}
-              />
-              <span style={styles.similarPrice}>$1,200</span>
-            </div>
-          </div>
-        </div>
-
-        <div style={styles.trendingMatchSection}>
-          <div style={styles.sectionRow}>
-            <div style={styles.trendingHeader}>
-              <TrendingUp size={14} style={{ color: 'var(--color-primary-500)' }} />
-              <h3 style={styles.sectionTitle}>Hot Right Now</h3>
-            </div>
-          </div>
-          <div style={styles.hotList}>
-            <div style={styles.hotItem}>
-              <span style={styles.hotRank}>1</span>
-              <span style={styles.hotLabel}>Vintage Omega Seamaster</span>
-              <span style={styles.hotCount}>47 scouts</span>
-            </div>
-            <div style={styles.hotItem}>
-              <span style={styles.hotRank}>2</span>
-              <span style={styles.hotLabel}>MCM Teak Credenza</span>
-              <span style={styles.hotCount}>38 scouts</span>
-            </div>
-            <div style={styles.hotItem}>
-              <span style={styles.hotRank}>3</span>
-              <span style={styles.hotLabel}>Air Jordan 4 Bred (2019)</span>
-              <span style={styles.hotCount}>33 scouts</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

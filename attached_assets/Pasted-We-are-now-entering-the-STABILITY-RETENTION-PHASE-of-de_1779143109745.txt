@@ -1,0 +1,148 @@
+We are now entering the STABILITY + RETENTION PHASE of development.
+
+The priority is no longer adding random features. The priority is making the app feel complete, trustworthy, responsive, socially alive, and worth returning to.
+
+Execute the following phases in order:
+
+PHASE 1 — INTERACTION & NAVIGATION LOCKDOWN
+Perform a full interaction audit across the entire app.
+
+Test and verify every:
+
+* button
+* dropdown
+* menu
+* tab
+* filter
+* icon
+* card tap
+* navigation route
+* upload action
+* modal action
+* CTA
+* profile action
+* feed interaction
+* settings option
+* notification action
+
+Requirements:
+
+* every interaction must do something meaningful
+* every route must exist
+* no dead buttons
+* no blank pages
+* no placeholder UX
+* no redirect loops
+* no broken back navigation
+* no console errors
+* no silent failures
+
+If a feature is incomplete:
+
+* either finish it
+  OR
+* temporarily remove/hide/disable it
+
+Mobile testing required:
+
+* iPhone Safari
+* Android Chrome
+* responsive layouts
+* scroll behavior
+* upload behavior
+* image loading
+* keyboard interactions
+
+Also test:
+
+* authenticated states
+* guest states
+* empty states
+* upload failures
+* missing image states
+* deep-link navigation
+* highlighted feed navigation
+* filter combinations
+* feed refresh behavior
+
+Create a final QA report listing:
+
+* broken interactions found
+* fixes completed
+* removed placeholders
+* unresolved issues remaining
+
+PHASE 2 — REAL USER TESTING PREP
+Prepare the app for real-world testing with 5–20 users.
+
+Requirements:
+
+* simplify confusing flows
+* improve wording clarity
+* ensure onboarding is understandable
+* make posting flow extremely easy
+* reduce unnecessary taps
+* improve loading feedback
+* improve empty states
+* improve trust indicators
+
+PHASE 3 — RETENTION FOUNDATION
+Begin implementing systems that give users reasons to return.
+
+Priority features:
+
+1. Saved Hunts
+2. Notifications
+3. Scout Reputation
+4. Follow System
+5. Likes / Comments / Saves
+6. Match Alerts
+7. Activity Feed Improvements
+
+PHASE 4 — PROFILE & IDENTITY SYSTEM
+Prepare scalable profile architecture including:
+
+* profile pages
+* collections
+* hunt history
+* find history
+* scout rankings
+* badges
+* credibility indicators
+
+PHASE 5 — MARKETPLACE INTELLIGENCE
+Begin planning:
+
+* AI rarity scoring
+* estimated value ranges
+* duplicate detection
+* image recognition
+* cross-platform matching
+* trend detection
+
+PHASE 6 — GEO & DISCOVERY LAYER
+Prepare future support for:
+
+* hunts near me
+* regional discovery
+* estate sale maps
+* scout radius
+* geographic alerts
+* local hotspots
+
+IMPORTANT:
+Do NOT prioritize visual redesigns over usability.
+Do NOT add unnecessary screens.
+Do NOT add placeholder functionality.
+
+The app should feel fast, stable, intuitive, and socially active before major expansion.
+
+Before marking tasks complete:
+
+* run TypeScript checks
+* run architect/code review
+* test all navigation manually
+* verify all Supabase interactions
+* verify mobile responsiveness
+* verify all upload flows
+* verify no dead-end UX remains

@@ -96,6 +96,21 @@ function EventsHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v:
       </header>
 
       <div style={st.scrollContent}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          padding: 'var(--space-2) var(--space-3)',
+          margin: '0 var(--space-4) var(--space-3)',
+          backgroundColor: 'var(--color-warning-50)',
+          border: '1px solid var(--color-warning-200)',
+          borderRadius: 'var(--radius-md)',
+        }}>
+          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-warning-700)', fontWeight: 600 }}>Preview</span>
+          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-700)', lineHeight: 1.3 }}>
+            Sample events — real event listings, RSVPs, and passport stamps coming soon.
+          </span>
+        </div>
         {/* Story-style event highlights */}
         <div style={st.storyRow}>
           {[

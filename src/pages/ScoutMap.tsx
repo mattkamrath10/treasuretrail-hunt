@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, Star, Zap, Eye, Clock, ListFilter as Filter, Layers, Navigation, Plus, Gavel, Camera, Package, X, TrendingUp, ChevronUp, ChevronDown, Shield } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, Star, Zap, Eye, Clock, ListFilter as Filter, Layers, Navigation, Plus, Gavel, Camera, Package, X, TrendingUp, ChevronUp, ChevronDown, Shield, Info } from 'lucide-react';
 
 type MarkerType = 'scout' | 'find' | 'auction' | 'estate' | 'garage' | 'thrift' | 'storage';
 type HeatmapLayer = 'trending' | 'scouts' | 'rare' | 'auctions';
@@ -24,19 +24,6 @@ interface NearbyItem {
   timestamp: string;
   urgency?: boolean;
 }
-
-const CATEGORIES = [
-  { label: 'Furniture', icon: Package },
-  { label: 'Collectibles', icon: Star },
-  { label: 'Watches', icon: Clock },
-  { label: 'Sneakers', icon: Zap },
-  { label: 'Storage', icon: Package },
-  { label: 'Estate Sales', icon: MapPin },
-  { label: 'Electronics', icon: Zap },
-  { label: 'Luxury', icon: Star },
-  { label: 'Auctions', icon: Gavel },
-  { label: 'Garage Sales', icon: MapPin },
-];
 
 const mapMarkers: MapMarker[] = [];
 
@@ -119,6 +106,28 @@ export default function ScoutMap({ onBack }: { onBack: () => void }) {
             </button>
           );
         })}
+
+        {/* Preview banner */}
+        <div style={{
+          position: 'absolute',
+          top: 'var(--space-16, 64px)',
+          left: 'var(--space-4)',
+          right: 'var(--space-4)',
+          zIndex: 18,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          padding: 'var(--space-2) var(--space-3)',
+          backgroundColor: 'var(--color-neutral-0)',
+          border: '1px solid var(--color-warning-200)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-sm)',
+        }}>
+          <Info size={14} style={{ color: 'var(--color-warning-600)', flexShrink: 0 }} />
+          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-700)', lineHeight: 1.3 }}>
+            Map preview — live geo data and nearby scout activity launching soon.
+          </span>
+        </div>
 
         {/* Top bar */}
         <div style={styles.topBar}>
@@ -314,15 +323,6 @@ function FilterPanel({
             }}
           >
             {f.label}
-          </button>
-        ))}
-      </div>
-      <div style={styles.filterDivider} />
-      <span style={styles.filterSectionLabel}>Categories</span>
-      <div style={styles.filterGrid}>
-        {CATEGORIES.map((cat) => (
-          <button key={cat.label} style={styles.catFilterChip}>
-            {cat.label}
           </button>
         ))}
       </div>
