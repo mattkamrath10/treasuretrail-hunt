@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Hop as Home, Zap, Radar, Bell, User } from 'lucide-react';
+import { Hop as Home, Zap, Radar, Gavel, User } from 'lucide-react';
 
 interface NavItem {
   path: string;
@@ -11,7 +11,7 @@ const navItems: NavItem[] = [
   { path: '/', label: 'Home', icon: Home },
   { path: '/flash-finds', label: 'Flash Finds', icon: Zap },
   { path: '/rare-radar', label: 'Rare Radar', icon: Radar },
-  { path: '/alerts', label: 'Alerts', icon: Bell },
+  { path: '/live', label: 'Live Events', icon: Gavel },
   { path: '/profile', label: 'Profile', icon: User },
 ];
 
