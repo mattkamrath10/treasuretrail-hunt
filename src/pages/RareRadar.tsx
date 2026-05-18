@@ -5,6 +5,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestBlurOverlay } from '../components/GuestGate';
+import {
+  getRareRadarDrafts,
+  clearRareRadarDraft,
+  type RareRadarDraft,
+} from '../lib/itemIntelligence';
 
 type ViewState = 'create' | 'success' | 'feed' | 'matches';
 
@@ -33,6 +38,28 @@ interface SearchRequest {
 
 const suggestedMatches: { id: string; title: string; price: string; source: string; matchScore: number; image: string }[] = [];
 
+function conditionKeyToLabel(key: 'mint' | 'good' | 'fair' | 'parts'): string {
+  switch (key) {
+    case 'mint':  return 'Mint';
+    case 'good':  return 'Good';
+    case 'fair':  return 'Fair';
+    case 'parts': return 'Parts/Repair';
+  }
+}
+
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return 'just now';
+  const diff = Math.max(0, Date.now() - then);
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
 const urgencyColors = {
   low: { bg: 'var(--color-secondary-50)', text: 'var(--color-secondary-700)' },
   medium: { bg: 'var(--color-warning-50)', text: 'var(--color-warning-600)' },
@@ -46,6 +73,34 @@ export default function RareRadar() {
   const [hunts, setHunts] = useState<SearchRequest[]>([]);
   const [lastHunt, setLastHunt] = useState<SearchRequest | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Hydrate drafts that were shared from Flash Finds → AI Analysis.
+  useEffect(() => {
+    const drafts = getRareRadarDrafts();
+    if (drafts.length === 0) return;
+    const fromDrafts: SearchRequest[] = drafts.map((d: RareRadarDraft) => ({
+      id: d.id,
+      title: d.title,
+      category: d.category,
+      conditions: d.condition ? [conditionKeyToLabel(d.condition)] : [],
+      budgetMin: d.budgetLow !== null ? String(d.budgetLow) : '',
+      budgetMax: d.budgetHigh !== null ? String(d.budgetHigh) : '',
+      notes: d.notes,
+      location: '',
+      image: d.imageUrl ?? '',
+      username: 'you',
+      timePosted: formatRelative(d.createdAt),
+      scouts: 0,
+      urgency: 'medium',
+    }));
+    setHunts((prev) => {
+      const known = new Set(prev.map((h) => h.id));
+      return [...fromDrafts.filter((d) => !known.has(d.id)), ...prev];
+    });
+    // Drafts are now in component state; clear the localStorage queue so we
+    // don't re-add duplicates on every remount.
+    drafts.forEach((d) => clearRareRadarDraft(d.id));
+  }, []);
 
   if (isGuest) {
     return (

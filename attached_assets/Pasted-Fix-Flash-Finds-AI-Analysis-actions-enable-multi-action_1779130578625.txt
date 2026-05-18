@@ -1,0 +1,230 @@
+Fix Flash Finds AI Analysis actions, enable multi-action workflows, and simplify the AI strategy to avoid excessive API costs.
+
+========================================
+
+1. ACTION BUTTONS CURRENTLY BROKEN
+   ========================================
+
+On the Flash Finds → AI Analysis page:
+
+The following action buttons currently do nothing:
+
+* Post to Flash Finds
+* Share to Rare Radar
+* Send to Scouts
+* Save Analysis
+* Watch Trends
+* Share
+
+Fix all button functionality.
+
+========================================
+2. ENABLE MULTI-SELECT ACTIONS
+==============================
+
+Users should be able to select MULTIPLE actions at once.
+
+Example:
+
+* Post to Flash Finds
+  AND
+* Share
+  AND
+* Send to Scouts
+
+The system should execute all selected actions together.
+
+========================================
+3. NEW MULTI-SELECT UX
+======================
+
+Convert action buttons into selectable action cards/chips.
+
+Behavior:
+
+* tap once = selected
+* tap again = deselected
+
+Selected state should visually show:
+
+* highlighted border
+* filled background
+* checkmark icon
+* active glow/primary color
+
+========================================
+4. EXECUTE SELECTED ACTIONS
+===========================
+
+When user presses:
+"Post This Find"
+
+Execute ALL selected actions sequentially.
+
+Examples:
+
+If selected:
+
+* Post to Flash Finds
+* Share to Rare Radar
+
+Then:
+
+1. create Flash Finds post
+2. create Rare Radar reference/share
+
+========================================
+5. FIX AI ANALYSIS PAGE DATA
+============================
+
+Currently:
+
+* no analysis data appears
+* item name blank
+* description blank
+* category blank
+* marketplace comparison blank
+
+Fix the data flow.
+
+========================================
+6. SIMPLIFY AI STRATEGY
+=======================
+
+DO NOT implement expensive computer vision AI yet.
+
+Avoid:
+
+* costly image recognition APIs
+* high-cost per-image processing
+* expensive real-time vision models
+
+Instead use a lightweight reseller-assist approach.
+
+========================================
+7. LIGHTWEIGHT ANALYSIS MODEL
+=============================
+
+After image upload:
+allow user to manually enter:
+
+* title
+* category
+* purchase price
+* condition
+
+Then TreasureTrail assists with:
+
+* marketplace suggestions
+* pricing estimation
+* resale profit estimate
+* keyword suggestions
+* category refinement
+* platform recommendations
+
+This keeps operating costs manageable.
+
+========================================
+8. REMOVE BROKEN PLACEHOLDER STATES
+===================================
+
+Remove:
+
+* permanent "Pending"
+* blank analysis sections
+* dead placeholder cards
+
+Replace with:
+
+* editable/manual fields
+* lightweight marketplace intelligence
+* estimated pricing tools
+
+========================================
+9. PROFIT ESTIMATOR
+===================
+
+Keep and improve the Profit Estimator.
+
+User enters:
+
+* purchase price
+
+TreasureTrail calculates:
+
+* estimated resale range
+* estimated fees
+* estimated shipping
+* projected profit
+
+========================================
+10. SHARE FUNCTIONALITY
+=======================
+
+Fix Share action:
+
+* native mobile share sheet
+* copy link
+* external sharing
+
+========================================
+11. SEND TO SCOUTS
+==================
+
+Send selected listing/find to:
+
+* scout requests
+* local sourcing helpers
+* pickup assistance system
+
+========================================
+12. WATCH TRENDS
+================
+
+Watch Trends should:
+
+* save item keywords/categories
+* track future marketplace trends later
+* store interest preferences
+
+========================================
+13. SAVE ANALYSIS
+=================
+
+Save Analysis should:
+
+* store current item analysis
+* preserve uploaded image
+* allow future editing
+
+========================================
+14. FINAL UX DIRECTION
+======================
+
+The AI Analysis page should feel like:
+
+* a reseller assistant
+* sourcing intelligence dashboard
+* pricing helper
+* logistics assistant
+
+NOT:
+
+* fake AI
+* broken placeholder tech
+* expensive overengineered computer vision
+
+========================================
+15. FINAL QA
+============
+
+Verify:
+
+* all action buttons work
+* multi-select works
+* multiple actions execute properly
+* no blank analysis states remain
+* no stuck "Pending"
+* mobile UX works smoothly
+* no expensive AI dependencies added
+* no fake/demo data added back

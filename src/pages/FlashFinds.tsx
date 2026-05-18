@@ -3,9 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Camera, ArrowLeft, ArrowRight, X, MapPin, DollarSign, Tag, Sparkles, Eye, CircleCheck as CheckCircle, Image, Pencil, Plus, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
-import AiAnalysisPage from './AiAnalysis';
+import AiAnalysisPage, { type AnalysisDonePayload } from './AiAnalysis';
 import { createCommunityPost, createFlashFind } from '../lib/database';
 import { supabase } from '../lib/supabase';
+import {
+  shareToRareRadar,
+  saveAnalysis,
+  watchTrend,
+  shareItem,
+} from '../lib/itemIntelligence';
 
 type FlowStep = 'main' | 'photo' | 'details' | 'ai-analysis' | 'confirmation';
 
@@ -133,14 +139,27 @@ export default function FlashFinds() {
     setStep('ai-analysis');
   };
 
-  const handleAiDone = async () => {
+  const handleAiDone = async (payload: AnalysisDonePayload) => {
     if (!user) return;
     setSubmitting(true);
     setSubmitError('');
 
-    try {
-      let imageUrl: string | undefined;
+    const { editedForm, actions, intelligence } = payload;
+    const mergedForm: FlashFindForm = {
+      ...form,
+      title: editedForm.title,
+      category: editedForm.category,
+      notes: editedForm.notes,
+      price: editedForm.price,
+      scout_needed: form.scout_needed || actions.includes('send_scouts'),
+    };
+    setForm(mergedForm);
 
+    const completed: string[] = [];
+
+    try {
+      // Upload image once — used by every action that needs it.
+      let imageUrl: string | undefined;
       if (photoUrl) {
         try {
           const res = await fetch(photoUrl);
@@ -155,52 +174,128 @@ export default function FlashFinds() {
             imageUrl = urlData.publicUrl;
           }
         } catch {
-          // Image upload failed — continue without image URL
+          // Best-effort upload — continue without it
         }
       }
 
-      const marketplaceValue =
-        form.marketplace === 'other' && form.marketplaceCustom.trim()
-          ? `custom:${form.marketplaceCustom.trim()}`
-          : form.marketplace || undefined;
+      const priceNum = mergedForm.price ? parseFloat(mergedForm.price) : null;
+      const priceForDb = priceNum !== null && Number.isFinite(priceNum) ? priceNum : undefined;
 
-      const { error: postErr } = await createCommunityPost({
-        user_id: user.id,
-        type: 'flash_find',
-        caption: form.notes || form.title || 'New find',
-        image_url: imageUrl,
-        tags: form.category ? [form.category] : [],
-        location: form.general_location || form.location || undefined,
-        location_found: form.general_location || form.location || undefined,
-        marketplace_found: marketplaceValue,
-        estimated_value: form.price ? parseFloat(form.price) : undefined,
-        category: form.category || undefined,
-        general_location: form.general_location || undefined,
-        exact_address_private: form.exact_address_private.trim() || undefined,
-        address_reveal_policy: form.address_reveal_policy,
-        pickup_type: form.pickup_type.length ? form.pickup_type : undefined,
-        shipping_available:
-          form.shipping_available || form.pickup_type.includes('shipping_available') || form.pickup_type.includes('nationwide_shipping'),
-        scout_needed: form.scout_needed,
-        scouts_available: form.scouts_available,
-        meetup_notes: form.meetup_notes.trim() || undefined,
-      });
+      const needsFlashFindPost =
+        actions.includes('post_flash_finds') || actions.includes('send_scouts');
 
-      if (postErr) throw new Error(postErr);
+      // 1. Post to Flash Finds (also covers Send to Scouts, which needs the post).
+      if (needsFlashFindPost) {
+        const marketplaceValue =
+          mergedForm.marketplace === 'other' && mergedForm.marketplaceCustom.trim()
+            ? `custom:${mergedForm.marketplaceCustom.trim()}`
+            : mergedForm.marketplace || undefined;
 
-      await createFlashFind({
-        user_id: user.id,
-        title: form.title || 'Untitled Find',
-        description: form.notes || undefined,
-        image_url: imageUrl,
-        estimated_value: form.price ? parseFloat(form.price) : undefined,
-        category: form.category || undefined,
-        location: form.location || undefined,
-      });
+        const { error: ffErr } = await createFlashFind({
+          user_id: user.id,
+          title: mergedForm.title || 'Untitled Find',
+          description: mergedForm.notes || undefined,
+          image_url: imageUrl,
+          estimated_value: priceForDb,
+          category: mergedForm.category || undefined,
+          location: mergedForm.location || undefined,
+        });
+        if (ffErr) throw new Error(ffErr);
+
+        const { error: postErr } = await createCommunityPost({
+          user_id: user.id,
+          type: 'flash_find',
+          caption: mergedForm.notes || mergedForm.title || 'New find',
+          image_url: imageUrl,
+          tags: mergedForm.category ? [mergedForm.category] : [],
+          location: mergedForm.general_location || mergedForm.location || undefined,
+          location_found: mergedForm.general_location || mergedForm.location || undefined,
+          marketplace_found: marketplaceValue,
+          estimated_value: priceForDb,
+          category: mergedForm.category || undefined,
+          general_location: mergedForm.general_location || undefined,
+          exact_address_private: mergedForm.exact_address_private.trim() || undefined,
+          address_reveal_policy: mergedForm.address_reveal_policy,
+          pickup_type: mergedForm.pickup_type.length ? mergedForm.pickup_type : undefined,
+          shipping_available:
+            mergedForm.shipping_available ||
+            mergedForm.pickup_type.includes('shipping_available') ||
+            mergedForm.pickup_type.includes('nationwide_shipping'),
+          scout_needed: mergedForm.scout_needed,
+          scouts_available: mergedForm.scouts_available,
+          meetup_notes: mergedForm.meetup_notes.trim() || undefined,
+        });
+
+        if (postErr) throw new Error(postErr);
+
+        if (actions.includes('post_flash_finds')) completed.push('Posted to Flash Finds');
+        if (actions.includes('send_scouts')) completed.push('Scout request flagged');
+      }
+
+      // 2. Share to Rare Radar — saves a local draft visible on the Rare Radar page.
+      if (actions.includes('share_rare_radar')) {
+        shareToRareRadar({
+          title: mergedForm.title || 'Untitled Find',
+          category: mergedForm.category || 'Other',
+          condition: editedForm.condition,
+          notes: mergedForm.notes,
+          imageUrl: imageUrl ?? photoUrl ?? null,
+          budgetLow: intelligence.resale?.low ?? null,
+          budgetHigh: intelligence.resale?.high ?? null,
+        });
+        completed.push('Shared to Rare Radar');
+      }
+
+      // 3. Save Analysis — local storage so the user can revisit later.
+      if (actions.includes('save_analysis')) {
+        saveAnalysis({
+          title: mergedForm.title || 'Untitled Find',
+          category: mergedForm.category || 'Other',
+          condition: editedForm.condition,
+          purchasePrice: priceNum,
+          notes: mergedForm.notes,
+          imageUrl: imageUrl ?? photoUrl ?? null,
+          intelligence,
+        });
+        completed.push('Analysis saved');
+      }
+
+      // 4. Watch Trends — keep keyword/category interest.
+      if (actions.includes('watch_trends')) {
+        watchTrend({
+          category: mergedForm.category || 'Other',
+          keywords: intelligence.keywords,
+        });
+        completed.push('Trend tracking on');
+      }
+
+      // 5. Share — native share sheet with clipboard fallback.
+      if (actions.includes('share')) {
+        const summary = [
+          mergedForm.title || 'Check out my latest find on TreasureTrail',
+          intelligence.resale
+            ? `Est. resale: $${intelligence.resale.low} – $${intelligence.resale.high}`
+            : '',
+          mergedForm.notes,
+        ]
+          .filter(Boolean)
+          .join('\n');
+        const result = await shareItem({
+          title: mergedForm.title || 'TreasureTrail find',
+          text: summary,
+          url: typeof window !== 'undefined' ? window.location.origin : undefined,
+        });
+        if (result.ok) {
+          completed.push(result.via === 'native' ? 'Shared via system' : 'Link copied');
+        } else if (result.reason === 'cancelled') {
+          // User dismissed the native share sheet — not an error.
+          completed.push('Share cancelled');
+        }
+      }
 
       setStep('confirmation');
     } catch (err: any) {
-      setSubmitError(err.message || 'Failed to post. Please try again.');
+      setSubmitError(err.message || 'Failed to complete actions. Please try again.');
     } finally {
       setSubmitting(false);
     }

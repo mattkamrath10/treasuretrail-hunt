@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Sparkles,
@@ -11,17 +11,35 @@ import {
   CircleCheck as CheckCircle,
   Loader,
   TriangleAlert as AlertTriangle,
-  Crown,
+  Check,
 } from 'lucide-react';
-import { compressImage } from '../lib/imageCompress';
 import {
-  runAiScan,
-  AiScanError,
-  type AiAnalysisResult,
-  type AiScanResponse,
-} from '../lib/aiAnalysis';
+  buildIntelligence,
+  type ConditionKey,
+  type ItemIntelligence,
+} from '../lib/itemIntelligence';
 
-type AnalysisView = 'loading' | 'results' | 'error';
+export type AiActionKey =
+  | 'post_flash_finds'
+  | 'share_rare_radar'
+  | 'send_scouts'
+  | 'save_analysis'
+  | 'watch_trends'
+  | 'share';
+
+export interface AnalysisEditableForm {
+  title: string;
+  category: string;
+  condition: ConditionKey | null;
+  price: string;
+  notes: string;
+}
+
+export interface AnalysisDonePayload {
+  editedForm: AnalysisEditableForm;
+  actions: AiActionKey[];
+  intelligence: ItemIntelligence;
+}
 
 interface AnalysisProps {
   photoUrl: string | null;
@@ -32,20 +50,31 @@ interface AnalysisProps {
     price: string;
     location: string;
   };
-  onDone: () => void;
+  onDone: (payload: AnalysisDonePayload) => void;
   onBack: () => void;
-  onUsageUpdate?: (info: { tier: 'free' | 'pro'; used: number; limit: number; remaining: number }) => void;
   submitting?: boolean;
   submitError?: string;
 }
 
-const LOADING_STAGES = [
-  'Compressing image',
-  'Identifying item',
-  'Detecting brand & era',
-  'Estimating resale value',
-  'Scoring rarity',
-  'Drafting reseller tips',
+const CATEGORIES = [
+  'Electronics', 'Furniture', 'Books', 'Collectibles', 'Antiques',
+  'Art', 'Jewelry', 'Watches', 'Sneakers', 'Toys', 'Tools', 'Clothing', 'Other',
+];
+
+const CONDITIONS: { key: ConditionKey; label: string; desc: string }[] = [
+  { key: 'mint',  label: 'Mint',         desc: 'Like new, no flaws' },
+  { key: 'good',  label: 'Good',         desc: 'Used, fully working' },
+  { key: 'fair',  label: 'Fair',         desc: 'Visible wear or minor issues' },
+  { key: 'parts', label: 'For parts',    desc: 'Not working / repair needed' },
+];
+
+const ACTIONS: { key: AiActionKey; label: string; description: string; Icon: typeof Zap; color: string }[] = [
+  { key: 'post_flash_finds', label: 'Post to Flash Finds', description: 'Share with the community feed', Icon: Zap,       color: 'var(--color-primary-600)'   },
+  { key: 'share_rare_radar', label: 'Share to Rare Radar', description: 'Add as a reference for hunters',  Icon: Eye,       color: 'var(--color-secondary-600)' },
+  { key: 'send_scouts',      label: 'Send to Scouts',      description: 'Request local pickup help',       Icon: Send,      color: 'var(--color-accent-600)'    },
+  { key: 'save_analysis',    label: 'Save Analysis',       description: 'Keep this for later editing',     Icon: Bookmark,  color: 'var(--color-success-600)'   },
+  { key: 'watch_trends',     label: 'Watch Trends',        description: 'Track this category over time',   Icon: BarChart3, color: 'var(--color-warning-600)'   },
+  { key: 'share',            label: 'Share',               description: 'Native share / copy link',        Icon: Share2,    color: 'var(--color-neutral-700)'   },
 ];
 
 export default function AiAnalysis({
@@ -53,338 +82,82 @@ export default function AiAnalysis({
   form,
   onDone,
   onBack,
-  onUsageUpdate,
   submitting,
   submitError,
 }: AnalysisProps) {
-  const [view, setView] = useState<AnalysisView>('loading');
-  const [result, setResult] = useState<AiAnalysisResult | null>(null);
-  const [meta, setMeta] = useState<{
-    cached: boolean;
-    tier: 'free' | 'pro';
-    used: number;
-    limit: number;
-    remaining: number;
-  } | null>(null);
-  const [errorState, setErrorState] = useState<{
-    message: string;
-    limitHit?: boolean;
-    needsAuth?: boolean;
-    tier?: 'free' | 'pro';
-    used?: number;
-    limit?: number;
-  } | null>(null);
-
-  const ranOnce = useRef(false);
-
-  useEffect(() => {
-    if (ranOnce.current) return;
-    ranOnce.current = true;
-
-    async function run() {
-      if (!photoUrl) {
-        setErrorState({ message: 'No photo to analyze. Please go back and add a photo.' });
-        setView('error');
-        return;
-      }
-
-      try {
-        const compressed = await compressImage(photoUrl, 1024, 0.82);
-
-        const userContext = [
-          form.title && `User titled it: "${form.title}".`,
-          form.category && `User category: ${form.category}.`,
-          form.location && `Found at: ${form.location}.`,
-          form.price && `Acquired for: $${form.price}.`,
-          form.notes && `Notes: ${form.notes}.`,
-        ]
-          .filter(Boolean)
-          .join(' ');
-
-        const response: AiScanResponse = await runAiScan(compressed, userContext);
-        setResult(response.result);
-        setMeta({
-          cached: response.cached,
-          tier: response.tier,
-          used: response.used,
-          limit: response.limit,
-          remaining: response.remaining,
-        });
-        onUsageUpdate?.({
-          tier: response.tier,
-          used: response.used,
-          limit: response.limit,
-          remaining: response.remaining,
-        });
-        setView('results');
-      } catch (err: any) {
-        if (err instanceof AiScanError) {
-          if (err.status === 401) {
-            setErrorState({ message: err.message, needsAuth: true });
-          } else if (err.status === 429) {
-            setErrorState({
-              message: err.message,
-              limitHit: true,
-              tier: err.usage?.tier,
-              used: err.usage?.used,
-              limit: err.usage?.limit,
-            });
-            if (err.usage) onUsageUpdate?.(err.usage);
-          } else {
-            setErrorState({ message: err.message });
-          }
-        } else {
-          setErrorState({ message: err?.message || 'AI scan failed. Please try again.' });
-        }
-        setView('error');
-      }
-    }
-
-    run();
-  }, [photoUrl, form, onUsageUpdate]);
-
-  if (view === 'loading') return <LoadingExperience photoUrl={photoUrl} />;
-
-  if (view === 'error') {
-    return (
-      <ErrorScreen
-        onBack={onBack}
-        message={errorState?.message ?? 'AI scan failed.'}
-        limitHit={errorState?.limitHit}
-        used={errorState?.used}
-        limit={errorState?.limit}
-        tier={errorState?.tier}
-      />
-    );
-  }
-
-  return (
-    <ResultsScreen
-      photoUrl={photoUrl}
-      form={form}
-      result={result!}
-      meta={meta!}
-      onDone={onDone}
-      onBack={onBack}
-      submitting={submitting}
-      submitError={submitError}
-    />
+  const [edited, setEdited] = useState<AnalysisEditableForm>({
+    title: form.title,
+    category: form.category || 'Other',
+    condition: null,
+    price: form.price,
+    notes: form.notes,
+  });
+  const [selected, setSelected] = useState<Set<AiActionKey>>(
+    new Set<AiActionKey>(['post_flash_finds']),
   );
-}
 
-function LoadingExperience({ photoUrl }: { photoUrl: string | null }) {
-  const [currentStage, setCurrentStage] = useState(0);
-  const [progress, setProgress] = useState(8);
+  const purchasePrice = useMemo(() => {
+    const n = parseFloat(edited.price);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [edited.price]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let elapsed = 0;
-
-    const interval = setInterval(() => {
-      if (cancelled) return;
-      elapsed += 200;
-      // Asymptotic crawl toward 92% — we never auto-complete; the parent swaps view.
-      setProgress((p) => Math.min(92, p + (92 - p) * 0.05));
-      setCurrentStage(() => Math.min(LOADING_STAGES.length - 1, Math.floor(elapsed / 1100)));
-    }, 200);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
-
-  return (
-    <div style={styles.loadingContainer}>
-      <div style={styles.loadingContent}>
-        <div style={styles.loadingImageWrap}>
-          {photoUrl ? (
-            <img src={photoUrl} alt="Analyzing" style={styles.loadingImage} />
-          ) : (
-            <div
-              style={{
-                ...styles.loadingImage,
-                backgroundColor: 'var(--color-neutral-100)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <Sparkles size={48} style={{ color: 'var(--color-primary-400)' }} />
-            </div>
-          )}
-          <div style={styles.scanOverlay}>
-            <div style={{ ...styles.scanLine, top: `${(progress % 100) * 0.9}%` }} />
-          </div>
-        </div>
-
-        <div style={styles.loadingInfo}>
-          <div style={styles.sparkleIcon}>
-            <Sparkles size={28} style={{ color: 'var(--color-primary-500)' }} />
-          </div>
-          <h2 style={styles.loadingTitle}>Analyzing Your Find</h2>
-          <p style={styles.loadingSubtitle}>AI is examining your item across multiple dimensions</p>
-        </div>
-
-        <div style={styles.progressSection}>
-          <div style={styles.progressBar}>
-            <div style={{ ...styles.progressFill, width: `${progress}%` }} />
-          </div>
-          <span style={styles.progressPercent}>{Math.round(progress)}%</span>
-        </div>
-
-        <div style={styles.stagesList}>
-          {LOADING_STAGES.map((label, index) => (
-            <div
-              key={label}
-              style={{
-                ...styles.stageItem,
-                opacity: index <= currentStage ? 1 : 0.3,
-              }}
-            >
-              <div
-                style={{
-                  ...styles.stageDot,
-                  backgroundColor:
-                    index < currentStage
-                      ? 'var(--color-success-500)'
-                      : index === currentStage
-                      ? 'var(--color-primary-500)'
-                      : 'var(--color-neutral-200)',
-                }}
-              />
-              <span
-                style={{
-                  ...styles.stageLabel,
-                  fontWeight:
-                    index === currentStage
-                      ? 'var(--font-weight-semibold)'
-                      : 'var(--font-weight-medium)',
-                  color:
-                    index === currentStage
-                      ? 'var(--color-neutral-900)'
-                      : 'var(--color-neutral-500)',
-                }}
-              >
-                {label}
-              </span>
-              {index < currentStage && (
-                <CheckCircle size={12} style={{ color: 'var(--color-success-500)' }} />
-              )}
-              {index === currentStage && <div style={styles.stageSpinner} />}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+  const intelligence = useMemo(
+    () =>
+      buildIntelligence({
+        title: edited.title,
+        category: edited.category,
+        notes: edited.notes,
+        purchasePrice,
+        condition: edited.condition,
+      }),
+    [edited.title, edited.category, edited.notes, purchasePrice, edited.condition],
   );
-}
 
-function ErrorScreen({
-  onBack,
-  message,
-  limitHit,
-  used,
-  limit,
-  tier,
-}: {
-  onBack: () => void;
-  message: string;
-  limitHit?: boolean;
-  used?: number;
-  limit?: number;
-  tier?: 'free' | 'pro';
-}) {
-  return (
-    <div style={styles.container}>
-      <header style={styles.stepHeader}>
-        <button onClick={onBack} style={styles.backBtn}>
-          <ArrowLeft size={20} />
-        </button>
-        <span style={styles.stepLabel}>AI Analysis</span>
-        <div style={{ width: 36 }} />
-      </header>
+  const toggleAction = (key: AiActionKey) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
-      <div style={styles.errorContent}>
-        <div style={styles.errorIconWrap}>
-          {limitHit ? (
-            <Crown size={36} style={{ color: 'var(--color-primary-500)' }} />
-          ) : (
-            <AlertTriangle size={36} style={{ color: 'var(--color-warning-500)' }} />
-          )}
-        </div>
-        <h2 style={styles.errorTitle}>
-          {limitHit ? 'Daily scan limit reached' : "We couldn't finish that scan"}
-        </h2>
-        <p style={styles.errorMessage}>{message}</p>
+  const handleSubmit = () => {
+    if (selected.size === 0) return;
+    onDone({
+      editedForm: edited,
+      actions: Array.from(selected),
+      intelligence,
+    });
+  };
 
-        {limitHit && typeof used === 'number' && typeof limit === 'number' && (
-          <div style={styles.usagePill}>
-            Used {used} / {limit} {tier === 'pro' ? '(Pro safety cap)' : 'free scans today'}
-          </div>
-        )}
-
-        <div style={styles.errorActions}>
-          <button onClick={onBack} style={styles.errorSecondaryBtn}>
-            Back to details
-          </button>
-          {limitHit && tier !== 'pro' && (
-            <button onClick={onBack} style={styles.errorPrimaryBtn}>
-              <Crown size={16} style={{ color: 'var(--color-neutral-0)' }} />
-              <span style={styles.errorPrimaryText}>Upgrade to Pro</span>
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ResultsScreen({
-  photoUrl,
-  form,
-  result,
-  meta,
-  onDone,
-  onBack,
-  submitting,
-  submitError,
-}: {
-  photoUrl: string | null;
-  form: AnalysisProps['form'];
-  result: AiAnalysisResult;
-  meta: { cached: boolean; tier: 'free' | 'pro'; used: number; limit: number; remaining: number };
-  onDone: () => void;
-  onBack: () => void;
-  submitting?: boolean;
-  submitError?: string;
-}) {
-  const purchasePrice = form.price ? parseFloat(form.price) : null;
-  const { estimated_value: ev } = result;
-  const midValue = ev ? (ev.low + ev.high) / 2 : null;
-  const profitLow = purchasePrice !== null && ev ? ev.low - purchasePrice : null;
+  const ev = intelligence.resale;
+  const midValue = ev?.mid ?? null;
+  const profitLow  = purchasePrice !== null && ev ? ev.low  - purchasePrice : null;
   const profitHigh = purchasePrice !== null && ev ? ev.high - purchasePrice : null;
-
-  const remainingLabel =
-    meta.tier === 'pro'
-      ? 'Pro · unlimited scans'
-      : `${meta.remaining} of ${meta.limit} free scans left today`;
+  const primaryFee = midValue !== null && intelligence.fees[0] ? intelligence.fees[0] : null;
+  const shipping = intelligence.shipping;
+  const netLow  = profitLow  !== null && primaryFee && shipping.high
+    ? profitLow  - primaryFee.feeAmount - shipping.high
+    : null;
+  const netHigh = profitHigh !== null && primaryFee && shipping.low
+    ? profitHigh - primaryFee.feeAmount - shipping.low
+    : null;
 
   return (
     <div style={styles.container}>
       <header style={styles.stepHeader}>
-        <button onClick={onBack} style={styles.backBtn}>
+        <button onClick={onBack} style={styles.backBtn} aria-label="Back">
           <ArrowLeft size={20} />
         </button>
-        <span style={styles.stepLabel}>AI Analysis</span>
+        <span style={styles.stepLabel}>Reseller Assist</span>
         <div style={{ width: 36 }} />
       </header>
 
       <div style={styles.resultsContent}>
         <div style={styles.resultHero}>
           {photoUrl ? (
-            <img src={photoUrl} alt={result.title || 'Your find'} style={styles.resultImage} />
+            <img src={photoUrl} alt={edited.title || 'Your find'} style={styles.resultImage} />
           ) : (
             <div
               style={{
@@ -398,140 +171,227 @@ function ResultsScreen({
               <Sparkles size={48} style={{ color: 'var(--color-primary-300)' }} />
             </div>
           )}
-          <div style={styles.resultHeroOverlay}>
-            <div style={styles.aiConfidence}>
-              <Sparkles size={12} style={{ color: 'var(--color-primary-400)' }} />
-              <span style={styles.confidenceText}>
-                {Math.round(result.confidence ?? 0)}% confidence
-              </span>
-            </div>
-          </div>
         </div>
 
         <div style={styles.resultBody}>
           <div style={styles.usageBanner}>
             <Sparkles size={12} style={{ color: 'var(--color-primary-500)' }} />
-            <span style={styles.usageBannerText}>
-              {meta.cached ? 'Reused recent scan · ' : ''}
-              {remainingLabel}
-            </span>
+            <span style={styles.usageBannerText}>Lightweight assist · no scan limits</span>
           </div>
 
-          <h2 style={styles.resultTitle}>{result.title || form.title || 'Untitled Item'}</h2>
+          {/* Editable item fields */}
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Item details</h3>
 
-          <div style={styles.resultTags}>
-            {result.category && <span style={styles.resultTag}>{result.category}</span>}
-            {result.era && <span style={styles.resultTag}>{result.era}</span>}
-            {result.brand && <span style={styles.resultTag}>{result.brand}</span>}
-            {result.condition_estimate && (
-              <span style={styles.resultTag}>{result.condition_estimate}</span>
-            )}
-          </div>
+            <label style={styles.fieldLabel} htmlFor="ai-title">Title</label>
+            <input
+              id="ai-title"
+              style={styles.input}
+              value={edited.title}
+              onChange={(e) => setEdited({ ...edited, title: e.target.value })}
+              placeholder="e.g. Vintage Omega Seamaster 1968"
+            />
 
-          {result.summary && <p style={styles.summaryText}>{result.summary}</p>}
-
-          <div style={styles.metricsGrid}>
-            <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Est. Resale</span>
-              <span style={styles.metricValueGreen}>
-                {ev ? `$${formatMoney(ev.low)} – $${formatMoney(ev.high)}` : '—'}
-              </span>
+            <label style={styles.fieldLabel}>Category</label>
+            <div style={styles.chipRow}>
+              {CATEGORIES.map((c) => {
+                const active = edited.category === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setEdited({ ...edited, category: c })}
+                    style={{ ...styles.chip, ...(active ? styles.chipActive : {}) }}
+                    aria-pressed={active}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
             </div>
-            <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Rarity</span>
-              <div style={styles.scoreRow}>
-                <div style={styles.scoreBar}>
-                  <div
-                    style={{
-                      ...styles.scoreFill,
-                      width: `${Math.min(100, (result.rarity_score ?? 0) * 10)}%`,
-                    }}
-                  />
-                </div>
-                <span style={styles.scoreNum}>{(result.rarity_score ?? 0).toFixed(1)}/10</span>
-              </div>
-            </div>
-          </div>
 
-          {result.highlights?.length > 0 && (
-            <div style={styles.attributesSection}>
-              <h3 style={styles.sectionTitle}>Why it matters</h3>
-              <div style={styles.attributesList}>
-                {result.highlights.map((h, i) => (
-                  <div key={i} style={styles.bulletRow}>
-                    <span style={styles.bulletDot} />
-                    <span style={styles.bulletText}>{h}</span>
+            <label style={styles.fieldLabel}>Condition</label>
+            <div style={styles.conditionGrid}>
+              {CONDITIONS.map((c) => {
+                const active = edited.condition === c.key;
+                return (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() =>
+                      setEdited({ ...edited, condition: active ? null : c.key })
+                    }
+                    style={{ ...styles.conditionBtn, ...(active ? styles.conditionBtnActive : {}) }}
+                    aria-pressed={active}
+                  >
+                    <span style={styles.conditionLabel}>{c.label}</span>
+                    <span style={styles.conditionDesc}>{c.desc}</span>
+                    {active && (
+                      <span style={styles.conditionCheck}>
+                        <Check size={12} style={{ color: 'var(--color-neutral-0)' }} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <label style={styles.fieldLabel} htmlFor="ai-price">Purchase price (USD)</label>
+            <input
+              id="ai-price"
+              style={styles.input}
+              inputMode="decimal"
+              value={edited.price}
+              onChange={(e) =>
+                setEdited({ ...edited, price: e.target.value.replace(/[^\d.]/g, '') })
+              }
+              placeholder="e.g. 25"
+            />
+
+            <label style={styles.fieldLabel} htmlFor="ai-notes">Notes (optional)</label>
+            <textarea
+              id="ai-notes"
+              style={styles.textarea}
+              rows={3}
+              value={edited.notes}
+              onChange={(e) => setEdited({ ...edited, notes: e.target.value })}
+              placeholder="Brand, era, serial, flaws, anything that helps buyers..."
+            />
+          </section>
+
+          {/* Pricing intelligence */}
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Pricing estimate</h3>
+            {ev && purchasePrice !== null ? (
+              <>
+                <div style={styles.metricsGrid}>
+                  <div style={styles.metricCard}>
+                    <span style={styles.metricLabel}>Est. Resale</span>
+                    <span style={styles.metricValueGreen}>
+                      ${formatMoney(ev.low)} – ${formatMoney(ev.high)}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div style={styles.metricCard}>
+                    <span style={styles.metricLabel}>Multiplier</span>
+                    <span style={styles.metricValueNeutral}>
+                      {ev.multiplierLow.toFixed(1)}× – {ev.multiplierHigh.toFixed(1)}×
+                    </span>
+                  </div>
+                </div>
 
-          <div style={styles.attributesSection}>
-            <h3 style={styles.sectionTitle}>Item Details</h3>
-            <div style={styles.attributesList}>
-              <DetailRow label="Identified" value={result.identified ? 'Yes' : 'Uncertain'} />
-              {result.brand && <DetailRow label="Brand" value={result.brand} />}
-              {result.era && <DetailRow label="Era" value={result.era} />}
-              {result.condition_estimate && (
-                <DetailRow label="Condition" value={result.condition_estimate} />
-              )}
-              {form.location && <DetailRow label="Location" value={form.location} />}
-              {form.notes && <DetailRow label="Notes" value={form.notes} />}
-            </div>
-          </div>
-
-          {(profitLow !== null || midValue !== null) && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>Profit Estimator</h3>
-              <div style={styles.profitCard}>
-                {purchasePrice !== null && (
+                <div style={styles.profitCard}>
                   <div style={styles.profitRow}>
                     <span style={styles.profitLabel}>Purchase price</span>
                     <span style={styles.profitValue}>-${formatMoney(purchasePrice)}</span>
                   </div>
-                )}
-                {ev && (
                   <div style={styles.profitRow}>
                     <span style={styles.profitLabel}>Est. resale (mid)</span>
-                    <span style={styles.profitValueGreen}>+${formatMoney(midValue!)}</span>
+                    <span style={styles.profitValueGreen}>+${formatMoney(ev.mid)}</span>
                   </div>
-                )}
-                {profitLow !== null && profitHigh !== null && (
-                  <>
-                    <div style={styles.profitDivider} />
+                  {primaryFee && (
                     <div style={styles.profitRow}>
-                      <span style={styles.profitLabelBold}>Projected profit</span>
-                      <span style={styles.profitTotal}>
-                        {profitLow >= 0 ? '+' : ''}${formatMoney(profitLow)} to{' '}
-                        {profitHigh >= 0 ? '+' : ''}${formatMoney(profitHigh)}
+                      <span style={styles.profitLabel}>
+                        {primaryFee.marketplace} fees ({primaryFee.feePct}%)
+                      </span>
+                      <span style={styles.profitValue}>-${formatMoney(primaryFee.feeAmount)}</span>
+                    </div>
+                  )}
+                  {(shipping.low > 0 || shipping.high > 0) && (
+                    <div style={styles.profitRow}>
+                      <span style={styles.profitLabel}>Est. shipping</span>
+                      <span style={styles.profitValue}>
+                        -${formatMoney(shipping.low)} to -${formatMoney(shipping.high)}
                       </span>
                     </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {result.selling_tips?.length > 0 && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>Reseller Tips</h3>
-              <div style={styles.attributesList}>
-                {result.selling_tips.map((t, i) => (
-                  <div key={i} style={styles.bulletRow}>
-                    <span style={{ ...styles.bulletDot, backgroundColor: 'var(--color-success-500)' }} />
-                    <span style={styles.bulletText}>{t}</span>
+                  )}
+                  <div style={styles.profitDivider} />
+                  <div style={styles.profitRow}>
+                    <span style={styles.profitLabelBold}>Projected gross profit</span>
+                    <span style={styles.profitTotal}>
+                      {fmtSigned(profitLow)} to {fmtSigned(profitHigh)}
+                    </span>
                   </div>
+                  {netLow !== null && netHigh !== null && (
+                    <div style={styles.profitRow}>
+                      <span style={styles.profitLabel}>After fees + shipping</span>
+                      <span style={styles.profitValueGreen}>
+                        {fmtSigned(netLow)} to {fmtSigned(netHigh)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p style={styles.disclaimer}>
+                  Estimates based on category averages. Always check recent sold comps before pricing.
+                </p>
+              </>
+            ) : (
+              <p style={styles.helperText}>
+                Enter a purchase price above to see resale range, marketplace fees, and projected profit.
+              </p>
+            )}
+          </section>
+
+          {/* Marketplace suggestions */}
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Recommended marketplaces</h3>
+            <div style={styles.marketplaceList}>
+              {intelligence.marketplaces.map((m) => (
+                <div key={m.key} style={styles.marketplaceCard}>
+                  <div style={styles.marketplaceHeader}>
+                    <span style={styles.marketplaceName}>{m.label}</span>
+                    <span style={styles.marketplaceFee}>{m.feePct}% fees</span>
+                  </div>
+                  <span style={styles.marketplaceReason}>{m.reason}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Shipping note */}
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Shipping & logistics</h3>
+            <div style={styles.shippingCard}>
+              <span style={styles.shippingRange}>
+                {shipping.low === 0 && shipping.high === 0
+                  ? 'Local pickup recommended'
+                  : `~$${formatMoney(shipping.low)} – $${formatMoney(shipping.high)}`}
+              </span>
+              <span style={styles.shippingNote}>{shipping.note}</span>
+            </div>
+          </section>
+
+          {/* Keywords */}
+          {intelligence.keywords.length > 0 && (
+            <section style={styles.section}>
+              <h3 style={styles.sectionTitle}>Suggested keywords</h3>
+              <div style={styles.keywordRow}>
+                {intelligence.keywords.map((k) => (
+                  <span key={k} style={styles.keywordChip}>{k}</span>
                 ))}
               </div>
-            </div>
+              <p style={styles.helperText}>Use these in your title and tags for better search visibility.</p>
+            </section>
           )}
 
-          {result.watch_outs?.length > 0 && (
-            <div style={styles.section}>
+          {/* Tips */}
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Reseller tips</h3>
+            <div style={styles.attributesList}>
+              {intelligence.tips.map((t, i) => (
+                <div key={i} style={styles.bulletRow}>
+                  <span style={{ ...styles.bulletDot, backgroundColor: 'var(--color-success-500)' }} />
+                  <span style={styles.bulletText}>{t}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Watch-outs */}
+          {intelligence.watchOuts.length > 0 && (
+            <section style={styles.section}>
               <h3 style={styles.sectionTitle}>Watch-outs</h3>
               <div style={styles.attributesList}>
-                {result.watch_outs.map((w, i) => (
+                {intelligence.watchOuts.map((w, i) => (
                   <div key={i} style={styles.bulletRow}>
                     <AlertTriangle
                       size={12}
@@ -541,72 +401,69 @@ function ResultsScreen({
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>Actions</h3>
+          {/* Action chips */}
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Choose your next steps</h3>
+            <p style={styles.helperText}>
+              Tap any combination — they all run when you press "Post This Find".
+            </p>
             <div style={styles.actionsGrid}>
-              <button style={styles.actionBtn}>
-                <Zap size={16} style={{ color: 'var(--color-primary-600)' }} />
-                <span style={styles.actionLabel}>Post to Flash Finds</span>
-              </button>
-              <button style={styles.actionBtn}>
-                <Eye size={16} style={{ color: 'var(--color-secondary-600)' }} />
-                <span style={styles.actionLabel}>Share to Rare Radar</span>
-              </button>
-              <button style={styles.actionBtn}>
-                <Send size={16} style={{ color: 'var(--color-accent-600)' }} />
-                <span style={styles.actionLabel}>Send to Scouts</span>
-              </button>
-              <button style={styles.actionBtn}>
-                <Bookmark size={16} style={{ color: 'var(--color-success-600)' }} />
-                <span style={styles.actionLabel}>Save Analysis</span>
-              </button>
-              <button style={styles.actionBtn}>
-                <BarChart3 size={16} style={{ color: 'var(--color-warning-600)' }} />
-                <span style={styles.actionLabel}>Watch Trends</span>
-              </button>
-              <button style={styles.actionBtn}>
-                <Share2 size={16} style={{ color: 'var(--color-neutral-600)' }} />
-                <span style={styles.actionLabel}>Share</span>
-              </button>
+              {ACTIONS.map(({ key, label, description, Icon, color }) => {
+                const active = selected.has(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggleAction(key)}
+                    style={{ ...styles.actionCard, ...(active ? styles.actionCardActive : {}) }}
+                    aria-pressed={active}
+                  >
+                    {active && (
+                      <span style={styles.actionCheck}>
+                        <Check size={12} style={{ color: 'var(--color-neutral-0)' }} />
+                      </span>
+                    )}
+                    <Icon size={20} style={{ color: active ? 'var(--color-primary-700)' : color }} />
+                    <span style={styles.actionLabel}>{label}</span>
+                    <span style={styles.actionDesc}>{description}</span>
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </section>
 
           {submitError && <p style={styles.errorText}>{submitError}</p>}
 
           <button
-            onClick={onDone}
-            disabled={submitting}
-            style={{ ...styles.primaryBtn, opacity: submitting ? 0.7 : 1 }}
+            onClick={handleSubmit}
+            disabled={submitting || selected.size === 0}
+            style={{
+              ...styles.primaryBtn,
+              opacity: submitting || selected.size === 0 ? 0.6 : 1,
+              cursor: submitting || selected.size === 0 ? 'not-allowed' : 'pointer',
+            }}
           >
             {submitting ? (
               <Loader
                 size={18}
-                style={{
-                  color: 'var(--color-neutral-0)',
-                  animation: 'spin 1s linear infinite',
-                }}
+                style={{ color: 'var(--color-neutral-0)', animation: 'spin 1s linear infinite' }}
               />
             ) : (
               <CheckCircle size={18} style={{ color: 'var(--color-neutral-0)' }} />
             )}
             <span style={styles.primaryBtnText}>
-              {submitting ? 'Posting…' : 'Post This Find'}
+              {submitting
+                ? 'Running actions…'
+                : selected.size === 0
+                ? 'Select at least one action'
+                : `Post This Find · ${selected.size} action${selected.size > 1 ? 's' : ''}`}
             </span>
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={styles.attrRow}>
-      <span style={styles.attrLabel}>{label}</span>
-      <span style={styles.attrValue}>{value}</span>
     </div>
   );
 }
@@ -617,179 +474,13 @@ function formatMoney(n: number): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
+function fmtSigned(n: number | null): string {
+  if (n === null) return '$0';
+  const sign = n >= 0 ? '+' : '-';
+  return `${sign}$${formatMoney(Math.abs(n))}`;
+}
+
 const styles: Record<string, React.CSSProperties> = {
-  // Loading
-  loadingContainer: {
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'var(--color-neutral-0)',
-    padding: 'var(--space-6)',
-  },
-  loadingContent: {
-    width: '100%',
-    maxWidth: '320px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  loadingImageWrap: {
-    position: 'relative',
-    width: '120px',
-    height: '120px',
-    borderRadius: 'var(--radius-lg)',
-    overflow: 'hidden',
-    marginBottom: 'var(--space-5)',
-    boxShadow: 'var(--shadow-lg)',
-  },
-  loadingImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  scanOverlay: { position: 'absolute', inset: 0, overflow: 'hidden' },
-  scanLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: '2px',
-    background: 'linear-gradient(90deg, transparent, var(--color-primary-400), transparent)',
-    boxShadow: '0 0 8px var(--color-primary-400)',
-  },
-  loadingInfo: { textAlign: 'center', marginBottom: 'var(--space-5)' },
-  sparkleIcon: {
-    display: 'flex',
-    justifyContent: 'center',
-    marginBottom: 'var(--space-2)',
-    animation: 'pulse 2s infinite',
-  },
-  loadingTitle: {
-    fontSize: 'var(--font-size-lg)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
-    marginBottom: 'var(--space-1)',
-  },
-  loadingSubtitle: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-500)' },
-  progressSection: {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    marginBottom: 'var(--space-5)',
-  },
-  progressBar: {
-    flex: 1,
-    height: '6px',
-    backgroundColor: 'var(--color-neutral-100)',
-    borderRadius: 'var(--radius-full)',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-600))',
-    borderRadius: 'var(--radius-full)',
-    transition: 'width 0.4s ease',
-  },
-  progressPercent: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-primary-600)',
-    minWidth: '36px',
-    textAlign: 'right',
-  },
-  stagesList: { width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' },
-  stageItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    transition: 'opacity 0.3s ease',
-  },
-  stageDot: {
-    width: '8px',
-    height: '8px',
-    borderRadius: 'var(--radius-full)',
-    flexShrink: 0,
-    transition: 'background-color 0.3s ease',
-  },
-  stageLabel: { fontSize: 'var(--font-size-sm)', flex: 1, transition: 'all 0.3s ease' },
-  stageSpinner: {
-    width: '12px',
-    height: '12px',
-    borderRadius: 'var(--radius-full)',
-    border: '2px solid var(--color-neutral-200)',
-    borderTopColor: 'var(--color-primary-500)',
-    animation: 'spin 0.8s linear infinite',
-  },
-
-  // Error
-  errorContent: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 'var(--space-6)',
-    textAlign: 'center',
-  },
-  errorIconWrap: {
-    width: '64px',
-    height: '64px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-neutral-100)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 'var(--space-4)',
-  },
-  errorTitle: {
-    fontSize: 'var(--font-size-lg)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
-    marginBottom: 'var(--space-2)',
-  },
-  errorMessage: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-600)',
-    lineHeight: 'var(--line-height-snug)',
-    maxWidth: '320px',
-    marginBottom: 'var(--space-4)',
-  },
-  usagePill: {
-    padding: 'var(--space-1) var(--space-3)',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-primary-50)',
-    color: 'var(--color-primary-700)',
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    marginBottom: 'var(--space-5)',
-  },
-  errorActions: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', width: '100%', maxWidth: '320px' },
-  errorSecondaryBtn: {
-    padding: 'var(--space-3)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-200)',
-    backgroundColor: 'var(--color-neutral-0)',
-    color: 'var(--color-neutral-700)',
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    cursor: 'pointer',
-  },
-  errorPrimaryBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-3)',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--color-primary-500)',
-    border: 'none',
-    cursor: 'pointer',
-  },
-  errorPrimaryText: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-0)',
-  },
-
-  // Results
   container: {
     height: '100%',
     display: 'flex',
@@ -822,22 +513,8 @@ const styles: Record<string, React.CSSProperties> = {
   resultsContent: { flex: 1, overflow: 'auto' },
   resultHero: { position: 'relative', aspectRatio: '16/9', overflow: 'hidden' },
   resultImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  resultHeroOverlay: { position: 'absolute', bottom: 'var(--space-3)', right: 'var(--space-3)' },
-  aiConfidence: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    padding: 'var(--space-1) var(--space-3)',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 'var(--radius-full)',
-    backdropFilter: 'blur(4px)',
-  },
-  confidenceText: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-0)',
-  },
   resultBody: { padding: 'var(--space-4)' },
+
   usageBanner: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -845,46 +522,118 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 10px',
     backgroundColor: 'var(--color-primary-50)',
     borderRadius: 'var(--radius-full)',
-    marginBottom: 'var(--space-3)',
+    marginBottom: 'var(--space-4)',
   },
   usageBannerText: {
     fontSize: '11px',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-primary-700)',
   },
-  resultTitle: {
-    fontSize: 'var(--font-size-lg)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
-    lineHeight: 'var(--line-height-tight)',
-    marginBottom: 'var(--space-2)',
-  },
-  resultTags: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 'var(--space-2)',
+
+  section: { marginBottom: 'var(--space-5)' },
+  sectionTitle: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-800)',
     marginBottom: 'var(--space-3)',
   },
-  resultTag: {
-    padding: '2px 10px',
+
+  fieldLabel: {
+    display: 'block',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-600)',
+    marginBottom: 'var(--space-1)',
+    marginTop: 'var(--space-3)',
+  },
+  input: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-900)',
+    minHeight: '44px',
+  },
+  textarea: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-900)',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+  },
+
+  chipRow: { display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: 'var(--space-2)' },
+  chip: {
+    padding: '8px 12px',
     borderRadius: 'var(--radius-full)',
+    border: '1px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-0)',
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-medium)',
-    backgroundColor: 'var(--color-neutral-100)',
     color: 'var(--color-neutral-700)',
+    minHeight: '36px',
   },
-  summaryText: {
+  chipActive: {
+    backgroundColor: 'var(--color-primary-600)',
+    color: 'var(--color-neutral-0)',
+    border: '1px solid var(--color-primary-600)',
+    fontWeight: 'var(--font-weight-semibold)',
+  },
+
+  conditionGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 'var(--space-2)',
+    marginBottom: 'var(--space-2)',
+  },
+  conditionBtn: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '2px',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '2px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-0)',
+    textAlign: 'left',
+    minHeight: '64px',
+  },
+  conditionBtnActive: {
+    border: '2px solid var(--color-primary-500)',
+    backgroundColor: 'var(--color-primary-50)',
+    boxShadow: '0 0 0 3px rgba(79, 70, 229, 0.12)',
+  },
+  conditionLabel: {
     fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-700)',
-    lineHeight: 'var(--line-height-snug)',
-    marginBottom: 'var(--space-4)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
+  },
+  conditionDesc: { fontSize: '11px', color: 'var(--color-neutral-500)' },
+  conditionCheck: {
+    position: 'absolute',
+    top: '6px',
+    right: '6px',
+    width: '18px',
+    height: '18px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-600)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   metricsGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: 'var(--space-3)',
-    marginBottom: 'var(--space-5)',
+    marginBottom: 'var(--space-3)',
   },
   metricCard: {
     padding: 'var(--space-3)',
@@ -906,73 +655,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'var(--font-weight-bold)',
     color: 'var(--color-success-600)',
   },
-  scoreRow: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
-  scoreBar: {
-    flex: 1,
-    height: '6px',
-    backgroundColor: 'var(--color-neutral-200)',
-    borderRadius: 'var(--radius-full)',
-    overflow: 'hidden',
-  },
-  scoreFill: {
-    height: '100%',
-    backgroundColor: 'var(--color-primary-500)',
-    borderRadius: 'var(--radius-full)',
-  },
-  scoreNum: {
-    fontSize: 'var(--font-size-xs)',
+  metricValueNeutral: {
+    fontSize: 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-700)',
-  },
-
-  attributesSection: { marginBottom: 'var(--space-5)' },
-  sectionTitle: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-800)',
-    marginBottom: 'var(--space-3)',
   },
-  attributesList: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' },
-  attrRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 'var(--space-2) var(--space-3)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderRadius: 'var(--radius-sm)',
-  },
-  attrLabel: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' },
-  attrValue: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
-    textAlign: 'right',
-    maxWidth: '60%',
-  },
-
-  bulletRow: {
-    display: 'flex',
-    gap: 'var(--space-2)',
-    alignItems: 'flex-start',
-    padding: 'var(--space-2) var(--space-3)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderRadius: 'var(--radius-sm)',
-  },
-  bulletDot: {
-    width: '6px',
-    height: '6px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-primary-500)',
-    marginTop: '6px',
-    flexShrink: 0,
-  },
-  bulletText: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-700)',
-    lineHeight: 'var(--line-height-snug)',
-  },
-
-  section: { marginBottom: 'var(--space-5)' },
 
   profitCard: {
     padding: 'var(--space-4)',
@@ -985,6 +672,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 'var(--space-2) 0',
+    gap: 'var(--space-2)',
   },
   profitLabel: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)' },
   profitLabelBold: {
@@ -1013,27 +701,150 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-success-600)',
   },
 
-  actionsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: 'var(--space-2)',
+  disclaimer: {
+    marginTop: 'var(--space-2)',
+    fontSize: '11px',
+    color: 'var(--color-neutral-500)',
   },
-  actionBtn: {
+  helperText: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-500)',
+    marginBottom: 'var(--space-2)',
+  },
+
+  marketplaceList: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' },
+  marketplaceCard: {
     display: 'flex',
     flexDirection: 'column',
+    gap: '4px',
+    padding: 'var(--space-3)',
+    backgroundColor: 'var(--color-neutral-50)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-100)',
+  },
+  marketplaceHeader: {
+    display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    justifyContent: 'space-between',
+  },
+  marketplaceName: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
+  },
+  marketplaceFee: {
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-primary-700)',
+    backgroundColor: 'var(--color-primary-50)',
+    padding: '2px 8px',
+    borderRadius: 'var(--radius-full)',
+  },
+  marketplaceReason: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-600)',
+    lineHeight: 'var(--line-height-snug)',
+  },
+
+  shippingCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    padding: 'var(--space-3)',
+    backgroundColor: 'var(--color-neutral-50)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-100)',
+  },
+  shippingRange: {
+    fontSize: 'var(--font-size-base)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
+  },
+  shippingNote: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-600)',
+  },
+
+  keywordRow: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
+  keywordChip: {
+    padding: '4px 10px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-50)',
+    color: 'var(--color-primary-700)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-medium)',
+  },
+
+  attributesList: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' },
+  bulletRow: {
+    display: 'flex',
+    gap: 'var(--space-2)',
+    alignItems: 'flex-start',
+    padding: 'var(--space-2) var(--space-3)',
+    backgroundColor: 'var(--color-neutral-50)',
+    borderRadius: 'var(--radius-sm)',
+  },
+  bulletDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-500)',
+    marginTop: '6px',
+    flexShrink: 0,
+  },
+  bulletText: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-700)',
+    lineHeight: 'var(--line-height-snug)',
+  },
+
+  actionsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: 'var(--space-2)',
+  },
+  actionCard: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '4px',
     padding: 'var(--space-3)',
     borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-200)',
+    border: '2px solid var(--color-neutral-200)',
     backgroundColor: 'var(--color-neutral-0)',
+    textAlign: 'left',
+    minHeight: '88px',
+    transition: 'all 0.15s ease',
+  },
+  actionCardActive: {
+    border: '2px solid var(--color-primary-500)',
+    backgroundColor: 'var(--color-primary-50)',
+    boxShadow: '0 0 0 3px rgba(79, 70, 229, 0.18)',
+  },
+  actionCheck: {
+    position: 'absolute',
+    top: '6px',
+    right: '6px',
+    width: '18px',
+    height: '18px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-600)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionLabel: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-medium)',
-    color: 'var(--color-neutral-700)',
-    textAlign: 'center',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
   },
+  actionDesc: {
+    fontSize: '11px',
+    color: 'var(--color-neutral-500)',
+    lineHeight: 'var(--line-height-snug)',
+  },
+
   primaryBtn: {
     width: '100%',
     display: 'flex',
@@ -1044,8 +855,8 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 'var(--radius-md)',
     backgroundColor: 'var(--color-primary-500)',
     border: 'none',
-    cursor: 'pointer',
     marginTop: 'var(--space-2)',
+    minHeight: '48px',
   },
   primaryBtnText: {
     fontSize: 'var(--font-size-sm)',
