@@ -19,6 +19,8 @@ export async function createCommunityPost(post: {
   image_url?: string;
   tags?: string[];
   location?: string;
+  location_found?: string;
+  marketplace_found?: string;
   rarity_score?: number;
   estimated_value?: number;
   scout_assisted?: boolean;

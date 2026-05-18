@@ -1,0 +1,198 @@
+Fix the Flash Finds posting error and enhance item detail metadata fields.
+
+========================================
+
+1. FIX FLASH FINDS POST ERROR
+   ========================================
+
+Current error shown:
+
+"Could not find the table 'public.community_posts' in the schema cache"
+
+This happens when clicking:
+
+* Post to Flash Finds
+* Post This Find
+
+========================================
+ROOT CAUSE
+==========
+
+The app is trying to insert into:
+public.community_posts
+
+But:
+
+* the table does not exist
+  OR
+* the app references the wrong table name
+  OR
+* schema cache is outdated
+
+========================================
+FIX REQUIREMENTS
+================
+
+Investigate current Supabase structure.
+
+Then either:
+
+* create the missing community_posts table
+  OR
+* update all Flash Finds posting logic to use the correct existing table
+
+Verify:
+
+* inserts succeed
+* posts appear in Flash Finds feed
+* images upload correctly
+* AI analysis still works
+* no schema cache errors remain
+
+========================================
+2. CREATE/VERIFY TABLE STRUCTURE
+================================
+
+Ensure the Flash Finds/community feed table includes fields such as:
+
+* id
+* user_id
+* title
+* description
+* image_url
+* category
+* estimated_value
+* marketplace_found
+* location_found
+* created_at
+* likes_count
+* comments_count
+
+Use proper:
+
+* RLS policies
+* authenticated inserts
+* public read access
+
+========================================
+3. ADD NEW ITEM DETAIL FIELDS
+=============================
+
+On the item detail/upload/posting flow:
+
+Add TWO separate fields:
+
+========================================
+A. LOCATION FOUND
+=================
+
+Field label:
+"Location Found"
+
+Purpose:
+Where the item was physically found.
+
+Examples:
+
+* Phoenix AZ
+* 90210
+* Brooklyn NY
+* Local Yard Sale
+* Estate Sale
+* Storage Locker
+
+This field should be OPTIONAL.
+
+========================================
+B. MARKETPLACE FOUND
+====================
+
+Field label:
+"Marketplace Found"
+
+Purpose:
+Where the item/listing was discovered online.
+
+Dropdown or selectable chips preferred.
+
+Options:
+
+* Facebook Marketplace
+* eBay
+* Whatnot
+* OfferUp
+* Craigslist
+* Mercari
+* Poshmark
+* HiBid
+* MaxSold
+* Etsy
+* Bonanza
+* Local Auction House
+* Other
+
+Also allow custom manual entry if "Other" is selected.
+
+========================================
+4. ITEM DETAIL PAGE DISPLAY
+===========================
+
+Display both fields cleanly on the item detail page.
+
+Example:
+
+📍 Location Found:
+Phoenix AZ
+
+🛒 Marketplace Found:
+Facebook Marketplace
+
+OR
+
+📍 Location Found:
+Storage Locker Auction
+
+🛒 Marketplace Found:
+HiBid
+
+========================================
+5. FILTER INTEGRATION
+=====================
+
+Marketplace Found should integrate into:
+
+* search
+* filtering
+* category browsing
+* analytics later
+
+========================================
+6. UI/UX REQUIREMENTS
+=====================
+
+The upload flow should feel:
+
+* professional
+* reseller-focused
+* clean
+* data-rich
+
+NOT:
+
+* game-like
+* cluttered
+* social-media-only
+
+========================================
+7. FINAL QA
+===========
+
+Verify:
+
+* Flash Finds posting now works
+* no schema cache errors remain
+* uploaded finds appear in feed
+* marketplace/location fields save correctly
+* item detail pages display properly
+* mobile responsiveness preserved
+* no fake/demo data added back

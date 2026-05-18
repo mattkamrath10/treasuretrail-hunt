@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, ArrowLeft, ArrowRight, X, MapPin, DollarSign, Tag, Sparkles, Eye, CircleCheck as CheckCircle, Image, Pencil, Plus } from 'lucide-react';
+import { Camera, ArrowLeft, ArrowRight, X, MapPin, DollarSign, Tag, Sparkles, Eye, CircleCheck as CheckCircle, Image, Pencil, Plus, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import AiAnalysisPage from './AiAnalysis';
@@ -14,6 +14,29 @@ const CATEGORIES = [
   'Art', 'Jewelry', 'Watches', 'Toys', 'Tools', 'Clothing', 'Other',
 ];
 
+const MARKETPLACES: { key: string; label: string }[] = [
+  { key: 'facebook_marketplace', label: 'Facebook Marketplace' },
+  { key: 'ebay',                 label: 'eBay' },
+  { key: 'whatnot',              label: 'Whatnot' },
+  { key: 'offerup',              label: 'OfferUp' },
+  { key: 'craigslist',           label: 'Craigslist' },
+  { key: 'mercari',              label: 'Mercari' },
+  { key: 'poshmark',             label: 'Poshmark' },
+  { key: 'hibid',                label: 'HiBid' },
+  { key: 'maxsold',              label: 'MaxSold' },
+  { key: 'etsy',                 label: 'Etsy' },
+  { key: 'bonanza',              label: 'Bonanza' },
+  { key: 'local_auction_house',  label: 'Local Auction House' },
+  { key: 'other',                label: 'Other' },
+];
+
+export function getMarketplaceLabel(key?: string | null): string | null {
+  if (!key) return null;
+  const match = MARKETPLACES.find((m) => m.key === key);
+  if (match && match.key !== 'other') return match.label;
+  return key.replace(/^custom:/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default function FlashFinds() {
   const { isGuest, user } = useAuth();
   const navigate = useNavigate();
@@ -25,6 +48,8 @@ export default function FlashFinds() {
     notes: '',
     price: '',
     location: '',
+    marketplace: '',
+    marketplaceCustom: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -61,6 +86,11 @@ export default function FlashFinds() {
   };
 
   const handleDetailsSubmit = () => {
+    if (form.marketplace === 'other' && !form.marketplaceCustom.trim()) {
+      setSubmitError('Please enter the marketplace name, or pick a different option.');
+      return;
+    }
+    setSubmitError('');
     setStep('ai-analysis');
   };
 
@@ -90,6 +120,11 @@ export default function FlashFinds() {
         }
       }
 
+      const marketplaceValue =
+        form.marketplace === 'other' && form.marketplaceCustom.trim()
+          ? `custom:${form.marketplaceCustom.trim()}`
+          : form.marketplace || undefined;
+
       const { error: postErr } = await createCommunityPost({
         user_id: user.id,
         type: 'flash_find',
@@ -97,6 +132,8 @@ export default function FlashFinds() {
         image_url: imageUrl,
         tags: form.category ? [form.category] : [],
         location: form.location || undefined,
+        location_found: form.location || undefined,
+        marketplace_found: marketplaceValue,
         estimated_value: form.price ? parseFloat(form.price) : undefined,
         category: form.category || undefined,
       });
@@ -124,7 +161,7 @@ export default function FlashFinds() {
   const handleReset = () => {
     setStep('main');
     setPhotoUrl(null);
-    setForm({ title: '', category: '', notes: '', price: '', location: '' });
+    setForm({ title: '', category: '', notes: '', price: '', location: '', marketplace: '', marketplaceCustom: '' });
     setSubmitError('');
   };
 
@@ -179,9 +216,10 @@ export default function FlashFinds() {
         <DetailsForm
           photoUrl={photoUrl}
           form={form}
-          setForm={setForm}
+          setForm={(f) => { setForm(f); if (submitError) setSubmitError(''); }}
           onSubmit={handleDetailsSubmit}
           onBack={() => setStep('photo')}
+          error={submitError}
         />
       )}
 
@@ -350,12 +388,14 @@ function DetailsForm({
   setForm,
   onSubmit,
   onBack,
+  error,
 }: {
   photoUrl: string | null;
-  form: { title: string; category: string; notes: string; price: string; location: string };
+  form: { title: string; category: string; notes: string; price: string; location: string; marketplace: string; marketplaceCustom: string };
   setForm: (f: typeof form) => void;
   onSubmit: () => void;
   onBack: () => void;
+  error?: string;
 }) {
   return (
     <div style={styles.container}>
@@ -431,17 +471,54 @@ function DetailsForm({
           </div>
 
           <div style={styles.field}>
-            <label style={styles.fieldLabel}>Location Found</label>
+            <label style={styles.fieldLabel}>Location Found <span style={styles.fieldOptional}>(optional)</span></label>
             <div style={styles.locationWrapper}>
               <MapPin size={16} style={{ color: 'var(--color-neutral-400)' }} />
               <input
                 type="text"
-                placeholder="Yard sale, thrift store, etc."
+                placeholder="Phoenix AZ, Storage Locker, Estate Sale…"
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
                 style={styles.locationInput}
               />
             </div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Marketplace Found <span style={styles.fieldOptional}>(optional)</span></label>
+            <div style={styles.categoryGrid}>
+              {MARKETPLACES.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => {
+                    const isClearing = form.marketplace === m.key;
+                    setForm({
+                      ...form,
+                      marketplace: isClearing ? '' : m.key,
+                      marketplaceCustom: m.key === 'other' && !isClearing ? form.marketplaceCustom : '',
+                    });
+                  }}
+                  style={{
+                    ...styles.categoryChip,
+                    ...(form.marketplace === m.key ? styles.categoryChipActive : {}),
+                  }}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {form.marketplace === 'other' && (
+              <div style={{ ...styles.locationWrapper, marginTop: 'var(--space-2)' }}>
+                <ShoppingBag size={16} style={{ color: 'var(--color-neutral-400)' }} />
+                <input
+                  type="text"
+                  placeholder="Enter marketplace name"
+                  value={form.marketplaceCustom}
+                  onChange={(e) => setForm({ ...form, marketplaceCustom: e.target.value })}
+                  style={styles.locationInput}
+                />
+              </div>
+            )}
           </div>
 
           <div style={styles.field}>
@@ -455,6 +532,10 @@ function DetailsForm({
             />
           </div>
         </div>
+
+        {error && (
+          <div style={styles.detailsError}>{error}</div>
+        )}
 
         <button onClick={onSubmit} style={styles.continueBtn}>
           <Sparkles size={18} style={{ color: 'var(--color-neutral-0)' }} />
@@ -474,11 +555,15 @@ function Confirmation({
   onEdit,
 }: {
   photoUrl: string | null;
-  form: { title: string; category: string; notes: string; price: string; location: string };
+  form: { title: string; category: string; notes: string; price: string; location: string; marketplace: string; marketplaceCustom: string };
   onPostAnother: () => void;
   onViewFeed: () => void;
   onEdit: () => void;
 }) {
+  const marketplaceLabel =
+    form.marketplace === 'other' && form.marketplaceCustom.trim()
+      ? form.marketplaceCustom.trim()
+      : getMarketplaceLabel(form.marketplace);
   return (
     <div style={styles.container}>
       <div style={styles.confirmContent}>
@@ -516,6 +601,11 @@ function Confirmation({
               {form.location && (
                 <span style={styles.postedLocation}>
                   <MapPin size={12} /> {form.location}
+                </span>
+              )}
+              {marketplaceLabel && (
+                <span style={styles.postedLocation}>
+                  <ShoppingBag size={12} /> {marketplaceLabel}
                 </span>
               )}
             </div>
@@ -893,6 +983,22 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-medium)',
     color: 'var(--color-neutral-700)',
+  },
+  fieldOptional: {
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-regular)',
+    color: 'var(--color-neutral-400)',
+    marginLeft: '4px',
+  },
+  detailsError: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-error-600)',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-error-50)',
+    border: '1px solid var(--color-error-200)',
+    lineHeight: 1.4,
+    marginTop: 'var(--space-3)',
   },
   input: {
     padding: 'var(--space-3) var(--space-4)',
