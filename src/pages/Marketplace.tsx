@@ -130,6 +130,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchMarketplaceListings(50).then((data) => {
@@ -144,6 +145,11 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
     if (activeFilter === 'Scout Help' && !item.scout_needed && !item.scouts_available) return false;
     if (activeFilter === 'Auction' && !item.auction) return false;
     if (activeFilter === 'Scout Verified' && !item.verified) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const hay = `${item.title} ${item.category} ${item.seller}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     return true;
   });
 
@@ -174,7 +180,13 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
         {/* Search */}
         <div style={s.searchWrap}>
           <Search size={16} style={{ color: 'var(--color-neutral-400)' }} />
-          <input type="text" placeholder="Search finds, brands, categories..." style={s.searchInput} readOnly />
+          <input
+            type="text"
+            placeholder="Search finds, brands, categories..."
+            style={s.searchInput}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
 
         {/* Categories */}
@@ -295,7 +307,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                         {item.localPickup && <span style={s.pickupBadge}><MapPin size={8} /> Local</span>}
                       </div>
                     </div>
-                    <Heart size={16} style={{ color: 'var(--color-neutral-300)' }} />
+                    <Heart size={16} style={{ color: 'var(--color-neutral-300)', opacity: 0.4 }} />
                   </button>
                 ))
               )}
@@ -323,7 +335,7 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn}><ArrowLeft size={20} /></button>
         <h1 style={s.headerTitle}>Listing</h1>
-        <Heart size={20} style={{ color: 'var(--color-neutral-400)' }} />
+        <div style={{ width: 36 }} />
       </header>
 
       <div style={s.scrollContent}>

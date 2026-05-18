@@ -477,7 +477,15 @@ function DisputeCenter({ onBack }: { onBack: () => void }) {
           <h3 style={st.sectionTitle}>File a New Dispute</h3>
           <div style={st.disputeTypes}>
             {['Item Not Received', 'Wrong Item Shipped', 'Damaged Item', 'Scout No-Show', 'Pickup Failed', 'Counterfeit Dispute'].map((t) => (
-              <button key={t} style={st.disputeTypeBtn}>
+              <button
+                key={t}
+                style={st.disputeTypeBtn}
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.alert(`Filing a "${t}" dispute requires a related transaction. Open the order or message thread first, then tap “Report issue” to file this dispute.`);
+                  }
+                }}
+              >
                 <span style={st.disputeTypeBtnText}>{t}</span>
                 <ChevronRight size={12} style={{ color: 'var(--color-neutral-400)' }} />
               </button>
@@ -570,8 +578,8 @@ function AdminDashboard({ onBack }: { onBack: () => void }) {
               <span style={st.flaggedTitle}>{l.title}</span>
               <span style={st.flaggedReason}>{l.reason}</span>
               <div style={st.flaggedActions}>
-                <button style={st.flaggedActionBtn}><span style={st.flaggedActionText}>Review</span></button>
-                <button style={{ ...st.flaggedActionBtn, ...st.flaggedActionBtnDanger }}><span style={{ ...st.flaggedActionText, color: 'var(--color-error-600)' }}>Remove</span></button>
+                <div style={{ ...st.flaggedActionBtn, opacity: 0.5, cursor: 'default' }} title="Admin tools coming soon"><span style={st.flaggedActionText}>Review</span></div>
+                <div style={{ ...st.flaggedActionBtn, ...st.flaggedActionBtnDanger, opacity: 0.5, cursor: 'default' }} title="Admin tools coming soon"><span style={{ ...st.flaggedActionText, color: 'var(--color-error-600)' }}>Remove</span></div>
               </div>
             </div>
           ))}

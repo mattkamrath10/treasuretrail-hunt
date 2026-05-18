@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ArrowLeft, Send, Clock, MapPin, DollarSign, Users, Shield, Image, Gavel, Package, Zap, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, User } from 'lucide-react';
 
 type MessagesView = 'inbox' | 'conversation';
@@ -295,6 +295,21 @@ function ConversationView({
   onBack: () => void;
 }) {
   const [showActions, setShowActions] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const sendMessage = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setLocalMessages((prev) => [...prev, {
+      id: `local-${Date.now()}`,
+      sender: 'me',
+      text,
+      timestamp: 'Just now',
+      type: 'text',
+    }]);
+    setDraft('');
+  };
 
   return (
     <div style={styles.container}>
@@ -337,7 +352,7 @@ function ConversationView({
       )}
 
       <div style={styles.messagesList}>
-        {conversationMessages.map((msg) => {
+        {[...conversationMessages, ...localMessages].map((msg) => {
           if (msg.type === 'auction-card') {
             return <AuctionReferenceCard key={msg.id} />;
           }
@@ -415,17 +430,44 @@ function ConversationView({
         >
           <Zap size={18} style={{ color: showActions ? 'var(--color-neutral-0)' : 'var(--color-primary-600)' }} />
         </button>
-        <button style={styles.imageBtn}>
+        <button style={styles.imageBtn} aria-label="Attach image" onClick={() => fileInputRef.current?.click()}>
           <Image size={18} style={{ color: 'var(--color-neutral-400)' }} />
         </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) {
+              setLocalMessages((prev) => [...prev, {
+                id: `local-${Date.now()}`,
+                sender: 'me',
+                text: `📷 ${f.name}`,
+                timestamp: 'Just now',
+                type: 'text',
+              }]);
+            }
+            if (e.target) e.target.value = '';
+          }}
+        />
         <div style={styles.inputWrap}>
           <input
             type="text"
             placeholder="Type a message..."
             style={styles.messageInput}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') sendMessage(); }}
           />
         </div>
-        <button style={styles.sendBtn}>
+        <button
+          style={{ ...styles.sendBtn, opacity: draft.trim() ? 1 : 0.5 }}
+          aria-label="Send message"
+          onClick={sendMessage}
+          disabled={!draft.trim()}
+        >
           <Send size={18} style={{ color: 'var(--color-neutral-0)' }} />
         </button>
       </div>

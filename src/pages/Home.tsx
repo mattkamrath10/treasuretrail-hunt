@@ -2,7 +2,9 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye } from 'lucide-react';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
-import { fetchCommunityPosts } from '../lib/database';
+import { fetchCommunityPosts, togglePostLike, fetchUserLikes } from '../lib/database';
+import { useAuth } from '../context/AuthContext';
+import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
 import type { CommunityPost } from '../lib/supabase';
 
@@ -123,6 +125,43 @@ export default function Home() {
   const [activeSort, setActiveSort] = useState<SortId>('newest');
   const [locationQuery, setLocationQuery] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { requireAuth } = useGuestAction();
+  const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (user) fetchUserLikes(user.id).then(setUserLikes).catch(() => {});
+    try {
+      const raw = localStorage.getItem('tt_saved_posts');
+      if (raw) setSavedIds(new Set(JSON.parse(raw)));
+    } catch {}
+  }, [user]);
+
+  const handleLike = useCallback((id: string) => {
+    requireAuth(() => {
+      if (!user) return;
+      const liked = userLikes.has(id);
+      togglePostLike(user.id, id, liked).catch(() => {});
+      setUserLikes((prev) => {
+        const next = new Set(prev);
+        if (liked) next.delete(id); else next.add(id);
+        return next;
+      });
+      setPosts((prev) => prev.map((p) => p.id === id ? { ...p, like_count: liked ? Math.max(0, p.like_count - 1) : p.like_count + 1 } : p));
+    });
+  }, [user, userLikes, requireAuth]);
+
+  const handleSave = useCallback((id: string) => {
+    requireAuth(() => {
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        try { localStorage.setItem('tt_saved_posts', JSON.stringify([...next])); } catch {}
+        return next;
+      });
+    });
+  }, [requireAuth]);
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   // Pull highlight target from navigation state (from Flash Finds / Rare Radar
@@ -459,16 +498,36 @@ export default function Home() {
                 <h3 style={styles.cardTitle}>{p.caption}</h3>
 
                 <div style={styles.cardActions}>
-                  <button style={styles.actionBtn} aria-label="Save">
-                    <Heart size={18} />
+                  <button
+                    style={styles.actionBtn}
+                    aria-label={userLikes.has(p.id) ? 'Unlike' : 'Like'}
+                    onClick={() => handleLike(p.id)}
+                  >
+                    <Heart
+                      size={18}
+                      style={{
+                        color: userLikes.has(p.id) ? 'var(--color-error-500)' : undefined,
+                        fill: userLikes.has(p.id) ? 'var(--color-error-500)' : 'none',
+                      }}
+                    />
                     <span>{p.like_count}</span>
                   </button>
-                  <button style={styles.actionBtn} aria-label="Comment">
+                  <div style={{ ...styles.actionBtn, opacity: 0.5, cursor: 'default' }} aria-label="Comments" title="Comments coming soon">
                     <MessageCircle size={18} />
                     <span>{p.comment_count}</span>
-                  </button>
-                  <button style={styles.actionBtn} aria-label="Bookmark">
-                    <Bookmark size={18} />
+                  </div>
+                  <button
+                    style={styles.actionBtn}
+                    aria-label={savedIds.has(p.id) ? 'Unsave' : 'Save'}
+                    onClick={() => handleSave(p.id)}
+                  >
+                    <Bookmark
+                      size={18}
+                      style={{
+                        color: savedIds.has(p.id) ? 'var(--color-primary-600)' : undefined,
+                        fill: savedIds.has(p.id) ? 'var(--color-primary-600)' : 'none',
+                      }}
+                    />
                   </button>
                   <button
                     style={styles.actionBtn}

@@ -105,10 +105,10 @@ function EventsHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v:
             { label: 'Meetups', color: 'var(--color-success-500)', active: false },
             { label: 'VIP', color: 'var(--color-secondary-500)', active: false },
           ].map((s) => (
-            <button key={s.label} style={{ ...st.storyCircle, borderColor: s.active ? s.color : 'var(--color-neutral-200)' }}>
+            <div key={s.label} style={{ ...st.storyCircle, borderColor: s.active ? s.color : 'var(--color-neutral-200)', cursor: 'default' }} aria-label={s.label}>
               <span style={{ ...st.storyCircleText, color: s.active ? s.color : 'var(--color-neutral-500)' }}>{s.label.slice(0, 2)}</span>
               {s.active && <div style={st.liveIndicator} />}
-            </button>
+            </div>
           ))}
         </div>
 
@@ -150,7 +150,6 @@ function EventsHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v:
         <div style={st.section}>
           <div style={st.sectionHeader}>
             <h3 style={st.sectionTitle}>Upcoming Events</h3>
-            <button style={st.seeAll}><span style={st.seeAllText}>See All</span></button>
           </div>
 
           {events.map((event) => (
@@ -192,7 +191,16 @@ function EventDetail({ onBack }: { onBack: () => void }) {
       <header style={st.header}>
         <button onClick={onBack} style={st.backBtn}><ArrowLeft size={20} /></button>
         <span style={st.headerTitle}>Event Details</span>
-        <button style={st.shareBtn}><Shield size={16} style={{ color: 'var(--color-secondary-500)' }} /></button>
+        <button
+          style={st.shareBtn}
+          aria-label="Share event"
+          onClick={async () => {
+            const url = typeof window !== 'undefined' ? window.location.href : '';
+            const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+            if (nav?.share) { try { await nav.share({ title: event.title, text: event.title, url }); return; } catch {} }
+            if (nav?.clipboard?.writeText) { try { await nav.clipboard.writeText(url); } catch {} }
+          }}
+        ><Shield size={16} style={{ color: 'var(--color-secondary-500)' }} /></button>
       </header>
 
       <div style={st.scrollContent}>
@@ -285,7 +293,19 @@ function EventDetail({ onBack }: { onBack: () => void }) {
             <span style={st.safetyText}>Guardian Verified Event - Safe Meetup Zone</span>
           </div>
 
-          <button style={st.joinBtn}>
+          <button
+            style={st.joinBtn}
+            onClick={() => {
+              try {
+                const raw = localStorage.getItem('tt_joined_events');
+                const arr: string[] = raw ? JSON.parse(raw) : [];
+                if (!arr.includes(event.id)) arr.push(event.id);
+                localStorage.setItem('tt_joined_events', JSON.stringify(arr));
+                if (typeof window !== 'undefined') window.alert(`You're in! "${event.title}" added to your events.`);
+              } catch {}
+            }}
+            aria-label="Join event"
+          >
             <span style={st.joinBtnText}>Join Event</span>
           </button>
         </div>
@@ -410,9 +430,9 @@ function SquadsPage({ onBack }: { onBack: () => void }) {
         <div style={st.section}>
           <h3 style={st.sectionTitle}>Squad Actions</h3>
           <div style={st.squadActions}>
-            <button style={st.squadActionBtn}><Users size={14} /><span style={st.squadActionText}>Invite</span></button>
-            <button style={st.squadActionBtn}><Target size={14} /><span style={st.squadActionText}>Mission</span></button>
-            <button style={st.squadActionBtn}><Trophy size={14} /><span style={st.squadActionText}>Challenge</span></button>
+            <div style={{ ...st.squadActionBtn, opacity: 0.5, cursor: 'default' }} title="Coming soon"><Users size={14} /><span style={st.squadActionText}>Invite</span></div>
+            <div style={{ ...st.squadActionBtn, opacity: 0.5, cursor: 'default' }} title="Coming soon"><Target size={14} /><span style={st.squadActionText}>Mission</span></div>
+            <div style={{ ...st.squadActionBtn, opacity: 0.5, cursor: 'default' }} title="Coming soon"><Trophy size={14} /><span style={st.squadActionText}>Challenge</span></div>
           </div>
         </div>
 

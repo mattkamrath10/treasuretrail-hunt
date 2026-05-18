@@ -57,13 +57,29 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
   const { isGuest, requireAuth } = useGuestAction();
   const [realPosts, setRealPosts] = useState<CommunityPost[]>([]);
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchCommunityPosts().then(setRealPosts).catch(() => {});
     if (user) {
       fetchUserLikes(user.id).then(setUserLikes).catch(() => {});
     }
+    try {
+      const raw = localStorage.getItem('tt_saved_posts');
+      if (raw) setSavedIds(new Set(JSON.parse(raw)));
+    } catch {}
   }, [user]);
+
+  const toggleSave = (id: string) => {
+    requireAuth(() => {
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        try { localStorage.setItem('tt_saved_posts', JSON.stringify([...next])); } catch {}
+        return next;
+      });
+    });
+  };
 
   const toggleLike = (id: string) => {
     if (isGuest) { requireAuth(() => {}); return; }
@@ -92,7 +108,7 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
       <div style={s.scrollContent}>
         {/* Stories row — Your Story only */}
         <div style={s.storiesRow}>
-          <button style={s.storyItem}>
+          <button onClick={() => requireAuth(onCreate)} style={s.storyItem} aria-label="Add your story">
             <div style={{ ...s.storyAvatar, ...s.storyAvatarAdd }}>
               <span style={s.storyAvatarText}>+</span>
             </div>
@@ -126,9 +142,10 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
               shares: rp.share_count,
               timeAgo: getTimeAgo(rp.created_at),
               liked: userLikes.has(rp.id),
+              saved: savedIds.has(rp.id),
             }}
             onLike={() => toggleLike(rp.id)}
-            onSave={() => {}}
+            onSave={() => toggleSave(rp.id)}
           />
         ))}
 
@@ -146,6 +163,18 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
       </button>
     </div>
   );
+}
+
+async function sharePost(post: FeedPost) {
+  const url = typeof window !== 'undefined' ? window.location.origin : '';
+  const text = post.caption;
+  const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+  if (nav?.share) {
+    try { await nav.share({ title: 'TreasureTrail', text, url }); return; } catch {}
+  }
+  if (nav?.clipboard?.writeText) {
+    try { await nav.clipboard.writeText(`${text} ${url}`); } catch {}
+  }
 }
 
 function FeedCard({ post, onLike, onSave }: { post: FeedPost; onLike: () => void; onSave: () => void }) {
@@ -195,11 +224,11 @@ function FeedCard({ post, onLike, onSave }: { post: FeedPost; onLike: () => void
           <Heart size={18} style={{ color: post.liked ? 'var(--color-error-500)' : 'var(--color-neutral-500)', fill: post.liked ? 'var(--color-error-500)' : 'none' }} />
           <span style={s.postActionCount}>{post.likes.toLocaleString()}</span>
         </button>
-        <button style={s.postActionBtn}>
+        <div style={{ ...s.postActionBtn, opacity: 0.5, cursor: 'default' }} title="Comments coming soon">
           <MessageCircle size={18} style={{ color: 'var(--color-neutral-500)' }} />
           <span style={s.postActionCount}>{post.comments}</span>
-        </button>
-        <button style={s.postActionBtn}>
+        </div>
+        <button onClick={() => sharePost(post)} style={s.postActionBtn} aria-label="Share">
           <Share2 size={18} style={{ color: 'var(--color-neutral-500)' }} />
           <span style={s.postActionCount}>{post.shares}</span>
         </button>
@@ -350,6 +379,7 @@ function CreatePost({ onBack }: { onBack: () => void }) {
 }
 
 function DiscoverPage({ onBack }: { onBack: () => void }) {
+  const [discoverQuery, setDiscoverQuery] = useState('');
   return (
     <div style={s.container}>
       <header style={s.header}>
@@ -362,7 +392,13 @@ function DiscoverPage({ onBack }: { onBack: () => void }) {
         {/* Search */}
         <div style={s.searchWrap}>
           <Search size={16} style={{ color: 'var(--color-neutral-400)' }} />
-          <input type="text" placeholder="Search collectors, finds, categories..." style={s.searchInput} readOnly />
+          <input
+            type="text"
+            placeholder="Search collectors, finds, categories..."
+            style={s.searchInput}
+            value={discoverQuery}
+            onChange={(e) => setDiscoverQuery(e.target.value)}
+          />
         </div>
 
         {/* Trending categories */}

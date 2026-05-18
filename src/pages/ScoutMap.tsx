@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Users, Star, Zap, Eye, Clock, ListFilter as Filter, Layers, Navigation, Plus, Gavel, Camera, Package, X, TrendingUp, ChevronUp, ChevronDown, Shield } from 'lucide-react';
 
 type MarkerType = 'scout' | 'find' | 'auction' | 'estate' | 'garage' | 'thrift' | 'storage';
@@ -62,6 +63,7 @@ const markerIcons: Record<MarkerType, typeof MapPin> = {
 };
 
 export default function ScoutMap({ onBack }: { onBack: () => void }) {
+  const navigate = useNavigate();
   const [bottomSheet, setBottomSheet] = useState<BottomSheetState>('collapsed');
   const [activeFilters, setActiveFilters] = useState<MarkerType[]>([
     'scout', 'find', 'auction', 'estate', 'garage', 'thrift', 'storage',
@@ -163,7 +165,7 @@ export default function ScoutMap({ onBack }: { onBack: () => void }) {
           <button style={styles.fabSecondary} onClick={() => setShowFilters(!showFilters)}>
             <Filter size={16} style={{ color: 'var(--color-neutral-600)' }} />
           </button>
-          <button style={styles.fabPrimary}>
+          <button style={styles.fabPrimary} onClick={() => navigate('/flash-finds')} aria-label="Post a find">
             <Plus size={20} style={{ color: 'var(--color-neutral-0)' }} />
           </button>
         </div>
@@ -329,6 +331,7 @@ function FilterPanel({
 }
 
 function ScoutPopup({ marker, onClose }: { marker: MapMarker; onClose: () => void }) {
+  const navigate = useNavigate();
   return (
     <div style={styles.popupOverlay} onClick={onClose}>
       <div style={styles.popupCard} onClick={(e) => e.stopPropagation()}>
@@ -377,7 +380,7 @@ function ScoutPopup({ marker, onClose }: { marker: MapMarker; onClose: () => voi
           <span style={styles.pickupCount}>18 pickups completed</span>
         </div>
 
-        <button style={styles.popupCta}>
+        <button style={styles.popupCta} onClick={() => { onClose(); navigate('/rare-radar'); }}>
           <span style={styles.popupCtaText}>Request Help</span>
         </button>
       </div>
@@ -386,6 +389,7 @@ function ScoutPopup({ marker, onClose }: { marker: MapMarker; onClose: () => voi
 }
 
 function FindPopup({ marker, onClose }: { marker: MapMarker; onClose: () => void }) {
+  const navigate = useNavigate();
   const isAuction = marker.type === 'auction';
 
   return (
@@ -442,7 +446,7 @@ function FindPopup({ marker, onClose }: { marker: MapMarker; onClose: () => void
           </span>
         </div>
 
-        <button style={styles.popupCta}>
+        <button style={styles.popupCta} onClick={() => { onClose(); navigate('/alerts'); }}>
           <Eye size={16} style={{ color: 'var(--color-neutral-0)' }} />
           <span style={styles.popupCtaText}>Watch Item</span>
         </button>
@@ -452,18 +456,19 @@ function FindPopup({ marker, onClose }: { marker: MapMarker; onClose: () => void
 }
 
 function QuickActions() {
+  const navigate = useNavigate();
   return (
     <div style={styles.quickActionsRow}>
-      <button style={styles.quickChip}>
+      <button style={styles.quickChip} onClick={() => navigate('/flash-finds')}>
         <Camera size={12} /> Post Find
       </button>
-      <button style={styles.quickChip}>
+      <button style={styles.quickChip} onClick={() => navigate('/rare-radar')}>
         <Navigation size={12} /> Start Hunt
       </button>
-      <button style={styles.quickChip}>
+      <button style={styles.quickChip} onClick={() => navigate('/rare-radar')}>
         <Users size={12} /> Recruit Scout
       </button>
-      <button style={styles.quickChip}>
+      <button style={styles.quickChip} onClick={() => navigate('/auctions')}>
         <Gavel size={12} /> Auctions
       </button>
     </div>
