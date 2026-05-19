@@ -124,6 +124,34 @@ export default function Profile() {
         {tab === 'reputation' && <ReputationTab profile={profile} />}
         {tab === 'activity' && <ActivityTab />}
         {tab === 'scouts' && <ScoutsTab />}
+
+        {/* Prominent, clearly-labeled Sign Out CTA at the bottom of the
+            Profile page. The header has an icon-only sign-out button as
+            well, but users couldn't find it — this is the discoverable
+            one. */}
+        <button
+          onClick={signOut}
+          style={{
+            marginTop: 'var(--space-8)',
+            marginBottom: 'var(--space-6)',
+            width: '100%',
+            padding: 'var(--space-4)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-neutral-200)',
+            backgroundColor: 'var(--color-neutral-0)',
+            color: 'var(--color-neutral-700)',
+            fontSize: 'var(--font-size-base)',
+            fontWeight: 'var(--font-weight-semibold)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 'var(--space-2)',
+            cursor: 'pointer',
+          }}
+        >
+          <LogOut size={18} />
+          {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
+        </button>
       </div>
     </div>
   );
