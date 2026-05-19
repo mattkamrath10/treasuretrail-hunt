@@ -1075,46 +1075,81 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
     }
 
     setSaving(true);
+
+    // Defensive: re-verify the session is still valid right before the
+    // insert. On mobile we have seen cases where the cached userId prop
+    // outlives the actual Supabase JWT (token refresh failed silently
+    // in the background, app was backgrounded for a long time, etc.).
+    // If we hit RLS with a stale/missing session the row never makes it
+    // into the table — and the user thinks it worked because we never
+    // surfaced the error loudly enough. Catching it here lets us show
+    // a precise, actionable message.
+    const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+    const liveSession = sessionData?.session;
+    if (sessionErr || !liveSession || liveSession.user.id !== userId) {
+      setSaving(false);
+      console.error('[UPLOAD_EVENT] session check failed', {
+        hasSession: !!liveSession, sessionErr, userId,
+        sessionUserId: liveSession?.user.id,
+      });
+      setError('Your sign-in has expired. Please sign out and back in, then try uploading again.');
+      return;
+    }
+
     const marketplaceValue = marketplaceKey === 'other' && marketplaceCustom.trim()
       ? `custom:${marketplaceCustom.trim()}`
       : marketplaceKey || null;
     const shipping = form.ships_available || pickupType.includes('shipping_available') || pickupType.includes('nationwide_shipping');
     // Return the inserted row so the parent can optimistically render it
     // before (or in addition to) the refetch completing.
+    const payload = {
+      user_id: userId,
+      title: form.title.trim(),
+      platform: form.platform,
+      listing_type: form.listing_type,
+      external_url: form.external_url.trim(),
+      price_display: form.price_display.trim() || '',
+      category: form.category.trim() || 'other',
+      image_url: form.image_url.trim() || null,
+      start_at: startIso,
+      ends_at: endIso,
+      scout_needed: form.scout_needed,
+      ships_available: shipping,
+      local_pickup: pickupType.includes('local_pickup') || !shipping,
+      status: 'active',
+      location: loc.general_location,
+      general_location: loc.general_location,
+      exact_address_private: loc.exact_address_private.trim() || null,
+      address_reveal_policy: loc.address_reveal_policy,
+      pickup_type: pickupType,
+      scouts_available: scoutsAvailable,
+      meetup_notes: meetupNotes.trim() || null,
+      marketplace_found: marketplaceValue,
+    };
     const { data: inserted, error: err } = await supabase
       .from('external_listings')
-      .insert({
-        user_id: userId,
-        title: form.title.trim(),
-        platform: form.platform,
-        listing_type: form.listing_type,
-        external_url: form.external_url.trim(),
-        price_display: form.price_display.trim() || '',
-        category: form.category.trim() || 'other',
-        image_url: form.image_url.trim() || null,
-        start_at: startIso,
-        ends_at: endIso,
-        scout_needed: form.scout_needed,
-        ships_available: shipping,
-        local_pickup: pickupType.includes('local_pickup') || !shipping,
-        status: 'active',
-        location: loc.general_location,
-        general_location: loc.general_location,
-        exact_address_private: loc.exact_address_private.trim() || null,
-        address_reveal_policy: loc.address_reveal_policy,
-        pickup_type: pickupType,
-        scouts_available: scoutsAvailable,
-        meetup_notes: meetupNotes.trim() || null,
-        marketplace_found: marketplaceValue,
-      })
+      .insert(payload)
       .select('*')
       .single();
     setSaving(false);
     if (err) {
+      // Log full Postgrest error so production browser console captures
+      // code/details/hint, not just the user-facing string.
+      console.error('[UPLOAD_EVENT] insert failed', { err, payload });
       const msg = err.message?.includes('row-level security')
         ? 'You do not have permission to submit events. Please sign in again.'
         : err.message || 'Failed to submit. Please try again.';
       setError(msg);
+      return;
+    }
+    if (!inserted) {
+      // Insert returned no row even though no error was reported — this
+      // can happen if a post-insert trigger silently filters us out, or
+      // if RLS hides the row from the post-insert SELECT. Either way the
+      // user should know something is off rather than being told it
+      // succeeded.
+      console.error('[UPLOAD_EVENT] insert returned no row', { payload });
+      setError('Upload may not have completed. Please refresh and check the feed.');
       return;
     }
     setSuccess('Event uploaded successfully.');
