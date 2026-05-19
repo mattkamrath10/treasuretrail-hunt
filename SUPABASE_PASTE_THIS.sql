@@ -2171,6 +2171,7 @@ CREATE INDEX IF NOT EXISTS messages_conversation_idx
 
 -- Tighten read policy: members of the conversation can read, plus admin.
 DROP POLICY IF EXISTS "Users can read their own messages" ON public.messages;
+DROP POLICY IF EXISTS "Members can read messages" ON public.messages;
 CREATE POLICY "Members can read messages"
   ON public.messages FOR SELECT
   TO authenticated
@@ -2188,6 +2189,7 @@ CREATE POLICY "Members can read messages"
 -- INSERT: caller must be the sender and must be a member of the linked
 -- conversation (when present).
 DROP POLICY IF EXISTS "Users can send messages" ON public.messages;
+DROP POLICY IF EXISTS "Members can send messages" ON public.messages;
 CREATE POLICY "Members can send messages"
   ON public.messages FOR INSERT
   TO authenticated
@@ -2944,6 +2946,7 @@ BEGIN
     WHERE table_schema = 'public' AND table_name = 'platform_submissions'
   ) THEN
     EXECUTE $pol$
+      DROP POLICY IF EXISTS "Authenticated users can submit platforms" ON public.platform_submissions;
       CREATE POLICY "Authenticated users can submit platforms"
         ON public.platform_submissions
         FOR INSERT
