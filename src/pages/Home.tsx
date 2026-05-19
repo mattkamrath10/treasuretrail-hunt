@@ -214,9 +214,6 @@ export default function Home() {
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
   const blockedIdsRef = useRef<Set<string>>(blockedIds);
   useEffect(() => { blockedIdsRef.current = blockedIds; }, [blockedIds]);
-  // First-time post-login onboarding checklist. Separate flag from the
-  // pre-login splash (`tt_onboarded`) so signing in still triggers it.
-  const [showHomeOnboarding, setShowHomeOnboarding] = useState(false);
   // Ref mirror so loadAll() (memoized with []) can read the latest
   // tombstone set without becoming stale or forcing a re-fetch loop.
   const removedIdsRef = useRef<Set<string>>(removedIds);
@@ -279,22 +276,6 @@ export default function Home() {
       if (raw) setSavedMarketplaceIds(new Set(JSON.parse(raw)));
     } catch {}
   }, [user]);
-
-  // Surface the post-login onboarding checklist exactly once per device,
-  // gated on auth so anonymous visitors don't see a "complete your profile"
-  // prompt. Hidden again once dismissed.
-  useEffect(() => {
-    if (!user) { setShowHomeOnboarding(false); return; }
-    try {
-      const done = localStorage.getItem('tt_home_onboarded') === '1';
-      setShowHomeOnboarding(!done);
-    } catch { setShowHomeOnboarding(false); }
-  }, [user]);
-
-  const dismissHomeOnboarding = useCallback(() => {
-    try { localStorage.setItem('tt_home_onboarded', '1'); } catch {}
-    setShowHomeOnboarding(false);
-  }, []);
 
   const handleLike = useCallback((id: string) => {
     requireAuth(() => {
@@ -763,46 +744,6 @@ export default function Home() {
           >
             <X size={14} />
           </button>
-        </div>
-      )}
-
-      {user && showHomeOnboarding && (
-        <div style={styles.onboardCard} role="region" aria-label="Get started checklist">
-          <div style={styles.onboardHeader}>
-            <Crown size={16} style={{ color: 'var(--color-primary-500)' }} />
-            <span style={styles.onboardTitle}>Get started on TreasureTrail</span>
-            <button
-              onClick={dismissHomeOnboarding}
-              style={styles.onboardDismiss}
-              aria-label="Dismiss"
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <ul style={styles.onboardList}>
-            <li style={styles.onboardItem}>
-              <span style={(profile?.bio && profile?.avatar_url) ? styles.onboardCheckOn : styles.onboardCheckOff}>
-                {(profile?.bio && profile?.avatar_url) ? '✓' : '1'}
-              </span>
-              <button onClick={() => navigate('/profile')} style={styles.onboardLink}>
-                Complete your profile
-              </button>
-            </li>
-            <li style={styles.onboardItem}>
-              <span style={styles.onboardCheckOff}>2</span>
-              <button onClick={() => navigate('/flash-finds')} style={styles.onboardLink}>
-                Share your first find
-              </button>
-            </li>
-            <li style={styles.onboardItem}>
-              <span style={((profile?.following_count ?? 0) > 0) ? styles.onboardCheckOn : styles.onboardCheckOff}>
-                {((profile?.following_count ?? 0) > 0) ? '✓' : '3'}
-              </span>
-              <button onClick={() => navigate('/community')} style={styles.onboardLink}>
-                Follow your first scout
-              </button>
-            </li>
-          </ul>
         </div>
       )}
 

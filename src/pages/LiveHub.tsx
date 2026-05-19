@@ -17,6 +17,7 @@ import ScoutToggles from '../components/listing/ScoutToggles';
 import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
+import { GuestOverlay } from '../components/GuestGate';
 import {
   effectiveStartMs, deriveStatus, statusBadges, formatScheduleRange,
   formatStartCountdown, formatEndCountdown, durationMs, formatDuration,
@@ -224,7 +225,7 @@ function applyAll(
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LiveHub({ onBack }: { onBack: () => void }) {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const navigate = useNavigate();
   const [listings, setListings] = useState<ExternalListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -305,6 +306,12 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 
   return (
     <div style={st.container}>
+      {isGuest && (
+        <GuestOverlay
+          title="Live Events are for members"
+          subtitle="Sign up to browse live events and post your own"
+        />
+      )}
 
       {/* ── Header ── */}
       <header style={st.header}>
