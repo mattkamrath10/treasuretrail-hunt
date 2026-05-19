@@ -125,16 +125,17 @@ export default function Login({ onSwitchToSignUp, onGuestBrowse }: LoginProps) {
         </div>
       </div>
 
-      <p style={styles.switchText}>
-        Don't have an account?{' '}
-        <button onClick={onSwitchToSignUp} style={styles.switchLink}>Sign Up</button>
-      </p>
-
-      {onGuestBrowse && (
-        <button onClick={onGuestBrowse} style={styles.guestBtn}>
-          <span style={styles.guestBtnText}>Browse as Guest</span>
-        </button>
-      )}
+      <div style={styles.footer}>
+        <p style={styles.switchText}>
+          Don't have an account?{' '}
+          <button onClick={onSwitchToSignUp} style={styles.switchLink}>Sign Up</button>
+        </p>
+        {onGuestBrowse && (
+          <button onClick={onGuestBrowse} style={styles.guestBtn}>
+            <span style={styles.guestBtnText}>Browse as Guest</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -154,7 +155,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: 'var(--space-12) var(--space-6) var(--space-8)',
+    padding: 'var(--space-6) var(--space-6) var(--space-5)',
     background: 'linear-gradient(180deg, var(--color-neutral-900) 0%, var(--color-neutral-800) 100%)',
     borderRadius: '0 0 var(--radius-xl) var(--radius-xl)',
   },
@@ -171,7 +172,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   formSection: {
     flex: 1,
-    padding: 'var(--space-6)',
+    padding: 'var(--space-5) var(--space-6) var(--space-3)',
   },
   title: {
     fontSize: 'var(--font-size-2xl)',
@@ -183,12 +184,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-sm)',
     color: 'var(--color-neutral-500)',
     marginTop: 'var(--space-1)',
-    marginBottom: 'var(--space-6)',
+    marginBottom: 'var(--space-4)',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 'var(--space-4)',
+    gap: 'var(--space-3)',
   },
   inputGroup: {
     display: 'flex',
@@ -265,11 +266,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-semibold)',
   },
+  footer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 'var(--space-1)',
+    padding: 'var(--space-2) var(--space-6) var(--space-4)',
+  },
   switchText: {
     textAlign: 'center',
     fontSize: 'var(--font-size-sm)',
     color: 'var(--color-neutral-500)',
-    padding: 'var(--space-4) var(--space-6) var(--space-6)',
+    margin: 0,
   },
   switchLink: {
     color: 'var(--color-primary-600)',
@@ -279,18 +287,14 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
-    maxWidth: 'var(--max-width)',
-    margin: '0 auto',
-    padding: 'var(--space-3)',
-    paddingBottom: 'var(--space-6)',
+    padding: 'var(--space-2) var(--space-3)',
   },
   guestBtnText: {
     fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-500)',
-    fontWeight: 'var(--font-weight-medium)',
+    color: 'var(--color-primary-600)',
+    fontWeight: 'var(--font-weight-semibold)',
     textDecoration: 'underline',
-    textDecorationColor: 'var(--color-neutral-300)',
+    textDecorationColor: 'var(--color-primary-300)',
     textUnderlineOffset: '2px',
   },
 };

@@ -142,16 +142,17 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
         </button>
       </div>
 
-      <p style={styles.switchText}>
-        Already have an account?{' '}
-        <button onClick={onSwitchToLogin} style={styles.switchLink}>Log In</button>
-      </p>
-
-      {onGuestBrowse && (
-        <button onClick={onGuestBrowse} style={styles.guestBtn}>
-          <span style={styles.guestBtnText}>Browse as Guest</span>
-        </button>
-      )}
+      <div style={styles.footer}>
+        <p style={styles.switchText}>
+          Already have an account?{' '}
+          <button onClick={onSwitchToLogin} style={styles.switchLink}>Log In</button>
+        </p>
+        {onGuestBrowse && (
+          <button onClick={onGuestBrowse} style={styles.guestBtn}>
+            <span style={styles.guestBtnText}>Browse as Guest</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -221,8 +222,8 @@ const styles: Record<string, React.CSSProperties> = {
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 'var(--space-4)',
-    marginBottom: 'var(--space-6)',
+    gap: 'var(--space-3)',
+    marginBottom: 'var(--space-4)',
   },
   inputGroup: {
     display: 'flex',
@@ -292,10 +293,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-semibold)',
   },
+  footer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 'var(--space-1)',
+    padding: 'var(--space-2) 0 var(--space-4)',
+  },
   switchText: {
     textAlign: 'center',
     fontSize: 'var(--font-size-sm)',
     color: 'var(--color-neutral-500)',
+    margin: 0,
   },
   switchLink: {
     color: 'var(--color-primary-600)',
@@ -305,16 +314,14 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
-    padding: 'var(--space-3)',
-    paddingBottom: 'var(--space-6)',
+    padding: 'var(--space-2) var(--space-3)',
   },
   guestBtnText: {
     fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-500)',
-    fontWeight: 'var(--font-weight-medium)',
+    color: 'var(--color-primary-600)',
+    fontWeight: 'var(--font-weight-semibold)',
     textDecoration: 'underline',
-    textDecorationColor: 'var(--color-neutral-300)',
+    textDecorationColor: 'var(--color-primary-300)',
     textUnderlineOffset: '2px',
   },
 };
