@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useLiveFeed } from '../hooks/useLiveFeed';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
@@ -250,30 +251,34 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
     return () => clearTimeout(t);
   }, [uploadBanner]);
 
-  const fetchListings = (opts?: { silent?: boolean }) => {
+  const fetchListings = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
-    supabase
+    // Await the query so callers (notably useLiveFeed's overlap guard)
+    // see a real Promise that doesn't resolve until the request finishes.
+    const { data } = await supabase
       .from('external_listings')
       .select('id,platform,listing_type,external_url,title,price_display,category,image_url,start_at,ends_at,scout_needed,ships_available,status,created_at,general_location,marketplace_found,pickup_type,scouts_available,meetup_notes,address_reveal_policy')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
-      .limit(100)
-      .then(({ data }) => {
-        if (data) {
-          const rows = data as ExternalListing[];
-          // Preserve any optimistically-prepended rows that haven't shown up
-          // in the refetch yet (read-after-write replica lag, etc.).
-          setListings((prev) => {
-            const serverIds = new Set(rows.map((r) => r.id));
-            const missing = prev.filter((p) => !serverIds.has(p.id));
-            return [...missing, ...rows];
-          });
-        }
-        setLoading(false);
+      .limit(100);
+    if (data) {
+      const rows = data as ExternalListing[];
+      // Preserve any optimistically-prepended rows that haven't shown up
+      // in the refetch yet (read-after-write replica lag, etc.).
+      setListings((prev) => {
+        const serverIds = new Set(rows.map((r) => r.id));
+        const missing = prev.filter((p) => !serverIds.has(p.id));
+        return [...missing, ...rows];
       });
+    }
+    setLoading(false);
   };
 
   useEffect(() => { fetchListings(); }, []);
+
+  // Live refresh — silently re-poll every 10s so new uploads from other
+  // users appear without a manual refresh. Filters/sort/scroll preserved.
+  useLiveFeed(() => fetchListings({ silent: true }), !loading);
 
   const filtered = useMemo(
     () => applyAll(listings, { typeFilter, searchQuery, locationQuery, dateFilter, customDate, sortBy }),

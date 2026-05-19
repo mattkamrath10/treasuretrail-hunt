@@ -12,6 +12,7 @@ import SavedSearchesPanel from '../components/SavedSearchesPanel';
 import { checkSavedSearchMatches, type SavedSearch } from '../lib/savedSearches';
 import { useGuestAction } from '../components/GuestGate';
 import { fetchMarketplaceListings, createMarketplaceListing } from '../lib/database';
+import { useLiveFeed } from '../hooks/useLiveFeed';
 import type { MarketplaceListing } from '../lib/supabase';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
@@ -145,6 +146,16 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
       setListings(data.map(toListingShape));
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  // Live refresh — silently re-pull listings every 10s. Active category,
+  // search, and scroll position are all preserved since we only replace
+  // the underlying data array.
+  useLiveFeed(
+    () => fetchMarketplaceListings(50).then((data) => {
+      setListings(data.map(toListingShape));
+    }).catch(() => {}),
+    !loading,
+  );
 
   // Run saved-search match check in the background on mount.
   useEffect(() => {

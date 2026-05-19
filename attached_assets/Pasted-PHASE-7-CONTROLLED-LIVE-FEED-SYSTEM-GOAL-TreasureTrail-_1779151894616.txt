@@ -1,0 +1,250 @@
+PHASE 7 — CONTROLLED LIVE FEED SYSTEM
+
+# GOAL
+
+TreasureTrail should now feel like a live, active sourcing ecosystem without becoming unstable or overly complex.
+
+Focus on:
+
+* feed freshness
+* upload visibility
+* live updates
+* optimistic UI
+* synchronized feeds
+* subtle realtime behavior
+
+DO NOT:
+
+* add massive new backend systems
+* add aggressive websocket complexity
+* add fake activity
+* create noisy social-media behavior
+
+This phase is about making the app FEEL alive and responsive.
+
+========================================
+
+1. SHARED LIVE FEED HOOK
+   ========================================
+
+Create:
+src/hooks/useLiveFeed.ts
+
+Requirements:
+
+* configurable interval
+* cleanup on unmount
+* prevent overlapping fetches
+* debounce rapid updates
+* preserve scroll position
+* preserve filters/search
+* pause when tab inactive
+* avoid excessive rerenders
+
+Default interval:
+10 seconds
+
+========================================
+2. HOME FEED LIVE UPDATES
+=========================
+
+Home Feed should auto-refresh safely.
+
+Requirements:
+
+* preserve active filters
+* preserve search state
+* preserve scroll position
+* inject new items smoothly
+* avoid full feed flashing/reloading
+
+New content should:
+
+* fade in subtly
+* appear near top
+* not disrupt current browsing
+
+========================================
+3. FLASH FINDS LIVE SYNC
+========================
+
+After Flash Find upload:
+
+* immediately appear locally
+* sync to Home Feed
+* background verify against Supabase
+
+Use:
+
+* optimistic insert
+* silent refetch afterward
+
+========================================
+4. LIVE EVENTS LIVE SYNC
+========================
+
+Fix Live Events so uploads:
+
+* appear instantly
+* update event count immediately
+* remove empty state immediately
+* sync to Home Feed automatically
+
+Ensure:
+
+* no manual refresh needed
+* no navigation needed
+
+========================================
+5. MARKETPLACE LIVE UPDATES
+===========================
+
+Marketplace listings should:
+
+* refresh automatically
+* preserve current filters/search
+* maintain scroll position
+* smoothly insert new content
+
+========================================
+6. RARE RADAR LIVE UPDATES
+==========================
+
+Rare Radar posts should:
+
+* appear instantly
+* sync to Home Feed
+* preserve current category filter
+* maintain highlight behavior
+
+========================================
+7. ALERTS + NOTIFICATIONS
+=========================
+
+Alerts page should refresh automatically for:
+
+* follows
+* reminders
+* saved-search matches
+* messages
+* scout activity
+
+Use:
+
+* realtime where already available
+* polling fallback elsewhere
+
+========================================
+8. LIVE INDICATORS
+==================
+
+Add subtle live-status indicators:
+
+Examples:
+
+* live pulse dot
+* "Updated just now"
+* "New finds available"
+
+Keep:
+
+* minimal
+* professional
+* non-intrusive
+
+========================================
+9. NEW CONTENT BANNERS
+======================
+
+If user is scrolled far down:
+show subtle banner:
+
+"3 new finds available"
+
+Tapping banner:
+
+* smoothly scrolls to top
+* reveals new content
+
+========================================
+10. PERFORMANCE SAFEGUARDS
+==========================
+
+Prevent:
+
+* polling leaks
+* duplicate requests
+* infinite rerenders
+* memory leaks
+* feed flickering
+* scroll jumping
+
+========================================
+11. MOBILE OPTIMIZATION
+=======================
+
+Verify:
+
+* smooth scrolling
+* sticky controls remain stable
+* no keyboard overlap
+* no layout shifting
+* smooth image loading
+* proper safe-area handling
+
+========================================
+12. ERROR HANDLING
+==================
+
+Ensure:
+
+* refresh failures surface honestly
+* retry behavior exists
+* optimistic updates rollback correctly
+* no fake success states
+
+========================================
+13. NO FAKE ACTIVITY
+====================
+
+Do NOT:
+
+* fabricate users
+* fabricate live counts
+* fabricate views
+* fabricate messages
+* fabricate engagement
+
+Only real Supabase-backed activity.
+
+========================================
+14. FINAL QA
+============
+
+Generate:
+LIVE_FEED_QA.md
+
+Include:
+
+* feeds tested
+* refresh behavior
+* performance findings
+* mobile findings
+* realtime findings
+* remaining future work
+
+========================================
+15. FINAL VERIFICATION
+======================
+
+Verify:
+
+* uploads appear instantly
+* feeds refresh smoothly
+* no manual refresh needed
+* filters/search preserved
+* scroll position preserved
+* no excessive rerenders
+* TypeScript clean
+* no console errors
+* republish after completion

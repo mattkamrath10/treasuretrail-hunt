@@ -6,6 +6,7 @@ import { checkLocalReminders } from '../lib/localReminders';
 import { deriveStatus, statusPriority } from '../lib/eventSchedule';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
 import { fetchCommunityPosts, togglePostLike, fetchUserLikes } from '../lib/database';
+import { useLiveFeed } from '../hooks/useLiveFeed';
 import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
@@ -272,9 +273,9 @@ export default function Home() {
     }
   }, [location.state]);
 
-  const loadAll = useCallback(() => {
-    setLoading(true);
-    Promise.all([
+  const loadAll = useCallback((opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    return Promise.all([
       fetchCommunityPosts(50),
       supabase
         .from('external_listings')
@@ -309,6 +310,11 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Live refresh — silently re-pull the feed every 10s so newly uploaded
+  // posts/events/marketplace listings appear without a manual refresh.
+  // The hook pauses when the tab is hidden and prevents overlapping fetches.
+  useLiveFeed(() => loadAll({ silent: true }), !loading);
+
   const didInitialLoadRef = useRef(false);
   useEffect(() => {
     if (didInitialLoadRef.current) return;
@@ -325,9 +331,13 @@ export default function Home() {
 
   // When a user navigates back to Home from a post-create flow, the navigation
   // state includes highlightPostId; refetch so the brand-new post is in view.
-  // Skip if this is the first mount (already covered by initial load above).
+  // Skip the first mount (already covered by initial load above) — using a
+  // dedicated ref because didInitialLoadRef is set synchronously by the
+  // initial-load effect, which runs *before* this one and would otherwise
+  // cause a double fetch on mounts that arrive with highlight state.
+  const navStateSeenRef = useRef(false);
   useEffect(() => {
-    if (!didInitialLoadRef.current) return;
+    if (!navStateSeenRef.current) { navStateSeenRef.current = true; return; }
     const navState = location.state as { highlightPostId?: string } | null;
     if (navState?.highlightPostId) loadAll();
   }, [location.state, loadAll]);

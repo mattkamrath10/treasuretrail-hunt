@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { GuestBlurOverlay } from '../components/GuestGate';
 import { createCommunityPost, fetchCommunityPosts } from '../lib/database';
+import { useLiveFeed } from '../hooks/useLiveFeed';
 import {
   getRareRadarDrafts,
   clearRareRadarDraft,
@@ -77,8 +78,8 @@ export default function RareRadar() {
 
   // Hydrate already-posted Rare Radar requests from Supabase so the feed
   // persists across sessions and matches what shows on Home Feed.
-  useEffect(() => {
-    fetchCommunityPosts(50)
+  const hydrateHunts = useCallback(() => {
+    return fetchCommunityPosts(50)
       .then((posts) => {
         const radarPosts = posts.filter((p) => p.type === 'rare_radar');
         if (radarPosts.length === 0) return;
@@ -106,6 +107,12 @@ export default function RareRadar() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => { hydrateHunts(); }, [hydrateHunts]);
+
+  // Live refresh — silently re-pull every 10s and merge any new hunts
+  // (de-duped by id) without disturbing existing state, filters, or scroll.
+  useLiveFeed(hydrateHunts, true);
 
   // Hydrate drafts that were shared from Flash Finds → AI Analysis.
   useEffect(() => {
