@@ -1,1024 +1,558 @@
-import { useState, useRef } from 'react';
-import { ArrowLeft, Send, Clock, MapPin, DollarSign, Users, Shield, Image, Gavel, Package, Zap, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, User } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import type { CSSProperties } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ArrowLeft, Send, MessageCircle, Loader, Tag,
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import {
+  fetchConversations, fetchMessages, sendMessage, markConversationRead,
+  type Conversation, type ChatMessage,
+} from '../lib/messaging';
+import { supabase } from '../lib/supabase';
 
-type MessagesView = 'inbox' | 'conversation';
-
-type ThreadType = 'scout' | 'auction' | 'radar' | 'pickup' | 'system';
-type CoordStatus = 'awaiting' | 'confirmed' | 'active' | 'scheduled' | 'pending' | 'backup';
-
-interface Thread {
-  id: string;
-  type: ThreadType;
-  username: string;
-  lastMessage: string;
-  timestamp: string;
-  unread: number;
-  verified: boolean;
-  coordStatus: CoordStatus;
-  itemTitle?: string;
-}
-
-interface Message {
-  id: string;
-  sender: 'me' | 'other' | 'system';
-  text: string;
-  timestamp: string;
-  type?: 'text' | 'item-card' | 'auction-card' | 'action';
-}
-
-const threads: Thread[] = [
-  {
-    id: '1',
-    type: 'scout',
-    username: 'dallas_picker',
-    lastMessage: 'I can inspect the credenza tomorrow morning. Want me to check the joints?',
-    timestamp: '2m ago',
-    unread: 2,
-    verified: true,
-    coordStatus: 'confirmed',
-    itemTitle: 'Mid-Century Danish Teak Credenza',
-  },
-  {
-    id: '2',
-    type: 'auction',
-    username: 'chi_town_scout',
-    lastMessage: 'Current bid just jumped to $1,950. Should I hold or bid higher?',
-    timestamp: '15m ago',
-    unread: 1,
-    verified: true,
-    coordStatus: 'active',
-    itemTitle: 'Complete Eames Shell Chair Set',
-  },
-  {
-    id: '3',
-    type: 'radar',
-    username: 'vintage_eye',
-    lastMessage: 'Found a Submariner that matches your search. Sending photos now.',
-    timestamp: '1h ago',
-    unread: 3,
-    verified: true,
-    coordStatus: 'awaiting',
-    itemTitle: 'Rolex Submariner Pre-2010',
-  },
-  {
-    id: '4',
-    type: 'pickup',
-    username: 'phx_treasure',
-    lastMessage: 'Pickup confirmed for Saturday 10am. I\'ll bring padding for transport.',
-    timestamp: '3h ago',
-    unread: 0,
-    verified: true,
-    coordStatus: 'scheduled',
-    itemTitle: 'Storage Unit Lot #47',
-  },
-  {
-    id: '5',
-    type: 'system',
-    username: 'TreasureTrail',
-    lastMessage: 'Your auction for "Hemingway Collection" ends in 5 hours. 3 scouts available nearby.',
-    timestamp: '4h ago',
-    unread: 1,
-    verified: true,
-    coordStatus: 'pending',
-  },
-  {
-    id: '6',
-    type: 'scout',
-    username: 'barn_find_bill',
-    lastMessage: 'Hey, I saw your request for the N64 set. I know a guy in Nashville who has one.',
-    timestamp: '1d ago',
-    unread: 0,
-    verified: false,
-    coordStatus: 'awaiting',
-    itemTitle: 'Nintendo 64 Complete Set',
-  },
-  {
-    id: '7',
-    type: 'auction',
-    username: 'nyc_finds',
-    lastMessage: 'Backup scout standing by. Let me know if you need me to jump in.',
-    timestamp: '2d ago',
-    unread: 0,
-    verified: true,
-    coordStatus: 'backup',
-    itemTitle: 'Omega Seamaster 300',
-  },
-];
-
-const conversationMessages: Message[] = [
-  { id: '1', sender: 'other', text: 'Hey! I saw your request for inspection help on the credenza.', timestamp: '10:30 AM' },
-  { id: '2', sender: 'me', text: 'Great! Can you check it out before the auction ends tomorrow?', timestamp: '10:32 AM' },
-  { id: '3', sender: 'other', text: 'Absolutely. I\'m free tomorrow morning. I\'ll check the joints, finish quality, and any damage.', timestamp: '10:34 AM' },
-  { id: '4', sender: 'system', text: 'Scout confirmed availability for inspection', timestamp: '10:35 AM', type: 'action' },
-  { id: '5', sender: 'me', text: 'Perfect. Here\'s the auction listing for reference:', timestamp: '10:36 AM' },
-  { id: '6', sender: 'me', text: '', timestamp: '10:36 AM', type: 'auction-card' },
-  { id: '7', sender: 'other', text: 'Got it. I know this auction house well. They\'re reputable. I\'ll be there at 9am.', timestamp: '10:40 AM' },
-  { id: '8', sender: 'other', text: 'I can inspect the credenza tomorrow morning. Want me to check the joints?', timestamp: '10:42 AM' },
-  { id: '9', sender: 'me', text: 'Yes please! Also check for any water damage or veneer issues. Budget max is $650.', timestamp: '10:45 AM' },
-];
-
-const quickActions = [
-  { label: 'Send Auction Link', icon: Gavel },
-  { label: 'Request Pickup', icon: Package },
-  { label: 'Share Flash Find', icon: Zap },
-  { label: 'Negotiate Budget', icon: DollarSign },
-  { label: 'Confirm Availability', icon: CheckCircle },
-  { label: 'Recruit Backup', icon: Users },
-];
-
-const threadTypeLabels: Record<ThreadType, string> = {
-  scout: 'Scout',
-  auction: 'Auction',
-  radar: 'Rare Radar',
-  pickup: 'Pickup',
-  system: 'System',
-};
-
-const threadTypeColors: Record<ThreadType, { bg: string; text: string }> = {
-  scout: { bg: 'var(--color-primary-50)', text: 'var(--color-primary-700)' },
-  auction: { bg: 'var(--color-accent-50)', text: 'var(--color-accent-700)' },
-  radar: { bg: 'var(--color-secondary-50)', text: 'var(--color-secondary-700)' },
-  pickup: { bg: 'var(--color-warning-50)', text: 'var(--color-warning-700)' },
-  system: { bg: 'var(--color-neutral-100)', text: 'var(--color-neutral-600)' },
-};
-
-const statusLabels: Record<CoordStatus, string> = {
-  awaiting: 'Awaiting Response',
-  confirmed: 'Scout Confirmed',
-  active: 'Auction Active',
-  scheduled: 'Pickup Scheduled',
-  pending: 'Shipping Pending',
-  backup: 'Backup Scout Needed',
-};
-
-const statusColors: Record<CoordStatus, { bg: string; text: string }> = {
-  awaiting: { bg: 'var(--color-warning-50)', text: 'var(--color-warning-700)' },
-  confirmed: { bg: 'var(--color-success-50)', text: 'var(--color-success-700)' },
-  active: { bg: 'var(--color-error-50)', text: 'var(--color-error-700)' },
-  scheduled: { bg: 'var(--color-primary-50)', text: 'var(--color-primary-700)' },
-  pending: { bg: 'var(--color-neutral-100)', text: 'var(--color-neutral-600)' },
-  backup: { bg: 'var(--color-secondary-50)', text: 'var(--color-secondary-700)' },
-};
-
+/**
+ * Messages.tsx — real direct-message inbox.
+ *
+ * Behavior:
+ *   - When the URL is `/messages`, renders the conversation list.
+ *   - When the URL is `/messages/:id`, renders the chat view.
+ *
+ * Realtime: V1 uses a 5s poll for new messages while a chat is open and a
+ * 15s poll for the inbox list. Supabase realtime channels can replace this
+ * later without changing the data contract.
+ */
 export default function Messages({ onBack }: { onBack: () => void }) {
-  const [view, setView] = useState<MessagesView>('inbox');
-  const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+  const { id: routeId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const handleOpenThread = (thread: Thread) => {
-    setSelectedThread(thread);
-    setView('conversation');
-  };
-
-  if (view === 'conversation' && selectedThread) {
+  // ---- gating: must be signed in --------------------------------------
+  if (!user) {
     return (
-      <ConversationView
-        thread={selectedThread}
-        onBack={() => setView('inbox')}
-      />
+      <div style={styles.stateScreen}>
+        <MessageCircle size={36} style={{ color: 'var(--color-neutral-400)' }} />
+        <span style={styles.stateTitle}>Sign in to message hunters</span>
+        <span style={styles.stateMuted}>Direct messages live with your account.</span>
+        <button style={styles.primaryBtn} onClick={onBack}>Back</button>
+      </div>
     );
   }
 
-  return <InboxView threads={threads} onOpenThread={handleOpenThread} onBack={onBack} />;
+  if (routeId) {
+    return <ConversationView conversationId={routeId} onBack={() => navigate('/messages')} />;
+  }
+  return <InboxView onBack={onBack} onOpen={(id) => navigate(`/messages/${id}`)} />;
 }
 
-function InboxView({
-  threads,
-  onOpenThread,
-  onBack,
-}: {
-  threads: Thread[];
-  onOpenThread: (t: Thread) => void;
-  onBack: () => void;
-}) {
-  const [filter, setFilter] = useState<ThreadType | 'all'>('all');
-  const filtered = filter === 'all' ? threads : threads.filter((t) => t.type === filter);
-  const totalUnread = threads.reduce((sum, t) => sum + t.unread, 0);
+// =====================================================================
+// Inbox
+// =====================================================================
+function InboxView({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string) => void }) {
+  const { user } = useAuth();
+  const [convos, setConvos] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [unreadMap, setUnreadMap] = useState<Record<string, number>>({});
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    const rows = await fetchConversations(user.id);
+    setConvos(rows);
+    setLoading(false);
+
+    // Per-conversation unread count, addressed to me. One small query
+    // per conversation is fine for V1; can be batched into a view later.
+    const entries = await Promise.all(rows.map(async (c) => {
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', c.id)
+        .eq('receiver_id', user.id)
+        .is('read_at', null);
+      return [c.id, count ?? 0] as const;
+    }));
+    const next: Record<string, number> = {};
+    entries.forEach(([id, n]) => { next[id] = n; });
+    setUnreadMap(next);
+  }, [user]);
+
+  useEffect(() => {
+    load().catch((e) => { setError(String(e?.message || e)); setLoading(false); });
+    const t = window.setInterval(() => { load().catch(() => {}); }, 15000);
+    return () => window.clearInterval(t);
+  }, [load]);
 
   return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <div style={styles.headerRow}>
-          <button onClick={onBack} style={styles.backBtn}>
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 style={styles.title}>Messages</h1>
-            {totalUnread > 0 && (
-              <span style={styles.unreadSummary}>{totalUnread} unread</span>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-2)',
-        padding: 'var(--space-2) var(--space-3)',
-        margin: '0 var(--space-4) var(--space-3)',
-        backgroundColor: 'var(--color-warning-50)',
-        border: '1px solid var(--color-warning-200)',
-        borderRadius: 'var(--radius-md)',
-      }}>
-        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-warning-700)', fontWeight: 600 }}>Preview</span>
-        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-700)', lineHeight: 1.3 }}>
-          Sample conversations — real direct messaging coming soon.
-        </span>
-      </div>
-
-      <div style={styles.filterRow}>
-        <button
-          onClick={() => setFilter('all')}
-          style={{ ...styles.filterChip, ...(filter === 'all' ? styles.filterChipActive : {}) }}
-        >
-          All
-        </button>
-        {(['scout', 'auction', 'radar', 'pickup', 'system'] as ThreadType[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setFilter(t)}
-            style={{ ...styles.filterChip, ...(filter === t ? styles.filterChipActive : {}) }}
-          >
-            {threadTypeLabels[t]}
-          </button>
-        ))}
-      </div>
-
-      <div style={styles.threadList}>
-        {filtered.map((thread, index) => (
-          <button
-            key={thread.id}
-            onClick={() => onOpenThread(thread)}
-            style={{ ...styles.threadItem, animationDelay: `${index * 60}ms` }}
-          >
-            <div style={styles.threadAvatar}>
-              <User size={18} style={{ color: 'var(--color-neutral-400)' }} />
-              {thread.verified && (
-                <div style={styles.threadVerifiedBadge}>
-                  <Shield size={8} style={{ color: 'var(--color-neutral-0)' }} />
-                </div>
-              )}
-            </div>
-
-            <div style={styles.threadContent}>
-              <div style={styles.threadTopRow}>
-                <span style={styles.threadUsername}>@{thread.username}</span>
-                <span style={styles.threadTime}>{thread.timestamp}</span>
-              </div>
-              <div style={styles.threadMiddle}>
-                <span
-                  style={{
-                    ...styles.threadTypeBadge,
-                    backgroundColor: threadTypeColors[thread.type].bg,
-                    color: threadTypeColors[thread.type].text,
-                  }}
-                >
-                  {threadTypeLabels[thread.type]}
-                </span>
-                <span
-                  style={{
-                    ...styles.threadStatusBadge,
-                    backgroundColor: statusColors[thread.coordStatus].bg,
-                    color: statusColors[thread.coordStatus].text,
-                  }}
-                >
-                  {statusLabels[thread.coordStatus]}
-                </span>
-              </div>
-              {thread.itemTitle && (
-                <span style={styles.threadItemTitle}>{thread.itemTitle}</span>
-              )}
-              <p style={styles.threadPreview}>{thread.lastMessage}</p>
-            </div>
-
-            {thread.unread > 0 && (
-              <div style={styles.unreadBadge}>
-                <span style={styles.unreadCount}>{thread.unread}</span>
-              </div>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ConversationView({
-  thread,
-  onBack,
-}: {
-  thread: Thread;
-  onBack: () => void;
-}) {
-  const [showActions, setShowActions] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [localMessages, setLocalMessages] = useState<Message[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const sendMessage = () => {
-    const text = draft.trim();
-    if (!text) return;
-    setLocalMessages((prev) => [...prev, {
-      id: `local-${Date.now()}`,
-      sender: 'me',
-      text,
-      timestamp: 'Just now',
-      type: 'text',
-    }]);
-    setDraft('');
-  };
-
-  return (
-    <div style={styles.container}>
-      <header style={styles.convHeader}>
-        <button onClick={onBack} style={styles.backBtn}>
+    <div style={styles.page}>
+      <header style={styles.topBar}>
+        <button onClick={onBack} style={styles.iconBtn} aria-label="Back">
           <ArrowLeft size={20} />
         </button>
-        <div style={styles.convHeaderInfo}>
-          <div style={styles.convHeaderTop}>
-            <span style={styles.convUsername}>@{thread.username}</span>
-            {thread.verified && (
-              <Shield size={12} style={{ color: 'var(--color-primary-500)' }} />
-            )}
-          </div>
-          <span
-            style={{
-              ...styles.convStatus,
-              color: statusColors[thread.coordStatus].text,
-            }}
-          >
-            {statusLabels[thread.coordStatus]}
-          </span>
-        </div>
-        <TrustIndicator verified={thread.verified} />
+        <span style={styles.topTitle}>Messages</span>
+        <span style={{ width: 44 }} />
       </header>
 
-      {thread.itemTitle && (
-        <div style={styles.convItemBar}>
-          <span style={styles.convItemLabel}>Re: {thread.itemTitle}</span>
-          <span
-            style={{
-              ...styles.threadTypeBadge,
-              backgroundColor: threadTypeColors[thread.type].bg,
-              color: threadTypeColors[thread.type].text,
-            }}
-          >
-            {threadTypeLabels[thread.type]}
-          </span>
-        </div>
-      )}
-
-      <div style={styles.messagesList}>
-        {[...conversationMessages, ...localMessages].map((msg) => {
-          if (msg.type === 'auction-card') {
-            return <AuctionReferenceCard key={msg.id} />;
-          }
-          if (msg.type === 'action') {
-            return (
-              <div key={msg.id} style={styles.systemMessage}>
-                <CheckCircle size={12} style={{ color: 'var(--color-success-500)' }} />
-                <span style={styles.systemText}>{msg.text}</span>
-                <span style={styles.systemTime}>{msg.timestamp}</span>
-              </div>
-            );
-          }
-          return (
-            <div
-              key={msg.id}
-              style={{
-                ...styles.messageBubbleWrap,
-                justifyContent: msg.sender === 'me' ? 'flex-end' : 'flex-start',
-              }}
-            >
-              <div
-                style={{
-                  ...styles.messageBubble,
-                  ...(msg.sender === 'me' ? styles.bubbleMine : styles.bubbleOther),
-                }}
-              >
-                <p style={styles.messageText}>{msg.text}</p>
-                <span
-                  style={{
-                    ...styles.messageTime,
-                    color: msg.sender === 'me' ? 'rgba(255,255,255,0.7)' : 'var(--color-neutral-400)',
-                  }}
-                >
-                  {msg.timestamp}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-
-        <div style={styles.typingIndicator}>
-          <div style={styles.typingDots}>
-            <span style={styles.dot} />
-            <span style={{ ...styles.dot, animationDelay: '0.2s' }} />
-            <span style={{ ...styles.dot, animationDelay: '0.4s' }} />
+      <div style={styles.scroll}>
+        {loading ? (
+          <div style={styles.stateBlock}>
+            <Loader size={22} style={{ color: 'var(--color-primary-500)', animation: 'spin 0.8s linear infinite' }} />
+            <span style={styles.stateMuted}>Loading…</span>
           </div>
-          <span style={styles.typingText}>@{thread.username} is typing...</span>
-        </div>
+        ) : error ? (
+          <div style={styles.stateBlock}>
+            <span style={styles.stateTitle}>Couldn’t load messages</span>
+            <span style={styles.stateMuted}>{error}</span>
+          </div>
+        ) : convos.length === 0 ? (
+          <div style={styles.stateBlock}>
+            <MessageCircle size={32} style={{ color: 'var(--color-neutral-400)' }} />
+            <span style={styles.stateTitle}>No messages yet</span>
+            <span style={styles.stateMuted}>Open a listing and tap “Message Seller” to start a conversation.</span>
+          </div>
+        ) : (
+          <ul style={styles.list}>
+            {convos.map((c) => {
+              const unread = unreadMap[c.id] ?? 0;
+              const initial = (c.other_username || 'h').slice(0, 1).toUpperCase();
+              return (
+                <li key={c.id}>
+                  <button
+                    onClick={() => onOpen(c.id)}
+                    style={{ ...styles.row, fontWeight: unread > 0 ? 700 : 500 }}
+                    aria-label={`Open chat with @${c.other_username}`}
+                  >
+                    {c.other_avatar_url ? (
+                      <img src={c.other_avatar_url} alt={c.other_username || 'hunter'} style={styles.avatarImg} />
+                    ) : (
+                      <div style={styles.avatarFallback}>{initial}</div>
+                    )}
+                    <div style={styles.rowMeta}>
+                      <span style={styles.rowName}>@{c.other_username || 'hunter'}</span>
+                      <span style={styles.rowPreview}>
+                        {c.last_message_preview || 'No messages yet'}
+                      </span>
+                      {c.listing_id && (
+                        <span style={styles.rowChip}>
+                          <Tag size={11} /> {c.listing_kind === 'marketplace' ? 'Listing' : 'Find'}
+                        </span>
+                      )}
+                    </div>
+                    <div style={styles.rowRight}>
+                      <span style={styles.rowTime}>{formatRelative(c.last_message_at)}</span>
+                      {unread > 0 && (
+                        <span style={styles.unreadDot}>{unread > 9 ? '9+' : unread}</span>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Conversation
+// =====================================================================
+function ConversationView({ conversationId, onBack }: { conversationId: string; onBack: () => void }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [conv, setConv] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Track the highest created_at we've seen so polling pulls deltas only.
+  const lastTsRef = useRef<string | null>(null);
+  // Pending optimistic sends, in FIFO order. Each entry stores the temp
+  // row id plus the (sender, content) tuple we'll match against the next
+  // server echo. We CONSUME one entry per matching echo so two identical
+  // messages sent back-to-back are not collapsed into one bubble.
+  const pendingTempsRef = useRef<Array<{ tempId: string; sender: string; content: string }>>([]);
+
+  // ---- initial load: resolve conversation + fetch history --------------
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) return;
+    setLoading(true); setError(null);
+    (async () => {
+      const { data, error: cErr } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (cErr) { setError(cErr.message); setLoading(false); return; }
+      if (!data) { setError('Conversation not found'); setLoading(false); return; }
+      // Hydrate the "other user" so the header renders without an extra hop.
+      const otherId = data.user_a_id === user.id ? data.user_b_id : data.user_a_id;
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', otherId)
+        .maybeSingle();
+      setConv({
+        ...data,
+        other_user_id: otherId,
+        other_username: prof?.username ?? 'hunter',
+        other_avatar_url: prof?.avatar_url ?? null,
+      } as Conversation);
+
+      const initial = await fetchMessages(conversationId);
+      if (cancelled) return;
+      setMessages(initial);
+      lastTsRef.current = initial.length > 0 ? initial[initial.length - 1].created_at : null;
+      setLoading(false);
+      // Mark addressed-to-me as read (best-effort).
+      markConversationRead(conversationId, user.id).catch(() => {});
+    })();
+    return () => { cancelled = true; };
+  }, [conversationId, user]);
+
+  // ---- 5s delta poll while open ---------------------------------------
+  useEffect(() => {
+    if (!user || loading) return;
+    const tick = async () => {
+      const since = lastTsRef.current;
+      const fresh = await fetchMessages(conversationId, since ?? undefined);
+      if (fresh.length === 0) return;
+      // For each fresh row, if it matches the OLDEST pending temp by
+      // (sender, content), consume that temp (drop it from local state)
+      // — this guarantees one-to-one pairing even when the user sends
+      // two identical messages in a row.
+      const consumedTempIds = new Set<string>();
+      for (const f of fresh) {
+        const idx = pendingTempsRef.current.findIndex(
+          (t) => t.sender === f.sender_id && t.content === f.content
+        );
+        if (idx >= 0) {
+          consumedTempIds.add(pendingTempsRef.current[idx].tempId);
+          pendingTempsRef.current.splice(idx, 1);
+        }
+      }
+      setMessages((prev) => {
+        const next = consumedTempIds.size > 0
+          ? prev.filter((m) => !consumedTempIds.has(m.id))
+          : prev;
+        // Dedup by id to defend against any other source of double-insert.
+        const seen = new Set(next.map((m) => m.id));
+        const additions = fresh.filter((f) => !seen.has(f.id));
+        return [...next, ...additions];
+      });
+      lastTsRef.current = fresh[fresh.length - 1].created_at;
+      // Only mark-read when at least one fresh message is addressed to me;
+      // avoids a write storm on conversations where I'm only sending.
+      if (fresh.some((f) => f.receiver_id === user.id && f.read_at === null)) {
+        markConversationRead(conversationId, user.id).catch(() => {});
+      }
+    };
+    const t = window.setInterval(() => { tick().catch(() => {}); }, 5000);
+    return () => window.clearInterval(t);
+  }, [conversationId, user, loading]);
+
+  // ---- auto-scroll on new messages ------------------------------------
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
+
+  const handleSend = async () => {
+    if (!user || !conv || sending) return;
+    const body = draft.trim();
+    if (!body) return;
+    setSending(true);
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: ChatMessage = {
+      id: tempId,
+      sender_id: user.id,
+      receiver_id: conv.other_user_id!,
+      conversation_id: conversationId,
+      listing_id: conv.listing_id,
+      listing_kind: conv.listing_kind,
+      content: body,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    };
+    pendingTempsRef.current.push({ tempId, sender: user.id, content: body });
+    setMessages((prev) => [...prev, optimistic]);
+    setDraft('');
+
+    const { message, error: sErr } = await sendMessage({
+      conversationId,
+      receiverId: conv.other_user_id!,
+      content: body,
+      listingId: conv.listing_id,
+      listingKind: conv.listing_kind,
+    });
+    setSending(false);
+    if (sErr || !message) {
+      // Rollback
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      pendingTempsRef.current = pendingTempsRef.current.filter((t) => t.tempId !== tempId);
+      setError(sErr || 'Send failed');
+      window.setTimeout(() => setError(null), 3000);
+      setDraft(body); // restore so user can retry
+      return;
+    }
+    // Replace temp with real row in-place, and consume the pending pairing
+    // so the next poll doesn't try to dedup it a second time.
+    setMessages((prev) => prev.map((m) => (m.id === tempId ? message : m)));
+    pendingTempsRef.current = pendingTempsRef.current.filter((t) => t.tempId !== tempId);
+    lastTsRef.current = message.created_at;
+  };
+
+  const otherInitial = (conv?.other_username || 'h').slice(0, 1).toUpperCase();
+
+  return (
+    <div style={styles.page}>
+      <header style={styles.topBar}>
+        <button onClick={onBack} style={styles.iconBtn} aria-label="Back to inbox">
+          <ArrowLeft size={20} />
+        </button>
+        <button
+          onClick={() => conv?.other_username && navigate(`/profile/${conv.other_username}`)}
+          style={styles.chatHeaderBtn}
+          aria-label={conv?.other_username ? `View @${conv.other_username}` : 'Recipient'}
+          disabled={!conv?.other_username}
+        >
+          {conv?.other_avatar_url ? (
+            <img src={conv.other_avatar_url} alt={conv.other_username || 'hunter'} style={styles.avatarImgSm} />
+          ) : (
+            <div style={styles.avatarFallbackSm}>{otherInitial}</div>
+          )}
+          <span style={styles.chatHeaderName}>@{conv?.other_username || '…'}</span>
+        </button>
+        {conv?.listing_id && (
+          <button
+            onClick={() => conv.listing_id && navigate(
+              conv.listing_kind === 'community_post' ? `/find/${conv.listing_id}` : `/listing/${conv.listing_id}`
+            )}
+            style={styles.iconBtn}
+            aria-label="Open linked listing"
+          >
+            <Tag size={18} />
+          </button>
+        )}
+      </header>
+
+      <div ref={scrollRef} style={styles.chatScroll}>
+        {loading ? (
+          <div style={styles.stateBlock}>
+            <Loader size={22} style={{ color: 'var(--color-primary-500)', animation: 'spin 0.8s linear infinite' }} />
+          </div>
+        ) : messages.length === 0 ? (
+          <div style={styles.stateBlock}>
+            <span style={styles.stateMuted}>Say hello — no messages yet.</span>
+          </div>
+        ) : (
+          <ul style={styles.bubbleList}>
+            {messages.map((m) => {
+              const mine = m.sender_id === user!.id;
+              return (
+                <li key={m.id} style={{ ...styles.bubbleRow, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ ...styles.bubble, ...(mine ? styles.bubbleMine : styles.bubbleTheirs) }}>
+                    <span style={styles.bubbleText}>{m.content}</span>
+                    <span style={styles.bubbleTime}>{formatTime(m.created_at)}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
-      {showActions && (
-        <div style={styles.actionsPanel}>
-          <div style={styles.actionsGrid}>
-            {quickActions.map((action) => (
-              <button
-                key={action.label}
-                onClick={() => setShowActions(false)}
-                style={styles.quickActionBtn}
-              >
-                <action.icon size={16} style={{ color: 'var(--color-primary-600)' }} />
-                <span style={styles.quickActionLabel}>{action.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={styles.inputBar}>
-        <button
-          onClick={() => setShowActions(!showActions)}
-          style={{
-            ...styles.plusBtn,
-            ...(showActions ? styles.plusBtnActive : {}),
-          }}
-        >
-          <Zap size={18} style={{ color: showActions ? 'var(--color-neutral-0)' : 'var(--color-primary-600)' }} />
-        </button>
-        <button style={styles.imageBtn} aria-label="Attach image" onClick={() => fileInputRef.current?.click()}>
-          <Image size={18} style={{ color: 'var(--color-neutral-400)' }} />
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) {
-              setLocalMessages((prev) => [...prev, {
-                id: `local-${Date.now()}`,
-                sender: 'me',
-                text: `📷 ${f.name}`,
-                timestamp: 'Just now',
-                type: 'text',
-              }]);
-            }
-            if (e.target) e.target.value = '';
-          }}
-        />
-        <div style={styles.inputWrap}>
-          <input
-            type="text"
-            placeholder="Type a message..."
-            style={styles.messageInput}
+      {/* Sticky composer. Padding-bottom respects the iOS keyboard / safe-area
+          inset so the input is never hidden behind the home indicator. */}
+      <div style={styles.composer}>
+        {error && <div style={styles.errorBanner}>{error}</div>}
+        <div style={styles.composerRow}>
+          <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') sendMessage(); }}
+            placeholder="Write a message…"
+            style={styles.input}
+            rows={1}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
           />
-        </div>
-        <button
-          style={{ ...styles.sendBtn, opacity: draft.trim() ? 1 : 0.5 }}
-          aria-label="Send message"
-          onClick={sendMessage}
-          disabled={!draft.trim()}
-        >
-          <Send size={18} style={{ color: 'var(--color-neutral-0)' }} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function TrustIndicator({ verified }: { verified: boolean }) {
-  if (!verified) {
-    return (
-      <div style={styles.trustWarning}>
-        <AlertTriangle size={12} style={{ color: 'var(--color-warning-600)' }} />
-        <span style={styles.trustWarningText}>New</span>
-      </div>
-    );
-  }
-  return (
-    <div style={styles.trustBadge}>
-      <Shield size={12} style={{ color: 'var(--color-success-600)' }} />
-      <span style={styles.trustBadgeText}>Trusted</span>
-    </div>
-  );
-}
-
-function AuctionReferenceCard() {
-  return (
-    <div style={styles.refCardWrap}>
-      <div style={styles.refCard}>
-        <img
-          src="https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=200"
-          alt="Auction item"
-          style={styles.refCardImage}
-        />
-        <div style={styles.refCardBody}>
-          <h4 style={styles.refCardTitle}>Mid-Century Danish Teak Credenza</h4>
-          <div style={styles.refCardMeta}>
-            <span style={styles.refCardBid}>
-              <DollarSign size={10} /> Current: $380
-            </span>
-            <span style={styles.refCardTimer}>
-              <Clock size={10} /> 2h 14m left
-            </span>
-          </div>
-          <div style={styles.refCardMeta}>
-            <span style={styles.refCardLocation}>
-              <MapPin size={10} /> Dallas, TX
-            </span>
-            <span style={styles.refCardScout}>
-              <Users size={10} /> 6 scouts
-            </span>
-          </div>
-          <span style={styles.refCardStatus}>Scout Confirmed</span>
+          <button
+            onClick={handleSend}
+            disabled={sending || draft.trim().length === 0}
+            style={{
+              ...styles.sendBtn,
+              opacity: (sending || draft.trim().length === 0) ? 0.55 : 1,
+              cursor: (sending || draft.trim().length === 0) ? 'not-allowed' : 'pointer',
+            }}
+            aria-label="Send message"
+          >
+            <Send size={18} />
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-    backgroundColor: 'var(--color-neutral-0)',
-  },
-  header: {
-    padding: 'var(--space-4)',
-    backgroundColor: 'var(--color-neutral-0)',
-    borderBottom: '1px solid var(--color-neutral-100)',
-    flexShrink: 0,
-  },
-  headerRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-  },
-  title: {
-    fontSize: 'var(--font-size-xl)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
-  },
-  unreadSummary: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-primary-600)',
-    fontWeight: 'var(--font-weight-medium)',
-  },
-  backBtn: {
-    width: '36px',
-    height: '36px',
-    borderRadius: 'var(--radius-md)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'var(--color-neutral-600)',
-  },
+// =====================================================================
+// helpers
+// =====================================================================
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
 
-  // Filters
-  filterRow: {
-    display: 'flex',
-    gap: 'var(--space-2)',
+function formatRelative(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(iso).toLocaleDateString();
+}
+
+// =====================================================================
+// styles
+// =====================================================================
+const styles: Record<string, CSSProperties> = {
+  page: { height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-neutral-50)', overflow: 'hidden' },
+  topBar: {
+    flexShrink: 0, display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
     padding: 'var(--space-3) var(--space-4)',
-    overflow: 'auto',
-    borderBottom: '1px solid var(--color-neutral-50)',
-    flexShrink: 0,
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+    backgroundColor: 'var(--color-neutral-0)', borderBottom: '1px solid var(--color-neutral-200)',
+    position: 'sticky', top: 0, zIndex: 10,
   },
-  filterChip: {
-    padding: 'var(--space-1) var(--space-3)',
-    borderRadius: 'var(--radius-full)',
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-medium)',
-    backgroundColor: 'var(--color-neutral-100)',
-    color: 'var(--color-neutral-600)',
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
+  topTitle: { flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 'var(--font-size-base)', color: 'var(--color-neutral-900)' },
+  iconBtn: {
+    width: 44, height: 44, borderRadius: 'var(--radius-full)', border: 'none',
+    backgroundColor: 'transparent', color: 'var(--color-neutral-800)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
   },
-  filterChipActive: {
-    backgroundColor: 'var(--color-neutral-900)',
-    color: 'var(--color-neutral-0)',
+  chatHeaderBtn: {
+    flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', gap: 8,
+    background: 'transparent', border: 'none', padding: '0 4px', cursor: 'pointer', textAlign: 'left',
   },
-
-  // Thread list
-  threadList: {
-    flex: 1,
-    overflow: 'auto',
-  },
-  threadItem: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-4)',
-    borderBottom: '1px solid var(--color-neutral-50)',
-    width: '100%',
-    textAlign: 'left',
-    animation: 'slideUp 0.3s ease forwards',
-    opacity: 0,
-    animationFillMode: 'forwards',
-  },
-  threadAvatar: {
-    position: 'relative',
-    width: '44px',
-    height: '44px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-neutral-100)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  threadVerifiedBadge: {
-    position: 'absolute',
-    bottom: '-1px',
-    right: '-1px',
-    width: '16px',
-    height: '16px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-primary-500)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    border: '2px solid var(--color-neutral-0)',
-  },
-  threadContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-  threadTopRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '3px',
-  },
-  threadUsername: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-900)',
-  },
-  threadTime: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-400)',
-  },
-  threadMiddle: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-    marginBottom: '4px',
-  },
-  threadTypeBadge: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    padding: '1px 6px',
-    borderRadius: 'var(--radius-full)',
-  },
-  threadStatusBadge: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-semibold)',
-    padding: '1px 6px',
-    borderRadius: 'var(--radius-full)',
-  },
-  threadItemTitle: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-medium)',
-    color: 'var(--color-neutral-600)',
-    marginBottom: '2px',
-    display: 'block',
-  },
-  threadPreview: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-    lineHeight: 'var(--line-height-normal)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  unreadBadge: {
-    width: '20px',
-    height: '20px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-primary-500)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginTop: 'var(--space-2)',
-  },
-  unreadCount: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-0)',
-  },
-
-  // Conversation header
-  convHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
+  chatHeaderName: { fontSize: 'var(--font-size-base)', fontWeight: 700, color: 'var(--color-neutral-900)' },
+  scroll: { flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' },
+  chatScroll: {
+    flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch',
     padding: 'var(--space-3) var(--space-4)',
-    borderBottom: '1px solid var(--color-neutral-100)',
-    flexShrink: 0,
   },
-  convHeaderInfo: {
-    flex: 1,
+  list: { listStyle: 'none', margin: 0, padding: 0 },
+  row: {
+    width: '100%', display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+    padding: 'var(--space-3) var(--space-4)', minHeight: 72,
+    background: 'transparent', border: 'none', borderBottom: '1px solid var(--color-neutral-200)',
+    cursor: 'pointer', textAlign: 'left',
   },
-  convHeaderTop: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-1)',
+  rowMeta: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
+  rowName: { fontSize: 'var(--font-size-base)', color: 'var(--color-neutral-900)' },
+  rowPreview: {
+    fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%',
   },
-  convUsername: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
+  rowChip: {
+    display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
+    fontSize: 'var(--font-size-xs)', color: 'var(--color-primary-700)',
+    backgroundColor: 'var(--color-primary-50)', padding: '2px 8px',
+    borderRadius: 'var(--radius-full)', alignSelf: 'flex-start',
   },
-  convStatus: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-medium)',
+  rowRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 },
+  rowTime: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' },
+  unreadDot: {
+    minWidth: 20, height: 20, padding: '0 6px',
+    borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-500)',
+    color: '#fff', fontSize: 11, fontWeight: 700,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-  convItemBar: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 'var(--space-2) var(--space-4)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderBottom: '1px solid var(--color-neutral-100)',
-    flexShrink: 0,
+  avatarImg: { width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
+  avatarFallback: {
+    width: 44, height: 44, borderRadius: '50%',
+    backgroundColor: 'var(--color-primary-100)', color: 'var(--color-primary-700)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: 700, fontSize: 18, flexShrink: 0,
   },
-  convItemLabel: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-600)',
-    fontWeight: 'var(--font-weight-medium)',
+  avatarImgSm: { width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' },
+  avatarFallbackSm: {
+    width: 32, height: 32, borderRadius: '50%',
+    backgroundColor: 'var(--color-primary-100)', color: 'var(--color-primary-700)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: 700, fontSize: 14,
   },
-
-  // Trust
-  trustBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    padding: 'var(--space-1) var(--space-2)',
-    backgroundColor: 'var(--color-success-50)',
-    borderRadius: 'var(--radius-full)',
-    border: '1px solid var(--color-success-100)',
-  },
-  trustBadgeText: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-success-700)',
-  },
-  trustWarning: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    padding: 'var(--space-1) var(--space-2)',
-    backgroundColor: 'var(--color-warning-50)',
-    borderRadius: 'var(--radius-full)',
-    border: '1px solid var(--color-warning-100)',
-  },
-  trustWarningText: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-warning-700)',
-  },
-
-  // Messages
-  messagesList: {
-    flex: 1,
-    overflow: 'auto',
-    padding: 'var(--space-4)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
-  },
-  messageBubbleWrap: {
-    display: 'flex',
-    width: '100%',
-  },
-  messageBubble: {
-    maxWidth: '80%',
-    padding: 'var(--space-3) var(--space-4)',
-    borderRadius: 'var(--radius-md)',
+  bubbleList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
+  bubbleRow: { display: 'flex' },
+  bubble: {
+    maxWidth: '78%', padding: '8px 12px',
+    borderRadius: 'var(--radius-lg)',
+    display: 'flex', flexDirection: 'column', gap: 4,
+    boxShadow: '0 1px 1px rgba(0,0,0,0.04)',
   },
   bubbleMine: {
-    backgroundColor: 'var(--color-primary-600)',
-    borderBottomRightRadius: '4px',
+    backgroundColor: 'var(--color-primary-500)', color: '#fff',
+    borderBottomRightRadius: 6,
   },
-  bubbleOther: {
-    backgroundColor: 'var(--color-neutral-100)',
-    borderBottomLeftRadius: '4px',
-  },
-  messageText: {
-    fontSize: 'var(--font-size-sm)',
-    lineHeight: 'var(--line-height-normal)',
-    color: 'inherit',
-  },
-  messageTime: {
-    fontSize: '10px',
-    display: 'block',
-    marginTop: '4px',
-  },
-  systemMessage: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 'var(--space-1)',
-    padding: 'var(--space-2)',
-  },
-  systemText: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-success-600)',
-    fontWeight: 'var(--font-weight-medium)',
-  },
-  systemTime: {
-    fontSize: '10px',
-    color: 'var(--color-neutral-400)',
-  },
-  typingIndicator: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-2)',
-  },
-  typingDots: {
-    display: 'flex',
-    gap: '3px',
-    alignItems: 'center',
-  },
-  dot: {
-    width: '6px',
-    height: '6px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-neutral-300)',
-    animation: 'pulse 1.2s infinite',
-  },
-  typingText: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-400)',
-  },
-
-  // Reference card
-  refCardWrap: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    width: '100%',
-  },
-  refCard: {
-    display: 'flex',
-    gap: 'var(--space-2)',
-    maxWidth: '85%',
-    padding: 'var(--space-2)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderRadius: 'var(--radius-md)',
+  bubbleTheirs: {
+    backgroundColor: 'var(--color-neutral-0)', color: 'var(--color-neutral-900)',
     border: '1px solid var(--color-neutral-200)',
+    borderBottomLeftRadius: 6,
   },
-  refCardImage: {
-    width: '56px',
-    height: '56px',
-    borderRadius: 'var(--radius-sm)',
-    objectFit: 'cover',
+  bubbleText: { fontSize: 'var(--font-size-sm)', lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+  bubbleTime: { fontSize: 10, opacity: 0.7, alignSelf: 'flex-end' },
+  composer: {
     flexShrink: 0,
-  },
-  refCardBody: {
-    flex: 1,
-    minWidth: 0,
-  },
-  refCardTitle: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-900)',
-    marginBottom: '3px',
-    lineHeight: 'var(--line-height-tight)',
-  },
-  refCardMeta: {
-    display: 'flex',
-    gap: 'var(--space-2)',
-    marginBottom: '2px',
-  },
-  refCardBid: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '2px',
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-800)',
-  },
-  refCardTimer: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '2px',
-    fontSize: '10px',
-    color: 'var(--color-error-600)',
-  },
-  refCardLocation: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '2px',
-    fontSize: '10px',
-    color: 'var(--color-neutral-500)',
-  },
-  refCardScout: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '2px',
-    fontSize: '10px',
-    color: 'var(--color-neutral-500)',
-  },
-  refCardStatus: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-success-600)',
-  },
-
-  // Quick actions
-  actionsPanel: {
-    padding: 'var(--space-3) var(--space-4)',
-    borderTop: '1px solid var(--color-neutral-100)',
-    backgroundColor: 'var(--color-neutral-50)',
-    flexShrink: 0,
-  },
-  actionsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: 'var(--space-2)',
-  },
-  quickActionBtn: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '4px',
-    padding: 'var(--space-3)',
-    borderRadius: 'var(--radius-md)',
     backgroundColor: 'var(--color-neutral-0)',
-    border: '1px solid var(--color-neutral-200)',
-  },
-  quickActionLabel: {
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-medium)',
-    color: 'var(--color-neutral-700)',
-    textAlign: 'center',
-    lineHeight: '1.2',
-  },
-
-  // Input bar
-  inputBar: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-3) var(--space-4)',
-    borderTop: '1px solid var(--color-neutral-100)',
-    backgroundColor: 'var(--color-neutral-0)',
-    flexShrink: 0,
-  },
-  plusBtn: {
-    width: '36px',
-    height: '36px',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-primary-50)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    border: '1px solid var(--color-primary-200)',
-  },
-  plusBtnActive: {
-    backgroundColor: 'var(--color-primary-500)',
-    border: '1px solid var(--color-primary-500)',
-  },
-  imageBtn: {
-    width: '36px',
-    height: '36px',
-    borderRadius: 'var(--radius-md)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  inputWrap: {
-    flex: 1,
+    borderTop: '1px solid var(--color-neutral-200)',
     padding: 'var(--space-2) var(--space-3)',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-neutral-50)',
-    border: '1px solid var(--color-neutral-200)',
+    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
   },
-  messageInput: {
-    width: '100%',
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-900)',
-    backgroundColor: 'transparent',
+  composerRow: { display: 'flex', gap: 8, alignItems: 'flex-end' },
+  input: {
+    flex: 1, minHeight: 44, maxHeight: 120,
+    padding: '10px 12px', borderRadius: 'var(--radius-lg)',
+    border: '1px solid var(--color-neutral-200)',
+    fontSize: 'var(--font-size-base)', lineHeight: 1.4,
+    fontFamily: 'inherit', resize: 'none',
+    backgroundColor: 'var(--color-neutral-50)',
   },
   sendBtn: {
-    width: '36px',
-    height: '36px',
-    borderRadius: 'var(--radius-full)',
-    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 44, height: 44, borderRadius: 'var(--radius-full)',
+    border: 'none', backgroundColor: 'var(--color-primary-500)',
+    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  errorBanner: {
+    backgroundColor: 'var(--color-error-50, #fef2f2)',
+    color: 'var(--color-error-700, #b91c1c)',
+    padding: '6px 12px', borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--font-size-xs)', marginBottom: 6,
+  },
+  stateBlock: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 'var(--space-2)', padding: 'var(--space-6) var(--space-4)', textAlign: 'center',
+  },
+  stateScreen: {
+    height: '100%', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 'var(--space-3)',
+    padding: 'var(--space-4)', textAlign: 'center',
+  },
+  stateTitle: { fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-neutral-900)' },
+  stateMuted: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)', maxWidth: 360 },
+  primaryBtn: {
+    minHeight: 48, padding: '12px 20px', borderRadius: 'var(--radius-md)',
+    border: 'none', backgroundColor: 'var(--color-primary-500)', color: '#fff',
+    fontWeight: 700, cursor: 'pointer',
   },
 };

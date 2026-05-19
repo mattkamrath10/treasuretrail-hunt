@@ -1,0 +1,192 @@
+TREASURETRAIL — PHASE 8
+MARKETPLACE INTERACTION SYSTEM
+
+TreasureTrail has functional feeds, uploads, profiles, routing, and live-refresh.
+
+Next milestone:
+transform the platform into a true marketplace ecosystem with communication and item interaction flows.
+
+Every listing must become interactive.
+
+Users need to be able to:
+
+message sellers
+scout items
+save items
+share items
+view seller profiles
+view seller listings
+contact users directly from listings
+
+Home Feed Item
+→ Item Detail Page
+→ Seller Profile
+→ Message Seller
+
+This becomes the primary conversion loop.
+
+Create a dedicated detail route:
+
+/listing/
+
+Applies to:
+
+Flash Finds
+Marketplace items
+Rare Radar requests
+Live Events later
+
+Large image gallery
+Full description
+Category
+Location
+Price
+Marketplace source
+Uploaded date
+Seller info
+Seller profile link
+
+If viewing another user's listing:
+
+show:
+
+Message Seller
+Scout This Item
+Follow Seller
+Save Listing
+Share Listing
+
+If viewing your OWN listing:
+
+show:
+
+Edit Listing
+Delete Listing
+View Public Listing
+
+Build actual messaging architecture.
+
+Current inbox is mostly placeholder.
+
+Implement:
+
+conversations table
+messages table
+listing-linked messages
+unread state
+timestamps
+realtime updates later
+
+User clicks:
+"Message Seller"
+
+System:
+
+creates or reuses conversation
+links listing_id
+routes to /messages/
+
+Chat bubbles
+timestamps
+read state
+mobile-first layout
+sticky input
+safe keyboard handling
+
+Add:
+"Scout This Item"
+
+This creates:
+
+scout request
+linked listing
+seller notification
+future scout acceptance flow
+
+Users can:
+
+save listings
+follow sellers
+
+Saved items appear later in:
+Profile → Saved
+
+Cards in feeds should now:
+
+navigate to:
+
+/listing/
+
+NOT directly to profile.
+
+Seller avatar/name remains separately clickable.
+
+Owners can:
+
+edit listings
+delete listings
+
+Admins can:
+
+moderate/delete anything
+
+Add proper confirmation modal.
+
+Admin role should bypass ownership checks.
+
+Add:
+
+conversations
+messages
+saved_listings
+listing_views
+scout_requests
+
+Use proper RLS policies.
+
+Messages should:
+
+instantly appear
+auto-refresh
+preserve scroll
+avoid duplicate inserts
+
+Verify:
+
+keyboards do not cover input
+messages auto-scroll
+cards remain responsive
+image galleries swipe properly
+sticky headers work
+
+No silent failures.
+
+If messaging fails:
+show clear UI feedback.
+
+Generate:
+
+MARKETPLACE_INTERACTION_SYSTEM.md
+
+Include:
+
+routing architecture
+conversation flow
+ownership permissions
+realtime strategy
+admin moderation logic
+mobile findings
+future monetization hooks
+
+Verify:
+
+listing clicks work
+seller messaging works
+conversations persist
+unread counts update
+no dead buttons
+no fake actions
+TypeScript clean
+no console errors
+
+Republish after completion.

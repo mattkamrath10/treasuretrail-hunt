@@ -23,6 +23,7 @@ const Community = lazy(() => import('../pages/Community'));
 const Events = lazy(() => import('../pages/Events'));
 const LiveHub = lazy(() => import('../pages/LiveHub'));
 const FindDetail = lazy(() => import('../pages/FindDetail'));
+const ListingDetail = lazy(() => import('../pages/ListingDetail'));
 const PublicProfile = lazy(() => import('../pages/PublicProfile'));
 
 function AuctionsPage() {
@@ -32,6 +33,8 @@ function AuctionsPage() {
 
 function MessagesPage() {
   const navigate = useNavigate();
+  // Single component handles both `/messages` (inbox) and `/messages/:id`
+  // (chat) — it branches on useParams() internally.
   return <Messages onBack={() => navigate('/alerts')} />;
 }
 
@@ -131,6 +134,9 @@ export default function AppShell() {
             <Route path="/auctions" element={<AuctionsPage />} />
             <Route path="/scout-map" element={<ScoutMapPage />} />
             <Route path="/messages" element={<MessagesPage />} />
+            {/* Dedicated chat view for a single conversation. Same Messages
+                component branches on useParams() to render the chat UI. */}
+            <Route path="/messages/:id" element={<MessagesPage />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/pro" element={<ProPage />} />
@@ -148,6 +154,10 @@ export default function AppShell() {
                 auction-win, etc.). Replaces the prior in-feed modal so links are
                 shareable, deep-linkable, and survive page refresh. */}
             <Route path="/find/:id" element={<FindDetail />} />
+            {/* Dedicated detail page for a marketplace_listings row. Mirrors
+                /find/:id and is the canonical share/deep-link target for any
+                marketplace card. Replaces the prior in-feed modal. */}
+            <Route path="/listing/:id" element={<ListingDetail />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

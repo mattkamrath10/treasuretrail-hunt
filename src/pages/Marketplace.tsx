@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -67,10 +68,16 @@ function getMarketTimeAgo(dateStr: string): string {
 export default function Marketplace({ onBack }: { onBack: () => void }) {
   const [view, setView] = useState<MarketView>('home');
   const [selectedItem, setSelectedItem] = useState<Listing | null>(null);
+  const navigate = useNavigate();
 
+  // [LISTING_NAV] Tapping a card now routes to the shared `/listing/:id`
+  // detail page. The legacy inline `ItemDetail` / `OfferScreen` /
+  // `CheckoutScreen` views remain reachable from the dashboard flow
+  // until they are migrated. We still hold `selectedItem` so the offer
+  // and checkout sub-views (entered from elsewhere) keep working.
   const openDetail = (item: Listing) => {
     setSelectedItem(item);
-    setView('detail');
+    navigate(`/listing/${item.id}`);
   };
 
   if (view === 'home') {

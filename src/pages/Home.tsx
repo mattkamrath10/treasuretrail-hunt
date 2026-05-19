@@ -196,7 +196,9 @@ export default function Home() {
   const [locationQuery, setLocationQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [detailMarketplace, setDetailMarketplace] = useState<MarketplaceListing | null>(null);
+  // [LISTING_NAV] Marketplace cards used to open an inline modal via
+  // `setDetailMarketplace`. PHASE 8 moves the detail UI to `/listing/:id`
+  // so the state + modal are gone — navigation is the source of truth.
   const { user, profile, isAdmin } = useAuth();
   const { requireAuth } = useGuestAction();
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
@@ -816,7 +818,7 @@ export default function Home() {
                 <MarketplaceCard
                   listing={m}
                   saved={savedMarketplaceIds.has(m.id)}
-                  onOpen={() => setDetailMarketplace(m)}
+                  onOpen={() => navigate(`/listing/${m.id}`)}
                   onSave={() => handleSaveMarketplace(m.id)}
                   onShare={() => handleShareMarketplace(m)}
                 />
@@ -1087,15 +1089,10 @@ export default function Home() {
           {toast.message}
         </div>
       )}
-      {detailMarketplace && (
-        <MarketplaceDetailModal
-          listing={detailMarketplace}
-          saved={savedMarketplaceIds.has(detailMarketplace.id)}
-          onSave={() => handleSaveMarketplace(detailMarketplace.id)}
-          onShare={() => handleShareMarketplace(detailMarketplace)}
-          onClose={() => setDetailMarketplace(null)}
-        />
-      )}
+      {/* [LISTING_NAV] The inline MarketplaceDetailModal was removed
+          in PHASE 8. Marketplace cards now navigate to `/listing/:id`
+          for a shareable, deep-linkable detail page with messaging,
+          scout, save, and follow actions. */}
     </div>
   );
 }
@@ -1189,142 +1186,6 @@ function MarketplaceCard({
   );
 }
 
-function MarketplaceDetailModal({
-  listing,
-  saved,
-  onSave,
-  onShare,
-  onClose,
-}: {
-  listing: MarketplaceListing;
-  saved: boolean;
-  onSave: () => void;
-  onShare: () => void;
-  onClose: () => void;
-}) {
-  const priceDisplay = typeof listing.price === 'number' ? `$${listing.price.toFixed(2)}` : '';
-  const marketplaceLabel = formatMarketplace(listing.marketplace_found);
-  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => {
-    const prev = (typeof document !== 'undefined' ? document.activeElement : null) as HTMLElement | null;
-    closeBtnRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      try { prev?.focus(); } catch {}
-    };
-  }, [onClose]);
-  return (
-    <div
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={listing.title}
-      style={{
-        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, padding: 'var(--space-4)',
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: 'var(--color-neutral-0)', borderRadius: 'var(--radius-lg)',
-          maxWidth: '480px', width: '100%', maxHeight: '92vh', overflowY: 'auto',
-          display: 'flex', flexDirection: 'column',
-        }}
-      >
-        <div style={{ position: 'relative', width: '100%', minHeight: 200, backgroundColor: 'var(--color-neutral-100)' }}>
-          <ImageWithFade
-            src={listing.image_url}
-            alt={listing.title}
-            style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', display: 'block' }}
-            containerStyle={{ height: 'auto', minHeight: 200 }}
-            fallback={
-              <div style={{ width: '100%', height: 200, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ShoppingBag size={36} style={{ color: 'var(--color-neutral-300)' }} />
-              </div>
-            }
-          />
-          <button
-            ref={closeBtnRef}
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              position: 'absolute', top: 12, right: 12,
-              width: 44, height: 44, borderRadius: '50%',
-              backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: 'none', cursor: 'pointer',
-            }}
-          >
-            <X size={18} />
-          </button>
-          {priceDisplay && (
-            <span style={{ ...styles.priceBadge, top: 12, left: 12, fontSize: 'var(--font-size-base)' }}>
-              {priceDisplay}
-            </span>
-          )}
-        </div>
-        <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-neutral-900)', lineHeight: 1.3 }}>
-            {listing.title}
-          </h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {marketplaceLabel && <Badge variant="marketplace">{marketplaceLabel}</Badge>}
-            {listing.category && <Badge variant="category">{listing.category}</Badge>}
-            {listing.condition && <Badge variant="neutral">{listing.condition}</Badge>}
-            {listing.local_pickup && <Badge variant="pickup" icon={MapPin}>Local Pickup</Badge>}
-            {listing.shipping_available && <Badge variant="shipping">Ships</Badge>}
-            {listing.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
-          </div>
-          {listing.description && (
-            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-              {listing.description}
-            </p>
-          )}
-          {listing.general_location && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)' }}>
-              <MapPin size={14} /> {listing.general_location}
-            </div>
-          )}
-          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
-            Listed {new Date(listing.created_at).toLocaleString()}
-          </div>
-          <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
-            <button
-              onClick={onSave}
-              style={{
-                flex: 1, padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-neutral-200)',
-                backgroundColor: saved ? 'var(--color-primary-50)' : 'var(--color-neutral-0)',
-                color: saved ? 'var(--color-primary-700)' : 'var(--color-neutral-800)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                fontSize: 'var(--font-size-sm)', fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              <Bookmark size={16} style={{ fill: saved ? 'var(--color-primary-600)' : 'none' }} />
-              {saved ? 'Saved' : 'Save'}
-            </button>
-            <button
-              onClick={onShare}
-              style={{
-                flex: 1, padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-neutral-200)',
-                backgroundColor: 'var(--color-neutral-0)', color: 'var(--color-neutral-800)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                fontSize: 'var(--font-size-sm)', fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              <Share2 size={16} /> Share
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Silence unused-import lints for icons reserved for upcoming feed actions.
 void Search;
@@ -1401,7 +1262,6 @@ const COMPARISONS = [
     others: 'General buying and selling — no focus on the flip.',
   },
 ];
-
 function InfoPanel({ onClose }: { onClose: () => void }) {
   return (
     <div style={panelStyles.overlay} onClick={onClose}>
