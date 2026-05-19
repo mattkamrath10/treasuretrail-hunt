@@ -174,10 +174,35 @@ input, textarea, select {
   outline: none;
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling
+ *
+ * Previously this hid the scrollbar entirely (width/height: 0) to get a
+ * "native app" feel on mobile. On desktop browsers that left users with
+ * no draggable handle and no visible affordance — the feed scrolled with
+ * the wheel but looked frozen. We now render a slim, themed scrollbar
+ * everywhere; mobile browsers still treat it as an overlay and don't
+ * reserve layout space for it. */
+* {
+  scrollbar-width: thin;                            /* Firefox */
+  scrollbar-color: var(--color-neutral-300) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-neutral-300);
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-neutral-400);
+  background-clip: content-box;
 }
 
 /* Animations */
