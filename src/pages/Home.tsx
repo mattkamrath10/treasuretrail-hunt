@@ -1945,6 +1945,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-900)',
     marginBottom: 'var(--space-3)',
     lineHeight: 'var(--line-height-tight)',
+    // Feed cards show only the title — long descriptions get clamped to
+    // 2 lines with an ellipsis. The full text lives on /find/:id and
+    // /listing/:id, which the card image + title both link to.
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    wordBreak: 'break-word',
   },
   cardActions: {
     display: 'flex',
