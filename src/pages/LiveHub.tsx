@@ -1138,29 +1138,50 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       .insert(payload)
       .select('*')
       .single();
-    setSaving(false);
     if (err) {
-      // Log full Postgrest error so production browser console captures
-      // code/details/hint, not just the user-facing string.
+      setSaving(false);
       console.error('[UPLOAD_EVENT] insert failed', { err, payload });
       const msg = err.message?.includes('row-level security')
         ? 'You do not have permission to submit events. Please sign in again.'
         : err.message || 'Failed to submit. Please try again.';
       setError(msg);
+      // Mobile users can scroll past an inline red banner without seeing
+      // it. A native alert is impossible to miss — it's the difference
+      // between "I uploaded an event and it didn't show up" (thinking it
+      // worked) and "the app told me exactly why it failed".
+      try { window.alert(`Event upload failed:\n\n${msg}`); } catch {}
       return;
     }
     if (!inserted) {
-      // Insert returned no row even though no error was reported — this
-      // can happen if a post-insert trigger silently filters us out, or
-      // if RLS hides the row from the post-insert SELECT. Either way the
-      // user should know something is off rather than being told it
-      // succeeded.
+      setSaving(false);
       console.error('[UPLOAD_EVENT] insert returned no row', { payload });
-      setError('Upload may not have completed. Please refresh and check the feed.');
+      const msg = 'Upload may not have completed. Please refresh and check the feed.';
+      setError(msg);
+      try { window.alert(msg); } catch {}
       return;
     }
+
+    // Post-insert verification: re-read the row we just wrote, by id,
+    // to confirm it really landed (and is visible to us). If this read
+    // comes back empty, something silently dropped the write — surface
+    // it loudly instead of letting the success toast lie.
+    const insertedRow = inserted as ExternalListing;
+    const { data: verify, error: vErr } = await supabase
+      .from('external_listings')
+      .select('id,status')
+      .eq('id', insertedRow.id)
+      .maybeSingle();
+    setSaving(false);
+    if (vErr || !verify) {
+      console.error('[UPLOAD_EVENT] post-insert verify failed', { vErr, insertedId: insertedRow.id });
+      const msg = 'Event saved but could not be read back. It may not appear in the feed. Please refresh and check.';
+      setError(msg);
+      try { window.alert(msg); } catch {}
+      return;
+    }
+
     setSuccess('Event uploaded successfully.');
-    setTimeout(() => onSuccess(inserted as ExternalListing | undefined), 900);
+    setTimeout(() => onSuccess(insertedRow), 900);
   };
 
   return (
