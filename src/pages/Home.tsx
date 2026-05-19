@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye, Trash2, Shield } from 'lucide-react';
+import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
 import NotificationBell from '../components/NotificationBell';
 import { checkLocalReminders } from '../lib/localReminders';
 import { deriveStatus, statusPriority } from '../lib/eventSchedule';
@@ -197,11 +198,67 @@ export default function Home() {
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [detailPost, setDetailPost] = useState<ExtendedPost | null>(null);
   const [detailMarketplace, setDetailMarketplace] = useState<MarketplaceListing | null>(null);
-  const { user } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const { requireAuth } = useGuestAction();
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [savedMarketplaceIds, setSavedMarketplaceIds] = useState<Set<string>>(new Set());
+  // Optimistic-delete bookkeeping. `deletingIds` blocks repeat clicks
+  // while the request is in-flight. `removedIds` is a tombstone set so
+  // that any in-flight poll/live-feed merge can't resurrect a row the
+  // user just deleted. Toast is the user-facing confirmation.
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  // Ref mirror so loadAll() (memoized with []) can read the latest
+  // tombstone set without becoming stale or forcing a re-fetch loop.
+  const removedIdsRef = useRef<Set<string>>(removedIds);
+  useEffect(() => { removedIdsRef.current = removedIds; }, [removedIds]);
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const showToast = useCallback((message: string, tone: 'success' | 'error' = 'success') => {
+    setToast({ message, tone });
+    window.setTimeout(() => setToast(null), 3200);
+  }, []);
+
+  const handleDeletePost = useCallback(async (p: ExtendedPost) => {
+    if (!user) return;
+    if (deletingIds.has(p.id) || removedIds.has(p.id)) return;
+    if (!canDeletePost(user, profile, p)) {
+      showToast("You don't have permission to delete this post.", 'error');
+      return;
+    }
+    const adminAction = isAdmin && p.user_id !== user.id;
+    const confirmMsg = adminAction
+      ? `Admin Delete — permanently remove this listing from the platform?\n\nThis cannot be undone.`
+      : `Delete this listing?\n\nThis cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setDeletingIds((prev) => new Set(prev).add(p.id));
+    // Optimistic: hide from feed immediately and close detail modal if open.
+    setPosts((prev) => prev.filter((x) => x.id !== p.id));
+    setDetailPost((curr) => (curr?.id === p.id ? null : curr));
+
+    const res = await deletePost(communityPostToDeletable(p));
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(p.id);
+      return next;
+    });
+
+    if (res.ok) {
+      // Tombstone first so the next poll filter sees it, then re-apply the
+      // filter to posts immediately in case a live-feed poll landed during
+      // the in-flight delete and resurrected the row.
+      setRemovedIds((prev) => new Set(prev).add(p.id));
+      setPosts((prev) => prev.filter((x) => x.id !== p.id));
+      setListings((prev) => prev.filter((x) => x.id !== p.id));
+      setMarketplaceItems((prev) => prev.filter((x) => x.id !== p.id));
+      showToast(adminAction ? 'Admin delete: listing removed.' : 'Listing deleted.');
+    } else {
+      // Roll back optimistic removal.
+      setPosts((prev) => prev.some((x) => x.id === p.id) ? prev : [p, ...prev]);
+      showToast(`Couldn't delete: ${res.error ?? 'unknown error'}`, 'error');
+    }
+  }, [user, profile, isAdmin, deletingIds, removedIds, showToast]);
 
   useEffect(() => {
     if (user) fetchUserLikes(user.id).then(setUserLikes).catch(() => {});
@@ -324,9 +381,13 @@ export default function Home() {
       .then(([communityPosts, listingsRes, marketRes]) => {
         // Community posts is the PRIMARY feed source; it must render even
         // if one of the secondary tables returns an error or is missing.
-        setPosts(communityPosts as ExtendedPost[]);
-        if (listingsRes.data) setListings(listingsRes.data as ExternalListing[]);
-        if (marketRes.data) setMarketplaceItems(marketRes.data as MarketplaceListing[]);
+        // Filter through `removedIds` so the 10s live-feed poll cannot
+        // resurrect a row that the current user just deleted before the
+        // DB replication settles.
+        const tombstones = removedIdsRef.current;
+        setPosts((communityPosts as ExtendedPost[]).filter((p) => !tombstones.has(p.id)));
+        if (listingsRes.data) setListings((listingsRes.data as ExternalListing[]).filter((l) => !tombstones.has(l.id)));
+        if (marketRes.data) setMarketplaceItems((marketRes.data as MarketplaceListing[]).filter((m) => !tombstones.has(m.id)));
 
         // Treat the following Supabase errors as soft (don't surface to
         // the user, don't trigger backoff) — they mean an optional table
@@ -911,6 +972,25 @@ export default function Home() {
                       <Eye size={18} />
                     </button>
                   )}
+                  {canDeletePost(user, profile, p) && (
+                    <button
+                      style={{
+                        ...styles.actionBtn,
+                        marginLeft: 'auto',
+                        color: isAdmin && p.user_id !== user?.id
+                          ? 'var(--color-warning-600, #b45309)'
+                          : 'var(--color-error-600, #b91c1c)',
+                        opacity: deletingIds.has(p.id) ? 0.5 : 1,
+                        cursor: deletingIds.has(p.id) ? 'wait' : 'pointer',
+                      }}
+                      aria-label={isAdmin && p.user_id !== user?.id ? 'Admin delete' : 'Delete'}
+                      title={isAdmin && p.user_id !== user?.id ? 'Admin Delete' : 'Delete'}
+                      disabled={deletingIds.has(p.id)}
+                      onClick={(e) => { e.stopPropagation(); handleDeletePost(p); }}
+                    >
+                      {isAdmin && p.user_id !== user?.id ? <Shield size={18} /> : <Trash2 size={18} />}
+                    </button>
+                  )}
                 </div>
               </div>
             </article>
@@ -919,7 +999,40 @@ export default function Home() {
       </div>
 
       {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
-      {detailPost && <PostDetailModal post={detailPost} onClose={() => setDetailPost(null)} />}
+      {detailPost && (
+        <PostDetailModal
+          post={detailPost}
+          onClose={() => setDetailPost(null)}
+          canDelete={canDeletePost(user, profile, detailPost)}
+          isAdminDelete={isAdmin && detailPost.user_id !== user?.id}
+          deleting={deletingIds.has(detailPost.id)}
+          onDelete={() => handleDeletePost(detailPost)}
+        />
+      )}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
+            transform: 'translateX(-50%)',
+            backgroundColor: toast.tone === 'error' ? 'var(--color-error-600, #b91c1c)' : 'var(--color-neutral-900, #111)',
+            color: '#fff',
+            padding: '12px 18px',
+            borderRadius: 'var(--radius-md, 8px)',
+            fontSize: 'var(--font-size-sm, 14px)',
+            fontWeight: 600,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.25)',
+            zIndex: 2000,
+            maxWidth: 'min(92vw, 420px)',
+            textAlign: 'center',
+          }}
+        >
+          {toast.message}
+        </div>
+      )}
       {detailMarketplace && (
         <MarketplaceDetailModal
           listing={detailMarketplace}
@@ -933,7 +1046,21 @@ export default function Home() {
   );
 }
 
-function PostDetailModal({ post, onClose }: { post: ExtendedPost; onClose: () => void }) {
+function PostDetailModal({
+  post,
+  onClose,
+  canDelete = false,
+  isAdminDelete = false,
+  deleting = false,
+  onDelete,
+}: {
+  post: ExtendedPost;
+  onClose: () => void;
+  canDelete?: boolean;
+  isAdminDelete?: boolean;
+  deleting?: boolean;
+  onDelete?: () => void;
+}) {
   const loc = post.general_location || post.location || '';
   return (
     <div
@@ -999,6 +1126,38 @@ function PostDetailModal({ post, onClose }: { post: ExtendedPost; onClose: () =>
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
             Posted by @{post.profiles?.username || 'hunter'} • {new Date(post.created_at).toLocaleString()}
           </div>
+          {canDelete && onDelete && (
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              style={{
+                marginTop: 'var(--space-2)',
+                minHeight: 44,
+                padding: '10px 16px',
+                borderRadius: 'var(--radius-md, 8px)',
+                border: 'none',
+                cursor: deleting ? 'wait' : 'pointer',
+                backgroundColor: isAdminDelete
+                  ? 'var(--color-warning-600, #b45309)'
+                  : 'var(--color-error-600, #b91c1c)',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: 'var(--font-size-sm, 14px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                opacity: deleting ? 0.6 : 1,
+              }}
+            >
+              {isAdminDelete ? <Shield size={16} /> : <Trash2 size={16} />}
+              {deleting
+                ? 'Deleting…'
+                : isAdminDelete
+                  ? 'Admin Delete'
+                  : 'Delete'}
+            </button>
+          )}
         </div>
       </div>
     </div>

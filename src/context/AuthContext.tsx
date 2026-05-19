@@ -17,6 +17,7 @@ interface AuthContextType {
   exitGuestMode: () => void;
   updateProfile: (data: Partial<Profile>) => Promise<{ error: string | null }>;
   hasCompletedSetup: boolean;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -107,6 +108,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const hasCompletedSetup = !!profile?.username && profile.username.length > 0;
+  // Admin role is server-controlled (see prevent_profile_field_escalation
+  // trigger + the 20260519000001_admin_role_and_moderation migration).
+  // The client surfaces it for UI hints only — every privileged action
+  // is enforced again by Supabase RLS using public.is_admin().
+  const isAdmin = profile?.role === 'admin';
 
   return (
     <AuthContext.Provider
@@ -123,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         exitGuestMode,
         updateProfile,
         hasCompletedSetup,
+        isAdmin,
       }}
     >
       {children}

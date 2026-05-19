@@ -1969,3 +1969,104 @@ CREATE INDEX IF NOT EXISTS idx_external_listings_ends_at
 -- when start_at is missing so historical uploads continue rendering.
 
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================
+-- 20260519000001_admin_role_and_moderation.sql
+-- Admin role + owner/admin DELETE permission system
+-- ============================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'role'
+  ) THEN
+    ALTER TABLE profiles
+      ADD COLUMN role text NOT NULL DEFAULT 'user'
+      CHECK (role IN ('user', 'admin'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role) WHERE role = 'admin';
+
+CREATE OR REPLACE FUNCTION prevent_profile_field_escalation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF current_setting('request.jwt.claims', true) IS NOT NULL
+     AND current_setting('request.jwt.claims', true) != ''
+  THEN
+    NEW.xp               = OLD.xp;
+    NEW.level            = OLD.level;
+    NEW.reputation_score = OLD.reputation_score;
+    NEW.pro_member       = OLD.pro_member;
+    NEW.scout_verified   = OLD.scout_verified;
+    NEW.treasure_rank    = OLD.treasure_rank;
+    NEW.role             = OLD.role;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+REVOKE EXECUTE ON FUNCTION public.is_admin() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.is_admin() FROM anon;
+GRANT  EXECUTE ON FUNCTION public.is_admin() TO authenticated;
+
+DROP POLICY IF EXISTS "Users can delete own posts" ON community_posts;
+DROP POLICY IF EXISTS "Owner or admin can delete posts" ON community_posts;
+CREATE POLICY "Owner or admin can delete posts"
+  ON community_posts FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Users can delete own flash finds" ON flash_finds;
+DROP POLICY IF EXISTS "Owner or admin can delete flash finds" ON flash_finds;
+CREATE POLICY "Owner or admin can delete flash finds"
+  ON flash_finds FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Users can delete own listings" ON marketplace_listings;
+DROP POLICY IF EXISTS "Owner or admin can delete listings" ON marketplace_listings;
+CREATE POLICY "Owner or admin can delete listings"
+  ON marketplace_listings FOR DELETE
+  TO authenticated
+  USING (auth.uid() = seller_id OR public.is_admin());
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables WHERE table_name = 'external_listings'
+  ) THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Users can delete own external listings" ON external_listings';
+    EXECUTE 'DROP POLICY IF EXISTS "Owner or admin can delete external listings" ON external_listings';
+    EXECUTE $POL$
+      CREATE POLICY "Owner or admin can delete external listings"
+        ON external_listings FOR DELETE
+        TO authenticated
+        USING (auth.uid() = user_id OR public.is_admin())
+    $POL$;
+  END IF;
+END $$;
+
+DROP POLICY IF EXISTS "Admins can delete any avatar" ON storage.objects;
+CREATE POLICY "Admins can delete any avatar"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND public.is_admin());
+
+-- One-time owner promotion (replace 'matt' with the real username):
+-- UPDATE profiles SET role = 'admin' WHERE username = 'matt';
+
+NOTIFY pgrst, 'reload schema';

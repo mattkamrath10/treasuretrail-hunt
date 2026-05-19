@@ -17,6 +17,7 @@ export type Profile = {
   reputation_score: number;
   scout_verified: boolean;
   pro_member: boolean;
+  role: 'user' | 'admin';
   membership_tier: 'free' | 'pro';
   follower_count: number;
   following_count: number;

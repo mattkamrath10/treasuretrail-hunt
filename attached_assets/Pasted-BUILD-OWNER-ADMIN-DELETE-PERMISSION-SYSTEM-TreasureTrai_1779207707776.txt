@@ -1,0 +1,189 @@
+BUILD OWNER + ADMIN DELETE PERMISSION SYSTEM
+
+TreasureTrail now needs a real moderation/deletion architecture.
+
+GOAL
+
+Two permission levels:
+
+
+
+
+OWNER DELETE
+Users can delete ONLY their own listings.
+
+
+
+
+ADMIN DELETE
+Admin accounts can delete ANY listing across the platform.
+
+This must work for:
+
+Flash Finds
+Marketplace listings
+Rare Radar posts
+Live Events
+
+Start with Flash Finds first.
+
+Add admin role support.
+
+Recommended:
+profiles.role
+
+Values:
+
+user
+admin
+
+Current app owner/admin:
+Matt account
+
+NORMAL USER:
+
+Can see delete controls ONLY if:
+post.user_id === currentUser.id
+
+ADMIN:
+
+Can always see delete controls.
+
+Admin delete UI should visually indicate:
+“Admin Delete”
+
+CRITICAL:
+Do NOT rely only on frontend hiding.
+
+Supabase RLS policies must enforce:
+
+Users:
+
+can delete ONLY their own posts
+
+Admins:
+
+can delete ANY post
+
+Implement proper RLS policies.
+
+When delete confirmed:
+
+
+
+
+Delete storage image if exists
+
+
+
+
+Delete DB row
+
+
+
+
+Optimistically remove from:
+
+Home Feed
+Flash Finds
+Profile
+live feed state
+
+
+
+Refresh live feeds
+
+
+
+
+Show toast:
+“Listing deleted.”
+
+Structure system so future moderation tools can be added easily:
+
+Future admin actions:
+
+Hide listing
+Suspend user
+Ban user
+Remove scam/spam
+Mark counterfeit
+Restore deleted post
+Review reports queue
+
+Do NOT hardcode delete logic separately per feed.
+
+Build reusable helpers:
+
+canDeletePost(user, post)
+deletePost(postId, type)
+
+FlashFindDetailModal should support:
+
+Owner:
+
+edit
+delete
+
+Admin:
+
+admin delete
+moderation tools placeholder
+
+Prevent:
+
+double delete clicks
+deleting already-removed posts
+stale optimistic state
+unauthorized deletes
+
+Test:
+
+
+
+
+user deletes own post
+
+
+
+
+user cannot delete another user’s post
+
+
+
+
+admin deletes any post
+
+
+
+
+feed updates instantly
+
+
+
+
+deleted posts stay deleted after refresh
+
+
+
+
+storage cleanup works
+
+
+
+
+live polling remains stable
+
+Generate:
+MODERATION_DELETE_SYSTEM.md
+
+Include:
+
+permission architecture
+RLS rules
+optimistic deletion flow
+admin moderation roadmap
+rollback handling
+security notes
+
+Republish after completion.
