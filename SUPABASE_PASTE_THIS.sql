@@ -2953,3 +2953,40 @@ BEGIN
   END IF;
 END
 $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2026-05-19 (h) Guest read access for Home feed + Live events
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Lets signed-out (anon) visitors SELECT from the publicly-browsable
+-- tables so the Home feed and Live Hub render for guests. Writes still
+-- require auth. Safe to re-run.
+
+DROP POLICY IF EXISTS "Anyone can view community posts" ON public.community_posts;
+CREATE POLICY "Anyone can view community posts"
+  ON public.community_posts FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Anyone can view active external listings" ON public.external_listings;
+CREATE POLICY "Anyone can view active external listings"
+  ON public.external_listings FOR SELECT
+  TO anon, authenticated
+  USING (COALESCE(status, 'active') = 'active');
+
+DROP POLICY IF EXISTS "Anyone can view active marketplace listings" ON public.marketplace_listings;
+CREATE POLICY "Anyone can view active marketplace listings"
+  ON public.marketplace_listings FOR SELECT
+  TO anon, authenticated
+  USING (status = 'active');
+
+DROP POLICY IF EXISTS "Anyone can view auctions" ON public.auctions;
+CREATE POLICY "Anyone can view auctions"
+  ON public.auctions FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Anyone can view public profile fields" ON public.profiles;
+CREATE POLICY "Anyone can view public profile fields"
+  ON public.profiles FOR SELECT
+  TO anon
+  USING (true);
