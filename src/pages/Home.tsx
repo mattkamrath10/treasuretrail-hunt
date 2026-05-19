@@ -1998,6 +1998,15 @@ const styles: Record<string, React.CSSProperties> = {
     animation: 'slideUp 0.4s ease forwards',
     opacity: 0,
     animationFillMode: 'forwards',
+    // CRITICAL: the feed wrapper is `display: flex; flex-direction: column`.
+    // Flex children default to `flex-shrink: 1`, which means once total card
+    // content exceeds the feed's available height, every card squashes
+    // proportionally instead of the feed scrolling. Image-less cards
+    // collapse to just their badge row (see HOME_FEED_LAYOUT_AUDIT.md).
+    // Pinning shrink to 0 makes each card render at its natural height and
+    // forces the feed's `overflow:auto` to actually take over.
+    flexShrink: 0,
+    width: '100%',
   },
   cardImageContainer: {
     position: 'relative',

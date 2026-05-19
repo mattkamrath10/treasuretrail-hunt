@@ -1,0 +1,136 @@
+CRITICAL HOME FEED LAYOUT FIX
+
+The Home Feed layout is fundamentally incorrect.
+
+Current issue:
+
+Each new Flash Find card compresses previous cards vertically.
+
+Symptoms:
+
+cards squash together
+image heights shrink progressively
+older cards become thin strips
+feed items appear stacked inside one constrained container
+newest card is tallest
+older cards compress more and more
+
+This is NOT an image issue anymore.
+
+This is a FEED CONTAINER / CSS LAYOUT bug.
+
+ROOT CAUSE LIKELY:
+
+fixed-height parent container
+flexbox shrink behavior
+overflow-hidden on feed wrapper
+cards sharing height incorrectly
+grid/flex misuse
+image wrapper using percentage height from constrained parent
+feed using h-screen/min-h-screen incorrectly
+nested scroll container issue
+
+GOAL
+
+Every feed card must own its own independent vertical space.
+
+The Home Feed must grow infinitely downward.
+
+Cards should NEVER compress each other vertically.
+
+Audit ALL feed wrappers:
+
+Home Feed container
+feed list wrapper
+scroll container
+card wrapper
+image wrapper
+
+Verify:
+
+NO parent container uses:
+
+fixed height
+max-height
+overflow-hidden
+flex-shrink
+align-stretch causing compression
+
+Each feed card must:
+
+render independently
+maintain fixed proportional image area
+have its own natural vertical height
+push newer cards downward
+never resize neighboring cards
+
+Recommended:
+
+display: flex
+flex-direction: column
+
+OR
+
+standard vertical block layout
+
+DO NOT allow feed cards to share vertical space.
+
+Image containers must use:
+
+fixed aspect ratio
+OR
+fixed min-height
+
+Example:
+aspect-ratio: 4 / 3;
+min-height: 220px;
+
+Images:
+object-fit: cover;
+
+The scrolling page itself should grow naturally.
+
+DO NOT trap cards inside:
+
+constrained flex parents
+fixed viewport-height wrappers
+nested scrolling containers
+
+Test with:
+
+5+
+10+
+20+
+30+ feed items
+
+Verify:
+
+no compression
+no overlapping
+no shrinking
+cards remain readable
+images remain proportional
+scrolling remains smooth
+infinite vertical feed works correctly
+
+Temporarily outline:
+
+feed container
+card wrapper
+image wrapper
+
+with debug borders/colors to visually confirm layout hierarchy.
+
+Generate:
+HOME_FEED_LAYOUT_AUDIT.md
+
+Include:
+
+root cause
+incorrect parent container
+before/after layout tree
+CSS fixes
+mobile findings
+scroll performance notes
+
+Republish after completion.
