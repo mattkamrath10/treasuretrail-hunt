@@ -1,0 +1,265 @@
+TREASURETRAIL — PHASE 9
+TRUST, RETENTION, POLISH & PLATFORM QUALITY
+
+TreasureTrail now has:
+
+feeds
+uploads
+profiles
+listing detail pages
+messaging
+scout requests
+saved listings
+interaction routing
+
+Next milestone:
+make the platform feel trustworthy, polished, rewarding, and socially alive.
+
+Transform TreasureTrail from:
+“functional marketplace prototype”
+
+into:
+“real social marketplace ecosystem”
+
+Focus:
+
+trust
+retention
+engagement
+onboarding
+quality
+performance
+REPUTATION SYSTEM
+VERIFIED SCOUT SYSTEM
+ONBOARDING FLOW
+ENGAGEMENT METRICS
+NOTIFICATION IMPROVEMENTS
+SHARE PREVIEW SYSTEM
+IMAGE OPTIMIZATION
+REPORT/BLOCK TOOLS
+PERFORMANCE + POLISH
+FEED QUALITY IMPROVEMENTS
+
+========================================
+
+REPUTATION SYSTEM
+========================================
+
+Add user reputation scoring.
+
+Profile should display:
+
+total listings
+response rate
+successful scout assists
+account age
+saved listing count
+profile completeness
+
+Create:
+reputation_score field
+
+Future-ready:
+
+badges
+trusted seller
+verified picker
+top scout
+
+NO fake scores.
+
+Use real activity.
+
+Add:
+“Verified Scout” infrastructure.
+
+Initial version:
+manual admin approval.
+
+Add:
+
+scout_applications table
+verification badge support
+admin approval state
+
+Profiles should show:
+
+Verified Scout badge
+Coming Soon tooltip if inactive
+
+Create first-time user onboarding.
+
+After signup:
+show:
+
+how TreasureTrail works
+how to upload
+how scouting works
+how messaging works
+how saved listings work
+
+Add:
+
+dismissible onboarding cards
+progress steps
+“Complete your profile”
+
+Track:
+
+listing views
+saves
+profile visits
+scout requests
+message starts
+
+Display:
+“12 people viewed this”
+“3 users saved this”
+
+Use real counts only.
+
+Expand alerts system.
+
+Notify for:
+
+new messages
+scout requests
+listing saves
+profile follows
+reputation milestones
+
+Improve unread indicators.
+
+Improve social sharing.
+
+Generate proper:
+
+Open Graph tags
+listing previews
+seller previews
+dynamic preview images later
+
+Listing links should preview correctly on:
+
+Facebook
+Discord
+iMessage
+Slack
+Twitter/X
+
+Improve upload pipeline.
+
+Requirements:
+
+compress oversized images
+preserve aspect ratio
+generate thumbnails
+lazy load images
+smooth fade-in
+
+Prevent:
+
+huge uploads
+broken aspect ratios
+oversized payloads
+
+Add:
+
+Report Listing
+Block User
+Hide Seller
+
+Admin moderation groundwork:
+
+moderation queue later
+
+No fake moderation actions.
+
+Audit:
+
+unnecessary rerenders
+image layout shifts
+polling overlap
+memory leaks
+slow feed rendering
+
+Verify:
+
+smooth scrolling
+no card jumping
+stable image heights
+no mobile overflow
+safe-area spacing
+
+Improve feed ranking.
+
+Prioritize:
+
+active listings
+recent uploads
+listings with engagement
+nearby finds later
+
+Prevent:
+
+duplicate posts
+stale placeholders
+empty cards
+broken media
+
+Profiles should feel like:
+
+storefronts
+collector pages
+scout identities
+
+Add:
+
+uploaded finds count
+member since
+saves received
+reputation badge
+scout status
+
+Admin can:
+
+remove listings
+moderate reports
+verify scouts
+disable abusive accounts
+
+Verify:
+
+onboarding works on mobile
+sticky bars behave correctly
+image galleries swipe smoothly
+keyboards don’t overlap chat
+cards animate smoothly
+
+Generate:
+
+PHASE9_PLATFORM_POLISH_AUDIT.md
+
+Include:
+
+trust architecture
+reputation logic
+onboarding flow
+performance findings
+moderation groundwork
+notification architecture
+mobile findings
+future monetization hooks
+
+Verify:
+
+TypeScript clean
+no console errors
+all new actions functional
+no fake states
+no dead buttons
+app boots cleanly
+feeds still auto-refresh
+messaging still works
+
+Republish after completion.

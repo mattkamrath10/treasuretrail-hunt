@@ -11,6 +11,9 @@ export type NotificationType =
   | 'follow'
   | 'listing_saved'
   | 'listing_shared'
+  | 'scout_request'
+  | 'scout_application'
+  | 'reputation_milestone'
   | 'general';
 
 export type NotificationInput = {
@@ -52,7 +55,15 @@ export async function createNotification(input: NotificationInput): Promise<{ er
  */
 export async function notifyUser(input: {
   target_user_id: string;
-  type: 'follow' | 'message' | 'scout_response' | 'listing_saved' | 'listing_shared';
+  type:
+    | 'follow'
+    | 'message'
+    | 'scout_response'
+    | 'listing_saved'
+    | 'listing_shared'
+    | 'scout_request'
+    | 'scout_application'
+    | 'reputation_milestone';
   title: string;
   content?: string;
   related_item_id?: string | null;

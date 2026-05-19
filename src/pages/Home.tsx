@@ -12,6 +12,7 @@ import { useLiveFeed } from '../hooks/useLiveFeed';
 import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
+import { fetchBlockedIds } from '../lib/blocks';
 import type { CommunityPost } from '../lib/supabase';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -210,6 +211,12 @@ export default function Home() {
   // user just deleted. Toast is the user-facing confirmation.
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
+  const blockedIdsRef = useRef<Set<string>>(blockedIds);
+  useEffect(() => { blockedIdsRef.current = blockedIds; }, [blockedIds]);
+  // First-time post-login onboarding checklist. Separate flag from the
+  // pre-login splash (`tt_onboarded`) so signing in still triggers it.
+  const [showHomeOnboarding, setShowHomeOnboarding] = useState(false);
   // Ref mirror so loadAll() (memoized with []) can read the latest
   // tombstone set without becoming stale or forcing a re-fetch loop.
   const removedIdsRef = useRef<Set<string>>(removedIds);
@@ -262,6 +269,7 @@ export default function Home() {
 
   useEffect(() => {
     if (user) fetchUserLikes(user.id).then(setUserLikes).catch(() => {});
+    if (user) fetchBlockedIds(user.id).then(setBlockedIds).catch(() => {});
     try {
       const raw = localStorage.getItem('tt_saved_posts');
       if (raw) setSavedIds(new Set(JSON.parse(raw)));
@@ -271,6 +279,22 @@ export default function Home() {
       if (raw) setSavedMarketplaceIds(new Set(JSON.parse(raw)));
     } catch {}
   }, [user]);
+
+  // Surface the post-login onboarding checklist exactly once per device,
+  // gated on auth so anonymous visitors don't see a "complete your profile"
+  // prompt. Hidden again once dismissed.
+  useEffect(() => {
+    if (!user) { setShowHomeOnboarding(false); return; }
+    try {
+      const done = localStorage.getItem('tt_home_onboarded') === '1';
+      setShowHomeOnboarding(!done);
+    } catch { setShowHomeOnboarding(false); }
+  }, [user]);
+
+  const dismissHomeOnboarding = useCallback(() => {
+    try { localStorage.setItem('tt_home_onboarded', '1'); } catch {}
+    setShowHomeOnboarding(false);
+  }, []);
 
   const handleLike = useCallback((id: string) => {
     requireAuth(() => {
@@ -557,6 +581,22 @@ export default function Home() {
     if (q) {
       v = v.filter((i) => i.searchText.includes(q));
     }
+    // T010 — drop blocked users' content and obviously-broken cards (no
+    // title/caption AND no image). Blocked filter is soft UX, enforced
+    // client-side only; broken-card filter keeps the feed presentable.
+    if (blockedIds.size > 0) {
+      v = v.filter((i) => {
+        const r: any = i.raw;
+        const ownerId = r.user_id ?? r.seller_id ?? r.submitted_by ?? null;
+        return !ownerId || !blockedIds.has(ownerId);
+      });
+    }
+    v = v.filter((i) => {
+      const r: any = i.raw;
+      const hasTitle = !!(r.title || r.caption);
+      const hasImage = !!(r.image_url || r.image || (Array.isArray(r.images) && r.images.length > 0));
+      return hasTitle || hasImage;
+    });
     if (activeSort === 'ending_soon') {
       v = v.filter((i) => isFinite(i.sortEndingSoon));
     }
@@ -573,7 +613,7 @@ export default function Home() {
       ending_soon: (a, b) => a.sortEndingSoon - b.sortEndingSoon,
     };
     return v.slice().sort(cmp[activeSort]);
-  }, [items, activeFilter, activeSort, locationQuery, searchQuery]);
+  }, [items, activeFilter, activeSort, locationQuery, searchQuery, blockedIds]);
 
   // Pin the highlighted item to the top so it's immediately visible.
   const orderedItems = useMemo(() => {
@@ -723,6 +763,46 @@ export default function Home() {
           >
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {user && showHomeOnboarding && (
+        <div style={styles.onboardCard} role="region" aria-label="Get started checklist">
+          <div style={styles.onboardHeader}>
+            <Crown size={16} style={{ color: 'var(--color-primary-500)' }} />
+            <span style={styles.onboardTitle}>Get started on TreasureTrail</span>
+            <button
+              onClick={dismissHomeOnboarding}
+              style={styles.onboardDismiss}
+              aria-label="Dismiss"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <ul style={styles.onboardList}>
+            <li style={styles.onboardItem}>
+              <span style={(profile?.bio && profile?.avatar_url) ? styles.onboardCheckOn : styles.onboardCheckOff}>
+                {(profile?.bio && profile?.avatar_url) ? '✓' : '1'}
+              </span>
+              <button onClick={() => navigate('/profile')} style={styles.onboardLink}>
+                Complete your profile
+              </button>
+            </li>
+            <li style={styles.onboardItem}>
+              <span style={styles.onboardCheckOff}>2</span>
+              <button onClick={() => navigate('/create')} style={styles.onboardLink}>
+                Share your first find
+              </button>
+            </li>
+            <li style={styles.onboardItem}>
+              <span style={((profile?.following_count ?? 0) > 0) ? styles.onboardCheckOn : styles.onboardCheckOff}>
+                {((profile?.following_count ?? 0) > 0) ? '✓' : '3'}
+              </span>
+              <button onClick={() => navigate('/community')} style={styles.onboardLink}>
+                Follow your first scout
+              </button>
+            </li>
+          </ul>
         </div>
       )}
 
@@ -1722,6 +1802,41 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  onboardCard: {
+    display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+    margin: '0 var(--space-4) var(--space-3)',
+    padding: 'var(--space-3) var(--space-4)',
+    backgroundColor: 'var(--color-primary-50)',
+    border: '1px solid var(--color-primary-100)',
+    borderRadius: 'var(--radius-lg)',
+  },
+  onboardHeader: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
+  onboardTitle: { flex: 1, fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-neutral-900)' },
+  onboardDismiss: {
+    width: 28, height: 28, borderRadius: 'var(--radius-md)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'transparent', border: 'none', color: 'var(--color-neutral-500)', cursor: 'pointer',
+  },
+  onboardList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
+  onboardItem: { display: 'flex', alignItems: 'center', gap: 10, minHeight: 36 },
+  onboardCheckOn: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 22, height: 22, borderRadius: '50%',
+    backgroundColor: 'var(--color-primary-500)', color: '#fff',
+    fontSize: 12, fontWeight: 700,
+  },
+  onboardCheckOff: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 22, height: 22, borderRadius: '50%',
+    backgroundColor: 'var(--color-neutral-0)', color: 'var(--color-neutral-500)',
+    border: '1px solid var(--color-neutral-200)',
+    fontSize: 12, fontWeight: 700,
+  },
+  onboardLink: {
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+    color: 'var(--color-neutral-800)', fontSize: 'var(--font-size-sm)', fontWeight: 500,
+    textAlign: 'left',
   },
   highlightBanner: {
     display: 'flex',

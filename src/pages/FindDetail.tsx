@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
+import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 
 type FullPost = CommunityPost & {
   general_location?: string | null;
@@ -54,6 +55,7 @@ export default function FindDetail() {
   const [toast, setToast] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [imageZoomed, setImageZoomed] = useState(false);
+  const [engagement, setEngagement] = useState<{ view_count: number; save_count: number }>({ view_count: 0, save_count: 0 });
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -104,6 +106,19 @@ export default function FindDetail() {
       setSaved(Array.isArray(ids) && ids.includes(id));
     } catch { /* ignore parse errors */ }
   }, [id]);
+
+  // ---- track view + load engagement counts ------------------------------
+  // Same shape as ListingDetail: anonymous viewers don't write rows; the
+  // counter view returns 0 for those callers, which renders an empty strip.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    if (user) trackListingView(id, 'community_post').catch(() => {});
+    fetchListingEngagement(id, 'community_post').then((e) => {
+      if (!cancelled) setEngagement(e);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [id, user]);
 
   // ---- action handlers --------------------------------------------------
   const handleBack = () => {
@@ -263,6 +278,21 @@ export default function FindDetail() {
         <div style={styles.body}>
           {/* title */}
           <h1 style={styles.title}>{(post.caption ?? '').trim() || 'Untitled Find'}</h1>
+
+          {(engagement.view_count > 0 || engagement.save_count > 0) && (
+            <div style={styles.engagementRow}>
+              {engagement.view_count > 0 && (
+                <span style={styles.engagementChip}>
+                  <Eye size={13} /> {engagement.view_count} {engagement.view_count === 1 ? 'viewer' : 'viewers'}
+                </span>
+              )}
+              {engagement.save_count > 0 && (
+                <span style={styles.engagementChip}>
+                  <Bookmark size={13} /> {engagement.save_count} {engagement.save_count === 1 ? 'save' : 'saves'}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* uploader row — only interactive when we actually have a
               username to navigate to. If the post has no joined profile
@@ -554,6 +584,13 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-neutral-900)',
     lineHeight: 1.25,
     margin: 0,
+  },
+  engagementRow: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  engagementChip: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '4px 10px', borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)',
+    fontSize: 'var(--font-size-xs)', fontWeight: 600,
   },
   uploaderRow: {
     display: 'flex',

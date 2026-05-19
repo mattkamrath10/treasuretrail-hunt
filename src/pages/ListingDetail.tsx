@@ -14,6 +14,9 @@ import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
 import { getOrCreateConversation } from '../lib/messaging';
 import { saveListing, unsaveListing, isListingSaved } from '../lib/savedListings';
 import { createScoutRequest, hasOpenScoutRequest } from '../lib/scouts';
+import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
+import { blockUser, isUserBlocked } from '../lib/blocks';
+import { notifyUser } from '../lib/notifications';
 
 type FullListing = MarketplaceListing & {
   description?: string | null;
@@ -43,6 +46,12 @@ export default function ListingDetail() {
   const [toast, setToast] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [imageZoomed, setImageZoomed] = useState(false);
+  // Engagement counters surfaced under the title: "N viewed · N saved".
+  // Defaults are 0; we fill them in after fetchListingEngagement resolves.
+  const [engagement, setEngagement] = useState<{ view_count: number; save_count: number }>({ view_count: 0, save_count: 0 });
+  // Seller block state — owners never see the option.
+  const [blocked, setBlocked] = useState(false);
+  const [blocking, setBlocking] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -77,9 +86,28 @@ export default function ListingDetail() {
     if (listing.seller_id && listing.seller_id !== user.id) {
       checkIsFollowing(user.id, listing.seller_id).then((v) => { if (!cancelled) setFollowing(v); });
       hasOpenScoutRequest(id, LISTING_KIND, user.id).then((v) => { if (!cancelled) setScoutSent(v); });
+      isUserBlocked(user.id, listing.seller_id).then((v) => { if (!cancelled) setBlocked(v); });
     }
     return () => { cancelled = true; };
   }, [id, user, listing]);
+
+  // ---- engagement: fire-and-forget view track + load counters ----------
+  // We deliberately run this once per listing id (not per render) and don't
+  // gate it on `user` — the RPC silently ignores anonymous viewers, so the
+  // call is cheap when signed out. Counter fetch is unauthenticated-safe
+  // because the views/saves count views grant SELECT to authenticated only;
+  // anonymous returns 0s, which is fine for V1.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    if (user) {
+      trackListingView(id, LISTING_KIND).catch(() => {});
+    }
+    fetchListingEngagement(id, LISTING_KIND).then((e) => {
+      if (!cancelled) setEngagement(e);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [id, user]);
 
   // ---- guest fallback for saved-state (localStorage) -------------------
   useEffect(() => {
@@ -118,13 +146,42 @@ export default function ListingDetail() {
       : saveListing(user.id, id, LISTING_KIND);
     const next = !saved;
     setSaved(next); // optimistic
+    // Optimistic counter bump so the count moves in lockstep with the
+    // heart icon. Rolled back below on error.
+    setEngagement((e) => ({ ...e, save_count: Math.max(0, e.save_count + (next ? 1 : -1)) }));
     const { error } = await op;
     if (error) {
       setSaved(!next); // rollback
+      setEngagement((e) => ({ ...e, save_count: Math.max(0, e.save_count + (next ? -1 : 1)) }));
       showToast(error);
     } else {
       showToast(next ? 'Saved to your list' : 'Removed from saved');
+      // Notify the seller on save (not unsave). Best-effort; ignore errors.
+      if (next && listing?.seller_id && listing.seller_id !== user.id) {
+        notifyUser({
+          target_user_id: listing.seller_id,
+          type: 'listing_saved',
+          title: 'Someone saved your listing',
+          content: listing.title || 'Your listing was saved.',
+          related_item_id: listing.id,
+          related_item_type: 'marketplace_listing',
+        }).catch(() => {});
+      }
     }
+  };
+
+  const handleBlock = async () => {
+    if (!user || !listing?.seller_id || blocking) return;
+    if (listing.seller_id === user.id) return;
+    setBlocking(true);
+    const { error } = await blockUser(user.id, listing.seller_id);
+    setBlocking(false);
+    if (error) { showToast(error); return; }
+    setBlocked(true);
+    showToast(`Blocked @${listing.profiles?.username || 'seller'}`);
+    // Take the user back to the marketplace — they've explicitly chosen
+    // not to see this seller's content.
+    window.setTimeout(() => navigate('/marketplace'), 700);
   };
 
   const handleShare = async () => {
@@ -298,6 +355,24 @@ export default function ListingDetail() {
         <div style={styles.body}>
           <h1 style={styles.title}>{(listing.title ?? '').trim() || 'Untitled listing'}</h1>
 
+          {/* Engagement strip — real, deduped counts from listing_view_counts
+              + listing_save_counts. Empty when both are zero so freshly
+              posted listings don't display a depressing "0 viewed · 0 saved". */}
+          {(engagement.view_count > 0 || engagement.save_count > 0) && (
+            <div style={styles.engagementRow}>
+              {engagement.view_count > 0 && (
+                <span style={styles.engagementChip}>
+                  <Eye size={13} /> {engagement.view_count} {engagement.view_count === 1 ? 'viewer' : 'viewers'}
+                </span>
+              )}
+              {engagement.save_count > 0 && (
+                <span style={styles.engagementChip}>
+                  <Bookmark size={13} /> {engagement.save_count} {engagement.save_count === 1 ? 'save' : 'saves'}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* uploader row — non-interactive when username unknown to avoid dead clicks */}
           {listing.profiles?.username ? (
             <button onClick={handleProfileClick} style={{ ...styles.uploaderRow, cursor: 'pointer' }} aria-label={`View @${username}'s profile`}>
@@ -383,6 +458,13 @@ export default function ListingDetail() {
                 />
                 <ActionButton icon={Bookmark} label={saved ? 'Saved' : 'Save Listing'} active={saved} onClick={handleSave} />
                 <ActionButton icon={Share2} label="Share" onClick={handleShare} />
+                <ActionButton
+                  icon={Shield}
+                  label={blocked ? 'Blocked' : (blocking ? 'Blocking…' : 'Block Seller')}
+                  active={blocked}
+                  disabled={blocked || blocking || !user || !listing.seller_id || listing.seller_id === user?.id}
+                  onClick={handleBlock}
+                />
                 <ActionButton icon={Flag} label="Report" disabled hint="Coming Soon" onClick={() => {}} />
               </>
             )}
@@ -492,6 +574,13 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: 720, margin: '0 auto', width: '100%', boxSizing: 'border-box',
   },
   title: { fontSize: 'var(--font-size-xl)', fontWeight: 800, color: 'var(--color-neutral-900)', lineHeight: 1.25, margin: 0 },
+  engagementRow: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  engagementChip: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '4px 10px', borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)',
+    fontSize: 'var(--font-size-xs)', fontWeight: 600,
+  },
   uploaderRow: {
     display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
     padding: 'var(--space-3)', minHeight: 56,

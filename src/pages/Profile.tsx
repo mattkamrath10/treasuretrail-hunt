@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
 import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
+import { compressImage } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity' | 'scouts';
@@ -150,12 +151,31 @@ function ProfileHeader({ profile }: { profile: any }) {
     setUploadError('');
 
     try {
-      const ext = file.name.split('.').pop() || 'jpg';
+      // Avatars only need a small square — 512px is plenty for retina at
+      // 88px display. We compress before upload so the storage bucket
+      // never holds a 10MB selfie. If compression fails (e.g. an exotic
+      // HEIC the canvas can't decode), we fall back to the raw file.
+      let uploadBlob: Blob = file;
+      let ext = file.name.split('.').pop() || 'jpg';
+      try {
+        const dataUrl: string = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result as string);
+          r.onerror = () => reject(r.error);
+          r.readAsDataURL(file);
+        });
+        const compressed = await compressImage(dataUrl, 512, 0.85);
+        const cres = await fetch(compressed);
+        uploadBlob = await cres.blob();
+        ext = 'jpg';
+      } catch {
+        // keep raw file
+      }
       const path = `${user.id}/avatar-${Date.now()}.${ext}`;
 
       const { error: uploadErr } = await supabase.storage
         .from('avatars')
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, uploadBlob, { upsert: true, contentType: uploadBlob.type || file.type });
 
       if (uploadErr) throw new Error(uploadErr.message);
 

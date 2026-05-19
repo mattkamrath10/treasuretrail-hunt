@@ -45,6 +45,7 @@ interface FlashFindForm {
   meetup_notes: string;
 }
 
+import { compressImage } from '../lib/imageCompress';
 import LocationFields, { type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect, { getMarketplaceLabel as _shared_getMarketplaceLabel } from '../components/listing/MarketplaceFoundSelect';
@@ -208,8 +209,20 @@ export default function FlashFinds() {
       let imageUrl: string | undefined;
       if (photoUrl) {
         try {
-          const res = await fetch(photoUrl);
-          const blob = await res.blob();
+          // Compress before upload: caps long edge at 1600px and re-encodes
+          // as JPEG q=0.82, which trims a typical 4-8MB phone capture down
+          // to ~300-600KB. compressImage is a no-op for non-image src and
+          // gracefully throws if the canvas pipeline fails — in that case
+          // we fall back to the original blob so the post still goes out.
+          let blob: Blob;
+          try {
+            const compressedDataUrl = await compressImage(photoUrl, 1600, 0.82);
+            const cres = await fetch(compressedDataUrl);
+            blob = await cres.blob();
+          } catch {
+            const res = await fetch(photoUrl);
+            blob = await res.blob();
+          }
           const ext = blob.type.split('/')[1] || 'jpg';
           // Path order matters: the `avatars` bucket RLS requires the
           // FIRST folder segment to equal `auth.uid()`. The previous

@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader } from 'lucide-react';
+import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader, MessageCircle, BadgeCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
 import { notifyUser } from '../lib/notifications';
+import { accountAge, reputationTier, normalizeReputation } from '../lib/reputation';
+import { submitScoutApplication, fetchMyScoutApplication, type ScoutApplication } from '../lib/scoutApplications';
+import { getOrCreateConversation } from '../lib/messaging';
+import { blockUser, isUserBlocked } from '../lib/blocks';
 
 export default function PublicProfile() {
   const { username } = useParams<{ username: string }>();
@@ -16,6 +20,26 @@ export default function PublicProfile() {
   const [notFound, setNotFound] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
+  // Counts that aren't denormalized on profiles — we fetch them lazily so
+  // the profile card paints immediately and the storefront numbers fill in.
+  const [findsCount, setFindsCount] = useState<number | null>(null);
+  const [savesReceived, setSavesReceived] = useState<number | null>(null);
+  // Scout-application state. Owner-only — non-owners see the verified badge.
+  const [myApp, setMyApp] = useState<ScoutApplication | null>(null);
+  const [appOpen, setAppOpen] = useState(false);
+  const [appPitch, setAppPitch] = useState('');
+  const [appRegion, setAppRegion] = useState('');
+  const [appBusy, setAppBusy] = useState(false);
+  const [appError, setAppError] = useState<string | null>(null);
+  // Message + block (non-owner only)
+  const [messaging, setMessaging] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (m: string) => {
+    setToast(m);
+    window.setTimeout(() => setToast((t) => (t === m ? null : t)), 2400);
+  };
 
   useEffect(() => {
     if (!username) { setNotFound(true); setLoading(false); return; }
@@ -34,9 +58,103 @@ export default function PublicProfile() {
   useEffect(() => {
     if (!user || !profile?.id || user.id === profile.id) return;
     checkIsFollowing(user.id, profile.id).then(setFollowing).catch(() => {});
+    isUserBlocked(user.id, profile.id).then(setBlocked).catch(() => {});
   }, [user, profile?.id]);
 
   const isSelf = !!user && !!profile && user.id === profile.id;
+
+  // Storefront counts: total finds (community_posts + marketplace_listings),
+  // and saves received across both. Both queries use HEAD+count so we don't
+  // pull row payloads — this is a constant-cost network call per profile.
+  useEffect(() => {
+    if (!profile?.id) return;
+    let cancelled = false;
+    Promise.all([
+      supabase.from('community_posts').select('id', { count: 'exact', head: true }).eq('user_id', profile.id),
+      supabase.from('marketplace_listings').select('id', { count: 'exact', head: true }).eq('seller_id', profile.id),
+    ]).then(([a, b]) => {
+      if (cancelled) return;
+      setFindsCount((a.count ?? 0) + (b.count ?? 0));
+    }).catch(() => { if (!cancelled) setFindsCount(0); });
+
+    // Saves received: count saved_listings rows where the underlying listing
+    // belongs to this user. We approximate by joining via two HEAD counts
+    // against listing_save_counts × ownership — for V1 this stays simple
+    // and just sums save_count over rows whose listing the user owns.
+    // (Heavy aggregation; cap to first 200 listings to bound cost.)
+    (async () => {
+      try {
+        const [posts, listings] = await Promise.all([
+          supabase.from('community_posts').select('id').eq('user_id', profile.id).limit(200),
+          supabase.from('marketplace_listings').select('id').eq('seller_id', profile.id).limit(200),
+        ]);
+        const ids: { id: string; kind: 'community_post' | 'marketplace' }[] = [];
+        for (const r of (posts.data ?? [])) ids.push({ id: (r as any).id, kind: 'community_post' });
+        for (const r of (listings.data ?? [])) ids.push({ id: (r as any).id, kind: 'marketplace' });
+        if (ids.length === 0) { if (!cancelled) setSavesReceived(0); return; }
+        const { data: counts } = await supabase
+          .from('listing_save_counts')
+          .select('listing_id, listing_kind, save_count')
+          .in('listing_id', ids.map((x) => x.id));
+        let total = 0;
+        for (const c of counts ?? []) {
+          if (ids.some((x) => x.id === (c as any).listing_id && x.kind === (c as any).listing_kind)) {
+            total += (c as any).save_count ?? 0;
+          }
+        }
+        if (!cancelled) setSavesReceived(total);
+      } catch { if (!cancelled) setSavesReceived(0); }
+    })();
+
+    return () => { cancelled = true; };
+  }, [profile?.id]);
+
+  // Self-only: hydrate the latest scout application so the CTA reflects state.
+  useEffect(() => {
+    if (!user || !profile?.id || user.id !== profile.id) return;
+    fetchMyScoutApplication(user.id).then(setMyApp).catch(() => {});
+  }, [user, profile?.id]);
+
+  const handleMessage = async () => {
+    if (!user) { showToast('Sign in to message'); return; }
+    if (!profile?.id || isSelf || messaging) return;
+    setMessaging(true);
+    const { conversationId, error } = await getOrCreateConversation({
+      otherUserId: profile.id,
+    });
+    setMessaging(false);
+    if (error || !conversationId) { showToast(error || 'Could not open chat'); return; }
+    navigate(`/messages/${conversationId}`);
+  };
+
+  const handleBlock = async () => {
+    if (!user || !profile?.id || isSelf || blockBusy) return;
+    setBlockBusy(true);
+    const { error } = await blockUser(user.id, profile.id);
+    setBlockBusy(false);
+    if (error) { showToast(error); return; }
+    setBlocked(true);
+    showToast(`Blocked @${profile.username}`);
+    window.setTimeout(() => navigate('/'), 700);
+  };
+
+  const handleSubmitScoutApp = async () => {
+    if (!user || appBusy) return;
+    setAppBusy(true);
+    setAppError(null);
+    const { application, error } = await submitScoutApplication({
+      applicantId: user.id,
+      pitch: appPitch,
+      region: appRegion,
+    });
+    setAppBusy(false);
+    if (error || !application) { setAppError(error || 'Could not submit'); return; }
+    setMyApp(application);
+    setAppOpen(false);
+    setAppPitch('');
+    setAppRegion('');
+    showToast('Application submitted for review');
+  };
 
   const handleToggleFollow = async () => {
     if (!user || !profile?.id || isSelf || followBusy) return;
@@ -115,6 +233,15 @@ export default function PublicProfile() {
             <span style={s.rankBadge}>{profile.treasure_rank || 'Hunter'}</span>
             <span style={s.levelBadge}>Lv. {profile.level || 1}</span>
             <span style={s.xpBadge}>{profile.xp || 0} XP</span>
+            {profile.scout_verified && (
+              <span
+                style={s.verifiedBadge}
+                title="Approved by TreasureTrail moderators"
+                aria-label="Verified Scout"
+              >
+                <BadgeCheck size={12} /> Verified Scout
+              </span>
+            )}
           </div>
 
           {(profile.location_city || profile.location_state) && (
@@ -127,42 +254,126 @@ export default function PublicProfile() {
           )}
 
           {joinDate && <span style={s.joinDate}>Member since {joinDate}</span>}
+          <span style={s.joinDate}>{accountAge(profile.created_at)}</span>
 
           <div style={s.stats}>
+            <div style={s.stat}>
+              <span style={s.statNumber}>{findsCount ?? '—'}</span>
+              <span style={s.statLabel}>Finds</span>
+            </div>
+            <div style={s.statDivider} />
             <div style={s.stat}>
               <span style={s.statNumber}>{profile.follower_count || 0}</span>
               <span style={s.statLabel}>Followers</span>
             </div>
             <div style={s.statDivider} />
             <div style={s.stat}>
-              <span style={s.statNumber}>{profile.following_count || 0}</span>
-              <span style={s.statLabel}>Following</span>
+              <span style={s.statNumber}>{savesReceived ?? '—'}</span>
+              <span style={s.statLabel}>Saves</span>
             </div>
             <div style={s.statDivider} />
             <div style={s.stat}>
-              <span style={s.statNumber}>{profile.reputation_score?.toFixed(1) ?? '0.0'}</span>
+              <span style={s.statNumber}>{normalizeReputation(profile.reputation_score).toFixed(1)}</span>
               <span style={s.statLabel}>Rep ★</span>
             </div>
           </div>
         </div>
 
         {!isSelf && user && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 'var(--space-3)' }}>
+            <button
+              onClick={handleToggleFollow}
+              disabled={followBusy}
+              style={{ ...(following ? followStyles.unfollow : followStyles.follow), flex: 1, marginBottom: 0 }}
+            >
+              {followBusy ? <Loader size={14} /> : following ? <UserCheck size={14} /> : <UserPlus size={14} />}
+              <span>{following ? 'Following' : 'Follow'}</span>
+            </button>
+            <button
+              onClick={handleMessage}
+              disabled={messaging}
+              style={{ ...followStyles.unfollow, flex: 1, marginBottom: 0 }}
+              aria-label="Message"
+            >
+              {messaging ? <Loader size={14} /> : <MessageCircle size={14} />}
+              <span>Message</span>
+            </button>
+          </div>
+        )}
+        {!isSelf && user && (
           <button
-            onClick={handleToggleFollow}
-            disabled={followBusy}
-            style={following ? followStyles.unfollow : followStyles.follow}
+            onClick={handleBlock}
+            disabled={blocked || blockBusy}
+            style={s.blockBtn}
+            aria-label={blocked ? 'Already blocked' : 'Block this user'}
           >
-            {followBusy ? <Loader size={14} /> : following ? <UserCheck size={14} /> : <UserPlus size={14} />}
-            <span>{following ? 'Following' : 'Follow'}</span>
+            <Shield size={14} />
+            <span>{blocked ? 'Blocked' : (blockBusy ? 'Blocking…' : 'Block User')}</span>
           </button>
+        )}
+
+        {/* Self-only: Verified Scout application CTA */}
+        {isSelf && !profile.scout_verified && (
+          <div style={s.repCard}>
+            <BadgeCheck size={18} style={{ color: 'var(--color-primary-500)' }} />
+            <div style={s.repInfo}>
+              <span style={s.repTitle}>Become a Verified Scout</span>
+              <span style={s.repSub}>
+                {myApp?.status === 'pending' ? 'Application under review.' :
+                 myApp?.status === 'declined' ? 'Previous application was declined — try again with more detail.' :
+                 'Apply to get the trusted-scout badge and priority in scout requests.'}
+              </span>
+            </div>
+            <button
+              onClick={() => setAppOpen(true)}
+              disabled={myApp?.status === 'pending'}
+              style={s.repApplyBtn}
+            >
+              {myApp?.status === 'pending' ? 'Pending' : 'Apply'}
+            </button>
+          </div>
+        )}
+
+        {appOpen && (
+          <div style={s.modalOverlay} onClick={() => setAppOpen(false)}>
+            <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
+              <h2 style={s.modalTitle}>Verified Scout Application</h2>
+              <p style={s.modalSub}>Tell us where you scout and what you specialize in. A moderator will review within a few days.</p>
+              <input
+                value={appRegion}
+                onChange={(e) => setAppRegion(e.target.value)}
+                placeholder="Region (e.g. Brooklyn, NY)"
+                style={s.modalInput}
+                maxLength={120}
+              />
+              <textarea
+                value={appPitch}
+                onChange={(e) => setAppPitch(e.target.value)}
+                placeholder="What do you scout? What's your experience? (20-2000 chars)"
+                style={s.modalTextarea}
+                maxLength={2000}
+              />
+              {appError && <span style={{ color: 'var(--color-error-600, #b91c1c)', fontSize: 12 }}>{appError}</span>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setAppOpen(false)} style={{ ...s.modalSecondary, flex: 1 }}>Cancel</button>
+                <button onClick={handleSubmitScoutApp} disabled={appBusy} style={{ ...s.modalPrimary, flex: 1 }}>
+                  {appBusy ? 'Submitting…' : 'Submit'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {toast && (
+          <div style={s.toast}>{toast}</div>
         )}
 
         <div style={s.repCard}>
           <Award size={18} style={{ color: 'var(--color-primary-500)' }} />
           <div style={s.repInfo}>
-            <span style={s.repTitle}>Reputation Score</span>
+            <span style={s.repTitle}>{reputationTier(profile.reputation_score)}</span>
             <span style={s.repSub}>
-              {(profile.reputation_score ?? 0) > 0 ? 'Based on activity' : 'No ratings yet'}
+              {(profile.reputation_score ?? 0) > 0 ? 'Based on real activity' : 'No ratings yet'}
             </span>
           </div>
           <div style={s.repScore}>
@@ -460,6 +671,74 @@ const s: Record<string, CSSProperties> = {
     backgroundColor: 'var(--color-secondary-50)',
     color: 'var(--color-secondary-700)',
     border: '1px solid var(--color-secondary-100)',
+  },
+  verifiedBadge: {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '2px 8px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-100)',
+    color: 'var(--color-primary-700)',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 700,
+    border: '1px solid var(--color-primary-200)',
+  },
+  blockBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    width: '100%', minHeight: 40, marginBottom: 'var(--space-3)',
+    padding: '0 var(--space-4)',
+    backgroundColor: 'var(--color-neutral-0)', color: 'var(--color-neutral-600)',
+    border: '1px solid var(--color-neutral-200)', borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--font-size-xs)', fontWeight: 500, cursor: 'pointer',
+  },
+  repApplyBtn: {
+    minHeight: 36, padding: '0 14px',
+    backgroundColor: 'var(--color-primary-500)', color: '#fff',
+    border: 'none', borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--font-size-xs)', fontWeight: 700, cursor: 'pointer',
+  },
+  modalOverlay: {
+    position: 'fixed', inset: 0, zIndex: 100,
+    backgroundColor: 'rgba(15,23,42,0.5)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    width: '100%', maxWidth: 420,
+    backgroundColor: 'var(--color-neutral-0)',
+    borderRadius: 'var(--radius-lg)',
+    padding: 'var(--space-4)',
+    display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+    boxShadow: 'var(--shadow-lg)',
+  },
+  modalTitle: { fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-neutral-900)', margin: 0 },
+  modalSub: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)', margin: 0 },
+  modalInput: {
+    padding: '10px 12px', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)',
+  },
+  modalTextarea: {
+    padding: '10px 12px', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)',
+    minHeight: 120, resize: 'vertical', fontFamily: 'inherit',
+  },
+  modalPrimary: {
+    minHeight: 44, padding: '0 14px',
+    backgroundColor: 'var(--color-primary-500)', color: '#fff',
+    border: 'none', borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: 'pointer',
+  },
+  modalSecondary: {
+    minHeight: 44, padding: '0 14px',
+    backgroundColor: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)',
+    border: '1px solid var(--color-neutral-200)', borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--font-size-sm)', fontWeight: 600, cursor: 'pointer',
+  },
+  toast: {
+    position: 'fixed', left: '50%', bottom: 80, transform: 'translateX(-50%)',
+    padding: '10px 14px', borderRadius: 'var(--radius-md)',
+    backgroundColor: 'rgba(15,23,42,0.92)', color: '#fff',
+    fontSize: 'var(--font-size-sm)', fontWeight: 500,
+    zIndex: 1000, maxWidth: '90vw',
   },
   ctaCard: {
     display: 'flex',
