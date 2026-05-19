@@ -156,9 +156,9 @@ function formatMarketplace(raw?: string | null): string {
   return map[raw] ?? raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function ImageFallback({ icon: Icon, size = 32 }: { icon: typeof Bookmark; size?: number }) {
+function ImageFallback({ icon: Icon, size = 56 }: { icon: typeof Bookmark; size?: number }) {
   return (
-    <div style={{ width: '100%', height: '100%', backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ width: '100%', height: '100%', minHeight: '220px', backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Icon size={size} style={{ color: 'var(--color-neutral-300)' }} />
     </div>
   );
@@ -1844,7 +1844,14 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     width: '100%',
     aspectRatio: '4/3',
+    // minHeight is a guarantee: aspect-ratio alone can collapse to 0
+    // when the fallback (no <img>) has no intrinsic size, which is why
+    // image-less Flash Find cards previously rendered as flat bands
+    // with only the "Found" badge. minHeight keeps the image area
+    // visibly proportional even when src is null.
+    minHeight: '220px',
     overflow: 'hidden',
+    backgroundColor: 'var(--color-neutral-100)',
   },
   cardImage: {
     width: '100%',

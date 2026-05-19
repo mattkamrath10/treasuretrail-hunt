@@ -1455,9 +1455,11 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 'var(--space-6)',
   },
   postedImage: {
-    width: '64px',
-    height: '64px',
+    width: '120px',
+    height: '90px',
     flexShrink: 0,
+    objectFit: 'cover',
+    borderRadius: 'var(--radius-sm)',
   },
   postedInfo: {
     display: 'flex',
