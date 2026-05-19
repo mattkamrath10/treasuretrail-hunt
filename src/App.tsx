@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import ProfileSetup from './pages/ProfileSetup';
 import AppShell from './components/AppShell';
-import PublicProfile from './pages/PublicProfile';
 
 function AppContent() {
   const { user, loading, hasCompletedSetup, isGuest, enterGuestMode } = useAuth();
@@ -32,7 +31,6 @@ function AppContent() {
     return (
       <Routes>
         <Route path="/*" element={<AppShell />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   }
@@ -51,7 +49,6 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/*" element={<AppShell />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
@@ -93,17 +90,14 @@ const loadingStyles: Record<string, React.CSSProperties> = {
 };
 
 export default function App() {
+  // Note: every route — including share aliases like /u/:username — runs
+  // inside AuthProvider. Routing PublicProfile outside the provider
+  // would crash deep-linked visitors because useAuth() throws when
+  // there is no surrounding provider. The /u/:username alias is
+  // mounted inside AppShell alongside the canonical /profile/:username.
   return (
-    <Routes>
-      <Route path="/u/:username" element={<PublicProfile />} />
-      <Route
-        path="/*"
-        element={
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
-        }
-      />
-    </Routes>
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

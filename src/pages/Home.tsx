@@ -366,7 +366,7 @@ export default function Home() {
       const incoming = navState.newPost;
       setPosts((prev) => {
         if (prev.some((p) => p.id === incoming.id)) return prev;
-        console.log('[FEED_RENDER] optimistic prepend id=', incoming.id);
+        if (import.meta.env.DEV) console.log('[FEED_RENDER] optimistic prepend id=', incoming.id);
         return [incoming, ...prev];
       });
     }
@@ -790,7 +790,7 @@ export default function Home() {
             </li>
             <li style={styles.onboardItem}>
               <span style={styles.onboardCheckOff}>2</span>
-              <button onClick={() => navigate('/create')} style={styles.onboardLink}>
+              <button onClick={() => navigate('/flash-finds')} style={styles.onboardLink}>
                 Share your first find
               </button>
             </li>

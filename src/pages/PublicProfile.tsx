@@ -207,7 +207,17 @@ export default function PublicProfile() {
   return (
     <div style={s.page}>
       <header style={s.header}>
-        <button onClick={() => navigate(-1)} style={s.backBtn} aria-label="Go back">
+        <button
+          onClick={() => {
+            // Use history.back when there's somewhere to go back to;
+            // otherwise fall back to Home so deep-linked visitors aren't
+            // dumped onto a blank tab.
+            if (typeof window !== 'undefined' && window.history.length > 1) navigate(-1);
+            else navigate('/');
+          }}
+          style={s.backBtn}
+          aria-label="Go back"
+        >
           <ArrowLeft size={20} style={{ color: 'var(--color-neutral-700)' }} />
         </button>
         <span style={s.headerTitle}>Profile</span>

@@ -150,6 +150,11 @@ export default function AppShell() {
                 kept as an alias; /profile/:username is the canonical link surfaced from
                 feed cards and the Find Detail page. */}
             <Route path="/profile/:username" element={<PublicProfile />} />
+            {/* Legacy/share alias — kept so older shared links like
+                tt.app/u/alice continue to resolve. Mounted inside
+                AppShell (and therefore AuthProvider) so deep-linked
+                visitors don't crash on useAuth(). */}
+            <Route path="/u/:username" element={<PublicProfile />} />
             {/* Dedicated detail page for a community_post (Flash Find, Rare Radar,
                 auction-win, etc.). Replaces the prior in-feed modal so links are
                 shareable, deep-linkable, and survive page refresh. */}
