@@ -222,6 +222,7 @@ function FeedView({
   onViewMatches: () => void;
   onClearHighlight?: () => void;
 }) {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const highlightRef = useRef<HTMLElement | null>(null);
 
@@ -294,8 +295,13 @@ function FeedView({
               ×
             </button>
           )}
-          <button style={styles.filterIcon}>
-            <Filter size={16} style={{ color: 'var(--color-neutral-500)' }} />
+          <button
+            onClick={() => setSelectedCategory(selectedCategory ? null : 'Watches')}
+            style={styles.filterIcon}
+            aria-label="Toggle category filter"
+            title="Toggle category filter"
+          >
+            <Filter size={16} style={{ color: selectedCategory ? 'var(--color-primary-600)' : 'var(--color-neutral-500)' }} />
           </button>
         </div>
       </header>
@@ -447,7 +453,11 @@ function FeedView({
                     <Clock size={10} /> {item.timePosted}
                   </span>
                 </div>
-                <button style={styles.scoutBtn}>
+                <button
+                  onClick={() => navigate('/messages')}
+                  style={styles.scoutBtn}
+                  aria-label={`Offer to scout ${item.title}`}
+                >
                   <span>Scout This</span>
                 </button>
               </div>

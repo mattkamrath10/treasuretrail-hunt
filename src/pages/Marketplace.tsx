@@ -843,8 +843,12 @@ function OfferScreen({ item, onBack }: { item: Listing; onBack: () => void }) {
           </div>
         </div>
 
-        <button style={s.continueBtn}>
-          <span style={s.continueBtnText}>Submit Offer</span>
+        <button
+          style={{ ...s.continueBtn, opacity: 0.55, cursor: 'not-allowed' }}
+          disabled
+          title="Offer negotiation is coming soon"
+        >
+          <span style={s.continueBtnText}>Submit Offer · Coming Soon</span>
         </button>
       </div>
     </div>
@@ -852,6 +856,7 @@ function OfferScreen({ item, onBack }: { item: Listing; onBack: () => void }) {
 }
 
 function CheckoutScreen({ item, onBack, onConfirm }: { item: Listing; onBack: () => void; onConfirm: () => void }) {
+  const [delivery, setDelivery] = useState<'shipping' | 'pickup' | 'scout'>('shipping');
   return (
     <div style={s.container}>
       <header style={s.header}>
@@ -883,21 +888,30 @@ function CheckoutScreen({ item, onBack, onConfirm }: { item: Listing; onBack: ()
         <div style={s.detailSection}>
           <h3 style={s.detailSectionTitle}>Delivery</h3>
           <div style={s.deliveryOptions}>
-            <button style={{ ...s.deliveryOption, ...s.deliveryOptionActive }}>
+            <button
+              onClick={() => setDelivery('shipping')}
+              style={{ ...s.deliveryOption, ...(delivery === 'shipping' ? s.deliveryOptionActive : {}) }}
+            >
               <Truck size={16} style={{ color: 'var(--color-primary-600)' }} />
               <div style={s.deliveryOptionInfo}>
                 <span style={s.deliveryOptionTitle}>Standard Shipping</span>
                 <span style={s.deliveryOptionDetail}>5-7 days - $18</span>
               </div>
             </button>
-            <button style={s.deliveryOption}>
+            <button
+              onClick={() => setDelivery('pickup')}
+              style={{ ...s.deliveryOption, ...(delivery === 'pickup' ? s.deliveryOptionActive : {}) }}
+            >
               <MapPin size={16} style={{ color: 'var(--color-neutral-500)' }} />
               <div style={s.deliveryOptionInfo}>
                 <span style={s.deliveryOptionTitle}>Local Pickup</span>
                 <span style={s.deliveryOptionDetail}>Free - Brooklyn, NY</span>
               </div>
             </button>
-            <button style={s.deliveryOption}>
+            <button
+              onClick={() => setDelivery('scout')}
+              style={{ ...s.deliveryOption, ...(delivery === 'scout' ? s.deliveryOptionActive : {}) }}
+            >
               <Users size={16} style={{ color: 'var(--color-accent-500)' }} />
               <div style={s.deliveryOptionInfo}>
                 <span style={s.deliveryOptionTitle}>Scout Assisted Delivery</span>

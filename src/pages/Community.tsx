@@ -267,6 +267,8 @@ function CreatePost({ onBack }: { onBack: () => void }) {
   const [caption, setCaption] = useState('');
   const [tags, setTags] = useState('');
   const [posting, setPosting] = useState(false);
+  const [selectedCat, setSelectedCat] = useState<string>('Watches');
+  const [postLocation, setPostLocation] = useState('');
 
   const types = [
     { id: 'find', label: 'Find' },
@@ -288,7 +290,9 @@ function CreatePost({ onBack }: { onBack: () => void }) {
       tags: tagArray,
       for_sale: postType === 'sale',
       scout_assisted: postType === 'scout_story',
-      category: 'other',
+      category: selectedCat.toLowerCase(),
+      location: postLocation.trim() || undefined,
+      general_location: postLocation.trim() || undefined,
     });
     setPosting(false);
     onBack();
@@ -335,7 +339,13 @@ function CreatePost({ onBack }: { onBack: () => void }) {
           <label style={s.createLabel}>Category</label>
           <div style={s.createCatRow}>
             {['Watches', 'Furniture', 'Art', 'Electronics', 'Books', 'Sneakers'].map((c) => (
-              <button key={c} style={{ ...s.createCatChip, ...(c === 'Watches' ? s.createCatChipActive : {}) }}>{c}</button>
+              <button
+                key={c}
+                onClick={() => setSelectedCat(c)}
+                style={{ ...s.createCatChip, ...(selectedCat === c ? s.createCatChipActive : {}) }}
+              >
+                {c}
+              </button>
             ))}
           </div>
         </div>
@@ -345,7 +355,13 @@ function CreatePost({ onBack }: { onBack: () => void }) {
           <label style={s.createLabel}>Location</label>
           <div style={s.createLocationRow}>
             <MapPin size={14} style={{ color: 'var(--color-neutral-400)' }} />
-            <input type="text" style={s.createLocationInput} placeholder="Add location" />
+            <input
+              type="text"
+              style={s.createLocationInput}
+              placeholder="Add location"
+              value={postLocation}
+              onChange={(e) => setPostLocation(e.target.value)}
+            />
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { TreasureChestLogo } from '../components/TreasureChestLogo';
 
 interface LoginProps {
@@ -15,6 +16,32 @@ export default function Login({ onSwitchToSignUp, onGuestBrowse }: LoginProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [resetMsg, setResetMsg] = useState('');
+  const [resetSending, setResetSending] = useState(false);
+
+  const handleForgotPassword = async () => {
+    setError('');
+    setResetMsg('');
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError('Enter your email above first, then tap Forgot Password.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    setResetSending(true);
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    setResetSending(false);
+    if (resetErr) {
+      setError(resetErr.message);
+      return;
+    }
+    setResetMsg('Password reset link sent. Check your email.');
+  };
 
   const handleSubmit = async () => {
     setError('');
@@ -77,9 +104,12 @@ export default function Login({ onSwitchToSignUp, onGuestBrowse }: LoginProps) {
             </div>
           </div>
 
-          <button style={styles.forgotBtn}>Forgot Password?</button>
+          <button onClick={handleForgotPassword} disabled={resetSending} style={styles.forgotBtn}>
+            {resetSending ? 'Sending reset link…' : 'Forgot Password?'}
+          </button>
 
           {error && <p style={styles.error}>{error}</p>}
+          {resetMsg && <p style={{ ...styles.error, color: 'var(--color-success-700, #047857)' }}>{resetMsg}</p>}
 
           <button
             onClick={handleSubmit}
