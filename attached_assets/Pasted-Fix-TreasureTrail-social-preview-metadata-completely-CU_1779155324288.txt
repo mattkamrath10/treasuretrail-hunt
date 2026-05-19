@@ -1,0 +1,146 @@
+Fix TreasureTrail social preview metadata completely.
+
+# CURRENT ISSUE
+
+Facebook/iMessage/Discord/X previews still appear as a generic gray/plain website block instead of a rich branded preview card.
+
+The app must display:
+
+* app icon/logo
+* branded preview image
+* proper title
+* proper description
+
+when shared anywhere.
+
+========================================
+
+1. VERIFY META TAGS
+   ========================================
+
+Ensure the homepage <head> contains ALL required tags:
+
+<title>Treasure Trail</title>
+
+<meta name="title" content="Treasure Trail" />
+<meta name="description" content="Discover auctions, estate sales, marketplace finds, and hidden treasures." />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://treasuretrail-hunt.com/" />
+<meta property="og:title" content="Treasure Trail" />
+<meta property="og:description" content="A sourcing and treasure-hunting platform for collectors, flippers, scouts, and hidden gems." />
+<meta property="og:image" content="https://treasuretrail-hunt.com/og-image.jpg" />
+
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Treasure Trail" />
+<meta property="twitter:description" content="Discover auctions, estate sales, marketplace finds, and hidden treasures." />
+<meta property="twitter:image" content="https://treasuretrail-hunt.com/og-image.jpg" />
+
+<link rel="icon" type="image/png" href="/favicon.png" />
+
+========================================
+2. VERIFY IMAGE FILES EXIST
+===========================
+
+Ensure BOTH files exist publicly:
+
+/public/og-image.jpg
+/public/favicon.png
+
+Requirements for og-image.jpg:
+
+* 1200x630
+* JPG or PNG
+* under 5MB
+* visually branded
+* readable on mobile
+
+========================================
+3. VERIFY PUBLIC ACCESSIBILITY
+==============================
+
+After deploy verify these URLs work directly in browser:
+
+https://treasuretrail-hunt.com/og-image.jpg
+https://treasuretrail-hunt.com/favicon.png
+
+No redirects.
+No auth.
+No 404.
+
+========================================
+4. VERIFY HTML OUTPUT
+=====================
+
+After deploy:
+inspect final production HTML source.
+
+Ensure:
+
+* tags are present in production
+* no duplicate OG tags
+* no malformed meta tags
+* no hydration issue removing tags
+
+========================================
+5. FORCE CACHE REFRESH
+======================
+
+After deploy:
+use Facebook Sharing Debugger.
+
+https://developers.facebook.com/tools/debug/
+
+Steps:
+
+* paste URL
+* click Debug
+* click Scrape Again twice
+
+========================================
+6. VERIFY ALL PLATFORMS
+=======================
+
+Test previews on:
+
+* Facebook
+* iMessage
+* Discord
+* X/Twitter
+* Slack
+
+Verify:
+
+* large preview image appears
+* title appears
+* description appears
+* favicon/logo appears
+
+========================================
+7. GENERATE QA REPORT
+=====================
+
+Generate:
+SOCIAL_PREVIEW_QA.md
+
+Include:
+
+* metadata verification
+* image verification
+* accessibility verification
+* preview platform results
+* remaining issues if any
+
+========================================
+8. FINAL VERIFICATION
+=====================
+
+Before completion verify:
+
+* no gray placeholder preview
+* branded image visible
+* favicon visible
+* metadata visible
+* production deployment updated
+* no console errors
+* republish after completion
