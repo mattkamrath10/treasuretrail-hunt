@@ -275,6 +275,10 @@ export default function Home() {
 
   const loadAll = useCallback((opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
+    // When called silently (from useLiveFeed), we rethrow on failure so
+    // the hook's exponential backoff engages. The user-facing loadError
+    // is still set, so the manual reload button still reflects state.
+    const silent = opts?.silent === true;
     return Promise.all([
       fetchCommunityPosts(50),
       supabase
@@ -306,6 +310,7 @@ export default function Home() {
       .catch((err) => {
         console.error('[Home] loadAll failed', err);
         setLoadError('Could not load the feed. Check your connection and try again.');
+        if (silent) throw err;
       })
       .finally(() => setLoading(false));
   }, []);
@@ -319,7 +324,7 @@ export default function Home() {
   useEffect(() => {
     if (didInitialLoadRef.current) return;
     didInitialLoadRef.current = true;
-    loadAll();
+    loadAll().catch(() => {});
   }, [loadAll]);
 
   // Independent of the one-shot initial load: re-check reminders whenever

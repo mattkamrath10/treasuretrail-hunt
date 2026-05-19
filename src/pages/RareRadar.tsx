@@ -78,6 +78,8 @@ export default function RareRadar() {
 
   // Hydrate already-posted Rare Radar requests from Supabase so the feed
   // persists across sessions and matches what shows on Home Feed.
+  // The polled caller (useLiveFeed) needs failures to propagate so its
+  // exponential backoff engages; the mount caller catches separately.
   const hydrateHunts = useCallback(() => {
     return fetchCommunityPosts(50)
       .then((posts) => {
@@ -104,14 +106,14 @@ export default function RareRadar() {
           const known = new Set(prev.map((h) => h.id));
           return [...mapped.filter((m) => !known.has(m.id)), ...prev];
         });
-      })
-      .catch(() => {});
+      });
   }, []);
 
-  useEffect(() => { hydrateHunts(); }, [hydrateHunts]);
+  useEffect(() => { hydrateHunts().catch(() => {}); }, [hydrateHunts]);
 
   // Live refresh — silently re-pull every 10s and merge any new hunts
   // (de-duped by id) without disturbing existing state, filters, or scroll.
+  // hydrateHunts intentionally rethrows so useLiveFeed can back off.
   useLiveFeed(hydrateHunts, true);
 
   // Hydrate drafts that were shared from Flash Finds → AI Analysis.

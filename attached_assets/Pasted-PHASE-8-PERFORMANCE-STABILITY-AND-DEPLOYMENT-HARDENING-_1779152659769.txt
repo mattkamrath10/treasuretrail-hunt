@@ -1,0 +1,282 @@
+PHASE 8 — PERFORMANCE, STABILITY, AND DEPLOYMENT HARDENING
+
+# GOAL
+
+TreasureTrail is now a large, state-heavy, feed-driven application.
+
+Before adding major new systems, harden:
+
+* performance
+* stability
+* deployment behavior
+* caching
+* mobile responsiveness
+* rendering efficiency
+
+This phase should make the app feel:
+
+* faster
+* smoother
+* more reliable
+* more production-ready
+
+DO NOT:
+
+* add large new features
+* add AI systems
+* add complex new backend architecture
+* add gamification
+
+Focus ONLY on hardening and optimization.
+
+========================================
+
+1. GLOBAL PERFORMANCE AUDIT
+   ========================================
+
+Audit:
+
+* rerenders
+* feed updates
+* image rendering
+* modal rendering
+* memory usage
+* polling behavior
+* route transitions
+* state updates
+
+Identify:
+
+* expensive renders
+* duplicate fetches
+* unnecessary state churn
+* layout thrashing
+
+========================================
+2. FEED RENDER OPTIMIZATION
+===========================
+
+Optimize:
+
+* Home Feed
+* Marketplace
+* Live Events
+* Rare Radar
+
+Use:
+
+* memoization where appropriate
+* stable keys
+* virtualization where needed
+* deferred rendering for offscreen items
+
+Prevent:
+
+* full-feed rerenders
+* flickering
+* scroll jumps
+
+========================================
+3. IMAGE PERFORMANCE
+====================
+
+Improve:
+
+* image compression
+* lazy loading
+* placeholder rendering
+* image caching
+* fade performance
+
+Prevent:
+
+* oversized uploads
+* layout shifting
+* slow mobile rendering
+
+Add:
+
+* client-side compression before upload if missing
+
+========================================
+4. MOBILE PERFORMANCE
+=====================
+
+Audit real mobile behavior:
+
+* iPhone Safari
+* Android Chrome
+* PWA mode
+
+Verify:
+
+* smooth scrolling
+* modal transitions
+* keyboard handling
+* safe-area spacing
+* no input lag
+* no sticky-header jitter
+
+========================================
+5. POLLING + LIVE FEED HARDENING
+================================
+
+Audit useLiveFeed.ts
+
+Verify:
+
+* no memory leaks
+* no interval duplication
+* no overlapping requests
+* polling pauses correctly
+* tab visibility logic works reliably
+
+Add:
+
+* exponential backoff on failures
+* reconnect recovery
+* offline detection
+
+========================================
+6. ROUTE + CODE SPLITTING
+=========================
+
+Implement:
+
+* lazy route loading
+* code splitting
+* deferred modal loading
+
+Reduce:
+
+* initial bundle size
+* startup time
+
+========================================
+7. CACHE + DEPLOYMENT FIXES
+===========================
+
+Fix stale deployment behavior.
+
+Implement:
+
+* proper cache busting
+* versioned assets
+* deployment invalidation
+* stale asset cleanup
+
+Users should automatically receive fresh builds after republish.
+
+========================================
+8. OFFLINE + NETWORK HANDLING
+=============================
+
+Improve resilience:
+
+Detect:
+
+* offline state
+* reconnect state
+* slow network state
+
+Display:
+
+* subtle offline banner
+* retry actions
+* reconnect feedback
+
+========================================
+9. ERROR BOUNDARY HARDENING
+===========================
+
+Expand ErrorBoundary coverage.
+
+Ensure:
+
+* feed crashes isolate correctly
+* modal crashes isolate correctly
+* failed components do not crash entire app
+
+========================================
+10. MEMORY + CLEANUP AUDIT
+==========================
+
+Audit:
+
+* intervals
+* event listeners
+* subscriptions
+* modal cleanup
+* image object URLs
+* timers
+
+Prevent:
+
+* memory leaks
+* stale subscriptions
+* orphaned listeners
+
+========================================
+11. ACCESSIBILITY + INPUT RESPONSIVENESS
+========================================
+
+Verify:
+
+* keyboard responsiveness
+* focus handling
+* reduced-motion handling
+* touch responsiveness
+* screen reader labels
+
+========================================
+12. LOADING EXPERIENCE
+======================
+
+Improve:
+
+* skeleton timing
+* transition smoothness
+* feed loading behavior
+* route loading behavior
+
+Prevent:
+
+* white flashes
+* empty flicker
+* abrupt state swaps
+
+========================================
+13. FINAL PERFORMANCE REPORT
+============================
+
+Generate:
+PERFORMANCE_AUDIT.md
+
+Include:
+
+* bottlenecks found
+* fixes applied
+* mobile findings
+* deployment findings
+* memory findings
+* deferred future work
+
+========================================
+14. FINAL QA
+============
+
+Verify:
+
+* feeds remain smooth
+* uploads responsive
+* no excessive rerenders
+* no memory leaks
+* no stale deployments
+* mobile UX stable
+* TypeScript clean
+* no console errors
+* app boots correctly
+* republish after completion
+
+NO NEW FEATURE SPRAWL IN THIS PHASE.
+FOCUS ON PLATFORM QUALITY.

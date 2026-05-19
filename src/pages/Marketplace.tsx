@@ -149,11 +149,12 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
 
   // Live refresh — silently re-pull listings every 10s. Active category,
   // search, and scroll position are all preserved since we only replace
-  // the underlying data array.
+  // the underlying data array. We deliberately do NOT .catch() here so
+  // that useLiveFeed sees thrown errors and engages exponential backoff.
   useLiveFeed(
     () => fetchMarketplaceListings(50).then((data) => {
       setListings(data.map(toListingShape));
-    }).catch(() => {}),
+    }),
     !loading,
   );
 
