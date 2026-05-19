@@ -106,6 +106,8 @@ function buildIso(date: string, time: string): string | null {
 export default function Auctions({ onBack }: { onBack: () => void }) {
   const [view, setView] = useState<HubView>('feed');
   const [selected, setSelected] = useState<ExternalListing | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [prepend, setPrepend] = useState<ExternalListing | null>(null);
 
   if (view === 'detail' && selected) {
     return (
@@ -120,12 +122,21 @@ export default function Auctions({ onBack }: { onBack: () => void }) {
   return (
     <>
       <HubFeed
+        key={refreshKey}
         onBack={onBack}
         onOpen={(item) => { setSelected(item); setView('detail'); }}
         onSubmit={() => setView('submit')}
+        prepend={prepend}
       />
       {view === 'submit' && (
-        <SubmitSheet onClose={() => setView('feed')} onSuccess={() => setView('feed')} />
+        <SubmitSheet
+          onClose={() => setView('feed')}
+          onSuccess={(created) => {
+            if (created) setPrepend(created);
+            setRefreshKey((k) => k + 1);
+            setView('feed');
+          }}
+        />
       )}
     </>
   );
@@ -135,18 +146,23 @@ function HubFeed({
   onBack,
   onOpen,
   onSubmit,
+  prepend,
 }: {
   onBack: () => void;
   onOpen: (item: ExternalListing) => void;
   onSubmit: () => void;
+  prepend?: ExternalListing | null;
 }) {
   const { requireAuth } = useGuestAction();
 
-  const [listings, setListings] = useState<ExternalListing[]>([]);
+  const [listings, setListings] = useState<ExternalListing[]>(
+    prepend ? [prepend] : [],
+  );
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState('all');
   const [extraFilter, setExtraFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [uploadBanner, setUploadBanner] = useState(!!prepend);
 
   useEffect(() => {
     supabase
@@ -156,10 +172,24 @@ function HubFeed({
       .order('created_at', { ascending: false })
       .limit(60)
       .then(({ data }) => {
-        if (data) setListings(data as ExternalListing[]);
+        if (data) {
+          const rows = data as ExternalListing[];
+          // De-dupe optimistic prepend if server returned it.
+          setListings(
+            prepend && !rows.some((r) => r.id === prepend.id)
+              ? [prepend, ...rows]
+              : rows,
+          );
+        }
         setLoading(false);
       });
-  }, []);
+  }, [prepend]);
+
+  useEffect(() => {
+    if (!uploadBanner) return;
+    const t = setTimeout(() => setUploadBanner(false), 3000);
+    return () => clearTimeout(t);
+  }, [uploadBanner]);
 
   const filtered = listings
     .filter((l) => {
@@ -195,6 +225,12 @@ function HubFeed({
           </button>
         </div>
       </header>
+
+      {uploadBanner && (
+        <div style={st.successBanner} role="status" aria-live="polite">
+          Listing uploaded successfully — it's now in the feed.
+        </div>
+      )}
 
       {liveCount > 0 && (
         <div style={st.liveBanner}>
@@ -596,7 +632,7 @@ function ListingDetail({
   );
 }
 
-function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (created?: ExternalListing) => void }) {
   const { user } = useAuth();
   const [step, setStep] = useState<'platform' | 'details' | 'meta'>('platform');
   const [saving, setSaving] = useState(false);
@@ -670,36 +706,40 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     const marketplaceValue = form.marketplace_key === 'other' && form.marketplace_custom.trim()
       ? `custom:${form.marketplace_custom.trim()}`
       : form.marketplace_key || null;
-    const { error: err } = await supabase.from('external_listings').insert({
-      user_id: user.id,
-      platform: form.platform,
-      platform_label: form.platform_label,
-      listing_type: form.listing_type,
-      external_url: form.external_url.trim(),
-      title: form.title.trim(),
-      description: form.description.trim(),
-      image_url: form.image_url.trim() || null,
-      price_display: form.price_display.trim(),
-      category: form.category,
-      condition: form.condition,
-      ships_available: form.ships_available || form.pickup_type.includes('shipping_available') || form.pickup_type.includes('nationwide_shipping'),
-      local_pickup: form.local_pickup || form.pickup_type.includes('local_pickup'),
-      start_at: startIso,
-      ends_at: endIso,
-      location: form.general_location || form.location.trim(),
-      scout_needed: form.scout_needed,
-      status: 'active',
-      general_location: form.general_location,
-      exact_address_private: form.exact_address_private.trim() || null,
-      address_reveal_policy: form.address_reveal_policy,
-      pickup_type: form.pickup_type,
-      scouts_available: form.scouts_available,
-      meetup_notes: form.meetup_notes.trim() || null,
-      marketplace_found: marketplaceValue,
-    });
+    const { data: inserted, error: err } = await supabase
+      .from('external_listings')
+      .insert({
+        user_id: user.id,
+        platform: form.platform,
+        platform_label: form.platform_label,
+        listing_type: form.listing_type,
+        external_url: form.external_url.trim(),
+        title: form.title.trim(),
+        description: form.description.trim(),
+        image_url: form.image_url.trim() || null,
+        price_display: form.price_display.trim(),
+        category: form.category,
+        condition: form.condition,
+        ships_available: form.ships_available || form.pickup_type.includes('shipping_available') || form.pickup_type.includes('nationwide_shipping'),
+        local_pickup: form.local_pickup || form.pickup_type.includes('local_pickup'),
+        start_at: startIso,
+        ends_at: endIso,
+        location: form.general_location || form.location.trim(),
+        scout_needed: form.scout_needed,
+        status: 'active',
+        general_location: form.general_location,
+        exact_address_private: form.exact_address_private.trim() || null,
+        address_reveal_policy: form.address_reveal_policy,
+        pickup_type: form.pickup_type,
+        scouts_available: form.scouts_available,
+        meetup_notes: form.meetup_notes.trim() || null,
+        marketplace_found: marketplaceValue,
+      })
+      .select('*, profiles(username, scout_verified)')
+      .single();
     setSaving(false);
     if (err) { setError(err.message); return; }
-    onSuccess();
+    onSuccess(inserted as ExternalListing | undefined);
   };
 
   return (
@@ -1106,6 +1146,17 @@ const st: Record<string, React.CSSProperties> = {
     backgroundColor: 'var(--color-error-50)',
     borderBottom: '1px solid var(--color-error-100)',
     flexShrink: 0,
+  },
+  successBanner: {
+    flexShrink: 0,
+    margin: '8px 16px 0',
+    padding: '10px 14px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-success-50, #ecfdf5)',
+    color: 'var(--color-success-700, #047857)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    border: '1px solid var(--color-success-200, #a7f3d0)',
   },
   liveDot: {
     width: '8px',

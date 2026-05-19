@@ -1,0 +1,155 @@
+Fix the Live Events upload flow so newly submitted events immediately appear in the Live Events feed and Home Feed without requiring a manual refresh.
+
+PROBLEM
+
+A user successfully uploaded a Live Event, but:
+
+the page still shows:
+"0 events"
+"No events yet"
+the new event does NOT appear
+the empty state does NOT disappear
+users must manually refresh or leave/re-enter the page
+
+This creates the impression that uploads are broken even if the database insert succeeds.
+
+After successful event upload:
+
+close upload modal/sheet
+instantly refresh Live Events feed
+instantly update Home Feed
+remove empty-state UI
+render new event at top of feed
+update event count immediately
+
+NO manual refresh required.
+
+========================================
+
+VERIFY INSERT SUCCESS
+========================================
+
+Check the upload flow in:
+
+LiveHub.tsx
+Auctions.tsx
+createExternalListing()
+external_listings insert logic
+
+Ensure:
+
+Supabase insert succeeds
+inserted row is returned
+errors are surfaced visibly
+
+After successful upload:
+
+CALL:
+
+refetchEvents()
+OR:
+fetchExternalListings()
+
+immediately after insert success.
+
+Example logic:
+
+await createExternalListing(payload)
+
+await refetchEvents()
+
+OR optimistically inject:
+
+setEvents(prev => [newEvent, ...prev])
+
+Immediately hide:
+
+"No events yet"
+"Be the first to upload..."
+empty-state Upload button
+
+WHEN:
+events.length > 0
+
+The empty-state block should ONLY render if:
+
+there are truly zero events
+
+Update:
+
+"0 events"
+
+to:
+
+"1 event"
+"2 events"
+etc.
+
+immediately after successful upload.
+
+New uploads should appear at the TOP of the feed.
+
+Sort priority:
+
+newest created_at first
+OR
+active/live events first
+
+Ensure uploaded Live Events also appear in:
+
+Home Feed
+relevant category filters
+search results
+
+without requiring app reload.
+
+Check whether the uploaded event is accidentally hidden by:
+
+active filters
+date filtering
+status filtering
+start/end time logic
+marketplace filters
+scout filters
+
+If filters are active:
+
+either clear filters after upload
+OR
+auto-show the newly created event
+
+If Supabase realtime is already enabled:
+
+subscribe to:
+
+external_listings INSERT events
+
+and auto-update feed when new events are added.
+
+After successful upload:
+
+show:
+
+success toast/snackbar
+OR
+subtle confirmation banner
+
+Examples:
+
+"Event uploaded successfully"
+
+"Your event is now live"
+
+Verify:
+
+uploads persist to Supabase
+event appears instantly
+empty state disappears
+count updates
+no manual refresh needed
+Home Feed updates
+filters don't hide uploads
+mobile works properly
+TypeScript clean
+no console errors
+republish after completion

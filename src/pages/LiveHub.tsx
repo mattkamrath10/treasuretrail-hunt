@@ -242,9 +242,16 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   const [showUploadEvent,  setShowUploadEvent]  = useState(false);
   const [showScouts,       setShowScouts]       = useState(false);
   const [selectedListing,  setSelectedListing]  = useState<ExternalListing | null>(null);
+  const [uploadBanner,     setUploadBanner]     = useState(false);
 
-  const fetchListings = () => {
-    setLoading(true);
+  useEffect(() => {
+    if (!uploadBanner) return;
+    const t = setTimeout(() => setUploadBanner(false), 3000);
+    return () => clearTimeout(t);
+  }, [uploadBanner]);
+
+  const fetchListings = (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     supabase
       .from('external_listings')
       .select('id,platform,listing_type,external_url,title,price_display,category,image_url,start_at,ends_at,scout_needed,ships_available,status,created_at,general_location,marketplace_found,pickup_type,scouts_available,meetup_notes,address_reveal_policy')
@@ -252,7 +259,16 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
       .order('created_at', { ascending: false })
       .limit(100)
       .then(({ data }) => {
-        if (data) setListings(data as ExternalListing[]);
+        if (data) {
+          const rows = data as ExternalListing[];
+          // Preserve any optimistically-prepended rows that haven't shown up
+          // in the refetch yet (read-after-write replica lag, etc.).
+          setListings((prev) => {
+            const serverIds = new Set(rows.map((r) => r.id));
+            const missing = prev.filter((p) => !serverIds.has(p.id));
+            return [...missing, ...rows];
+          });
+        }
         setLoading(false);
       });
   };
@@ -360,6 +376,13 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
+      {/* ── Success banner after upload ── */}
+      {uploadBanner && (
+        <div style={st.successBanner} role="status" aria-live="polite">
+          Event uploaded successfully — it's now live in the feed.
+        </div>
+      )}
+
       {/* ── Results count ── */}
       {!loading && (
         <div style={st.resultsBar}>
@@ -448,7 +471,31 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         <UploadEventModal
           userId={user?.id}
           onClose={() => setShowUploadEvent(false)}
-          onSuccess={() => { setShowUploadEvent(false); fetchListings(); }}
+          onSuccess={(created) => {
+            setShowUploadEvent(false);
+            // Optimistically prepend so the new event shows up instantly,
+            // even before the refetch round-trips. De-dupe by id when the
+            // refetch lands.
+            if (created) {
+              setListings((prev) => {
+                if (prev.some((l) => l.id === created.id)) return prev;
+                return [created, ...prev];
+              });
+            }
+            // Reset filters/sort so an active filter can't hide the new event.
+            setTypeFilter('all');
+            setSearchQuery('');
+            setDateFilter('all');
+            setCustomDate('');
+            setSortBy('live_now');
+            setLocationQuery('');
+            // Background reconciliation with the server — silent so the
+            // optimistic prepend stays visible during the round-trip.
+            fetchListings({ silent: true });
+            // Retrigger banner timer on rapid successive uploads.
+            setUploadBanner(false);
+            setTimeout(() => setUploadBanner(true), 0);
+          }}
         />
       )}
       {showScouts && (
@@ -912,7 +959,7 @@ interface EventForm {
   scout_needed: boolean; ships_available: boolean;
 }
 
-function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
+function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: (created?: ExternalListing) => void }) {
   const [form, setForm] = useState<EventForm>({
     title: '', platform: 'other', listing_type: 'auction', external_url: '',
     price_display: '', category: '', image_url: '',
@@ -1014,30 +1061,36 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       ? `custom:${marketplaceCustom.trim()}`
       : marketplaceKey || null;
     const shipping = form.ships_available || pickupType.includes('shipping_available') || pickupType.includes('nationwide_shipping');
-    const { error: err } = await supabase.from('external_listings').insert({
-      user_id: userId,
-      title: form.title.trim(),
-      platform: form.platform,
-      listing_type: form.listing_type,
-      external_url: form.external_url.trim(),
-      price_display: form.price_display.trim() || '',
-      category: form.category.trim() || 'other',
-      image_url: form.image_url.trim() || null,
-      start_at: startIso,
-      ends_at: endIso,
-      scout_needed: form.scout_needed,
-      ships_available: shipping,
-      local_pickup: pickupType.includes('local_pickup') || !shipping,
-      status: 'active',
-      location: loc.general_location,
-      general_location: loc.general_location,
-      exact_address_private: loc.exact_address_private.trim() || null,
-      address_reveal_policy: loc.address_reveal_policy,
-      pickup_type: pickupType,
-      scouts_available: scoutsAvailable,
-      meetup_notes: meetupNotes.trim() || null,
-      marketplace_found: marketplaceValue,
-    });
+    // Return the inserted row so the parent can optimistically render it
+    // before (or in addition to) the refetch completing.
+    const { data: inserted, error: err } = await supabase
+      .from('external_listings')
+      .insert({
+        user_id: userId,
+        title: form.title.trim(),
+        platform: form.platform,
+        listing_type: form.listing_type,
+        external_url: form.external_url.trim(),
+        price_display: form.price_display.trim() || '',
+        category: form.category.trim() || 'other',
+        image_url: form.image_url.trim() || null,
+        start_at: startIso,
+        ends_at: endIso,
+        scout_needed: form.scout_needed,
+        ships_available: shipping,
+        local_pickup: pickupType.includes('local_pickup') || !shipping,
+        status: 'active',
+        location: loc.general_location,
+        general_location: loc.general_location,
+        exact_address_private: loc.exact_address_private.trim() || null,
+        address_reveal_policy: loc.address_reveal_policy,
+        pickup_type: pickupType,
+        scouts_available: scoutsAvailable,
+        meetup_notes: meetupNotes.trim() || null,
+        marketplace_found: marketplaceValue,
+      })
+      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,start_at,ends_at,scout_needed,ships_available,status,created_at,general_location,marketplace_found,pickup_type,scouts_available,meetup_notes,address_reveal_policy')
+      .single();
     setSaving(false);
     if (err) {
       const msg = err.message?.includes('row-level security')
@@ -1047,7 +1100,7 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       return;
     }
     setSuccess('Event uploaded successfully.');
-    setTimeout(() => onSuccess(), 1100);
+    setTimeout(() => onSuccess(inserted as ExternalListing | undefined), 900);
   };
 
   return (
@@ -1332,6 +1385,7 @@ const st: Record<string, React.CSSProperties> = {
   sortLabel: { fontSize: '11px', color: 'var(--color-primary-600)', fontWeight: 600 },
 
   feed: { flex: 1, overflowY: 'auto', padding: 'var(--space-2) var(--space-4) var(--space-4)' },
+  successBanner: { flexShrink: 0, margin: '8px 16px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-success-50, #ecfdf5)', color: 'var(--color-success-700, #047857)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', border: '1px solid var(--color-success-200, #a7f3d0)' },
   emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', textAlign: 'center' },
   emptyTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-700)', marginBottom: '6px' },
   emptyText: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-400)', marginBottom: '20px', lineHeight: 1.5 },

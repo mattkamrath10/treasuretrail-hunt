@@ -1,0 +1,235 @@
+Implement a global live-refresh system across TreasureTrail and perform a complete interaction/navigation audit of the entire app.
+
+GOAL
+
+TreasureTrail is transitioning into a live sourcing ecosystem.
+
+All major feeds must feel:
+
+live
+responsive
+continuously updating
+connected across the app
+
+New uploads should appear automatically without requiring:
+
+manual refresh
+app restart
+leaving/re-entering pages
+
+Additionally, perform another full interaction audit to verify every button, action, route, and UI control works correctly.
+
+========================================
+
+AUTO-REFRESH ALL FEEDS
+========================================
+
+Implement lightweight live-refreshing (~10 seconds).
+
+Applies to:
+
+Home Feed
+Flash Finds
+Live Events
+Marketplace
+Rare Radar
+Alerts / Notifications
+
+Use:
+
+polling initially
+OR
+Supabase realtime where already implemented
+
+After uploads:
+
+Flash Finds
+
+New item uploaded →
+appears automatically in:
+
+Flash Finds feed
+Home Feed
+Live Events
+
+New event uploaded →
+appears automatically in:
+
+Live Events feed
+Home Feed
+Rare Radar
+
+New hunt request →
+appears automatically in:
+
+Rare Radar feed
+Home Feed
+
+Prevent:
+
+duplicate fetches
+infinite rerenders
+scroll resets
+unnecessary state churn
+
+Requirements:
+
+preserve active filters
+preserve search query
+preserve scroll position
+cleanup intervals on unmount
+debounce rapid updates
+
+Optional subtle indicators:
+
+"New items available"
+live pulse dot
+fade-in for new posts
+feed update animation
+
+Keep subtle and clean.
+
+Newest uploads should appear near the top automatically.
+
+Priority:
+
+Live events
+Active events
+New Flash Finds
+New marketplace uploads
+Recent Rare Radar requests
+
+Ensure Alerts refresh automatically for:
+
+follows
+saved-search matches
+reminders
+messages
+scout activity
+
+Audit EVERY:
+
+button
+icon
+chip
+tab
+dropdown
+CTA
+modal action
+card click
+menu item
+header icon
+floating action button
+share button
+save button
+upload button
+scout action
+notification action
+
+For every interaction confirm:
+
+has a destination
+performs a real action
+updates state properly
+works on mobile
+has loading states
+has error handling
+has empty states
+is not visually misleading
+
+If incomplete:
+
+EITHER:
+
+fully implement it
+
+OR:
+
+visibly disable it honestly
+
+No:
+
+dead clicks
+fake actions
+silent failures
+
+Verify:
+
+Home Feed
+Flash Finds
+Rare Radar
+Marketplace
+Live Events
+
+all:
+
+refresh properly
+sort properly
+filter properly
+share properly
+save properly
+open detail modals correctly
+
+Fix the current issue where:
+
+uploaded events do not immediately appear
+empty-state remains visible incorrectly
+event count stays at zero
+
+After upload:
+
+refetch feed immediately
+insert new event into local state
+hide empty state
+update count
+render event instantly
+
+Verify:
+
+44px touch targets
+sticky controls work
+Upload Event remains accessible
+feeds scroll smoothly
+modals don't overflow
+safe-area padding works
+keyboards don't cover inputs
+horizontal chip rows scroll correctly
+
+Verify:
+
+no polling leaks
+no excessive rerenders
+lazy loading works
+images fade correctly
+feed scrolling stays smooth
+
+Ensure:
+
+no silent failures
+no fake success states
+retry paths exist
+Supabase errors surface honestly
+
+Generate:
+QA_AUDIT_REPORT.md
+
+Include:
+
+issues found
+issues fixed
+intentionally disabled features
+remaining future work
+performance findings
+mobile findings
+
+Verify:
+
+all feeds auto-refresh
+uploads appear instantly
+all navigation works
+all buttons function
+no fake/mock content remains
+TypeScript clean
+no console errors
+app boots correctly
+republish after completion
