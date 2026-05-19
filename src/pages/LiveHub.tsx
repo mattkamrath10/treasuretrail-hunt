@@ -339,19 +339,25 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         ))}
       </div>
 
-      {/* ── Primary action buttons ── */}
+      {/* ── Primary action buttons ──
+          Upload Event is the highest-emphasis CTA and stays pinned at the top
+          (it lives in the non-scrolling region, never gets pushed off-screen
+          as the feed fills up). */}
       <div style={st.actionArea}>
-        <button onClick={() => setShowAddPlatform(true)} style={st.actionBtnPrimary}>
-          <Store size={15} style={{ color: '#fff' }} />
-          <span style={st.actionBtnLabel}>Add Marketplace</span>
+        <button onClick={() => setShowUploadEvent(true)} style={st.actionBtnPrimary}>
+          <Upload size={16} style={{ color: '#fff' }} />
+          <span style={st.actionBtnLabel}>Upload Event</span>
         </button>
-        <button onClick={() => setShowScouts(true)} style={st.actionBtnSecondary}>
-          <Users size={15} style={{ color: 'var(--color-primary-600)' }} />
-          <div style={st.actionBtnInner}>
+        <div style={st.actionRow}>
+          <button onClick={() => setShowAddPlatform(true)} style={st.actionBtnSecondaryFlex}>
+            <Store size={14} style={{ color: 'var(--color-primary-600)' }} />
+            <span style={st.actionBtnLabel2}>Add Marketplace</span>
+          </button>
+          <button onClick={() => setShowScouts(true)} style={st.actionBtnSecondaryFlex}>
+            <Users size={14} style={{ color: 'var(--color-primary-600)' }} />
             <span style={st.actionBtnLabel2}>Scouts</span>
-            <span style={st.actionBtnSub}>Find pickup help and local sourcing assistance</span>
-          </div>
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* ── Results count ── */}
@@ -377,20 +383,30 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {!loading && filtered.length === 0 && (
+        {/* Empty state — only when the entire feed is empty. Once any events
+            exist we never show this (filter no-matches is communicated by the
+            results counter above). The sticky Upload Event CTA at the top
+            always remains the primary action. */}
+        {!loading && listings.length === 0 && (
           <div style={st.emptyState}>
             <Gavel size={36} style={{ color: 'var(--color-neutral-200)', marginBottom: '14px' }} />
-            <p style={st.emptyTitle}>No events found</p>
+            <p style={st.emptyTitle}>No events yet</p>
+            <p style={st.emptyText}>
+              Be the first to upload an auction, estate sale, yard sale, or marketplace listing.
+            </p>
+            <button onClick={() => setShowUploadEvent(true)} style={st.emptyBtn}>
+              <Upload size={13} />Upload an Event
+            </button>
+          </div>
+        )}
+
+        {!loading && listings.length > 0 && filtered.length === 0 && (
+          <div style={st.emptyState}>
             <p style={st.emptyText}>
               {searchQuery
-                ? `No results for "${searchQuery}". Try a different search.`
-                : 'Be the first to upload an auction, estate sale, yard sale, or marketplace listing.'}
+                ? `No results for "${searchQuery}". Try a different search or clear your filters.`
+                : 'No events match your current filters.'}
             </p>
-            {!searchQuery && (
-              <button onClick={() => setShowUploadEvent(true)} style={st.emptyBtn}>
-                <Upload size={13} />Upload an Event
-              </button>
-            )}
           </div>
         )}
 
@@ -1305,12 +1321,11 @@ const st: Record<string, React.CSSProperties> = {
   chipActive: { backgroundColor: 'var(--color-primary-600)', color: 'var(--color-neutral-0)', border: '1px solid var(--color-primary-600)' },
 
   actionArea: { display: 'flex', flexDirection: 'column' as const, gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4)', borderTop: '1px solid var(--color-neutral-100)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
-  actionBtnPrimary: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', cursor: 'pointer' },
-  actionBtnLabel: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: '#fff' },
-  actionBtnSecondary: { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '11px 16px', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-200)', cursor: 'pointer' },
-  actionBtnInner: { display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', gap: '1px' },
-  actionBtnLabel2: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-primary-700)' },
-  actionBtnSub: { fontSize: '10px', color: 'var(--color-primary-500)', lineHeight: 1.3 },
+  actionBtnPrimary: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', minHeight: 48, padding: '13px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', cursor: 'pointer', boxShadow: '0 2px 8px rgba(255, 107, 53, 0.25)' },
+  actionBtnLabel: { fontSize: 'var(--font-size-base)', fontWeight: 700, color: '#fff', letterSpacing: '0.01em' },
+  actionRow: { display: 'flex', gap: 'var(--space-2)' },
+  actionBtnSecondaryFlex: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', minHeight: 44, padding: '10px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-200)', cursor: 'pointer' },
+  actionBtnLabel2: { fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary-700)' },
 
   resultsBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px var(--space-4)', flexShrink: 0 },
   resultsText: { fontSize: '11px', color: 'var(--color-neutral-400)' },
