@@ -2,8 +2,13 @@ import { useState, useEffect } from 'react';
 import {
   ArrowLeft, ExternalLink, Radio, Gavel, Tag, MapPin,
   Users, Package, Truck, Plus, X, Clock, ChevronDown,
-  Loader, Home,
+  Loader, Home, Calendar, ToggleLeft, ToggleRight,
 } from 'lucide-react';
+import {
+  deriveStatus, statusBadges, statusPriority,
+  formatScheduleRange, formatStartCountdown, formatEndCountdown,
+  effectiveStartMs,
+} from '../lib/eventSchedule';
 import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
@@ -32,6 +37,7 @@ interface ExternalListing {
   condition: string;
   ships_available: boolean;
   local_pickup: boolean;
+  start_at: string | null;
   ends_at: string | null;
   location: string;
   scout_needed: boolean;
@@ -90,14 +96,11 @@ function getTypeIcon(type: string, size = 12) {
   return <Tag size={size} />;
 }
 
-function timeUntil(iso: string | null): string | null {
-  if (!iso) return null;
-  const diff = new Date(iso).getTime() - Date.now();
-  if (diff <= 0) return 'Ended';
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return `${Math.floor(diff / 60000)}m left`;
-  if (h < 24) return `${h}h left`;
-  return `${Math.floor(h / 24)}d left`;
+function buildIso(date: string, time: string): string | null {
+  if (!date) return null;
+  const t = time || '00:00';
+  const local = new Date(`${date}T${t}`);
+  return Number.isNaN(local.getTime()) ? null : local.toISOString();
 }
 
 export default function Auctions({ onBack }: { onBack: () => void }) {
@@ -158,16 +161,25 @@ function HubFeed({
       });
   }, []);
 
-  const filtered = listings.filter((l) => {
-    if (typeFilter !== 'all' && l.listing_type !== typeFilter) return false;
-    if (categoryFilter !== 'All' && l.category.toLowerCase() !== categoryFilter.toLowerCase()) return false;
-    if (extraFilter === 'local' && !l.local_pickup) return false;
-    if (extraFilter === 'ships' && !l.ships_available) return false;
-    if (extraFilter === 'scout' && !l.scout_needed) return false;
-    return true;
-  });
+  const filtered = listings
+    .filter((l) => {
+      if (typeFilter !== 'all' && l.listing_type !== typeFilter) return false;
+      if (categoryFilter !== 'All' && l.category.toLowerCase() !== categoryFilter.toLowerCase()) return false;
+      if (extraFilter === 'local' && !l.local_pickup) return false;
+      if (extraFilter === 'ships' && !l.ships_available) return false;
+      if (extraFilter === 'scout' && !l.scout_needed) return false;
+      return true;
+    })
+    .slice()
+    .sort((a, b) => {
+      const pa = statusPriority(deriveStatus(a));
+      const pb = statusPriority(deriveStatus(b));
+      if (pa !== pb) return pa - pb;
+      return (effectiveStartMs(b) ?? 0) - (effectiveStartMs(a) ?? 0);
+    });
 
-  const liveCount = listings.filter((l) => l.listing_type === 'live_stream').length;
+  // "Live now" = events whose derived status is live, not just a live_stream type.
+  const liveCount = listings.filter((l) => deriveStatus(l) === 'live').length;
 
   return (
     <div style={st.container}>
@@ -275,8 +287,14 @@ function ExternalListingCard({
   const displayLabel = listing.platform === 'other' && listing.platform_label
     ? listing.platform_label
     : plat.label;
-  const timer = timeUntil(listing.ends_at);
-  const isLive = listing.listing_type === 'live_stream';
+  const status = deriveStatus(listing);
+  const badges = statusBadges(listing);
+  const liveBadge = badges.find((b) => b.label === 'LIVE NOW');
+  const scheduleText = formatScheduleRange(listing);
+  const startCountdown = formatStartCountdown(listing);
+  const endCountdown = formatEndCountdown(listing);
+  const countdownText = status === 'upcoming' ? startCountdown : (status === 'live' || status === 'ending_soon' ? endCountdown : null);
+  const isLive = Boolean(liveBadge);
 
   return (
     <article
@@ -305,17 +323,38 @@ function ExternalListingCard({
 
         <h3 style={st.cardTitle}>{listing.title}</h3>
 
+        {badges.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 6 }}>
+            {badges.map((b) => (
+              <span key={b.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, backgroundColor: b.bg, color: b.fg }}>
+                {b.pulse && <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#fff', animation: 'pulse 1.5s infinite' }} />}
+                {b.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {(scheduleText || countdownText) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, marginBottom: 6, fontSize: 11, color: 'var(--color-neutral-600)' }}>
+            {scheduleText && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Calendar size={10} style={{ color: 'var(--color-primary-500)' }} />{scheduleText}
+              </span>
+            )}
+            {countdownText && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: status === 'live' || status === 'ending_soon' ? 'var(--color-error-600)' : 'var(--color-primary-600)', fontWeight: 600 }}>
+                <Clock size={10} />{countdownText}
+              </span>
+            )}
+          </div>
+        )}
+
         <div style={st.cardMeta}>
           {listing.price_display && (
             <span style={st.priceTag}>{listing.price_display}</span>
           )}
           {listing.location && (
             <span style={st.metaItem}><MapPin size={10} /> {listing.location}</span>
-          )}
-          {timer && (
-            <span style={{ ...st.metaItem, color: timer === 'Ended' ? 'var(--color-error-500)' : 'var(--color-neutral-500)' }}>
-              <Clock size={10} /> {timer}
-            </span>
           )}
         </div>
 
@@ -355,7 +394,6 @@ function ListingDetail({
   const displayLabel = listing.platform === 'other' && listing.platform_label
     ? listing.platform_label
     : plat.label;
-  const timer = timeUntil(listing.ends_at);
   const isAuctionType = listing.listing_type === 'live_stream' || listing.listing_type === 'auction';
 
   const openListing = () => window.open(listing.external_url, '_blank', 'noopener,noreferrer');
@@ -419,21 +457,45 @@ function ListingDetail({
             {listing.location && (
               <span style={st.detailInfoItem}><MapPin size={12} /> {listing.location}</span>
             )}
-            {timer && (
-              <span style={{
-                ...st.detailInfoItem,
-                color: timer === 'Ended' ? 'var(--color-error-600)' : 'var(--color-neutral-600)',
-                fontWeight: 'var(--font-weight-semibold)',
-              }}>
-                <Clock size={12} /> {timer}
-              </span>
-            )}
-            {listing.ends_at && !timer?.includes('Ended') && (
-              <span style={st.detailInfoItem}>
-                Ends {new Date(listing.ends_at).toLocaleDateString()}
-              </span>
-            )}
           </div>
+
+          {(() => {
+            const dStatus = deriveStatus(listing);
+            const dBadges = statusBadges(listing);
+            const sRange = formatScheduleRange(listing);
+            const sCountStart = formatStartCountdown(listing);
+            const sCountEnd = formatEndCountdown(listing);
+            if (!sRange && !sCountStart && !sCountEnd && dBadges.length === 0) return null;
+            return (
+              <div style={{ margin: '10px 0', padding: '10px 12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)' }}>
+                {dBadges.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 6 }}>
+                    {dBadges.map((b) => (
+                      <span key={b.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4, backgroundColor: b.bg, color: b.fg }}>
+                        {b.pulse && <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#fff', animation: 'pulse 1.5s infinite' }} />}
+                        {b.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {sRange && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--color-neutral-800)' }}>
+                    <Calendar size={12} style={{ color: 'var(--color-primary-500)' }} /> {sRange}
+                  </div>
+                )}
+                {sCountStart && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-primary-700)', fontWeight: 600, marginTop: 3 }}>
+                    <Clock size={11} />{sCountStart}
+                  </div>
+                )}
+                {sCountEnd && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: dStatus === 'ended' ? 'var(--color-neutral-500)' : 'var(--color-error-600)', fontWeight: 600, marginTop: 3 }}>
+                    <Clock size={11} />{sCountEnd}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {listing.description && (
             <p style={st.detailDesc}>{listing.description}</p>
@@ -553,7 +615,13 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     condition: 'Good',
     ships_available: false,
     local_pickup: false,
-    ends_at: '',
+    start_date: '',
+    start_time: '',
+    end_date: '',
+    end_time: '',
+    same_day: true,
+    multi_day: false,
+    no_end_time: false,
     location: '',
     scout_needed: false,
     general_location: '',
@@ -585,6 +653,20 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       setSaving(false);
       return;
     }
+    if (!form.start_date) {
+      setError('Start date is required.'); setSaving(false); return;
+    }
+    const startIso = buildIso(form.start_date, form.start_time);
+    if (!startIso) { setError('Please enter a valid start date and time.'); setSaving(false); return; }
+    let endIso: string | null = null;
+    if (!form.no_end_time) {
+      if (!form.end_date) { setError('End date is required (or turn on "No End Time").'); setSaving(false); return; }
+      endIso = buildIso(form.end_date, form.end_time);
+      if (!endIso) { setError('Please enter a valid end date and time.'); setSaving(false); return; }
+      if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+        setError('End must be after the start time.'); setSaving(false); return;
+      }
+    }
     const marketplaceValue = form.marketplace_key === 'other' && form.marketplace_custom.trim()
       ? `custom:${form.marketplace_custom.trim()}`
       : form.marketplace_key || null;
@@ -602,7 +684,8 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       condition: form.condition,
       ships_available: form.ships_available || form.pickup_type.includes('shipping_available') || form.pickup_type.includes('nationwide_shipping'),
       local_pickup: form.local_pickup || form.pickup_type.includes('local_pickup'),
-      ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
+      start_at: startIso,
+      ends_at: endIso,
       location: form.general_location || form.location.trim(),
       scout_needed: form.scout_needed,
       status: 'active',
@@ -779,13 +862,85 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 <ChevronDown size={14} style={sh.selectIcon} />
               </div>
 
-              <label style={{ ...sh.label, marginTop: '12px' }}>Ends At (optional)</label>
-              <input
-                type="datetime-local"
-                value={form.ends_at}
-                onChange={(e) => set('ends_at', e.target.value)}
-                style={sh.input}
-              />
+              <label style={{ ...sh.label, marginTop: '12px', textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-neutral-500)' }}>Event Start *</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="date"
+                  value={form.start_date}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setForm((f) => ({ ...f, start_date: v, end_date: f.same_day ? v : f.end_date }));
+                  }}
+                  style={{ ...sh.input, flex: 1, minHeight: 44 }}
+                />
+                <input
+                  type="time"
+                  value={form.start_time}
+                  onChange={(e) => set('start_time', e.target.value)}
+                  style={{ ...sh.input, flex: 1, minHeight: 44 }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginTop: 10 }}>
+                {([
+                  { key: 'same_day' as const,    label: 'Same-Day Event',   on: form.same_day },
+                  { key: 'multi_day' as const,   label: 'Multi-Day Event',  on: form.multi_day },
+                  { key: 'no_end_time' as const, label: 'No End Time',      on: form.no_end_time },
+                ]).map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => {
+                      setForm((f) => {
+                        const next = { ...f, same_day: false, multi_day: false, no_end_time: false } as typeof f;
+                        if (!t.on) {
+                          (next as Record<string, unknown>)[t.key] = true;
+                          if (t.key === 'same_day') next.end_date = f.start_date;
+                          if (t.key === 'no_end_time') { next.end_date = ''; next.end_time = ''; }
+                        }
+                        return next;
+                      });
+                    }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      minHeight: 44, padding: '8px 14px',
+                      borderRadius: 'var(--radius-full)',
+                      backgroundColor: t.on ? 'var(--color-primary-50)' : 'var(--color-neutral-100)',
+                      border: `1.5px solid ${t.on ? 'var(--color-primary-400)' : 'var(--color-neutral-200)'}`,
+                      fontSize: 12, fontWeight: 600,
+                      color: t.on ? 'var(--color-primary-700)' : 'var(--color-neutral-600)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {t.on ? <ToggleRight size={16} style={{ color: 'var(--color-primary-500)' }} /> : <ToggleLeft size={16} style={{ color: 'var(--color-neutral-400)' }} />}
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {!form.no_end_time && (
+                <>
+                  <label style={{ ...sh.label, marginTop: 12, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-neutral-500)' }}>Event End *</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="date"
+                      value={form.end_date}
+                      onChange={(e) => set('end_date', e.target.value)}
+                      disabled={form.same_day}
+                      style={{ ...sh.input, flex: 1, minHeight: 44, opacity: form.same_day ? 0.6 : 1 }}
+                    />
+                    <input
+                      type="time"
+                      value={form.end_time}
+                      onChange={(e) => set('end_time', e.target.value)}
+                      style={{ ...sh.input, flex: 1, minHeight: 44 }}
+                    />
+                  </div>
+                  {form.same_day && (
+                    <p style={{ fontSize: 10, color: 'var(--color-neutral-400)', marginTop: 4 }}>End date auto-matches the start date.</p>
+                  )}
+                </>
+              )}
 
               <div style={{ marginTop: 12 }}>
                 <LocationFields

@@ -1,0 +1,133 @@
+Improve the Live Events page layout and scrolling behavior so the primary action buttons remain visible and accessible while the events feed scrolls independently.
+
+PROBLEM
+
+Currently:
+
+the event feed scrolls correctly
+BUT the empty-state section and "Upload an Event" button are inside the scrolling content area
+
+This creates a major UX issue:
+
+Once many events exist, the Upload Event button gets pushed far down the page and becomes difficult to access.
+
+This hurts:
+
+event submissions
+marketplace growth
+user engagement
+repeat posting behavior
+
+Keep all primary controls fixed/sticky near the top while ONLY the event feed scrolls.
+
+========================================
+
+STICKY TOP ACTION AREA
+========================================
+
+The following elements should remain stationary near the top of the Live Events page:
+
+Search bar
+Marketplace/platform buttons
+Poshmark
+Whatnot
+eBay
+Facebook
+Filter chips
+All
+Auctions
+Estate Sales
+Yard Sales
+Storage Lockers
+Add Marketplace button
+Upload Event button
+Scouts button/card
+
+These controls should remain visible while users scroll through events.
+
+ONLY the actual events list/feed should scroll.
+
+Examples:
+
+auctions
+estate sales
+yard sales
+marketplace streams
+storage locker events
+
+The feed should scroll independently underneath the sticky controls area.
+
+The following block:
+
+"No events found"
+"Be the first to upload..."
+"Upload an Event"
+
+should ONLY appear when:
+
+the feed has zero events
+
+Once events exist:
+
+remove the empty-state block entirely
+
+Do NOT show both:
+
+populated feed
+AND empty-state messaging
+
+The Upload Event button should become a permanent primary CTA near the top action area.
+
+Recommended hierarchy:
+
+Primary CTA
+
+[ Upload Event ]
+
+Bright orange
+Largest/highest emphasis button
+
+Secondary CTA
+
+[ Add Marketplace ]
+
+Smaller secondary action
+
+Use sticky positioning:
+
+sticky top offset
+proper z-index
+background blur or solid background
+prevent overlap with feed content
+
+Ensure:
+
+smooth scrolling
+no flickering
+mobile safe-area support
+
+On mobile:
+
+controls remain reachable
+Upload Event stays visible
+buttons remain thumb-friendly
+horizontal chip scrolling still works
+no layout jumping
+
+Ensure:
+
+feed virtualization/lazy rendering remains intact
+sticky controls do not trigger excessive rerenders
+
+Verify:
+
+Upload Event button never disappears off-screen
+feed scrolls independently
+sticky controls remain visible
+empty state only shows when appropriate
+mobile scrolling smooth
+no overlap issues
+no duplicated buttons
+TypeScript clean
+no console errors
+republish after completion

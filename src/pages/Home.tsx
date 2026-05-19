@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import { checkLocalReminders } from '../lib/localReminders';
+import { deriveStatus, statusPriority } from '../lib/eventSchedule';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
 import { fetchCommunityPosts, togglePostLike, fetchUserLikes } from '../lib/database';
 import { useAuth } from '../context/AuthContext';
@@ -53,6 +54,7 @@ interface ExternalListing {
   price_display: string | null;
   category: string | null;
   image_url: string | null;
+  start_at: string | null;
   ends_at: string | null;
   scout_needed: boolean;
   ships_available: boolean;
@@ -102,6 +104,7 @@ interface FeedItem {
   sortTrending: number;   // engagement score
   sortMostWanted: number; // scout-needed score
   sortEndingSoon: number; // ms until end (Infinity if not an auction)
+  sortLivePriority: number; // 0=live, 1=ending_soon, 2=upcoming, 3=open_ended, 4=ended/n-a
 }
 
 function categoryToFilterId(cat?: string | null): FilterId | null {
@@ -275,7 +278,7 @@ export default function Home() {
       fetchCommunityPosts(50),
       supabase
         .from('external_listings')
-        .select('id,platform,listing_type,external_url,title,description,price_display,category,image_url,ends_at,scout_needed,ships_available,location,general_location,created_at')
+        .select('id,platform,listing_type,external_url,title,description,price_display,category,image_url,start_at,ends_at,scout_needed,ships_available,location,general_location,created_at')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(30),
@@ -364,6 +367,7 @@ export default function Home() {
         sortTrending: (p.like_count || 0) * 2 + (p.comment_count || 0) + (p.share_count || 0),
         sortMostWanted: (p.scout_needed ? 1000 : 0) + (p.type === 'rare_radar' ? 500 : 0) + (p.like_count || 0),
         sortEndingSoon: Infinity,
+        sortLivePriority: 9, // non-event content sits below live events
       });
     }
 
@@ -376,6 +380,8 @@ export default function Home() {
       const loc = l.general_location || l.location || '';
       const createdMs = new Date(l.created_at).getTime() || 0;
       const endsMs = l.ends_at ? new Date(l.ends_at).getTime() : NaN;
+      const status = deriveStatus(l);
+      const livePri = statusPriority(status);
       out.push({
         kind: 'listing',
         id: l.id,
@@ -384,9 +390,10 @@ export default function Home() {
         location: loc,
         searchText: [l.title, l.description, l.category, loc, l.platform].filter(Boolean).join(' ').toLowerCase(),
         sortNewest: createdMs,
-        sortTrending: (l.listing_type === 'live_stream' || l.listing_type === 'auction') ? 100 : 0,
+        sortTrending: status === 'live' ? 200 : (status === 'ending_soon' ? 150 : ((l.listing_type === 'live_stream' || l.listing_type === 'auction') ? 100 : 0)),
         sortMostWanted: l.scout_needed ? 1000 : 0,
-        sortEndingSoon: isFinite(endsMs) ? Math.max(0, endsMs - Date.now()) : Infinity,
+        sortEndingSoon: isFinite(endsMs) && status !== 'ended' ? Math.max(0, endsMs - Date.now()) : Infinity,
+        sortLivePriority: livePri,
       });
     }
 
@@ -407,6 +414,7 @@ export default function Home() {
         sortTrending: 0,
         sortMostWanted: m.scout_needed ? 1000 : 0,
         sortEndingSoon: Infinity,
+        sortLivePriority: 9,
       });
     }
 
@@ -425,10 +433,16 @@ export default function Home() {
     if (activeSort === 'ending_soon') {
       v = v.filter((i) => isFinite(i.sortEndingSoon));
     }
+    // For event listings, live > upcoming > ended within their kind.
+    // Posts and marketplace items keep their normal time-based ordering;
+    // we only apply sortLivePriority when comparing two listings, so we
+    // don't push fresh posts below ended listings.
+    const livePriCmp = (a: FeedItem, b: FeedItem) =>
+      (a.kind === 'listing' && b.kind === 'listing') ? a.sortLivePriority - b.sortLivePriority : 0;
     const cmp: Record<SortId, (a: FeedItem, b: FeedItem) => number> = {
-      newest:      (a, b) => b.sortNewest - a.sortNewest,
-      trending:    (a, b) => (b.sortTrending - a.sortTrending) || (b.sortNewest - a.sortNewest),
-      most_wanted: (a, b) => (b.sortMostWanted - a.sortMostWanted) || (b.sortNewest - a.sortNewest),
+      newest:      (a, b) => livePriCmp(a, b) || (b.sortNewest - a.sortNewest),
+      trending:    (a, b) => livePriCmp(a, b) || (b.sortTrending - a.sortTrending) || (b.sortNewest - a.sortNewest),
+      most_wanted: (a, b) => (b.sortMostWanted - a.sortMostWanted) || livePriCmp(a, b) || (b.sortNewest - a.sortNewest),
       ending_soon: (a, b) => a.sortEndingSoon - b.sortEndingSoon,
     };
     return v.slice().sort(cmp[activeSort]);

@@ -5,7 +5,7 @@ import {
   Upload, ToggleLeft, ToggleRight, ChevronDown,
   Search, SlidersHorizontal, MapPin, Calendar,
   Truck, Package, UserCheck, AlertCircle, ChevronRight,
-  Store, Users,
+  Store, Users, Bell, BellOff,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -16,6 +16,12 @@ import ScoutToggles from '../components/listing/ScoutToggles';
 import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
+import {
+  effectiveStartMs, deriveStatus, statusBadges, formatScheduleRange,
+  formatStartCountdown, formatEndCountdown, durationMs, formatDuration,
+  eventComparator, type EventSortKey,
+} from '../lib/eventSchedule';
+import { isReminderOn, toggleLocalReminder } from '../lib/localReminders';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +34,7 @@ interface ExternalListing {
   price_display: string | null;
   category: string | null;
   image_url: string | null;
+  start_at: string | null;
   ends_at: string | null;
   scout_needed: boolean;
   ships_available: boolean;
@@ -36,8 +43,8 @@ interface ExternalListing {
 }
 
 type TypeFilter = 'all' | 'auctions' | 'estate' | 'yard' | 'storage';
-type DateFilter = 'all' | 'today' | 'tomorrow' | 'this_weekend' | 'next_weekend' | 'this_week' | 'this_month' | 'custom';
-type SortKey = 'newest' | 'soonest' | 'ending_soon';
+type DateFilter = 'all' | 'today' | 'tomorrow' | 'this_weekend' | 'next_weekend' | 'this_week' | 'next_week' | 'this_month' | 'custom';
+type SortKey = EventSortKey;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -56,14 +63,16 @@ const DATE_FILTERS: { key: DateFilter; label: string }[] = [
   { key: 'this_weekend', label: 'This Weekend' },
   { key: 'next_weekend', label: 'Next Weekend' },
   { key: 'this_week', label: 'This Week' },
+  { key: 'next_week', label: 'Next Week' },
   { key: 'this_month', label: 'This Month' },
   { key: 'custom', label: 'Custom Date' },
 ];
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'newest', label: 'Newest Added' },
-  { key: 'soonest', label: 'Soonest First' },
+  { key: 'live_now', label: 'Live Now' },
+  { key: 'starting_soonest', label: 'Starting Soonest' },
   { key: 'ending_soon', label: 'Ending Soon' },
+  { key: 'newest', label: 'Newly Added' },
 ];
 
 const PLATFORM_TABS = [
@@ -128,6 +137,11 @@ function getDateRange(filter: DateFilter): { start: Date; end: Date } | null {
       const end = new Date(today); end.setDate(today.getDate() + 7);
       return { start: today, end };
     }
+    case 'next_week': {
+      const start = new Date(today); start.setDate(today.getDate() + 7);
+      const end = new Date(start); end.setDate(start.getDate() + 7);
+      return { start, end };
+    }
     case 'this_month': {
       const end = new Date(today.getFullYear(), today.getMonth() + 1, 1);
       return { start: today, end };
@@ -178,61 +192,32 @@ function applyAll(
     );
   }
 
-  // Date filter
+  // Date filter — keyed on start_at (falling back to created_at) so we filter
+  // by when the event actually happens, not when it was uploaded.
   if (opts.dateFilter !== 'all' && opts.dateFilter !== 'custom') {
     const range = getDateRange(opts.dateFilter);
     if (range) {
       result = result.filter((l) => {
-        if (!l.ends_at) return true;
-        const d = new Date(l.ends_at);
-        return d >= range.start && d < range.end;
+        const s = effectiveStartMs(l);
+        if (s == null) return false;
+        return s >= range.start.getTime() && s < range.end.getTime();
       });
     }
   } else if (opts.dateFilter === 'custom' && opts.customDate) {
     const target = new Date(opts.customDate);
     const next = new Date(target); next.setDate(next.getDate() + 1);
     result = result.filter((l) => {
-      if (!l.ends_at) return true;
-      const d = new Date(l.ends_at);
-      return d >= target && d < next;
+      const s = effectiveStartMs(l);
+      if (s == null) return false;
+      return s >= target.getTime() && s < next.getTime();
     });
   }
 
-  // Sort
-  switch (opts.sortBy) {
-    case 'soonest':
-    case 'ending_soon':
-      result.sort((a, b) => {
-        if (!a.ends_at && !b.ends_at) return 0;
-        if (!a.ends_at) return 1;
-        if (!b.ends_at) return -1;
-        return new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime();
-      });
-      break;
-    case 'newest':
-    default:
-      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }
+  // Sort — all event sort modes route through the shared comparator which is
+  // status-aware (Live > Ending Soon > Upcoming > Open-ended > Ended).
+  result.sort(eventComparator(opts.sortBy));
 
   return result;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatCountdown(endsAt: string): string {
-  const diff = new Date(endsAt).getTime() - Date.now();
-  if (diff <= 0) return 'Ended';
-  const h = Math.floor(diff / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  if (h >= 24) return `Ends in ${Math.floor(h / 24)}d ${h % 24}h`;
-  if (h >= 1)  return `Ends in ${h}h ${m}m`;
-  return `Ends in ${m}m`;
-}
-
-function formatDateTime(dt: string): string {
-  return new Date(dt).toLocaleString(undefined, {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  });
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -248,7 +233,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   const [typeFilter,     setTypeFilter]     = useState<TypeFilter>('all');
   const [dateFilter,     setDateFilter]     = useState<DateFilter>('all');
   const [customDate,     setCustomDate]     = useState('');
-  const [sortBy,         setSortBy]         = useState<SortKey>('newest');
+  const [sortBy,         setSortBy]         = useState<SortKey>('live_now');
   const [locationQuery,  setLocationQuery]  = useState('');
 
   // UI state
@@ -262,7 +247,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
     setLoading(true);
     supabase
       .from('external_listings')
-      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,ends_at,scout_needed,ships_available,status,created_at,general_location,marketplace_found,pickup_type,scouts_available,meetup_notes,address_reveal_policy')
+      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,start_at,ends_at,scout_needed,ships_available,status,created_at,general_location,marketplace_found,pickup_type,scouts_available,meetup_notes,address_reveal_policy')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(100)
@@ -279,9 +264,9 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
     [listings, typeFilter, searchQuery, locationQuery, dateFilter, customDate, sortBy],
   );
 
-  const liveCount = listings.filter((l) => l.listing_type === 'live_stream').length;
+  const liveCount = listings.filter((l) => deriveStatus(l) === 'live').length;
   const activeFilterCount = [
-    dateFilter !== 'all', locationQuery.trim() !== '', sortBy !== 'newest',
+    dateFilter !== 'all', locationQuery.trim() !== '', sortBy !== 'live_now',
   ].filter(Boolean).length;
 
   return (
@@ -376,7 +361,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
             {filtered.length} {filtered.length === 1 ? 'event' : 'events'}
             {searchQuery && ` matching "${searchQuery}"`}
           </span>
-          {sortBy !== 'newest' && (
+          {sortBy !== 'live_now' && (
             <span style={st.sortLabel}>
               {SORT_OPTIONS.find((s) => s.key === sortBy)?.label}
             </span>
@@ -433,7 +418,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           sortBy={sortBy} setSortBy={setSortBy}
           locationQuery={locationQuery} setLocationQuery={setLocationQuery}
           onClose={() => setShowFilters(false)}
-          onReset={() => { setDateFilter('all'); setCustomDate(''); setSortBy('newest'); setLocationQuery(''); }}
+          onReset={() => { setDateFilter('all'); setCustomDate(''); setSortBy('live_now'); setLocationQuery(''); }}
         />
       )}
       {showAddPlatform && (
@@ -463,14 +448,21 @@ function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: 
   const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
   const platformLabel = listing.platform.charAt(0).toUpperCase() + listing.platform.slice(1);
   const typeLabel = LISTING_TYPE_LABELS[listing.listing_type] ?? listing.listing_type;
-  const isLive = listing.listing_type === 'live_stream';
+
+  const badges = statusBadges(listing);
+  const liveBadge = badges.find((b) => b.label === 'LIVE NOW');
+  const scheduleText = formatScheduleRange(listing);
+  const startCountdown = formatStartCountdown(listing);
+  const endCountdown = formatEndCountdown(listing);
+  const status = deriveStatus(listing);
+  const countdownText = status === 'upcoming' ? startCountdown : (status === 'live' || status === 'ending_soon' ? endCountdown : null);
 
   return (
     <button onClick={onClick} style={st.card}>
       {listing.image_url && (
         <div style={st.cardImgWrap}>
           <img src={listing.image_url} alt={listing.title} style={st.cardImg} />
-          {isLive && (
+          {liveBadge && (
             <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>
           )}
         </div>
@@ -484,6 +476,34 @@ function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: 
 
         <p style={st.cardTitle}>{listing.title}</p>
 
+        {/* Status badges (Live / Ends Soon / Starts Soon / Today / Multi-day / Ended) */}
+        {badges.length > 0 && (
+          <div style={st.badgeRow}>
+            {badges.map((b) => (
+              <span key={b.label} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', backgroundColor: b.bg, color: b.fg }}>
+                {b.pulse && <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#fff', animation: 'pulse 1.5s infinite' }} />}
+                {b.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Schedule range + countdown */}
+        {(scheduleText || countdownText) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '6px', fontSize: '11px', color: 'var(--color-neutral-600)' }}>
+            {scheduleText && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Calendar size={10} style={{ color: 'var(--color-primary-500)' }} />{scheduleText}
+              </span>
+            )}
+            {countdownText && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: status === 'live' || status === 'ending_soon' ? 'var(--color-error-600)' : 'var(--color-primary-600)', fontWeight: 600 }}>
+                <Clock size={10} />{countdownText}
+              </span>
+            )}
+          </div>
+        )}
+
         {listing.category && <span style={st.categoryTag}>{listing.category}</span>}
 
         {/* Scout & logistics badges */}
@@ -495,9 +515,6 @@ function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: 
             <span style={st.badgeShips}><Truck size={9} />Ships</span>
           ) : (
             <span style={st.badgeLocal}><Package size={9} />Local Pickup</span>
-          )}
-          {listing.ends_at && (
-            <span style={st.badgeTimer}><Clock size={9} />{formatCountdown(listing.ends_at)}</span>
           )}
         </div>
 
@@ -516,10 +533,31 @@ function EventDetailModal({ listing, onClose, onScout }: {
   onClose: () => void;
   onScout: () => void;
 }) {
+  const { user } = useAuth();
   const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
   const platformLabel = listing.platform.charAt(0).toUpperCase() + listing.platform.slice(1);
   const typeLabel = LISTING_TYPE_LABELS[listing.listing_type] ?? listing.listing_type;
-  const isLive = listing.listing_type === 'live_stream';
+
+  const badges = statusBadges(listing);
+  const liveBadge = badges.find((b) => b.label === 'LIVE NOW');
+  const scheduleText = formatScheduleRange(listing);
+  const startCountdown = formatStartCountdown(listing);
+  const endCountdown = formatEndCountdown(listing);
+  const dur = durationMs(listing);
+  const startMs = effectiveStartMs(listing);
+  const canRemind = Boolean(startMs && startMs > Date.now() && user?.id);
+
+  const [reminderOn, setReminderOn] = useState<boolean>(() => isReminderOn(listing.id));
+  const handleToggleReminder = () => {
+    if (!startMs) return;
+    const on = toggleLocalReminder({
+      eventId: listing.id,
+      title: listing.title,
+      startsAtISO: new Date(startMs).toISOString(),
+      remindBeforeMinutes: 60,
+    });
+    setReminderOn(on);
+  };
 
   return (
     <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -534,7 +572,7 @@ function EventDetailModal({ listing, onClose, onScout }: {
           {listing.image_url && (
             <div style={{ width: '100%', height: '180px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 'var(--space-3)', position: 'relative' }}>
               <img src={listing.image_url} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              {isLive && <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>}
+              {liveBadge && <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>}
             </div>
           )}
 
@@ -557,13 +595,63 @@ function EventDetailModal({ listing, onClose, onScout }: {
             </p>
           )}
 
-          {/* Date / time */}
-          {listing.ends_at && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-3)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)' }}>
-              <Calendar size={13} style={{ color: 'var(--color-primary-500)' }} />
-              <span>{formatDateTime(listing.ends_at)}</span>
-              <span style={{ color: 'var(--color-error-600)', fontWeight: 600 }}>({formatCountdown(listing.ends_at)})</span>
+          {/* Status badges */}
+          {badges.length > 0 && (
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: 'var(--space-3)' }}>
+              {badges.map((b) => (
+                <span key={b.label} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 700, padding: '3px 9px', borderRadius: '4px', backgroundColor: b.bg, color: b.fg }}>
+                  {b.pulse && <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#fff', animation: 'pulse 1.5s infinite' }} />}
+                  {b.label}
+                </span>
+              ))}
             </div>
+          )}
+
+          {/* Schedule block */}
+          {(scheduleText || startCountdown || endCountdown || dur != null) && (
+            <div style={{ marginBottom: 'var(--space-4)', padding: '12px 14px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)' }}>
+              {scheduleText && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-neutral-800)', marginBottom: '6px' }}>
+                  <Calendar size={13} style={{ color: 'var(--color-primary-500)' }} />
+                  <span>{scheduleText}</span>
+                </div>
+              )}
+              {startCountdown && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--font-size-xs)', color: 'var(--color-primary-700)', fontWeight: 600 }}>
+                  <Clock size={11} />{startCountdown}
+                </div>
+              )}
+              {endCountdown && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--font-size-xs)', color: endCountdown === 'Ended' ? 'var(--color-neutral-500)' : 'var(--color-error-600)', fontWeight: 600, marginTop: startCountdown ? 3 : 0 }}>
+                  <Clock size={11} />{endCountdown}
+                </div>
+              )}
+              {dur != null && (
+                <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: 4 }}>
+                  Duration: {formatDuration(dur)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Remind me */}
+          {canRemind && (
+            <button
+              onClick={handleToggleReminder}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                width: '100%', minHeight: 44, padding: '11px',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: reminderOn ? 'var(--color-warning-50)' : 'var(--color-neutral-100)',
+                border: `1.5px solid ${reminderOn ? 'var(--color-warning-400)' : 'var(--color-neutral-200)'}`,
+                fontSize: 'var(--font-size-sm)', fontWeight: 700,
+                color: reminderOn ? 'var(--color-warning-700)' : 'var(--color-neutral-700)',
+                marginBottom: 'var(--space-3)', cursor: 'pointer',
+              }}
+            >
+              {reminderOn ? <Bell size={14} /> : <BellOff size={14} />}
+              {reminderOn ? 'Reminder On (1 hour before)' : 'Remind me 1 hour before'}
+            </button>
           )}
 
           {/* Scout & logistics badges */}
@@ -801,14 +889,19 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
 
 interface EventForm {
   title: string; platform: string; listing_type: string; external_url: string;
-  price_display: string; category: string; image_url: string; ends_at: string;
+  price_display: string; category: string; image_url: string;
+  start_date: string; start_time: string;
+  end_date: string;   end_time: string;
+  same_day: boolean; multi_day: boolean; no_end_time: boolean;
   scout_needed: boolean; ships_available: boolean;
 }
 
 function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
   const [form, setForm] = useState<EventForm>({
     title: '', platform: 'other', listing_type: 'auction', external_url: '',
-    price_display: '', category: '', image_url: '', ends_at: '',
+    price_display: '', category: '', image_url: '',
+    start_date: '', start_time: '', end_date: '', end_time: '',
+    same_day: true, multi_day: false, no_end_time: false,
     scout_needed: false, ships_available: false,
   });
   const [loc, setLoc] = useState<LocationValue>({
@@ -823,6 +916,40 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
   const [error,   setError]   = useState('');
   const [success, setSuccess] = useState('');
   const set = (k: keyof EventForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Toggle helpers — Same-Day / Multi-Day / No End Time are mutually exclusive
+  // in spirit. Same-Day auto-mirrors end_date to start_date as the user types.
+  const setSameDay = (v: boolean) => setForm((f) => ({
+    ...f, same_day: v,
+    multi_day: v ? false : f.multi_day,
+    no_end_time: v ? false : f.no_end_time,
+    end_date: v ? f.start_date : f.end_date,
+  }));
+  const setMultiDay = (v: boolean) => setForm((f) => ({
+    ...f, multi_day: v,
+    same_day: v ? false : f.same_day,
+    no_end_time: v ? false : f.no_end_time,
+  }));
+  const setNoEndTime = (v: boolean) => setForm((f) => ({
+    ...f, no_end_time: v,
+    same_day: v ? false : f.same_day,
+    multi_day: v ? false : f.multi_day,
+    end_date: v ? '' : f.end_date,
+    end_time: v ? '' : f.end_time,
+  }));
+
+  // Keep end_date synced to start_date when Same-Day is on.
+  const setStartDate = (v: string) => setForm((f) => ({
+    ...f, start_date: v,
+    end_date: f.same_day ? v : f.end_date,
+  }));
+
+  function buildIso(date: string, time: string): string | null {
+    if (!date) return null;
+    const t = time || '00:00';
+    const local = new Date(`${date}T${t}`);
+    return Number.isNaN(local.getTime()) ? null : local.toISOString();
+  }
 
   const handleSubmit = async () => {
     setError(''); setSuccess('');
@@ -850,6 +977,22 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       return;
     }
 
+    // Schedule validation
+    if (!form.start_date) {
+      setError('Start date is required.'); return;
+    }
+    const startIso = buildIso(form.start_date, form.start_time);
+    if (!startIso) { setError('Please enter a valid start date and time.'); return; }
+    let endIso: string | null = null;
+    if (!form.no_end_time) {
+      if (!form.end_date) { setError('End date is required (or turn on "No End Time").'); return; }
+      endIso = buildIso(form.end_date, form.end_time);
+      if (!endIso) { setError('Please enter a valid end date and time.'); return; }
+      if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+        setError('End must be after the start time.'); return;
+      }
+    }
+
     setSaving(true);
     const marketplaceValue = marketplaceKey === 'other' && marketplaceCustom.trim()
       ? `custom:${marketplaceCustom.trim()}`
@@ -864,7 +1007,8 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       price_display: form.price_display.trim() || '',
       category: form.category.trim() || 'other',
       image_url: form.image_url.trim() || null,
-      ends_at: form.ends_at || null,
+      start_at: startIso,
+      ends_at: endIso,
       scout_needed: form.scout_needed,
       ships_available: shipping,
       local_pickup: pickupType.includes('local_pickup') || !shipping,
@@ -946,8 +1090,73 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
               <input style={mo.input} placeholder="e.g. Antiques" value={form.category} onChange={(e) => set('category', e.target.value)} />
             </div>
           </div>
-          <label style={mo.label}>End Date / Time</label>
-          <input style={mo.input} type="datetime-local" value={form.ends_at} onChange={(e) => set('ends_at', e.target.value)} />
+          {/* ── Event Start ── */}
+          <p style={{ ...mo.label, marginTop: 'var(--space-4)', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.06em', color: 'var(--color-neutral-500)' }}>Event Start <span style={mo.req}>*</span></p>
+          <div style={mo.row}>
+            <div style={{ flex: 1 }}>
+              <label style={mo.label}>Start Date</label>
+              <input style={{ ...mo.input, minHeight: 44 }} type="date" value={form.start_date} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={mo.label}>Start Time</label>
+              <input style={{ ...mo.input, minHeight: 44 }} type="time" value={form.start_time} onChange={(e) => set('start_time', e.target.value)} />
+            </div>
+          </div>
+
+          {/* Schedule toggles */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginTop: 'var(--space-3)' }}>
+            {([
+              { key: 'same_day' as const,    label: 'Same-Day Event',   on: form.same_day,    setter: setSameDay },
+              { key: 'multi_day' as const,   label: 'Multi-Day Event',  on: form.multi_day,   setter: setMultiDay },
+              { key: 'no_end_time' as const, label: 'No End Time',      on: form.no_end_time, setter: setNoEndTime },
+            ]).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => t.setter(!t.on)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  minHeight: 44, padding: '8px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: t.on ? 'var(--color-primary-50)' : 'var(--color-neutral-100)',
+                  border: `1.5px solid ${t.on ? 'var(--color-primary-400)' : 'var(--color-neutral-200)'}`,
+                  fontSize: 'var(--font-size-xs)', fontWeight: 600,
+                  color: t.on ? 'var(--color-primary-700)' : 'var(--color-neutral-600)',
+                  cursor: 'pointer',
+                }}
+              >
+                {t.on ? <ToggleRight size={16} style={{ color: 'var(--color-primary-500)' }} /> : <ToggleLeft size={16} style={{ color: 'var(--color-neutral-400)' }} />}
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Event End ── */}
+          {!form.no_end_time && (
+            <>
+              <p style={{ ...mo.label, marginTop: 'var(--space-4)', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.06em', color: 'var(--color-neutral-500)' }}>Event End <span style={mo.req}>*</span></p>
+              <div style={mo.row}>
+                <div style={{ flex: 1 }}>
+                  <label style={mo.label}>End Date</label>
+                  <input
+                    style={{ ...mo.input, minHeight: 44, opacity: form.same_day ? 0.6 : 1 }}
+                    type="date"
+                    value={form.end_date}
+                    onChange={(e) => set('end_date', e.target.value)}
+                    disabled={form.same_day}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={mo.label}>End Time</label>
+                  <input style={{ ...mo.input, minHeight: 44 }} type="time" value={form.end_time} onChange={(e) => set('end_time', e.target.value)} />
+                </div>
+              </div>
+              {form.same_day && (
+                <p style={{ fontSize: '10px', color: 'var(--color-neutral-400)', marginTop: 4 }}>End date auto-matches the start date.</p>
+              )}
+            </>
+          )}
+
           <label style={mo.label}>Image URL</label>
           <input style={mo.input} placeholder="https://…" value={form.image_url} onChange={(e) => set('image_url', e.target.value)} />
 

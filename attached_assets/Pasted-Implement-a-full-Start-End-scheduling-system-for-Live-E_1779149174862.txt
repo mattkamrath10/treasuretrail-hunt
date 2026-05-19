@@ -1,0 +1,238 @@
+Implement a full Start/End scheduling system for Live Events using real Supabase data.
+
+GOAL
+
+Upgrade the Live Events system from a simple "ending time" model into a full real-world event scheduling platform.
+
+The current upload form only supports:
+
+End Date / Time
+
+This must be expanded into:
+
+Start Date / Time
+End Date / Time
+Live status logic
+Event duration handling
+Reminder integration
+Better filtering/sorting
+
+This phase applies to:
+
+Live Events feed
+Home Feed
+Event cards
+Event detail pages
+Search/filter systems
+Notifications/reminders
+
+========================================
+
+DATABASE CHANGES
+========================================
+
+Update external_listings table.
+
+ADD:
+
+start_at TIMESTAMP NULL
+end_at TIMESTAMP NULL (keep existing if already present)
+
+Backwards compatibility:
+
+Existing events without start_at should continue rendering
+Fallback temporarily:
+start_at ?? created_at
+
+Do NOT break existing uploads.
+
+On the Live Events upload form:
+
+REMOVE:
+
+single "End Date / Time" field
+
+REPLACE WITH:
+
+EVENT START
+Start Date picker
+Start Time picker
+EVENT END
+End Date picker
+End Time picker
+
+Use mobile-native pickers where possible.
+
+Add toggles:
+
+[ ] Same-Day Event
+[ ] Multi-Day Event
+[ ] No End Time
+
+Behavior:
+
+Same-Day Event
+end date auto-syncs to start date
+Multi-Day Event
+allow different start/end dates
+No End Time
+hide End Time field
+support open-ended events
+
+Create derived event statuses using REAL timestamps only.
+
+Upcoming
+
+now < start_at
+
+Live Now
+
+start_at <= now <= end_at
+
+Ending Soon
+
+event ends within 3 hours
+
+Ended
+
+now > end_at
+
+Add dynamic badges:
+
+Live Now
+Starts Soon
+Ends Soon
+Multi-Day
+Today
+
+Use shared Badge component.
+
+Badges should appear on:
+
+Home Feed
+Live Events Feed
+Event detail modal
+Search results
+
+Date filters must use:
+
+start_at
+
+NOT:
+
+end_at
+
+Fix filters:
+
+Today
+Tomorrow
+This Weekend
+Next Weekend
+This Week
+Next Week
+This Month
+
+Examples:
+"Next Weekend" should show events STARTING next weekend.
+
+Add sorting:
+
+Live Now
+Starting Soonest
+Ending Soon
+Newly Added
+
+Priority:
+
+Live events
+Upcoming events
+Expired events
+
+Update cards to display schedule ranges.
+
+Examples:
+
+"Sat 7:00 AM – Sat 3:00 PM"
+
+"Fri 8:00 AM – Sun 5:00 PM"
+
+"Starts Tonight • 6:30 PM"
+
+Also show:
+
+duration
+countdown
+live badge
+
+Enhance event detail modal/page:
+
+ADD:
+
+Full schedule
+Countdown until start
+Countdown until end
+Event duration
+Reminder controls
+
+Examples:
+
+"Starts in 2 hours"
+
+"Ends in 45 minutes"
+
+Integrate with existing reminders/notifications system.
+
+Allow:
+
+Remind me 1 hour before
+Notify when live
+Remind tomorrow morning
+
+Use:
+
+existing notifications table
+existing reminders infrastructure
+
+Ensure Home Feed correctly surfaces:
+
+Live Now events
+Upcoming local events
+Marketplace streams
+Yard sales
+Estate sales
+Storage locker auctions
+
+Live events should rank above expired events.
+
+Ensure:
+
+large tap targets
+sticky submit button
+scroll-safe date pickers
+safe-area spacing
+proper keyboard handling
+
+Remove:
+
+all fake event timing
+hardcoded live badges
+mock countdowns
+placeholder dates
+
+Everything must come from:
+
+real Supabase timestamps
+
+Verify:
+
+uploads save correctly
+start/end dates persist
+filters work
+live badges update correctly
+countdowns accurate
+reminders trigger
+expired events handled correctly
+mobile UX clean
+TypeScript clean
+no console errors
+republish after completion
