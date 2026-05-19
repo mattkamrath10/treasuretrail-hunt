@@ -22,6 +22,8 @@ const Safety = lazy(() => import('../pages/Safety'));
 const Community = lazy(() => import('../pages/Community'));
 const Events = lazy(() => import('../pages/Events'));
 const LiveHub = lazy(() => import('../pages/LiveHub'));
+const FindDetail = lazy(() => import('../pages/FindDetail'));
+const PublicProfile = lazy(() => import('../pages/PublicProfile'));
 
 function AuctionsPage() {
   const navigate = useNavigate();
@@ -138,6 +140,14 @@ export default function AppShell() {
             <Route path="/live" element={<LiveHubPage />} />
             <Route path="/achievements" element={<AchievementsPage />} />
             <Route path="/profile" element={<Profile />} />
+            {/* Public profile by username — the existing /u/:username route in App.tsx is
+                kept as an alias; /profile/:username is the canonical link surfaced from
+                feed cards and the Find Detail page. */}
+            <Route path="/profile/:username" element={<PublicProfile />} />
+            {/* Dedicated detail page for a community_post (Flash Find, Rare Radar,
+                auction-win, etc.). Replaces the prior in-feed modal so links are
+                shareable, deep-linkable, and survive page refresh. */}
+            <Route path="/find/:id" element={<FindDetail />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

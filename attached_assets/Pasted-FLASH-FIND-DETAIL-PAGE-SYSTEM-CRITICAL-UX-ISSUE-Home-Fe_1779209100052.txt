@@ -1,0 +1,154 @@
+FLASH FIND DETAIL PAGE SYSTEM
+
+CRITICAL UX ISSUE
+
+Home Feed cards are currently non-interactive.
+
+Users can SEE listings,
+but cannot:
+
+open them
+inspect details
+contact uploader
+scout items
+save/share
+view marketplace source
+view seller profile
+
+This breaks the core marketplace flow.
+
+Every Flash Find / feed card must be clickable.
+
+Clicking a card should open a dedicated Item Detail Page.
+
+This becomes the central interaction layer for all finds.
+
+Clicking ANY feed card should:
+
+navigate to:
+
+/find/
+
+Example:
+
+/find/abc123
+
+OR open a full-screen modal sheet on mobile.
+
+Preferred:
+Dedicated route page.
+
+Display:
+
+full-size image gallery
+item title
+description
+category
+condition
+estimated value
+asking price
+marketplace source
+external listing link
+uploader username
+uploader avatar
+upload timestamp
+location
+scout-needed status
+tags/chips
+
+Include:
+
+View Original Listing
+Contact Seller
+Scout This Item
+Save Listing
+Share
+Report
+
+If functionality is incomplete:
+
+show honest disabled state:
+"Coming Soon"
+
+NO dead clicks.
+
+Uploader name/avatar should navigate to:
+
+/profile/
+
+Users should be able to see:
+
+uploader listings
+activity
+stats
+badges later
+
+Entire card should be clickable.
+
+Touch targets:
+minimum 44px.
+
+Cards must feel responsive and mobile-native.
+
+Create:
+
+FindDetail.tsx
+route registration
+loading state
+not-found state
+image fallback state
+
+Home Feed cards should include:
+
+cursor
+
+hover feedback on desktop
+
+subtle press animation on mobile
+
+Cards should visually communicate:
+"This opens."
+
+Feed card click should pass:
+
+listing id
+OR
+fetch by id from database.
+
+Ensure:
+
+deep linking works
+page refresh works
+shared URLs work
+
+Verify:
+
+image zoom works
+buttons stack properly
+no modal overflow
+safe-area padding
+scroll remains smooth
+
+If listing missing:
+show:
+"This listing no longer exists."
+
+If image missing:
+show proper placeholder.
+
+Lazy-load large images.
+
+Do not block feed rendering.
+
+Generate:
+FIND_DETAIL_SYSTEM.md
+
+Include:
+
+routing structure
+card interaction flow
+future marketplace actions
+profile-link architecture
+mobile findings
+
+Republish after completion.

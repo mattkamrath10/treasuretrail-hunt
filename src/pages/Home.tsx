@@ -196,7 +196,6 @@ export default function Home() {
   const [locationQuery, setLocationQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [detailPost, setDetailPost] = useState<ExtendedPost | null>(null);
   const [detailMarketplace, setDetailMarketplace] = useState<MarketplaceListing | null>(null);
   const { user, profile, isAdmin } = useAuth();
   const { requireAuth } = useGuestAction();
@@ -235,7 +234,6 @@ export default function Home() {
     setDeletingIds((prev) => new Set(prev).add(p.id));
     // Optimistic: hide from feed immediately and close detail modal if open.
     setPosts((prev) => prev.filter((x) => x.id !== p.id));
-    setDetailPost((curr) => (curr?.id === p.id ? null : curr));
 
     const res = await deletePost(communityPostToDeletable(p));
     setDeletingIds((prev) => {
@@ -871,7 +869,18 @@ export default function Home() {
               ref={setItemRef(item.id)}
               style={{ ...baseStyle, ...hlStyle }}
             >
-              <div style={styles.cardImageContainer}>
+              {/* [CARD_CLICK] Hero image area is the primary tap target for
+                  opening the dedicated /find/:id detail page. role=button +
+                  keyboard support keep this accessible without nesting a
+                  <button> inside the surrounding <article>. */}
+              <div
+                style={{ ...styles.cardImageContainer, cursor: 'pointer' }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${displayCaption}`}
+                onClick={() => navigate(`/find/${p.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/find/${p.id}`); } }}
+              >
                 <ImageWithFade
                   src={p.image_url}
                   alt={displayCaption}
@@ -891,16 +900,55 @@ export default function Home() {
 
               <div style={styles.cardContent}>
                 <div style={styles.cardHeader}>
-                  <div style={{ ...styles.avatar, backgroundColor: 'var(--color-primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: 'var(--color-primary-700)' }}>
-                    {(p.profiles?.username || 'U').slice(0, 1).toUpperCase()}
-                  </div>
-                  <div style={styles.cardMeta}>
-                    <span style={styles.username}>@{p.profiles?.username || 'hunter'}</span>
-                    <span style={styles.timeAgo}>
-                      {new Date(p.created_at).toLocaleDateString()}
-                      {item.location ? ` • ${item.location}` : ''}
-                    </span>
-                  </div>
+                  {/* [CARD_CLICK] Avatar+username link to the uploader's
+                      public profile page. If the post has no joined profile
+                      row (anonymous/legacy data) we render a non-interactive
+                      div instead of a dead button — no dead clicks. */}
+                  {p.profiles?.username ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/profile/${p.profiles!.username}`);
+                      }}
+                      aria-label={`View @${p.profiles.username}'s profile`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                        border: 'none', background: 'transparent', padding: 0,
+                        cursor: 'pointer',
+                        minHeight: 44,
+                        flex: 1, minWidth: 0,
+                      }}
+                    >
+                      <div style={{ ...styles.avatar, backgroundColor: 'var(--color-primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: 'var(--color-primary-700)' }}>
+                        {p.profiles.username.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div style={styles.cardMeta}>
+                        <span style={styles.username}>@{p.profiles.username}</span>
+                        <span style={styles.timeAgo}>
+                          {new Date(p.created_at).toLocaleDateString()}
+                          {item.location ? ` • ${item.location}` : ''}
+                        </span>
+                      </div>
+                    </button>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                        minHeight: 44, flex: 1, minWidth: 0,
+                      }}
+                    >
+                      <div style={{ ...styles.avatar, backgroundColor: 'var(--color-primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: 'var(--color-primary-700)' }}>
+                        U
+                      </div>
+                      <div style={styles.cardMeta}>
+                        <span style={styles.username}>@hunter</span>
+                        <span style={styles.timeAgo}>
+                          {new Date(p.created_at).toLocaleDateString()}
+                          {item.location ? ` • ${item.location}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   {/* [FEED_RENDER] Always show a category chip so the
                       card's meta row has consistent visual weight; default
                       to "Other" when the field is missing/empty. */}
@@ -909,15 +957,27 @@ export default function Home() {
                   </span>
                 </div>
 
-                <h3
-                  style={{ ...styles.cardTitle, cursor: 'pointer' }}
-                  onClick={() => setDetailPost(p)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter') setDetailPost(p); }}
+                {/* [CARD_CLICK] Title is a real <button> styled as a heading
+                    so it gets native Enter+Space activation and a guaranteed
+                    44px minimum tap target. Wraps an <h3> so the document
+                    outline still announces the post title. */}
+                <button
+                  onClick={() => navigate(`/find/${p.id}`)}
+                  aria-label={`Open ${displayCaption}`}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    margin: 0,
+                    minHeight: 44,
+                    cursor: 'pointer',
+                  }}
                 >
-                  {displayCaption}
-                </h3>
+                  <h3 style={styles.cardTitle}>{displayCaption}</h3>
+                </button>
 
                 <div style={styles.cardActions}>
                   <button
@@ -999,16 +1059,10 @@ export default function Home() {
       </div>
 
       {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
-      {detailPost && (
-        <PostDetailModal
-          post={detailPost}
-          onClose={() => setDetailPost(null)}
-          canDelete={canDeletePost(user, profile, detailPost)}
-          isAdminDelete={isAdmin && detailPost.user_id !== user?.id}
-          deleting={deletingIds.has(detailPost.id)}
-          onDelete={() => handleDeletePost(detailPost)}
-        />
-      )}
+      {/* [DETAIL_PAGE] The legacy in-feed PostDetailModal was removed in
+          favour of the dedicated /find/:id route (see FindDetail.tsx and
+          FIND_DETAIL_SYSTEM.md). Card and image-area clicks now navigate
+          to that route so URLs are shareable and deep-linkable. */}
       {toast && (
         <div
           role="status"
@@ -1042,124 +1096,6 @@ export default function Home() {
           onClose={() => setDetailMarketplace(null)}
         />
       )}
-    </div>
-  );
-}
-
-function PostDetailModal({
-  post,
-  onClose,
-  canDelete = false,
-  isAdminDelete = false,
-  deleting = false,
-  onDelete,
-}: {
-  post: ExtendedPost;
-  onClose: () => void;
-  canDelete?: boolean;
-  isAdminDelete?: boolean;
-  deleting?: boolean;
-  onDelete?: () => void;
-}) {
-  const loc = post.general_location || post.location || '';
-  return (
-    <div
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, padding: 'var(--space-4)',
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: 'var(--color-neutral-0)', borderRadius: 'var(--radius-lg)',
-          maxWidth: '480px', width: '100%', maxHeight: '92vh', overflowY: 'auto',
-          display: 'flex', flexDirection: 'column',
-        }}
-      >
-        <div style={{ position: 'relative', width: '100%', minHeight: 200, backgroundColor: 'var(--color-neutral-100)' }}>
-          <ImageWithFade
-            src={post.image_url}
-            alt={post.caption}
-            style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', display: 'block' }}
-            containerStyle={{ height: 'auto', minHeight: 200 }}
-            fallback={
-              <div style={{ width: '100%', height: 200, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Bookmark size={36} style={{ color: 'var(--color-neutral-300)' }} />
-              </div>
-            }
-          />
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              position: 'absolute', top: 12, right: 12,
-              width: 44, height: 44, borderRadius: '50%',
-              backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: 'none', cursor: 'pointer',
-            }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-neutral-900)', lineHeight: 1.3 }}>
-            {post.caption}
-          </h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {post.category && <Badge variant="category">{post.category}</Badge>}
-            {post.marketplace_found && <Badge variant="marketplace">{formatMarketplace(post.marketplace_found)}</Badge>}
-            {post.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
-            {post.type === 'rare_radar' && <Badge variant="marketplace">Looking For</Badge>}
-            {(post.type === 'flash_find' || post.type === 'find') && <Badge variant="shipping">Found</Badge>}
-          </div>
-          {loc && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)' }}>
-              <MapPin size={14} /> {loc}
-            </div>
-          )}
-          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
-            Posted by @{post.profiles?.username || 'hunter'} • {new Date(post.created_at).toLocaleString()}
-          </div>
-          {canDelete && onDelete && (
-            <button
-              onClick={onDelete}
-              disabled={deleting}
-              style={{
-                marginTop: 'var(--space-2)',
-                minHeight: 44,
-                padding: '10px 16px',
-                borderRadius: 'var(--radius-md, 8px)',
-                border: 'none',
-                cursor: deleting ? 'wait' : 'pointer',
-                backgroundColor: isAdminDelete
-                  ? 'var(--color-warning-600, #b45309)'
-                  : 'var(--color-error-600, #b91c1c)',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: 'var(--font-size-sm, 14px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                opacity: deleting ? 0.6 : 1,
-              }}
-            >
-              {isAdminDelete ? <Shield size={16} /> : <Trash2 size={16} />}
-              {deleting
-                ? 'Deleting…'
-                : isAdminDelete
-                  ? 'Admin Delete'
-                  : 'Delete'}
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
