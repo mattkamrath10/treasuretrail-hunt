@@ -255,12 +255,19 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
     if (!opts?.silent) setLoading(true);
     // Await the query so callers (notably useLiveFeed's overlap guard)
     // see a real Promise that doesn't resolve until the request finishes.
-    const { data } = await supabase
+    // SELECT * — tolerates missing optional columns (e.g. start_at before
+    // its migration is applied) instead of failing the whole query.
+    const { data, error } = await supabase
       .from('external_listings')
-      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,start_at,ends_at,scout_needed,ships_available,status,created_at,general_location,marketplace_found,pickup_type,scouts_available,meetup_notes,address_reveal_policy')
+      .select('*')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(100);
+    if (error) {
+      console.error('[SUPABASE_QUERY_FAIL] table=external_listings source=LiveHub.fetchListings', error);
+      setLoading(false);
+      throw new Error(`LiveHub.fetchListings failed: ${error.message}`);
+    }
     if (data) {
       const rows = data as ExternalListing[];
       // Preserve any optimistically-prepended rows that haven't shown up
@@ -274,7 +281,13 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
     setLoading(false);
   };
 
-  useEffect(() => { fetchListings(); }, []);
+  useEffect(() => {
+    // The throw inside fetchListings is intentional so useLiveFeed's
+    // backoff engages on subsequent ticks. Here we just need to avoid
+    // an unhandled rejection on the initial mount — the error is
+    // already logged via [SUPABASE_QUERY_FAIL] inside fetchListings.
+    fetchListings().catch(() => {});
+  }, []);
 
   // Live refresh — silently re-poll every 10s so new uploads from other
   // users appear without a manual refresh. Filters/sort/scroll preserved.
@@ -1094,7 +1107,7 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
         meetup_notes: meetupNotes.trim() || null,
         marketplace_found: marketplaceValue,
       })
-      .select('id,platform,listing_type,external_url,title,price_display,category,image_url,start_at,ends_at,scout_needed,ships_available,status,created_at,general_location,marketplace_found,pickup_type,scouts_available,meetup_notes,address_reveal_policy')
+      .select('*')
       .single();
     setSaving(false);
     if (err) {

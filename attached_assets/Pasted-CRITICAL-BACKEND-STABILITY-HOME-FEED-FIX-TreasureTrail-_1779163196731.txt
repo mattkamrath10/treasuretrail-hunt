@@ -1,0 +1,195 @@
+CRITICAL BACKEND STABILITY + HOME FEED FIX
+
+TreasureTrail currently has a critical backend/feed synchronization issue:
+
+Flash Finds uploads appear to succeed,
+but uploaded items do NOT appear in the Home Feed.
+
+The Home Feed displays:
+“Some items could not load”
+and remains empty even after successful uploads.
+
+This phase is NOT UI polish.
+
+This is now a backend/data integrity audit and repair task.
+
+Fix Home Feed data loading completely.
+
+When a user uploads:
+
+Flash Find
+Marketplace item
+Live Event
+Rare Radar request
+
+the item MUST:
+
+save successfully,
+appear immediately in its own feed,
+appear automatically in Home Feed,
+persist after refresh,
+survive navigation,
+and display without requiring manual troubleshooting.
+
+Audit every feed source and verify:
+
+community_posts
+flash_finds
+marketplace_listings
+external_listings
+live_events
+rare_radar_posts
+notifications
+
+Verify ALL:
+
+tables exist,
+columns exist,
+queries succeed,
+RLS policies allow authenticated reads,
+inserts succeed,
+Home Feed merge logic succeeds.
+
+There must be NO silent failures anywhere.
+
+Replace every:
+
+.catch(() => {})
+empty return []
+silent fetch swallow
+fake success state
+
+with REAL surfaced errors.
+
+Console logs required during development:
+
+[HOME_FEED_FETCH]
+[FLASH_FIND_INSERT]
+[LIVE_EVENT_INSERT]
+[MARKETPLACE_FETCH]
+[RLS_ERROR]
+[SUPABASE_QUERY_FAIL]
+
+Log:
+
+table name,
+Supabase error code,
+message,
+failed query source.
+
+Audit Home.tsx completely.
+
+Verify:
+
+all feed queries execute,
+Promise.all logic does not abort entire feed,
+one failed query does not blank the entire feed,
+partial successes still render.
+
+Implement safe loading strategy:
+
+if marketplace fails →
+community posts still load
+
+if live events fail →
+Flash Finds still load
+
+if one feed errors →
+render remaining successful feeds.
+
+Trace upload flow for:
+
+Flash Finds
+Live Events
+Marketplace
+Rare Radar
+
+Verify each upload:
+
+writes to correct table,
+returns inserted row,
+updates local state immediately,
+appears in feed instantly.
+
+After successful upload:
+
+prepend new item into local feed state,
+trigger refetch,
+hide empty state,
+update counters,
+preserve scroll/filter state.
+
+Current issue:
+
+“Your post is hidden by current filters”
+
+Audit filter logic.
+
+Verify:
+
+new uploads are never hidden accidentally,
+“All” truly shows all,
+default filters reset properly,
+search/filter state does not persist incorrectly after upload.
+
+If upload category exists:
+automatically switch to compatible filter OR show visible recovery action.
+
+Verify polling/live refresh works for:
+
+Home Feed
+Flash Finds
+Marketplace
+Live Events
+Rare Radar
+Alerts
+
+Requirements:
+
+no duplicate items,
+no polling leaks,
+no infinite rerenders,
+no scroll jumps,
+no excessive state churn.
+
+Generate:
+
+BACKEND_FEED_AUDIT.md
+
+Include:
+
+tables audited,
+RLS issues found,
+missing tables,
+failed queries,
+fixed feed issues,
+insert-path fixes,
+remaining backend risks,
+performance findings,
+Supabase findings.
+
+A Flash Find upload should:
+
+save,
+appear instantly in Flash Finds,
+appear instantly in Home Feed,
+remain after refresh,
+increment feed count,
+NOT require navigation/reload.
+
+Home Feed must NEVER remain blank because one query failed.
+
+No fake success states.
+No silent failures.
+No swallowed Supabase errors.
+
+Verify:
+
+TypeScript clean,
+no console errors,
+all feeds load correctly,
+all uploads appear live,
+mobile behavior works correctly,
+empty states disappear correctly.
+
+Republish after completion.

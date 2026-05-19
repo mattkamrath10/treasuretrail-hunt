@@ -281,9 +281,13 @@ export default function Home() {
     const silent = opts?.silent === true;
     return Promise.all([
       fetchCommunityPosts(50),
+      // external_listings: SELECT * so any missing optional columns (e.g.
+      // start_at before its migration is applied) don't fail the whole
+      // query. Phase 5's eventSchedule falls back to created_at when
+      // start_at is absent, so listings keep rendering either way.
       supabase
         .from('external_listings')
-        .select('id,platform,listing_type,external_url,title,description,price_display,category,image_url,start_at,ends_at,scout_needed,ships_available,location,general_location,created_at')
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(30),
@@ -295,20 +299,44 @@ export default function Home() {
         .limit(30),
     ])
       .then(([communityPosts, listingsRes, marketRes]) => {
+        // Community posts is the PRIMARY feed source; it must render even
+        // if one of the secondary tables returns an error or is missing.
         setPosts(communityPosts as ExtendedPost[]);
         if (listingsRes.data) setListings(listingsRes.data as ExternalListing[]);
         if (marketRes.data) setMarketplaceItems(marketRes.data as MarketplaceListing[]);
-        if (listingsRes.error) console.error('[Home] external_listings load failed', listingsRes.error);
-        // marketplace_listings is optional — a PGRST205 (missing table) means the
-        // marketplace surface hasn't been provisioned yet, which is not a user-facing failure.
-        if (marketRes.error && marketRes.error.code !== 'PGRST205') {
-          console.error('[Home] marketplace_listings load failed', marketRes.error);
+
+        // Treat the following Supabase errors as soft (don't surface to
+        // the user, don't trigger backoff) — they mean an optional table
+        // or column has not yet been provisioned in this project:
+        //   PGRST205  Missing table in PostgREST schema cache
+        //   PGRST204  Missing column in PostgREST schema cache
+        //   42703     Undefined column at the SQL layer
+        //   42P01     Undefined table at the SQL layer
+        const isSoft = (e: { code?: string } | null | undefined) =>
+          !e || ['PGRST205', 'PGRST204', '42703', '42P01'].includes(e.code ?? '');
+
+        if (listingsRes.error && !isSoft(listingsRes.error)) {
+          console.error('[SUPABASE_QUERY_FAIL] table=external_listings source=Home.loadAll', listingsRes.error);
+        } else if (listingsRes.error) {
+          console.warn('[HOME_FEED_FETCH] external_listings soft-skip', listingsRes.error.code, listingsRes.error.message);
         }
-        const realFailures = [listingsRes.error, marketRes.error?.code === 'PGRST205' ? null : marketRes.error].filter(Boolean);
-        setLoadError(realFailures.length > 0 ? 'Some items could not load. Pull to refresh.' : null);
+        if (marketRes.error && !isSoft(marketRes.error)) {
+          console.error('[SUPABASE_QUERY_FAIL] table=marketplace_listings source=Home.loadAll', marketRes.error);
+        } else if (marketRes.error) {
+          console.warn('[HOME_FEED_FETCH] marketplace_listings soft-skip', marketRes.error.code, marketRes.error.message);
+        }
+
+        // Only surface the "could not load" banner if a HARD failure
+        // happened on a secondary source. Community posts are handled
+        // by their own throw path below.
+        const hardFailures = [
+          listingsRes.error && !isSoft(listingsRes.error) ? listingsRes.error : null,
+          marketRes.error && !isSoft(marketRes.error) ? marketRes.error : null,
+        ].filter(Boolean);
+        setLoadError(hardFailures.length > 0 ? 'Some items could not load. Pull to refresh.' : null);
       })
       .catch((err) => {
-        console.error('[Home] loadAll failed', err);
+        console.error('[SUPABASE_QUERY_FAIL] source=Home.loadAll fatal', err);
         setLoadError('Could not load the feed. Check your connection and try again.');
         if (silent) throw err;
       })

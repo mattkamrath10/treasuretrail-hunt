@@ -60,7 +60,11 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchCommunityPosts().then(setRealPosts).catch(() => {});
+    fetchCommunityPosts()
+      .then(setRealPosts)
+      .catch((err) => {
+        console.error('[SUPABASE_QUERY_FAIL] source=Community.useEffect', err);
+      });
     if (user) {
       fetchUserLikes(user.id).then(setUserLikes).catch(() => {});
     }

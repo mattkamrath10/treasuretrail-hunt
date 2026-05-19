@@ -1,15 +1,63 @@
 import { supabase } from './supabase';
-import type { CommunityPost, MarketplaceListing, Notification } from './supabase';
+import type { CommunityPost, MarketplaceListing, Notification, Profile } from './supabase';
+
+type ProfileEmbed = Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
+
+/**
+ * PostgREST's `select('*, profiles(...)')` embed only works when the table
+ * has a direct foreign key to `profiles`. Our schema has
+ *   community_posts.user_id     -> auth.users(id)
+ *   marketplace_listings.seller_id -> auth.users(id)
+ *   external_listings.user_id   -> auth.users(id)
+ * which means the auto-embed fails with PGRST200 ("Could not find a
+ * relationship between '<table>' and 'profiles'"). Instead of guessing FK
+ * hints, we fetch profiles in a single bulk query and merge in JS. This is
+ * resilient to any FK config and to schema-cache staleness.
+ */
+export async function attachProfiles<T extends Record<string, unknown>>(
+  rows: T[],
+  userIdField: keyof T,
+): Promise<(T & { profiles?: ProfileEmbed })[]> {
+  if (rows.length === 0) return rows as (T & { profiles?: ProfileEmbed })[];
+  const ids = Array.from(new Set(rows.map((r) => r[userIdField]).filter(Boolean))) as string[];
+  if (ids.length === 0) return rows as (T & { profiles?: ProfileEmbed })[];
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_url, treasure_rank, scout_verified')
+    .in('id', ids);
+  if (error) {
+    console.warn('[SUPABASE_QUERY_FAIL] table=profiles source=attachProfiles', error.code, error.message);
+    return rows as (T & { profiles?: ProfileEmbed })[];
+  }
+  const byId = new Map<string, ProfileEmbed>();
+  (data ?? []).forEach((p: { id: string } & ProfileEmbed) => {
+    byId.set(p.id, {
+      username: p.username,
+      avatar_url: p.avatar_url,
+      treasure_rank: p.treasure_rank,
+      scout_verified: p.scout_verified,
+    });
+  });
+  return rows.map((r) => ({ ...r, profiles: byId.get(r[userIdField] as string) }));
+}
 
 export async function fetchCommunityPosts(limit = 20): Promise<CommunityPost[]> {
   const { data, error } = await supabase
     .from('community_posts')
-    .select('*, profiles(username, avatar_url, treasure_rank, scout_verified)')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) return [];
-  return (data ?? []) as CommunityPost[];
+  // Surface real errors rather than silently returning []. The caller
+  // (typically a useLiveFeed-backed feed) can then engage backoff and the
+  // user sees an honest banner. Returning [] silently here was masking
+  // RLS / connectivity problems as "no posts".
+  if (error) {
+    console.error('[SUPABASE_QUERY_FAIL] table=community_posts source=fetchCommunityPosts', error);
+    throw new Error(`fetchCommunityPosts failed: ${error.message}`);
+  }
+  const withProfiles = await attachProfiles(data ?? [], 'user_id');
+  return withProfiles as CommunityPost[];
 }
 
 export async function createCommunityPost(post: {
@@ -67,13 +115,19 @@ export async function fetchUserLikes(userId: string): Promise<Set<string>> {
 export async function fetchMarketplaceListings(limit = 20): Promise<MarketplaceListing[]> {
   const { data, error } = await supabase
     .from('marketplace_listings')
-    .select('*, profiles(username, avatar_url, treasure_rank, scout_verified)')
+    .select('*')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) return [];
-  return (data ?? []) as MarketplaceListing[];
+  if (error) {
+    // PGRST205 = table missing in schema cache (marketplace not provisioned)
+    if (error.code === 'PGRST205') return [];
+    console.warn('[SUPABASE_QUERY_FAIL] table=marketplace_listings source=fetchMarketplaceListings', error.code, error.message);
+    return [];
+  }
+  const withProfiles = await attachProfiles(data ?? [], 'seller_id');
+  return withProfiles as MarketplaceListing[];
 }
 
 export async function createMarketplaceListing(listing: {

@@ -165,13 +165,20 @@ function HubFeed({
   const [uploadBanner, setUploadBanner] = useState(!!prepend);
 
   useEffect(() => {
+    // SELECT * — tolerates missing optional columns (e.g. start_at pre-migration).
+    // Profiles are joined client-side via attachProfiles in Phase 5; the
+    // username/scout_verified embed here is non-essential for the Auctions
+    // card render path, so we skip it to avoid PGRST200 FK errors.
     supabase
       .from('external_listings')
-      .select('*, profiles(username, scout_verified)')
+      .select('*')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(60)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('[SUPABASE_QUERY_FAIL] table=external_listings source=Auctions.list', error.code, error.message);
+        }
         if (data) {
           const rows = data as ExternalListing[];
           // De-dupe optimistic prepend if server returned it.
@@ -735,7 +742,7 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         meetup_notes: form.meetup_notes.trim() || null,
         marketplace_found: marketplaceValue,
       })
-      .select('*, profiles(username, scout_verified)')
+      .select('*')
       .single();
     setSaving(false);
     if (err) { setError(err.message); return; }
