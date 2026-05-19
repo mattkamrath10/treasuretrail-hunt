@@ -190,7 +190,13 @@ export default function FlashFinds() {
           const res = await fetch(photoUrl);
           const blob = await res.blob();
           const ext = blob.type.split('/')[1] || 'jpg';
-          const path = `finds/${user.id}/${Date.now()}.${ext}`;
+          // Path order matters: the `avatars` bucket RLS requires the
+          // FIRST folder segment to equal `auth.uid()`. The previous
+          // `finds/<uid>/…` order was rejected by RLS on every upload,
+          // which is why Flash Find cards rendered without images.
+          // Using `<uid>/finds/<ts>.<ext>` satisfies the policy and
+          // keeps a `finds/` namespace inside the user's folder.
+          const path = `${user.id}/finds/${Date.now()}.${ext}`;
           const { error: uploadErr } = await supabase.storage
             .from('avatars')
             .upload(path, blob, { upsert: true, contentType: blob.type });
