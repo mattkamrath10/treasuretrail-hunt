@@ -1407,11 +1407,13 @@ create table if not exists platform_submissions (
 
 alter table platform_submissions enable row level security;
 
+drop policy if exists "Anyone can submit platforms" on platform_submissions;
 create policy "Anyone can submit platforms"
   on platform_submissions for insert
   to authenticated, anon
   with check (true);
 
+drop policy if exists "Anyone can read platform submissions" on platform_submissions;
 create policy "Anyone can read platform submissions"
   on platform_submissions for select
   to authenticated, anon
