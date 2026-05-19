@@ -2840,3 +2840,12 @@ GRANT  EXECUTE ON FUNCTION increment_following_count(uuid)       TO   authentica
 REVOKE EXECUTE ON FUNCTION decrement_following_count(uuid)       FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION decrement_following_count(uuid)       FROM anon;
 GRANT  EXECUTE ON FUNCTION decrement_following_count(uuid)       TO   authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migration 20260519000006 — community_posts.description column
+-- Adds a long-form description field separate from the short `caption`
+-- (title) so Flash Find uploads can store both without one overwriting
+-- the other in the feed.
+-- ─────────────────────────────────────────────────────────────────────────────
+ALTER TABLE community_posts
+  ADD COLUMN IF NOT EXISTS description text DEFAULT '';

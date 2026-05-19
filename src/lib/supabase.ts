@@ -30,6 +30,7 @@ export type CommunityPost = {
   user_id: string;
   type: string;
   caption: string;
+  description?: string | null;
   image_url: string | null;
   tags: string[];
   location: string;

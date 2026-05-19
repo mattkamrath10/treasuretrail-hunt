@@ -64,6 +64,7 @@ export async function createCommunityPost(post: {
   user_id: string;
   type: string;
   caption: string;
+  description?: string;
   image_url?: string;
   tags?: string[];
   location?: string;

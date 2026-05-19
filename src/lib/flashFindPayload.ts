@@ -138,7 +138,10 @@ export function createCanonicalFlashFindPayload(
   const title = toCleanString(form.title) || 'Untitled Find';
   const description =
     toCleanString(form.description) || toCleanString(form.notes) || '';
-  const caption = description || title;
+  // The feed card shows `caption` as the headline, so it must always be
+  // the short title. The long body lives in `description` (persisted to
+  // community_posts.description) and only surfaces on the detail page.
+  const caption = title;
   const category = toCleanString(form.category) || 'Other';
 
   const location_found =
@@ -191,6 +194,7 @@ export function toCommunityPostInsert(canon: CanonicalFlashFind) {
     user_id: canon.user_id,
     type: 'flash_find',
     caption: canon.caption || canon.title,
+    description: canon.description || undefined,
     image_url: canon.image_url ?? undefined,
     tags: canon.category ? [canon.category] : [],
     location: canon.location_found ?? undefined,

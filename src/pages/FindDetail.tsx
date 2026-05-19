@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Bookmark, Share2, Flag, ExternalLink, MessageCircle,
   Eye, Trash2, Shield, Tag, DollarSign, Sparkles, Calendar, Loader,
+  Pencil, X, Save,
 } from 'lucide-react';
 import { supabase, type CommunityPost, type Profile } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -56,6 +57,12 @@ export default function FindDetail() {
   const [toast, setToast] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [imageZoomed, setImageZoomed] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [engagement, setEngagement] = useState<{ view_count: number; save_count: number }>({ view_count: 0, save_count: 0 });
 
   const showToast = useCallback((msg: string) => {
@@ -238,9 +245,26 @@ export default function FindDetail() {
           <ArrowLeft size={20} />
         </button>
         <span style={styles.topTitle}>Find Details</span>
-        <button onClick={handleShare} style={styles.iconBtn} aria-label="Share find">
-          <Share2 size={18} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {isOwner && (
+            <button
+              onClick={() => {
+                setEditTitle((post.caption ?? '').trim());
+                setEditDescription((post.description ?? '').toString());
+                setEditCategory((post.category ?? '').trim());
+                setEditError(null);
+                setShowEdit(true);
+              }}
+              style={styles.iconBtn}
+              aria-label="Edit find"
+            >
+              <Pencil size={18} />
+            </button>
+          )}
+          <button onClick={handleShare} style={styles.iconBtn} aria-label="Share find">
+            <Share2 size={18} />
+          </button>
+        </div>
       </header>
 
       <div style={styles.scroll}>
@@ -451,6 +475,101 @@ export default function FindDetail() {
       {toast && (
         <div role="status" aria-live="polite" style={styles.toast}>{toast}</div>
       )}
+
+      {showEdit && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-find-title"
+          style={styles.editBackdrop}
+          onClick={(e) => { if (e.target === e.currentTarget && !editSaving) setShowEdit(false); }}
+        >
+          <div style={styles.editCard}>
+            <div style={styles.editHeader}>
+              <h2 id="edit-find-title" style={styles.editTitle}>Edit find</h2>
+              <button
+                onClick={() => { if (!editSaving) setShowEdit(false); }}
+                style={styles.iconBtn}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <label style={styles.editLabel}>
+              Title
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                style={styles.editInput}
+                maxLength={120}
+                placeholder="Short name for this item"
+              />
+            </label>
+            <label style={styles.editLabel}>
+              Description
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                style={{ ...styles.editInput, minHeight: 120, resize: 'vertical' }}
+                maxLength={2000}
+                placeholder="Details, authentication marks, condition, etc."
+              />
+            </label>
+            <label style={styles.editLabel}>
+              Category
+              <input
+                type="text"
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                style={styles.editInput}
+                maxLength={60}
+                placeholder="Other"
+              />
+            </label>
+            {editError && <p style={styles.editError}>{editError}</p>}
+            <div style={styles.editActions}>
+              <button
+                onClick={() => { if (!editSaving) setShowEdit(false); }}
+                disabled={editSaving}
+                style={styles.editCancelBtn}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const t = editTitle.trim();
+                  if (!t) { setEditError('Title is required.'); return; }
+                  setEditSaving(true);
+                  setEditError(null);
+                  const { data, error } = await supabase
+                    .from('community_posts')
+                    .update({
+                      caption: t,
+                      description: editDescription.trim() || null,
+                      category: editCategory.trim() || 'Other',
+                    })
+                    .eq('id', post.id)
+                    .select()
+                    .maybeSingle();
+                  setEditSaving(false);
+                  if (error) { setEditError(error.message); return; }
+                  if (data) {
+                    setPost({ ...post, ...(data as Partial<FullPost>) } as FullPost);
+                  }
+                  setShowEdit(false);
+                  setToast('Find updated');
+                }}
+                disabled={editSaving}
+                style={{ ...styles.editSaveBtn, opacity: editSaving ? 0.7 : 1 }}
+              >
+                {editSaving ? <Loader size={16} /> : <Save size={16} />}
+                {editSaving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -489,6 +608,50 @@ function ActionButton({
 }
 
 const styles: Record<string, CSSProperties> = {
+  editBackdrop: {
+    position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 'var(--space-4)', zIndex: 1000,
+  },
+  editCard: {
+    width: '100%', maxWidth: 480, backgroundColor: 'var(--color-neutral-0)',
+    borderRadius: 'var(--radius-xl)', padding: 'var(--space-5)',
+    display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+    maxHeight: '90vh', overflowY: 'auto',
+    boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+  },
+  editHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  editTitle: { margin: 0, fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
+  editLabel: {
+    display: 'flex', flexDirection: 'column', gap: 6,
+    fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-700)',
+  },
+  editInput: {
+    padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-base)',
+    fontWeight: 'var(--font-weight-normal)', color: 'var(--color-neutral-900)',
+    fontFamily: 'inherit', backgroundColor: 'var(--color-neutral-0)',
+  },
+  editError: {
+    margin: 0, padding: 'var(--space-2) var(--space-3)',
+    backgroundColor: 'var(--color-error-50)', color: 'var(--color-error-700)',
+    borderRadius: 'var(--radius-md)', fontSize: 'var(--font-size-sm)',
+  },
+  editActions: { display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end', marginTop: 'var(--space-2)' },
+  editCancelBtn: {
+    padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)', backgroundColor: 'var(--color-neutral-0)',
+    color: 'var(--color-neutral-700)', fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
+  },
+  editSaveBtn: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
+    border: 'none', backgroundColor: 'var(--color-primary-500)',
+    color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-bold)', cursor: 'pointer',
+  },
   page: {
     height: '100%',
     display: 'flex',
