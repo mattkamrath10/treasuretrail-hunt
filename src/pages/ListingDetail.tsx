@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { canDeletePost, deletePost, marketplaceListingToDeletable } from '../lib/moderation';
-import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
+import { followUser, unfollowUser, checkIsFollowing, attachProfiles } from '../lib/database';
 import { getOrCreateConversation } from '../lib/messaging';
 import { saveListing, unsaveListing, isListingSaved } from '../lib/savedListings';
 import { createScoutRequest, hasOpenScoutRequest } from '../lib/scouts';
@@ -63,18 +63,22 @@ export default function ListingDetail() {
     let cancelled = false;
     if (!id) { setNotFound(true); setLoading(false); return; }
     setLoading(true); setNotFound(false); setLoadError(null);
-    supabase
-      .from('marketplace_listings')
-      .select('*, profiles(username, avatar_url, treasure_rank, scout_verified)')
-      .eq('id', id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) { setLoadError(error.message); setLoading(false); return; }
-        if (!data) { setNotFound(true); setLoading(false); return; }
-        setListing(data as FullListing);
-        setLoading(false);
-      });
+    // Same FK-to-auth.users caveat as FindDetail — see attachProfiles
+    // docstring. Two-step fetch avoids PGRST200 schema-cache errors.
+    (async () => {
+      const { data, error } = await supabase
+        .from('marketplace_listings')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) { setLoadError(error.message); setLoading(false); return; }
+      if (!data) { setNotFound(true); setLoading(false); return; }
+      const [withProfile] = await attachProfiles([data as Record<string, unknown>], 'seller_id');
+      if (cancelled) return;
+      setListing(withProfile as unknown as FullListing);
+      setLoading(false);
+    })();
     return () => { cancelled = true; };
   }, [id]);
 

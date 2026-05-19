@@ -11,6 +11,7 @@ import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
 import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
+import { attachProfiles } from '../lib/database';
 
 type FullPost = CommunityPost & {
   general_location?: string | null;
@@ -73,26 +74,24 @@ export default function FindDetail() {
     setLoading(true);
     setNotFound(false);
     setLoadError(null);
-    supabase
-      .from('community_posts')
-      .select('*, profiles(username, avatar_url, treasure_rank, scout_verified)')
-      .eq('id', id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          setLoadError(error.message);
-          setLoading(false);
-          return;
-        }
-        if (!data) {
-          setNotFound(true);
-          setLoading(false);
-          return;
-        }
-        setPost(data as FullPost);
-        setLoading(false);
-      });
+    // PostgREST cannot auto-embed `profiles` here because the FK on
+    // community_posts.user_id targets auth.users(id), not profiles(id).
+    // Fetch the row first, then merge a single profile lookup so the
+    // detail view doesn't blow up with PGRST200.
+    (async () => {
+      const { data, error } = await supabase
+        .from('community_posts')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) { setLoadError(error.message); setLoading(false); return; }
+      if (!data) { setNotFound(true); setLoading(false); return; }
+      const [withProfile] = await attachProfiles([data as Record<string, unknown>], 'user_id');
+      if (cancelled) return;
+      setPost(withProfile as unknown as FullPost);
+      setLoading(false);
+    })();
     return () => { cancelled = true; };
   }, [id]);
 
