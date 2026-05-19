@@ -1840,6 +1840,7 @@ CREATE POLICY "Users can insert own notifications"
 
 -- Cross-user notification helper. Bypasses RLS but only allows a small whitelist
 -- of notification types and always stamps the caller as actor_user_id.
+DROP FUNCTION IF EXISTS public.notify_user(uuid, text, text, text, text, text, jsonb);
 CREATE OR REPLACE FUNCTION public.notify_user(
   p_target uuid,
   p_type text,
@@ -2623,6 +2624,7 @@ GRANT SELECT ON public.listing_save_counts TO authenticated;
 --   * scout_request         — seller is told a scout has been requested
 --   * scout_application     — admin notification when a user applies
 --   * reputation_milestone  — first listing, first sale, etc.
+DROP FUNCTION IF EXISTS public.notify_user(uuid, text, text, text, text, text, jsonb);
 CREATE OR REPLACE FUNCTION public.notify_user(
   p_target uuid,
   p_type text,
