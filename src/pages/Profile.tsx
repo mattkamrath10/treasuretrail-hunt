@@ -8,6 +8,12 @@ import { supabase } from '../lib/supabase';
 import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
 import { compressImage } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
+import {
+  fetchMyScoutApplication,
+  submitScoutApplication,
+  withdrawScoutApplication,
+  type ScoutApplication,
+} from '../lib/scoutApplications';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity' | 'scouts';
 
@@ -163,6 +169,42 @@ function ProfileHeader({ profile }: { profile: any }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
+  const [findsCount, setFindsCount] = useState<number>(0);
+  const [savedCount, setSavedCount] = useState<number>(0);
+
+  // Pull real counters so the stat row stops showing hardcoded zeros.
+  // Finds = community_posts authored by me (Flash Finds + any other
+  // type that lives in community_posts). Saved = the union of saved
+  // marketplace listings (DB) and locally-bookmarked community posts
+  // (localStorage), matching what the rest of the app actually persists.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const [postsRes, savedListingsRes] = await Promise.all([
+        supabase
+          .from('community_posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id),
+        supabase
+          .from('saved_listings')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id),
+      ]);
+      if (cancelled) return;
+      setFindsCount(postsRes.count ?? 0);
+      let localSaved = 0;
+      try {
+        const raw = localStorage.getItem('tt_saved_posts');
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) localSaved = arr.length;
+        }
+      } catch { /* ignore */ }
+      setSavedCount((savedListingsRes.count ?? 0) + localSaved);
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   const avatarUrl = localAvatarUrl || profile?.avatar_url || null;
 
@@ -302,12 +344,12 @@ function ProfileHeader({ profile }: { profile: any }) {
         </div>
         <div style={styles.statDivider} />
         <div style={styles.stat}>
-          <span style={styles.statNumber}>0</span>
+          <span style={styles.statNumber}>{findsCount}</span>
           <span style={styles.statLabel}>Finds</span>
         </div>
         <div style={styles.statDivider} />
-        <div style={styles.stat}>
-          <span style={styles.statNumber}>0</span>
+        <div style={styles.stat} title="Items you've bookmarked to revisit later">
+          <span style={styles.statNumber}>{savedCount}</span>
           <span style={styles.statLabel}>Saved</span>
         </div>
       </div>
@@ -529,11 +571,206 @@ function ActivityTab() {
 }
 
 function ScoutsTab() {
+  const { user, profile } = useAuth();
+  const [app, setApp] = useState<ScoutApplication | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showApply, setShowApply] = useState(false);
+  const [pitch, setPitch] = useState('');
+  const [region, setRegion] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    let cancelled = false;
+    fetchMyScoutApplication(user.id).then((a) => {
+      if (cancelled) return;
+      setApp(a);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div style={styles.emptyTabState}>
+        <Loader size={20} style={{ color: 'var(--color-neutral-400)', animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  const isVerified = !!profile?.scout_verified;
+
+  if (isVerified) {
+    return (
+      <div style={styles.section}>
+        <div style={styles.sectionHeader}>
+          <Shield size={16} style={{ color: 'var(--color-primary-600)' }} />
+          <h3 style={styles.sectionTitle}>You're a Verified Scout</h3>
+        </div>
+        <p style={styles.emptyTabSub}>
+          Your verified badge appears on your profile and listings.
+        </p>
+      </div>
+    );
+  }
+
+  // Already applied → show status card.
+  if (app && app.status !== 'withdrawn' && app.status !== 'declined') {
+    return (
+      <div style={styles.section}>
+        <div style={styles.sectionHeader}>
+          <Shield size={16} style={{ color: 'var(--color-primary-600)' }} />
+          <h3 style={styles.sectionTitle}>Scout application</h3>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <Badge variant={app.status === 'approved' ? 'verified' : 'warning'}>
+              {app.status === 'pending' ? 'Pending review' : app.status}
+            </Badge>
+            <span style={styles.emptyTabSub}>
+              Submitted {new Date(app.created_at).toLocaleDateString()}
+            </span>
+          </div>
+          {app.region && (
+            <p style={styles.emptyTabSub}>Region: {app.region}</p>
+          )}
+          {app.pitch && (
+            <p style={{ ...styles.emptyTabSub, whiteSpace: 'pre-wrap' }}>{app.pitch}</p>
+          )}
+          {app.status === 'pending' && (
+            <button
+              onClick={async () => {
+                const { error } = await withdrawScoutApplication(app.id);
+                if (!error) setApp({ ...app, status: 'withdrawn' });
+              }}
+              style={{
+                alignSelf: 'flex-start', marginTop: 'var(--space-2)',
+                padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-neutral-200)',
+                backgroundColor: 'var(--color-neutral-0)',
+                color: 'var(--color-neutral-700)', fontSize: 'var(--font-size-sm)',
+                cursor: 'pointer',
+              }}
+            >
+              Withdraw application
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Not applied (or withdrawn/declined) → show CTA + apply form.
   return (
-    <div style={styles.emptyTabState}>
-      <User size={28} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
-      <p style={styles.emptyTabTitle}>No scouts nearby yet</p>
-      <p style={styles.emptyTabSub}>Trusted scouts in your area will appear here once available.</p>
+    <div style={styles.section}>
+      <div style={styles.sectionHeader}>
+        <Shield size={16} style={{ color: 'var(--color-primary-600)' }} />
+        <h3 style={styles.sectionTitle}>Become a Verified Scout</h3>
+      </div>
+      <p style={{ ...styles.emptyTabSub, marginBottom: 'var(--space-3)' }}>
+        Scouts help collectors source rare finds and earn a verified badge on
+        their profile. Tell us a bit about your specialties and we'll review.
+      </p>
+      {app && app.status === 'declined' && (
+        <p style={{ ...styles.emptyTabSub, color: 'var(--color-error-600)' }}>
+          Your previous application was declined. You can submit a new one.
+        </p>
+      )}
+      {!showApply ? (
+        <button
+          onClick={() => setShowApply(true)}
+          style={{
+            alignSelf: 'flex-start',
+            padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
+            border: 'none', backgroundColor: 'var(--color-primary-500)',
+            color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)',
+            fontWeight: 'var(--font-weight-bold)', cursor: 'pointer',
+          }}
+        >
+          Apply to be a Scout
+        </button>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)' }}>
+            Region (city or area)
+            <input
+              type="text"
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              maxLength={120}
+              placeholder="e.g. Portland, OR"
+              style={{
+                padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-neutral-200)',
+                fontSize: 'var(--font-size-base)',
+              }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)' }}>
+            Why should you be a Scout? (min 20 chars)
+            <textarea
+              value={pitch}
+              onChange={(e) => setPitch(e.target.value)}
+              maxLength={2000}
+              placeholder="Specialties, experience, the kinds of finds you source…"
+              style={{
+                padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-neutral-200)',
+                fontSize: 'var(--font-size-base)', minHeight: 120, resize: 'vertical',
+                fontFamily: 'inherit',
+              }}
+            />
+          </label>
+          {submitError && (
+            <p style={{ margin: 0, color: 'var(--color-error-600)', fontSize: 'var(--font-size-sm)' }}>
+              {submitError}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => { setShowApply(false); setSubmitError(null); }}
+              disabled={submitting}
+              style={{
+                padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-neutral-200)',
+                backgroundColor: 'var(--color-neutral-0)',
+                color: 'var(--color-neutral-700)', fontSize: 'var(--font-size-sm)',
+                fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                if (!user) return;
+                setSubmitting(true);
+                setSubmitError(null);
+                const { application, error } = await submitScoutApplication({
+                  applicantId: user.id,
+                  pitch,
+                  region,
+                });
+                setSubmitting(false);
+                if (error) { setSubmitError(error); return; }
+                setApp(application);
+                setShowApply(false);
+                setPitch(''); setRegion('');
+              }}
+              disabled={submitting}
+              style={{
+                padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
+                border: 'none', backgroundColor: 'var(--color-primary-500)',
+                color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)',
+                fontWeight: 'var(--font-weight-bold)', cursor: 'pointer',
+                opacity: submitting ? 0.7 : 1,
+              }}
+            >
+              {submitting ? 'Submitting…' : 'Submit application'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
