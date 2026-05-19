@@ -7,6 +7,13 @@ import AiAnalysisPage, { type AnalysisDonePayload } from './AiAnalysis';
 import { createCommunityPost, createFlashFind } from '../lib/database';
 import { supabase, type CommunityPost } from '../lib/supabase';
 import {
+  createCanonicalFlashFindPayload,
+  toCommunityPostInsert,
+  toOptimisticCommunityPost,
+  validateFeedItem,
+  logFieldTypes,
+} from '../lib/flashFindPayload';
+import {
   shareToRareRadar,
   saveAnalysis,
   watchTrend,
@@ -38,7 +45,7 @@ interface FlashFindForm {
   meetup_notes: string;
 }
 
-import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
+import LocationFields, { type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect, { getMarketplaceLabel as _shared_getMarketplaceLabel } from '../components/listing/MarketplaceFoundSelect';
 import ScoutToggles from '../components/listing/ScoutToggles';
@@ -79,6 +86,10 @@ export default function FlashFinds() {
   // see Home.tsx navState.newPost handling. This is what makes a
   // freshly-uploaded Flash Find appear "instantly" in the feed.
   const [lastCreatedPost, setLastCreatedPost] = useState<CommunityPost | null>(null);
+  // Surfaced on the Confirmation screen when the canonical payload
+  // round-trip validates as malformed — see [FLASH_OPTIMISTIC_PREPEND]
+  // abort branch. Empty string = no warning.
+  const [optimisticWarning, setOptimisticWarning] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [form, setForm] = useState<FlashFindForm>({
     title: '',
@@ -132,25 +143,17 @@ export default function FlashFinds() {
   };
 
   const handleDetailsSubmit = () => {
-    // Hard pre-insert validation: title and category are REQUIRED so the
-    // resulting post never renders as a near-empty card on the feed. The
-    // DB layer still defaults missing values defensively (see
-    // createCommunityPost) but blocking here gives the user a clear UI
-    // error instead of a silently-renamed "Untitled Find" post.
+    // Only TITLE is strictly required — everything else is optional and
+    // the canonical payload builder fills safe defaults (category →
+    // "Other", location → null, etc.). The previous hard block on
+    // category / general_location prevented "title + image only" uploads
+    // from completing, which the optional-field spec requires.
     if (!form.title.trim()) {
       setSubmitError('Add a title for your find so the community knows what you posted.');
       return;
     }
-    if (!form.category.trim()) {
-      setSubmitError('Pick a category so your find shows up in the right filters.');
-      return;
-    }
     if (form.marketplace === 'other' && !form.marketplaceCustom.trim()) {
       setSubmitError('Please enter the marketplace name, or pick a different option.');
-      return;
-    }
-    if (!isValidGeneralLocation(form.general_location)) {
-      setSubmitError('Add a general location — a 5-digit ZIP or "City, ST" — so buyers can filter local finds.');
       return;
     }
     setSubmitError('');
@@ -216,33 +219,33 @@ export default function FlashFinds() {
 
       // 1. Post to Flash Finds (also covers Send to Scouts, which needs the post).
       if (needsFlashFindPost) {
-        const marketplaceValue =
-          mergedForm.marketplace === 'other' && mergedForm.marketplaceCustom.trim()
-            ? `custom:${mergedForm.marketplaceCustom.trim()}`
-            : mergedForm.marketplace || undefined;
+        // Build ONE canonical payload. Every downstream consumer (DB
+        // insert, optimistic prepend, navigation state) reads from this
+        // same object — so they can't disagree on the shape.
+        // See src/lib/flashFindPayload.ts for the contract.
+        logFieldTypes('[FLASH_FORM_STATE]', mergedForm as unknown as Record<string, unknown>);
+        const canon = createCanonicalFlashFindPayload(mergedForm, {
+          user_id: user.id,
+          image_url: imageUrl ?? null,
+        });
+        logFieldTypes('[FLASH_CANONICAL_PAYLOAD]', canon as unknown as Record<string, unknown>);
 
         const { error: ffErr } = await createFlashFind({
-          user_id: user.id,
-          title: mergedForm.title || 'Untitled Find',
-          description: mergedForm.notes || undefined,
-          image_url: imageUrl,
-          estimated_value: priceForDb,
-          category: mergedForm.category || undefined,
-          location: mergedForm.location || undefined,
+          user_id: canon.user_id,
+          title: canon.title,
+          description: canon.description || undefined,
+          image_url: canon.image_url ?? undefined,
+          estimated_value: canon.price_estimate ?? undefined,
+          category: canon.category,
+          location: canon.location_found ?? undefined,
         });
         if (ffErr) throw new Error(ffErr);
 
-        const { data: createdPost, error: postErr } = await createCommunityPost({
-          user_id: user.id,
-          type: 'flash_find',
-          caption: mergedForm.notes || mergedForm.title || 'New find',
-          image_url: imageUrl,
-          tags: mergedForm.category ? [mergedForm.category] : [],
-          location: mergedForm.general_location || mergedForm.location || undefined,
-          location_found: mergedForm.general_location || mergedForm.location || undefined,
-          marketplace_found: marketplaceValue,
-          estimated_value: priceForDb,
-          category: mergedForm.category || undefined,
+        // Build the DB-shape insert from the canonical payload, then
+        // layer on the FlashFinds-specific extras that aren't part of
+        // the canonical contract (pickup/address/etc).
+        const dbInsert = {
+          ...toCommunityPostInsert(canon),
           general_location: mergedForm.general_location || undefined,
           exact_address_private: mergedForm.exact_address_private.trim() || undefined,
           address_reveal_policy: mergedForm.address_reveal_policy,
@@ -251,13 +254,42 @@ export default function FlashFinds() {
             mergedForm.shipping_available ||
             mergedForm.pickup_type.includes('shipping_available') ||
             mergedForm.pickup_type.includes('nationwide_shipping'),
-          scout_needed: mergedForm.scout_needed,
           scouts_available: mergedForm.scouts_available,
           meetup_notes: mergedForm.meetup_notes.trim() || undefined,
-        });
+          estimated_value: canon.price_estimate ?? priceForDb,
+        };
+        logFieldTypes('[FLASH_DB_PAYLOAD]', dbInsert as unknown as Record<string, unknown>);
+
+        const { data: createdPost, error: postErr } = await createCommunityPost(dbInsert);
 
         if (postErr) throw new Error(postErr);
-        if (createdPost?.id) setLastCreatedPost(createdPost);
+
+        // Optimistic prepend prep: build a CommunityPost-shaped object
+        // from the canonical payload, then validate before handing it
+        // off to the navigation state. If validation fails we DO NOT
+        // pass newPost — Home will fall back to the loadAll() refresh
+        // instead of rendering a malformed card.
+        const optimistic = toOptimisticCommunityPost(canon, createdPost);
+        const validation = validateFeedItem(optimistic);
+        logFieldTypes(
+          '[FLASH_OPTIMISTIC_PREPEND]',
+          optimistic as unknown as Record<string, unknown>,
+        );
+        if (!validation.ok) {
+          // True abort: do NOT pass anything to the navigation state so
+          // Home falls back to its loadAll() refresh and never renders
+          // a malformed optimistic card. Surface a user-visible warning
+          // on the confirmation screen — the post itself DID save, this
+          // only affects the instant-prepend UX.
+          console.warn('[FLASH_OPTIMISTIC_PREPEND] aborted — invalid', validation.issues);
+          setOptimisticWarning(
+            `Posted, but the preview couldn't render (${validation.issues.join(', ')}). Pull to refresh on Home.`,
+          );
+          setLastCreatedPost(null);
+        } else {
+          setOptimisticWarning('');
+          setLastCreatedPost(optimistic);
+        }
 
         if (actions.includes('post_flash_finds')) completed.push('Posted to Flash Finds');
         if (actions.includes('send_scouts')) completed.push('Scout request flagged');
@@ -335,6 +367,7 @@ export default function FlashFinds() {
   const handleReset = () => {
     setStep('main');
     setLastCreatedPost(null);
+    setOptimisticWarning('');
     setPhotoUrl(null);
     setForm({
       title: '', category: '', notes: '', price: '', location: '', marketplace: '', marketplaceCustom: '',
@@ -414,19 +447,37 @@ export default function FlashFinds() {
       )}
 
       {step === 'confirmation' && (
-        <Confirmation
-          photoUrl={photoUrl}
-          form={form}
-          onPostAnother={handleReset}
-          onViewHomeFeed={() =>
-            navigate('/', {
-              state: lastCreatedPost
-                ? { highlightPostId: lastCreatedPost.id, newPost: lastCreatedPost }
-                : undefined,
-            })
-          }
-          onEdit={() => setStep('details')}
-        />
+        <>
+          {optimisticWarning && (
+            <div
+              role="alert"
+              style={{
+                margin: '0 var(--space-4) var(--space-3)',
+                padding: 'var(--space-3) var(--space-4)',
+                background: 'var(--color-warning-50, #fff7ed)',
+                border: '1px solid var(--color-warning-300, #fdba74)',
+                borderRadius: 'var(--radius-md, 8px)',
+                color: 'var(--color-warning-800, #9a3412)',
+                fontSize: '14px',
+              }}
+            >
+              {optimisticWarning}
+            </div>
+          )}
+          <Confirmation
+            photoUrl={photoUrl}
+            form={form}
+            onPostAnother={handleReset}
+            onViewHomeFeed={() =>
+              navigate('/', {
+                state: lastCreatedPost
+                  ? { highlightPostId: lastCreatedPost.id, newPost: lastCreatedPost }
+                  : undefined,
+              })
+            }
+            onEdit={() => setStep('details')}
+          />
+        </>
       )}
     </>
   );

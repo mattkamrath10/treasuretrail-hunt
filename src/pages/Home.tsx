@@ -6,6 +6,7 @@ import { checkLocalReminders } from '../lib/localReminders';
 import { deriveStatus, statusPriority } from '../lib/eventSchedule';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
 import { fetchCommunityPosts, togglePostLike, fetchUserLikes } from '../lib/database';
+import { validateFeedItem } from '../lib/flashFindPayload';
 import { useLiveFeed } from '../hooks/useLiveFeed';
 import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
@@ -764,6 +765,38 @@ export default function Home() {
             );
           }
           const p = item.raw as ExtendedPost;
+          // [FLASH_RENDER_OBJECT] Last-line-of-defense validation. If the
+          // row is structurally malformed (id missing, caption is an
+          // object/array, etc.) we render an explicit error placeholder
+          // instead of attempting the normal card — which would otherwise
+          // collapse into the "blank white card" the user reported. The
+          // placeholder still occupies layout so the feed never jumps.
+          const validation = validateFeedItem(p);
+          if (!validation.ok) {
+            console.warn('[FLASH_RENDER_OBJECT] invalid feed item', {
+              id: (p as { id?: unknown }).id,
+              issues: validation.issues,
+            });
+            return (
+              <article
+                key={`p-${item.id}`}
+                ref={setItemRef(item.id)}
+                style={{ ...baseStyle, ...hlStyle, padding: 'var(--space-4)' }}
+              >
+                <div style={{
+                  display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+                  alignItems: 'center', justifyContent: 'center',
+                  minHeight: '120px', textAlign: 'center',
+                  color: 'var(--color-neutral-500)',
+                }}>
+                  <span style={{ fontWeight: 600 }}>This find couldn't be displayed</span>
+                  <span style={{ fontSize: '13px' }}>
+                    Pull to refresh — the next sync should fix it.
+                  </span>
+                </div>
+              </article>
+            );
+          }
           const badge = postBadge(p);
           // [FEED_RENDER] Defensive fallbacks: never render a card whose
           // title/alt text is empty. p.caption SHOULD already be normalized

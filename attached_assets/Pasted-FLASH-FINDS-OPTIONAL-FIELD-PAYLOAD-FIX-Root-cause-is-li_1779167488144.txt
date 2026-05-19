@@ -1,0 +1,188 @@
+FLASH FINDS OPTIONAL-FIELD PAYLOAD FIX
+
+Root cause is likely malformed payload merging when optional upload fields are selected.
+
+Current evidence:
+
+* simple uploads sometimes work
+* uploads with additional metadata often break
+* blank cards appear
+* cards collapse
+* image disappears
+* only “Found” badge renders
+* renderer receives inconsistent object shapes
+
+This is now a payload normalization + optimistic merge issue.
+
+GOAL
+
+Every Flash Find upload must generate ONE guaranteed-valid canonical object shape before:
+
+DB insert
+optimistic prepend
+feed render
+
+DO NOT pass raw form state directly into feed state.
+
+IMPLEMENT:
+
+createCanonicalFlashFindPayload(formState)
+
+Normalize ALL optional fields before insert.
+
+Required final shape:
+
+{
+title: string,
+caption: string,
+description: string,
+category: string,
+location_found: string | null,
+marketplace_found: string | null,
+price_estimate: number | null,
+scout_needed: boolean,
+image_url: string | null,
+created_at: string,
+user_id: string
+}
+
+CRITICAL RULES
+
+If optional field is object/array:
+
+* convert to string before insert
+
+Never allow:
+undefined
+nested objects
+empty arrays
+NaN
+invalid URLs
+
+Before optimistic prepend:
+
+normalize payload AGAIN.
+
+Then:
+
+validateFeedItem(payload)
+
+If invalid:
+
+* abort prepend
+* log exact field failure
+* surface toast
+* DO NOT render malformed card
+
+Add deep logging:
+
+[FLASH_FORM_STATE]
+[FLASH_CANONICAL_PAYLOAD]
+[FLASH_DB_PAYLOAD]
+[FLASH_OPTIMISTIC_PREPEND]
+[FLASH_RENDER_OBJECT]
+
+Specifically log:
+
+typeof every optional field
+
+Example:
+
+typeof location_found
+typeof category
+typeof image_url
+typeof marketplace_found
+
+Likely bug to investigate:
+
+spread operator overwrite patterns like:
+
+{
+...formState,
+image_url
+}
+
+where later optional fields overwrite required normalized fields.
+
+Also inspect:
+
+JSON serialization
+Supabase insert response
+navigation state transfer
+Home optimistic splice logic
+
+Renderer hardening:
+
+Card component must reject malformed payloads safely.
+
+If critical fields invalid:
+
+* show error placeholder card
+* never collapse layout
+* never render blank white card
+
+Card click behavior:
+
+Clicking any Flash Find card should open:
+
+FlashFindDetailModal
+
+with:
+
+* full image
+* title
+* uploader
+* category
+* location
+* description
+* share/save actions
+
+Fallback route:
+navigate to uploader profile.
+
+Verify with these exact upload combinations:
+
+1.
+
+title + image only
+
+2.
+
+title + image + category
+
+3.
+
+title + image + location
+
+4.
+
+title + image + price
+
+5.
+
+title + image + ALL optional fields
+
+6.
+
+missing optional fields entirely
+
+All six must:
+
+* render correctly
+* persist after refresh
+* keep image
+* keep title
+* open modal correctly
+
+Generate:
+FLASH_OPTIONAL_FIELD_AUDIT.md
+
+Include:
+
+* failing field
+* malformed payload examples
+* normalization fixes
+* renderer protections
+* remaining risks
+
+Republish after completion.
