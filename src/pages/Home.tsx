@@ -262,13 +262,35 @@ export default function Home() {
   }, []);
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
 
-  // Pull highlight target from navigation state (from Flash Finds / Rare Radar
-  // post-submission flow).
+  // Pull highlight target + optimistically-prepended post from navigation
+  // state (from Flash Finds / Rare Radar post-submission flow).
+  //
+  // OPTIMISTIC PREPEND: when the upload flow passes the freshly-created
+  // post object via `state.newPost`, we splice it into the local `posts`
+  // array IMMEDIATELY so the user sees their upload the instant Home
+  // mounts — no waiting on the next poll RTT. The subsequent `loadAll()`
+  // (kicked off by the highlightPostId effect below) will return the
+  // server's authoritative copy; we dedupe by id so we never render
+  // duplicates.
   useEffect(() => {
-    const navState = location.state as { highlightPostId?: string } | null;
+    const navState = location.state as {
+      highlightPostId?: string;
+      newPost?: ExtendedPost;
+    } | null;
     if (navState?.highlightPostId) {
       setHighlightId(navState.highlightPostId);
-      // Clear router state so a manual refresh doesn't re-highlight.
+    }
+    if (navState?.newPost) {
+      const incoming = navState.newPost;
+      setPosts((prev) => {
+        if (prev.some((p) => p.id === incoming.id)) return prev;
+        console.log('[FEED_RENDER] optimistic prepend id=', incoming.id);
+        return [incoming, ...prev];
+      });
+    }
+    if (navState?.highlightPostId || navState?.newPost) {
+      // Clear router state so a manual refresh doesn't re-highlight or
+      // re-prepend a stale post.
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
@@ -743,6 +765,12 @@ export default function Home() {
           }
           const p = item.raw as ExtendedPost;
           const badge = postBadge(p);
+          // [FEED_RENDER] Defensive fallbacks: never render a card whose
+          // title/alt text is empty. p.caption SHOULD already be normalized
+          // at insert time (see createCommunityPost), but legacy rows or
+          // any future code path that bypasses the helper would otherwise
+          // collapse to a card with only the badge.
+          const displayCaption = (p.caption ?? '').trim() || 'Untitled Find';
           return (
             <article
               key={`p-${item.id}`}
@@ -752,7 +780,7 @@ export default function Home() {
               <div style={styles.cardImageContainer}>
                 <ImageWithFade
                   src={p.image_url}
-                  alt={p.caption}
+                  alt={displayCaption}
                   style={styles.cardImage}
                   fallback={<ImageFallback icon={Bookmark} />}
                 />
@@ -779,7 +807,12 @@ export default function Home() {
                       {item.location ? ` • ${item.location}` : ''}
                     </span>
                   </div>
-                  {p.category && <span style={styles.categoryTag}>{p.category}</span>}
+                  {/* [FEED_RENDER] Always show a category chip so the
+                      card's meta row has consistent visual weight; default
+                      to "Other" when the field is missing/empty. */}
+                  <span style={styles.categoryTag}>
+                    {(p.category ?? '').trim() || 'Other'}
+                  </span>
                 </div>
 
                 <h3
@@ -789,7 +822,7 @@ export default function Home() {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter') setDetailPost(p); }}
                 >
-                  {p.caption}
+                  {displayCaption}
                 </h3>
 
                 <div style={styles.cardActions}>

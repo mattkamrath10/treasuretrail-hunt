@@ -1,0 +1,141 @@
+Root-cause and fix the broken Flash Finds feed rendering issue.
+
+PROBLEM
+
+New Flash Finds uploads are now reaching the backend successfully, but the Home Feed sometimes renders a broken/blank card:
+
+* only the “Found” badge appears
+* image missing
+* title/content missing
+* empty card spacing
+
+This started AFTER the Supabase schema fixes succeeded.
+
+That means:
+
+* uploads are persisting
+* feed polling is working
+* frontend rendering/state hydration is failing
+
+GOAL
+
+Fix Flash Finds uploads so every new upload:
+
+* renders immediately
+* shows image/title/category correctly
+* never creates blank cards
+* appears instantly in:
+
+  * Home Feed
+  * Flash Finds
+  * any relevant live feeds
+
+TASKS
+
+1. Audit the Flash Finds upload payload shape.
+
+Compare:
+
+* upload payload
+* community_posts row shape
+* Home Feed renderer expectations
+* optimistic local-state insertion shape
+
+Find mismatches or nullable fields causing partial renders.
+
+2. Harden upload validation.
+
+Before insert:
+
+* require title
+* require category
+* normalize image_url
+* trim empty strings
+* prevent undefined/null rendering values
+
+3. Add safe renderer fallbacks everywhere.
+
+If missing:
+
+* title → “Untitled Find”
+* image → branded placeholder image
+* description → hide block
+* category → “Other”
+
+Never render blank cards.
+
+4. Fix optimistic feed insertion.
+
+Immediately inject newly uploaded posts into local feed state using the SAME normalized shape returned by feed queries.
+
+Do NOT wait for polling to hydrate missing fields.
+
+5. Verify image persistence.
+
+Ensure:
+
+* uploaded image URLs persist correctly
+* image_url is written consistently
+* ImageWithFade handles missing/broken images safely
+* no invalid image URLs crash rendering
+
+6. Prevent broken cards entirely.
+
+If a post object is malformed:
+
+* skip rendering
+  OR
+* render a visible fallback state
+
+Never render empty white space with only a badge.
+
+7. Add logging.
+
+Temporary debug logging:
+
+* upload payload
+* insert response
+* normalized feed object
+* renderer failures
+
+Use clear prefixes:
+[FLASH_UPLOAD]
+[FEED_RENDER]
+[POST_NORMALIZE]
+
+8. Verify all feeds after fix.
+
+Test:
+
+* Flash Finds upload
+* Home Feed appearance
+* Live refresh polling
+* image loading
+* mobile rendering
+* detail modal opening
+* save/share actions
+
+9. Run full QA.
+
+Requirements:
+
+* TypeScript clean
+* no console errors
+* no blank cards
+* uploads appear instantly
+* optimistic updates stable
+* no duplicate renders
+* no scroll jumps
+
+Generate:
+FLASH_FEED_RENDER_FIX.md
+
+Include:
+
+* root cause
+* files changed
+* rendering fixes
+* normalization strategy
+* remaining risks
+
+Republish after completion.

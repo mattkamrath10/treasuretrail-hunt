@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import AiAnalysisPage, { type AnalysisDonePayload } from './AiAnalysis';
 import { createCommunityPost, createFlashFind } from '../lib/database';
-import { supabase } from '../lib/supabase';
+import { supabase, type CommunityPost } from '../lib/supabase';
 import {
   shareToRareRadar,
   saveAnalysis,
@@ -74,7 +74,11 @@ export default function FlashFinds() {
   const { isGuest, user } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState<FlowStep>('main');
-  const [lastPostId, setLastPostId] = useState<string | null>(null);
+  // We keep the full created post (not just the id) so the Home feed
+  // can OPTIMISTICALLY prepend it without waiting for the next poll —
+  // see Home.tsx navState.newPost handling. This is what makes a
+  // freshly-uploaded Flash Find appear "instantly" in the feed.
+  const [lastCreatedPost, setLastCreatedPost] = useState<CommunityPost | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [form, setForm] = useState<FlashFindForm>({
     title: '',
@@ -128,6 +132,19 @@ export default function FlashFinds() {
   };
 
   const handleDetailsSubmit = () => {
+    // Hard pre-insert validation: title and category are REQUIRED so the
+    // resulting post never renders as a near-empty card on the feed. The
+    // DB layer still defaults missing values defensively (see
+    // createCommunityPost) but blocking here gives the user a clear UI
+    // error instead of a silently-renamed "Untitled Find" post.
+    if (!form.title.trim()) {
+      setSubmitError('Add a title for your find so the community knows what you posted.');
+      return;
+    }
+    if (!form.category.trim()) {
+      setSubmitError('Pick a category so your find shows up in the right filters.');
+      return;
+    }
     if (form.marketplace === 'other' && !form.marketplaceCustom.trim()) {
       setSubmitError('Please enter the marketplace name, or pick a different option.');
       return;
@@ -160,6 +177,10 @@ export default function FlashFinds() {
 
     try {
       // Upload image once — used by every action that needs it.
+      // The upload is best-effort (the post still goes out without an
+      // image if storage fails), but we now log the failure with the
+      // [FLASH_UPLOAD] prefix so a broken-card report can be traced back
+      // to a storage RLS / bucket issue instead of being silent.
       let imageUrl: string | undefined;
       if (photoUrl) {
         try {
@@ -170,12 +191,20 @@ export default function FlashFinds() {
           const { error: uploadErr } = await supabase.storage
             .from('avatars')
             .upload(path, blob, { upsert: true, contentType: blob.type });
-          if (!uploadErr) {
+          if (uploadErr) {
+            console.error('[FLASH_UPLOAD] storage upload failed', {
+              bucket: 'avatars',
+              path,
+              code: (uploadErr as { statusCode?: string }).statusCode,
+              message: uploadErr.message,
+            });
+          } else {
             const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
             imageUrl = urlData.publicUrl;
+            console.log('[FLASH_UPLOAD] storage upload ok', { path, url: !!imageUrl });
           }
-        } catch {
-          // Best-effort upload — continue without it
+        } catch (e) {
+          console.error('[FLASH_UPLOAD] storage upload threw', e);
         }
       }
 
@@ -228,7 +257,7 @@ export default function FlashFinds() {
         });
 
         if (postErr) throw new Error(postErr);
-        if (createdPost?.id) setLastPostId(createdPost.id);
+        if (createdPost?.id) setLastCreatedPost(createdPost);
 
         if (actions.includes('post_flash_finds')) completed.push('Posted to Flash Finds');
         if (actions.includes('send_scouts')) completed.push('Scout request flagged');
@@ -305,7 +334,7 @@ export default function FlashFinds() {
 
   const handleReset = () => {
     setStep('main');
-    setLastPostId(null);
+    setLastCreatedPost(null);
     setPhotoUrl(null);
     setForm({
       title: '', category: '', notes: '', price: '', location: '', marketplace: '', marketplaceCustom: '',
@@ -389,7 +418,13 @@ export default function FlashFinds() {
           photoUrl={photoUrl}
           form={form}
           onPostAnother={handleReset}
-          onViewHomeFeed={() => navigate('/', { state: lastPostId ? { highlightPostId: lastPostId } : undefined })}
+          onViewHomeFeed={() =>
+            navigate('/', {
+              state: lastCreatedPost
+                ? { highlightPostId: lastCreatedPost.id, newPost: lastCreatedPost }
+                : undefined,
+            })
+          }
           onEdit={() => setStep('details')}
         />
       )}

@@ -83,13 +83,40 @@ export async function createCommunityPost(post: {
   scouts_available?: boolean;
   meetup_notes?: string;
 }): Promise<{ data: CommunityPost | null; error: string | null }> {
+  // [POST_NORMALIZE] Trim and apply non-empty defaults so the feed
+  // renderer never receives a row that would paint a blank card.
+  // The H3 title in Home.tsx reads `post.caption` directly — if we let
+  // empty / whitespace strings through, the card collapses to just the
+  // badge + meta line, which is what the "broken card" report described.
+  const trim = (v: string | undefined | null): string => (v ?? '').toString().trim();
+  const normCaption = trim(post.caption) || 'Untitled Find';
+  const normCategory = trim(post.category) || undefined;
+  const normImage = trim(post.image_url) || undefined;
+
+  const payload = {
+    ...post,
+    caption: normCaption,
+    category: normCategory,
+    image_url: normImage,
+  };
+  console.log('[FLASH_UPLOAD] createCommunityPost payload', {
+    type: payload.type,
+    hasImage: !!normImage,
+    captionLen: normCaption.length,
+    category: normCategory ?? null,
+  });
+
   const { data, error } = await supabase
     .from('community_posts')
-    .insert(post)
+    .insert(payload)
     .select()
     .maybeSingle();
 
-  if (error) return { data: null, error: error.message };
+  if (error) {
+    console.error('[SUPABASE_QUERY_FAIL] table=community_posts source=createCommunityPost', error);
+    return { data: null, error: error.message };
+  }
+  console.log('[FLASH_UPLOAD] createCommunityPost ok id=', data?.id);
   return { data: data as CommunityPost, error: null };
 }
 
@@ -237,12 +264,25 @@ export async function createFlashFind(find: {
   category?: string;
   location?: string;
 }) {
+  // [POST_NORMALIZE] Same trim/default treatment as community_posts so
+  // downstream UI never has to render a blank title.
+  const trim = (v: string | undefined | null): string => (v ?? '').toString().trim();
+  const payload = {
+    ...find,
+    title: trim(find.title) || 'Untitled Find',
+    description: trim(find.description) || undefined,
+    image_url: trim(find.image_url) || undefined,
+    category: trim(find.category) || undefined,
+    location: trim(find.location) || undefined,
+  };
   const { data, error } = await supabase
     .from('flash_finds')
-    .insert(find)
+    .insert(payload)
     .select()
     .maybeSingle();
-
-  if (error) return { data: null, error: error.message };
+  if (error) {
+    console.error('[SUPABASE_QUERY_FAIL] table=flash_finds source=createFlashFind', error);
+    return { data: null, error: error.message };
+  }
   return { data, error: null };
 }
