@@ -2849,3 +2849,103 @@ GRANT  EXECUTE ON FUNCTION decrement_following_count(uuid)       TO   authentica
 -- ─────────────────────────────────────────────────────────────────────────────
 ALTER TABLE community_posts
   ADD COLUMN IF NOT EXISTS description text DEFAULT '';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2026-05-19 (g) Security advisor hardening
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Pins search_path on SECURITY DEFINER/mutating functions, revokes anon
+-- EXECUTE on RPC mutators + trigger-only helpers, drops the broad
+-- avatars listing policy (object URLs still resolve), and restricts
+-- platform_submissions INSERT to authenticated users.
+-- Safe to re-run.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+DO $$
+DECLARE
+  sig text;
+  targets text[] := ARRAY[
+    'increment_following_count(uuid)',
+    'decrement_following_count(uuid)',
+    'increment_follower_count(uuid)',
+    'decrement_follower_count(uuid)',
+    'increment_post_likes(uuid)',
+    'decrement_post_likes(uuid)',
+    'validate_mission_progress()',
+    'place_bid(uuid,numeric)',
+    'prevent_profile_field_escalation()',
+    'claim_ai_scan_slot(integer)',
+    'get_my_exact_address(text,uuid)',
+    'rls_auto_enable()'
+  ];
+BEGIN
+  FOREACH sig IN ARRAY targets LOOP
+    BEGIN
+      EXECUTE format('ALTER FUNCTION public.%s SET search_path = public, pg_temp', sig);
+    EXCEPTION WHEN undefined_function THEN NULL;
+    END;
+  END LOOP;
+END
+$$;
+
+DO $$
+DECLARE
+  sig text;
+  mutating_rpcs text[] := ARRAY[
+    'increment_following_count(uuid)',
+    'decrement_following_count(uuid)',
+    'increment_follower_count(uuid)',
+    'decrement_follower_count(uuid)',
+    'increment_post_likes(uuid)',
+    'decrement_post_likes(uuid)',
+    'place_bid(uuid,numeric)',
+    'claim_ai_scan_slot(integer)',
+    'get_my_exact_address(text,uuid)'
+  ];
+BEGIN
+  FOREACH sig IN ARRAY mutating_rpcs LOOP
+    BEGIN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION public.%s FROM anon', sig);
+    EXCEPTION WHEN undefined_function THEN NULL;
+    END;
+  END LOOP;
+END
+$$;
+
+DO $$
+DECLARE
+  sig text;
+  trigger_helpers text[] := ARRAY[
+    'prevent_profile_field_escalation()',
+    'validate_mission_progress()',
+    'rls_auto_enable()'
+  ];
+BEGIN
+  FOREACH sig IN ARRAY trigger_helpers LOOP
+    BEGIN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION public.%s FROM PUBLIC, anon, authenticated', sig);
+    EXCEPTION WHEN undefined_function THEN NULL;
+    END;
+  END LOOP;
+END
+$$;
+
+DROP POLICY IF EXISTS "Anyone can view avatars" ON storage.objects;
+
+DROP POLICY IF EXISTS "Anyone can submit platforms" ON public.platform_submissions;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'platform_submissions'
+  ) THEN
+    EXECUTE $pol$
+      CREATE POLICY "Authenticated users can submit platforms"
+        ON public.platform_submissions
+        FOR INSERT
+        TO authenticated
+        WITH CHECK (true)
+    $pol$;
+  END IF;
+END
+$$;
