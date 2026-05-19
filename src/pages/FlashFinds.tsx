@@ -115,11 +115,32 @@ export default function FlashFinds() {
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelected = useCallback((file: File) => {
+    // Defensive validation — on desktop the "camera" button just opens
+    // the OS file picker, so users can pick non-image files (HEIC,
+    // video, anything). Without this guard the next step would render a
+    // broken <img>. We log [FLASH_PICK_*] so the cause is visible in
+    // the console.
+    if (!file.type.startsWith('image/')) {
+      console.warn('[FLASH_PICK_REJECTED] not an image', { name: file.name, type: file.type, size: file.size });
+      setSubmitError(`That file isn't an image (${file.type || 'unknown type'}). Please pick a JPG, PNG, or HEIC photo.`);
+      return;
+    }
+    if (file.size === 0) {
+      console.warn('[FLASH_PICK_REJECTED] empty file', { name: file.name });
+      setSubmitError('That file is empty. Please pick another photo.');
+      return;
+    }
+    setSubmitError('');
     const reader = new FileReader();
     reader.onload = (e) => {
       const url = e.target?.result as string;
+      console.log('[FLASH_PICK_OK]', { type: file.type, size: file.size, urlPrefix: url?.slice(0, 32) });
       setPhotoUrl(url);
       setStep('photo');
+    };
+    reader.onerror = () => {
+      console.error('[FLASH_PICK_READ_FAILED]', { name: file.name, type: file.type });
+      setSubmitError("Couldn't read that photo. Please try a different file.");
     };
     reader.readAsDataURL(file);
   }, []);
@@ -417,7 +438,7 @@ export default function FlashFinds() {
       />
 
       {step === 'main' && (
-        <MainScreen onCamera={openCamera} onGallery={openGallery} />
+        <MainScreen onCamera={openCamera} onGallery={openGallery} pickerError={submitError} />
       )}
 
       {step === 'photo' && (
@@ -492,9 +513,11 @@ export default function FlashFinds() {
 function MainScreen({
   onCamera,
   onGallery,
+  pickerError,
 }: {
   onCamera: () => void;
   onGallery: () => void;
+  pickerError?: string;
 }) {
   return (
     <div style={styles.container}>
@@ -504,6 +527,22 @@ function MainScreen({
       </header>
 
       <div style={styles.mainContent}>
+        {pickerError && (
+          <div
+            role="alert"
+            style={{
+              margin: '0 var(--space-4) var(--space-3)',
+              padding: 'var(--space-3) var(--space-4)',
+              background: 'var(--color-warning-50, #fff7ed)',
+              border: '1px solid var(--color-warning-300, #fdba74)',
+              borderRadius: 'var(--radius-md, 8px)',
+              color: 'var(--color-warning-800, #9a3412)',
+              fontSize: '14px',
+            }}
+          >
+            {pickerError}
+          </div>
+        )}
         <div style={styles.uploadHero}>
           <div style={styles.uploadRings}>
             <div style={styles.ringOuter} />
@@ -566,6 +605,14 @@ function PhotoPreview({
   onRetakeGallery: () => void;
   onBack: () => void;
 }) {
+  const [imgErrored, setImgErrored] = useState(false);
+  // Reset error state whenever a new photo is loaded so retaking clears
+  // the prior failure message.
+  const lastSeenUrlRef = useRef<string | null>(null);
+  if (lastSeenUrlRef.current !== photoUrl) {
+    lastSeenUrlRef.current = photoUrl;
+    if (imgErrored) setImgErrored(false);
+  }
   return (
     <div style={styles.container}>
       <header style={styles.stepHeader}>
@@ -580,17 +627,35 @@ function PhotoPreview({
 
       <div style={styles.photoContent}>
         <div style={styles.photoPreviewContainer}>
-          {photoUrl ? (
+          {photoUrl && !imgErrored ? (
             <>
               <img
                 src={photoUrl}
                 alt="Captured find"
                 style={styles.previewImage}
+                onError={() => {
+                  console.error('[FLASH_PREVIEW_IMG_ERROR] the captured photo failed to render', {
+                    urlPrefix: photoUrl?.slice(0, 64),
+                    urlLength: photoUrl?.length,
+                  });
+                  setImgErrored(true);
+                }}
+                onLoad={() => {
+                  console.log('[FLASH_PREVIEW_IMG_OK]', { urlLength: photoUrl?.length });
+                }}
               />
               <div style={styles.photoOverlay}>
                 <span style={styles.photoHint}>AI will analyze this image</span>
               </div>
             </>
+          ) : photoUrl && imgErrored ? (
+            <div style={{ ...styles.cameraPlaceholder, backgroundColor: 'var(--color-neutral-100)' }}>
+              <Camera size={48} style={{ color: 'var(--color-warning-500, #f97316)' }} />
+              <p style={{ ...styles.placeholderText, color: 'var(--color-neutral-700)', textAlign: 'center', padding: '0 var(--space-4)' }}>
+                This photo couldn't be displayed. The format may not be supported in this browser (HEIC, for example).
+                Please retake or pick a JPG/PNG.
+              </p>
+            </div>
           ) : (
             <div style={styles.cameraPlaceholder}>
               <Camera size={48} style={{ color: 'var(--color-neutral-400)' }} />
@@ -613,8 +678,8 @@ function PhotoPreview({
         <div style={styles.photoActions}>
           <button
             onClick={onConfirm}
-            style={{ ...styles.usePhotoBtn, opacity: photoUrl ? 1 : 0.5 }}
-            disabled={!photoUrl}
+            style={{ ...styles.usePhotoBtn, opacity: photoUrl && !imgErrored ? 1 : 0.5 }}
+            disabled={!photoUrl || imgErrored}
           >
             <CheckCircle size={18} />
             <span>Use This Photo</span>
@@ -1084,11 +1149,18 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     position: 'relative',
     overflow: 'hidden',
+    // minHeight guarantees the image area is visible on viewports where
+    // the parent flex chain doesn't resolve to a real height (e.g. when
+    // FlashFinds is mounted inside a route that lacks an explicit
+    // height — common on desktop). Without this the preview collapses
+    // to ~0px and the user sees only a broken-image icon.
+    minHeight: '320px',
+    backgroundColor: 'var(--color-neutral-100)',
   },
   previewImage: {
     width: '100%',
     height: '100%',
-    objectFit: 'cover',
+    objectFit: 'contain',
     display: 'block',
   },
   photoOverlay: {
