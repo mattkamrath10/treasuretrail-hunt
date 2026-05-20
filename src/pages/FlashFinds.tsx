@@ -207,7 +207,19 @@ export default function FlashFinds() {
       // [FLASH_UPLOAD] prefix so a broken-card report can be traced back
       // to a storage RLS / bucket issue instead of being silent.
       let imageUrl: string | undefined;
-      if (photoUrl) {
+      // Guard: if the user reached submit without a photoUrl (mobile
+      // Safari can evict large DataURLs when the tab is backgrounded
+      // during the AI analysis step), STOP. Posting a find with no
+      // image is almost never what the user wanted — better to surface
+      // the loss loudly than ship a broken-looking card to the feed.
+      if (!photoUrl) {
+        setSubmitting(false);
+        const msg = 'Your photo was lost before the post went out. Please go back, re-attach the photo, and try again.';
+        setSubmitError(msg);
+        try { window.alert(msg); } catch {}
+        return;
+      }
+      {
         try {
           // Compress before upload: caps long edge at 1600px and re-encodes
           // as JPEG q=0.82, which trims a typical 4-8MB phone capture down
@@ -241,6 +253,14 @@ export default function FlashFinds() {
               code: (uploadErr as { statusCode?: string }).statusCode,
               message: uploadErr.message,
             });
+            // Halt: don't post a find with a missing image just because
+            // storage rejected the upload. Surface the underlying error
+            // (RLS denial, bucket missing, quota) so the user can act.
+            setSubmitting(false);
+            const msg = `Photo upload failed: ${uploadErr.message}. Please try again.`;
+            setSubmitError(msg);
+            try { window.alert(msg); } catch {}
+            return;
           } else {
             const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
             imageUrl = urlData.publicUrl;
