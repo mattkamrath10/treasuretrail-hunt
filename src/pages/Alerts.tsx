@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   fetchNotificationsList, markRead, markAllRead, clearRead, subscribeNotifications,
 } from '../lib/notifications';
+import { fetchUnreadCount as fetchUnreadMessageCount } from '../lib/messaging';
 import { GuestOverlay } from '../components/GuestGate';
 import type { Notification } from '../lib/supabase';
 
@@ -67,18 +68,35 @@ export default function Alerts() {
   const { user, isGuest } = useAuth();
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  // Unread DM count — drives the badge on the Messages button. We
+  // refresh it on the notification realtime channel (which fires on
+  // any new `message` notification) and once on mount. A dedicated
+  // messages-table subscription would be more precise, but the
+  // notification feed already fires on new DMs because of the
+  // server-side notify_user trigger, so we piggyback on it.
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     let cancelled = false;
-    fetchNotificationsList(user.id, { limit: 100 }).then((rows) => {
-      if (!cancelled) { setNotifs(rows); setLoading(false); }
-    }).catch(() => { if (!cancelled) setLoading(false); });
-    const sub = subscribeNotifications(user.id, () => {
+    const refresh = () => {
       fetchNotificationsList(user.id, { limit: 100 }).then((rows) => {
         if (!cancelled) setNotifs(rows);
       }).catch(() => {});
-    });
+      fetchUnreadMessageCount(user.id).then((c) => {
+        if (!cancelled) setUnreadMsgs(c);
+      }).catch(() => {});
+    };
+    Promise.all([
+      fetchNotificationsList(user.id, { limit: 100 }),
+      fetchUnreadMessageCount(user.id),
+    ]).then(([rows, c]) => {
+      if (cancelled) return;
+      setNotifs(rows);
+      setUnreadMsgs(c);
+      setLoading(false);
+    }).catch(() => { if (!cancelled) setLoading(false); });
+    const sub = subscribeNotifications(user.id, () => refresh());
     return () => { cancelled = true; sub.unsubscribe(); };
   }, [user]);
 
@@ -171,9 +189,18 @@ export default function Alerts() {
             <h1 style={s.title}>Alerts</h1>
             {unreadCount > 0 && <span style={s.badge}>{unreadCount} new</span>}
           </div>
-          <button onClick={() => navigate('/messages')} style={s.messagesBtn} aria-label="Messages">
+          <button
+            onClick={() => navigate('/messages')}
+            style={s.messagesBtn}
+            aria-label={unreadMsgs > 0 ? `Messages (${unreadMsgs} unread)` : 'Messages'}
+          >
             <MessageCircle size={16} style={{ color: 'var(--color-primary-600)' }} />
             <span style={s.messagesBtnText}>Messages</span>
+            {unreadMsgs > 0 && (
+              <span style={s.msgBadge} aria-hidden>
+                {unreadMsgs > 9 ? '9+' : unreadMsgs}
+              </span>
+            )}
           </button>
         </div>
         <p style={s.subtitle}>Real-time match alerts and activity</p>
@@ -247,6 +274,14 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   messagesBtnText: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-primary-700)' },
+  msgBadge: {
+    minWidth: 18, height: 18, padding: '0 5px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-error-500)', color: '#fff',
+    fontSize: 10, fontWeight: 700,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    lineHeight: 1, marginLeft: 4,
+  },
   actionsRow: { display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)' },
   actionBtn: {
     display: 'inline-flex', alignItems: 'center', gap: 4,

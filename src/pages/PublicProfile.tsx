@@ -15,7 +15,7 @@ import UserFindsGrid from '../components/UserFindsGrid';
 export default function PublicProfile() {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile: meProfile } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -169,14 +169,25 @@ export default function PublicProfile() {
       if (!error) {
         setFollowing(true);
         setProfile((p: any) => p ? { ...p, follower_count: (p.follower_count ?? 0) + 1 } : p);
-        // Notify the followed user via the SECURITY DEFINER RPC; ignore failures.
+        // Identify the follower in the notification so the recipient
+        // can see WHO followed them (previously it said only "You have
+        // a new follower" with no name). Prefer @username; fall back
+        // to display name; final fallback to "Someone" if the current
+        // user has no profile row yet (brand-new account edge case).
+        const followerName = meProfile?.username
+          ? `@${meProfile.username}`
+          : 'Someone';
         notifyUser({
           target_user_id: profile.id,
           type: 'follow',
           title: 'New follower',
-          content: 'You have a new follower.',
+          content: `${followerName} started following you.`,
           related_item_id: user.id,
           related_item_type: 'profile',
+          metadata: {
+            follower_id: user.id,
+            follower_username: meProfile?.username ?? null,
+          },
         }).catch(() => {});
       }
     }
