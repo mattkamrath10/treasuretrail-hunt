@@ -12,6 +12,7 @@ import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
 import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
+import { shareWithImage } from '../lib/shareWithImage';
 import { attachProfiles } from '../lib/database';
 
 type FullPost = CommunityPost & {
@@ -157,19 +158,16 @@ export default function FindDetail() {
   const handleShare = async () => {
     if (!post) return;
     const url = `${window.location.origin}/find/${post.id}`;
-    const text = post.caption || 'Check out this find on TreasureTrail';
-    const nav: any = typeof navigator !== 'undefined' ? navigator : null;
-    if (nav && 'share' in nav) {
-      try { await nav.share({ title: text, text, url }); return; } catch { /* user cancelled */ }
-    }
-    if (nav?.clipboard) {
-      try {
-        await nav.clipboard.writeText(url);
-        showToast('Link copied');
-      } catch { showToast('Could not copy link'); }
-    } else {
-      showToast('Sharing not supported');
-    }
+    const title = post.caption || 'Check out this find on TreasureTrail';
+    const result = await shareWithImage({
+      url,
+      title,
+      text: title,
+      imageUrl: post.image_url,
+    });
+    if (result.kind === 'copied') showToast('Link copied');
+    else if (result.kind === 'unsupported') showToast('Sharing not supported');
+    else if (result.kind === 'error') showToast('Could not share');
   };
 
   const handleProfileClick = () => {
