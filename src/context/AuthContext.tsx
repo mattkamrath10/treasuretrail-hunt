@@ -16,6 +16,7 @@ interface AuthContextType {
   enterGuestMode: () => void;
   exitGuestMode: () => void;
   updateProfile: (data: Partial<Profile>) => Promise<{ error: string | null }>;
+  refreshProfile: () => Promise<void>;
   hasCompletedSetup: boolean;
   isAdmin: boolean;
 }
@@ -66,6 +67,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(data as Profile);
     }
     setLoading(false);
+  }
+
+  // Public refresh: re-reads the current user's profile row. Used after
+  // server-side state changes (e.g. an admin approves a Scout application —
+  // the apply_scout_verification trigger flips profiles.scout_verified, but
+  // the client's cached profile is stale until we re-fetch).
+  async function refreshProfile() {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (!error && data) setProfile(data as Profile);
   }
 
   async function signUp(email: string, password: string) {
@@ -128,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         enterGuestMode,
         exitGuestMode,
         updateProfile,
+        refreshProfile,
         hasCompletedSetup,
         isAdmin,
       }}

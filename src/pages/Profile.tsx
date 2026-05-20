@@ -571,7 +571,7 @@ function ActivityTab() {
 }
 
 function ScoutsTab() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [app, setApp] = useState<ScoutApplication | null>(null);
   const [loading, setLoading] = useState(true);
   const [showApply, setShowApply] = useState(false);
@@ -580,15 +580,61 @@ function ScoutsTab() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Refetches the latest scout_application row AND the user's profile.
+  // Both are needed because the apply_scout_verification trigger writes
+  // to profiles.scout_verified server-side on status transitions — so an
+  // admin's approval is invisible to the client until we re-pull profile.
+  //
+  // In-flight guard via a ref prevents the focus + visibilitychange
+  // listeners from firing two concurrent refreshes when a tab returns
+  // to the foreground (both events typically fire back-to-back).
+  const refreshingRef = useRef(false);
+  const refresh = async () => {
+    if (!user || refreshingRef.current) return;
+    refreshingRef.current = true;
+    try {
+      const a = await fetchMyScoutApplication(user.id);
+      setApp(a);
+      await refreshProfile();
+    } finally {
+      refreshingRef.current = false;
+    }
+  };
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     let cancelled = false;
-    fetchMyScoutApplication(user.id).then((a) => {
+    (async () => {
+      const a = await fetchMyScoutApplication(user.id);
       if (cancelled) return;
       setApp(a);
       setLoading(false);
-    });
+      // Always pull a fresh profile on tab open — covers the case where
+      // approval happened in another session / via DB SQL / via an admin
+      // tool while this client was offline.
+      if (a?.status === 'approved' || a?.status === 'declined') {
+        await refreshProfile();
+      } else {
+        // Even with no terminal-status application, refresh so legacy
+        // direct-grant scout_verified flips show up.
+        await refreshProfile();
+      }
+    })();
     return () => { cancelled = true; };
+  }, [user]);
+
+  // Re-sync whenever the tab is brought back to the foreground. This is
+  // what makes "approve in DB → user opens app → badge appears" work
+  // without a manual reload.
+  useEffect(() => {
+    const onFocus = () => { refresh(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [user]);
 
   if (loading) {

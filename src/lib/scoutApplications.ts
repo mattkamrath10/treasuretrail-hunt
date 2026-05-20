@@ -78,3 +78,113 @@ export async function withdrawScoutApplication(
   if (error) return { error: error.message };
   return { error: null };
 }
+
+// ─── Admin moderation helpers ──────────────────────────────────────────────
+//
+// All three rely on the existing RLS:
+//   * scout_apps_update_admin policy (USING/WITH CHECK public.is_admin())
+//   * guard_scout_application_update trigger (bypassed when is_admin())
+//   * apply_scout_verification trigger (AFTER UPDATE OF status → flips
+//     profiles.scout_verified server-side, no client write needed).
+//
+// Non-admin callers will get an RLS error from the UPDATE — surfaced here as
+// the returned `error` string. We re-read the row after the write so callers
+// can do an immediate optimistic state update without a second round-trip.
+
+async function adminUpdateApplication(
+  id: string,
+  patch: { status: ScoutApplicationStatus; reviewer_id?: string | null; reviewer_note?: string },
+): Promise<{ application: ScoutApplication | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('scout_applications')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .maybeSingle();
+  if (error) return { application: null, error: error.message };
+  if (!data) return { application: null, error: 'Application not found or not permitted.' };
+  return { application: data as ScoutApplication, error: null };
+}
+
+export async function approveScoutApplication(
+  applicationId: string,
+  opts?: { reviewerId?: string | null; note?: string },
+): Promise<{ application: ScoutApplication | null; error: string | null }> {
+  const result = await adminUpdateApplication(applicationId, {
+    status: 'approved',
+    reviewer_id: opts?.reviewerId ?? null,
+    reviewer_note: opts?.note ?? '',
+  });
+  // Best-effort notify the applicant. Don't fail the call on notify errors.
+  if (result.application) {
+    await notifyUser({
+      target_user_id: result.application.applicant_id,
+      type: 'scout_application',
+      title: 'You are a Verified Scout',
+      content: 'Your Verified Scout application was approved.',
+      related_item_id: result.application.id,
+      related_item_type: 'scout_application',
+    }).catch(() => {});
+  }
+  return result;
+}
+
+export async function rejectScoutApplication(
+  applicationId: string,
+  opts?: { reviewerId?: string | null; note?: string },
+): Promise<{ application: ScoutApplication | null; error: string | null }> {
+  const result = await adminUpdateApplication(applicationId, {
+    status: 'declined',
+    reviewer_id: opts?.reviewerId ?? null,
+    reviewer_note: opts?.note ?? '',
+  });
+  if (result.application) {
+    await notifyUser({
+      target_user_id: result.application.applicant_id,
+      type: 'scout_application',
+      title: 'Application update',
+      content: opts?.note?.trim()
+        ? `Your Scout application was not approved. Note: ${opts.note.trim()}`
+        : 'Your Scout application was not approved at this time.',
+      related_item_id: result.application.id,
+      related_item_type: 'scout_application',
+    }).catch(() => {});
+  }
+  return result;
+}
+
+// Revoke an already-granted Verified Scout badge by flipping the latest
+// approved application back to 'declined'. The apply_scout_verification
+// trigger then sets profiles.scout_verified = false atomically.
+//
+// We deliberately do NOT fall back to a direct profiles.update — the
+// prevent_profile_field_escalation trigger blocks privileged column
+// changes from JWT-originated calls, so that path silently no-ops.
+// Legacy direct-grant accounts (no application row) require a SECURITY
+// DEFINER RPC, which is on the moderation roadmap.
+export async function revokeScoutVerification(
+  userId: string,
+  opts?: { reviewerId?: string | null; note?: string },
+): Promise<{ error: string | null }> {
+  const { data: approved, error: fetchErr } = await supabase
+    .from('scout_applications')
+    .select('id')
+    .eq('applicant_id', userId)
+    .eq('status', 'approved')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (fetchErr) return { error: fetchErr.message };
+  if (!approved?.id) {
+    return {
+      error:
+        'No approved scout_applications row for this user. Direct-grant revokes require a server-side admin RPC (not yet implemented).',
+    };
+  }
+  const { error } = await adminUpdateApplication(approved.id, {
+    status: 'declined',
+    reviewer_id: opts?.reviewerId ?? null,
+    reviewer_note: opts?.note ?? 'Verification revoked',
+  });
+  return { error };
+}
