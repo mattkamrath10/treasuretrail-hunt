@@ -112,13 +112,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function updateProfile(data: Partial<Profile>) {
     if (!user) return { error: 'Not authenticated' };
 
-    const { error } = await supabase
+    // Upsert + return the full row. Crucial for first-time setup on
+    // brand-new accounts that have NO profile row yet — without this
+    // re-read, the local merge `prev ? {...prev,...data} : null` would
+    // keep profile=null, hasCompletedSetup stays false, and the user
+    // gets stuck on the ProfileSetup screen after pressing "Start
+    // Hunting" because App never swaps to AppShell.
+    const { data: row, error } = await supabase
       .from('profiles')
-      .upsert({ id: user.id, ...data, updated_at: new Date().toISOString() });
+      .upsert({ id: user.id, ...data, updated_at: new Date().toISOString() })
+      .select('*')
+      .single();
 
     if (error) return { error: error.message };
 
-    setProfile((prev) => prev ? { ...prev, ...data } : null);
+    if (row) {
+      setProfile(row as Profile);
+    } else {
+      setProfile((prev) => (prev ? { ...prev, ...data } : ({ id: user.id, ...data } as Profile)));
+    }
     return { error: null };
   }
 
