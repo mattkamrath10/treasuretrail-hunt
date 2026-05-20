@@ -10,6 +10,7 @@ import { accountAge, reputationTier, normalizeReputation } from '../lib/reputati
 import { submitScoutApplication, fetchMyScoutApplication, type ScoutApplication } from '../lib/scoutApplications';
 import { getOrCreateConversation } from '../lib/messaging';
 import { blockUser, isUserBlocked } from '../lib/blocks';
+import UserFindsGrid from '../components/UserFindsGrid';
 
 export default function PublicProfile() {
   const { username } = useParams<{ username: string }>();
@@ -390,6 +391,14 @@ export default function PublicProfile() {
             <span style={s.repNum}>{profile.reputation_score ?? 0}</span>
             <Star size={12} style={{ color: 'var(--color-primary-500)', fill: 'var(--color-primary-500)' }} />
           </div>
+        </div>
+
+        <div style={s.section}>
+          <h2 style={s.sectionTitle}>{isSelf ? 'Your Finds' : `@${profile.username}'s Finds`}</h2>
+          <UserFindsGrid
+            userId={profile.id}
+            emptyLabel={isSelf ? "You haven't posted any finds yet" : 'No finds posted yet'}
+          />
         </div>
 
         {profile.favorite_categories && profile.favorite_categories.length > 0 && (

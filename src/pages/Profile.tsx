@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
 import { compressImage } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
+import UserFindsGrid from '../components/UserFindsGrid';
 import {
   fetchMyScoutApplication,
   submitScoutApplication,
@@ -520,7 +521,7 @@ function ReputationTab({ profile }: { profile: any }) {
         <div style={styles.repPanelHeader}>
           <div style={styles.trustedBadge}>
             <Shield size={20} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={styles.trustedText}>{score >= 4.5 ? 'Trusted Scout' : 'Building Reputation'}</span>
+            <span style={styles.trustedText}>{profile?.scout_verified ? 'Trusted Scout' : 'Building Reputation'}</span>
           </div>
           <div style={styles.repScoreLarge}>
             <span style={styles.repScoreNum}>{score.toFixed(1)}</span>
@@ -561,11 +562,19 @@ function ReputationTab({ profile }: { profile: any }) {
 }
 
 function ActivityTab() {
+  const { user } = useAuth();
+  if (!user) {
+    return (
+      <div style={styles.emptyTabState}>
+        <Upload size={28} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
+        <p style={styles.emptyTabTitle}>Sign in to see your activity</p>
+      </div>
+    );
+  }
   return (
-    <div style={styles.emptyTabState}>
-      <Upload size={28} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
-      <p style={styles.emptyTabTitle}>No activity yet</p>
-      <p style={styles.emptyTabSub}>Your finds, scout jobs, and auction activity will appear here.</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <h3 style={{ ...styles.sectionTitle, margin: 0 }}>Your Finds</h3>
+      <UserFindsGrid userId={user.id} emptyLabel="You haven't posted any finds yet" />
     </div>
   );
 }
