@@ -57,18 +57,30 @@ export async function shareWithImage(input: ShareInput): Promise<ShareResult> {
     if (imageUrl && typeof nav.canShare === 'function') {
       const file = await fetchAsFile(imageUrl);
       if (file) {
-        // iOS Safari is strict about mixed payloads: passing `text` or
-        // `url` alongside `files` often makes the share sheet drop the
-        // text or fail silently. We send files + title only — the user
-        // can re-share the URL from the bare listing page if they want
-        // a tappable link, but the photo is what makes the message
-        // useful to the recipient.
-        const payload = { title, files: [file] };
+        // We want BOTH in the iMessage: the image (so the recipient
+        // sees what the listing looks like at a glance) AND a tappable
+        // canonical TreasureTrail URL (so they can actually open the
+        // listing). iOS 16+ accepts files + text together; the share
+        // sheet sends the image as an attachment and the text becomes
+        // the message body. We embed the URL inside `text` rather than
+        // passing `url` separately because some iOS versions drop the
+        // top-level `url` field when `files` is present, but text is
+        // always preserved verbatim. iMessage auto-linkifies the URL
+        // on the recipient's side so it remains tappable.
+        const text = `${body}\n${url}`;
+        const payloadWithText = { title, text, files: [file] };
+        const payloadFilesOnly = { title, files: [file] };
+        const tryPayload = async (p: any) => {
+          if (!nav.canShare(p)) return false;
+          await nav.share(p);
+          return true;
+        };
         try {
-          if (nav.canShare(payload)) {
-            await nav.share(payload);
-            return { kind: 'shared' };
-          }
+          if (await tryPayload(payloadWithText)) return { kind: 'shared' };
+          // Some older iOS / Android builds reject files+text. Fall
+          // back to files-only so the user still gets the picture,
+          // then we'll let the outer URL-only share handle the link.
+          if (await tryPayload(payloadFilesOnly)) return { kind: 'shared' };
         } catch (err: any) {
           if (err?.name === 'AbortError') return { kind: 'cancelled' };
           // Fall through to URL-only share. Note: a second nav.share()
