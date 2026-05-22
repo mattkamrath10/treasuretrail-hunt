@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "E_0-zc92O-dxMxkpG-wIx"
+uri = "file://dist/treasuretrail.tar.gz"
+type = "unspecified"
+title = "TreasureTrail source archive"
