@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import AiAnalysisPage, { type AnalysisDonePayload } from './AiAnalysis';
 import { createCommunityPost, createFlashFind } from '../lib/database';
-import { supabase, type CommunityPost } from '../lib/supabase';
+import { type CommunityPost } from '../lib/supabase';
 import {
   createCanonicalFlashFindPayload,
   toCommunityPostInsert,
@@ -45,7 +45,7 @@ interface FlashFindForm {
   meetup_notes: string;
 }
 
-import { compressImage } from '../lib/imageCompress';
+import { uploadCompressedImage } from '../lib/uploadImage';
 import LocationFields, { type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect, { getMarketplaceLabel as _shared_getMarketplaceLabel } from '../components/listing/MarketplaceFoundSelect';
@@ -221,53 +221,32 @@ export default function FlashFinds() {
       }
       {
         try {
-          // Compress before upload: caps long edge at 1600px and re-encodes
-          // as JPEG q=0.82, which trims a typical 4-8MB phone capture down
-          // to ~300-600KB. compressImage is a no-op for non-image src and
-          // gracefully throws if the canvas pipeline fails — in that case
-          // we fall back to the original blob so the post still goes out.
-          let blob: Blob;
-          try {
-            const compressedDataUrl = await compressImage(photoUrl, 1600, 0.82);
-            const cres = await fetch(compressedDataUrl);
-            blob = await cres.blob();
-          } catch {
-            const res = await fetch(photoUrl);
-            blob = await res.blob();
-          }
-          const ext = blob.type.split('/')[1] || 'jpg';
-          // Path order matters: the `avatars` bucket RLS requires the
-          // FIRST folder segment to equal `auth.uid()`. The previous
-          // `finds/<uid>/…` order was rejected by RLS on every upload,
-          // which is why Flash Find cards rendered without images.
-          // Using `<uid>/finds/<ts>.<ext>` satisfies the policy and
-          // keeps a `finds/` namespace inside the user's folder.
-          const path = `${user.id}/finds/${Date.now()}.${ext}`;
-          const { error: uploadErr } = await supabase.storage
-            .from('avatars')
-            .upload(path, blob, { upsert: true, contentType: blob.type });
-          if (uploadErr) {
-            console.error('[FLASH_UPLOAD] storage upload failed', {
-              bucket: 'avatars',
-              path,
-              code: (uploadErr as { statusCode?: string }).statusCode,
-              message: uploadErr.message,
-            });
-            // Halt: don't post a find with a missing image just because
-            // storage rejected the upload. Surface the underlying error
-            // (RLS denial, bucket missing, quota) so the user can act.
-            setSubmitting(false);
-            const msg = `Photo upload failed: ${uploadErr.message}. Please try again.`;
-            setSubmitError(msg);
-            try { window.alert(msg); } catch {}
-            return;
-          } else {
-            const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-            imageUrl = urlData.publicUrl;
-            console.log('[FLASH_UPLOAD] storage upload ok', { path, url: !!imageUrl });
-          }
-        } catch (e) {
-          console.error('[FLASH_UPLOAD] storage upload threw', e);
+          // Compress + thumbnail in one decode (1200px @ q=0.7 for the
+          // full, 400px @ q=0.65 for the feed-card thumb), then upload
+          // both with a 1-year immutable Cache-Control so subsequent
+          // loads hit the browser / CDN cache directly. The thumb URL
+          // is derived deterministically from the full URL on the read
+          // side — see toThumbUrl + ImageWithFade.fallbackSrc.
+          const uploaded = await uploadCompressedImage(photoUrl, {
+            bucket: 'avatars',
+            userId: user.id,
+            folder: 'finds',
+          });
+          imageUrl = uploaded.url;
+          console.log('[FLASH_UPLOAD] storage upload ok', {
+            path: uploaded.path,
+            thumbPath: uploaded.thumbPath,
+          });
+        } catch (e: any) {
+          console.error('[FLASH_UPLOAD] storage upload failed', e);
+          // Halt: don't post a find with a missing image just because
+          // storage rejected the upload. Surface the underlying error
+          // (RLS denial, bucket missing, quota) so the user can act.
+          setSubmitting(false);
+          const msg = `Photo upload failed: ${e?.message ?? 'unknown error'}. Please try again.`;
+          setSubmitError(msg);
+          try { window.alert(msg); } catch {}
+          return;
         }
       }
 

@@ -18,6 +18,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge, type BadgeVariant } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { toThumbUrl } from '../lib/imageCompress';
 
 type FilterId =
   | 'all'
@@ -905,7 +906,8 @@ export default function Home() {
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/find/${p.id}`); } }}
               >
                 <ImageWithFade
-                  src={p.image_url}
+                  src={toThumbUrl(p.image_url)}
+                  fallbackSrc={p.image_url}
                   alt={displayCaption}
                   style={styles.cardImage}
                   fallback={<ImageFallback icon={Bookmark} />}
@@ -1137,7 +1139,8 @@ function MarketplaceCard({
     <article style={styles.card}>
       <div style={styles.cardImageContainer}>
         <ImageWithFade
-          src={listing.image_url}
+          src={toThumbUrl(listing.image_url)}
+          fallbackSrc={listing.image_url}
           alt={listing.title}
           style={styles.cardImage}
           fallback={<ImageFallback icon={ShoppingBag} />}

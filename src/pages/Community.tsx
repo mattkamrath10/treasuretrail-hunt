@@ -217,7 +217,7 @@ function FeedCard({ post, onLike, onSave }: { post: FeedPost; onLike: () => void
 
       {/* Image */}
       <div style={s.postImgWrap}>
-        <img src={post.image} alt={post.caption} style={s.postImg} />
+        <img src={post.image} alt={post.caption} loading="lazy" decoding="async" style={s.postImg} />
         {post.rarity && <span style={s.postRarityBadge}>{post.rarity} Rarity</span>}
         {post.estimatedValue && <span style={s.postValueBadge}>{post.estimatedValue}</span>}
       </div>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { toThumbUrl } from '../lib/imageCompress';
 import {
   ArrowLeft, Search, Star, Shield, TrendingUp, MapPin,
   Heart, Zap, ChevronRight, Package, Truck, Users, Bookmark,
@@ -293,7 +294,8 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                     <button key={item.id} onClick={() => onItemClick(item)} style={s.featuredCard}>
                       <div style={s.featuredImgWrap}>
                         <ImageWithFade
-                          src={item.image}
+                          src={toThumbUrl(item.image)}
+                          fallbackSrc={item.image}
                           alt={item.title}
                           style={s.featuredImg as any}
                           fallback={
@@ -331,7 +333,8 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                   {hotFinds.filter((l) => l.image).slice(0, 4).map((item) => (
                     <button key={item.id} onClick={() => onItemClick(item)} style={s.hotCard}>
                       <ImageWithFade
-                        src={item.image}
+                        src={toThumbUrl(item.image)}
+                        fallbackSrc={item.image}
                         alt={item.title}
                         style={s.hotImg as any}
                         fallback={
@@ -361,7 +364,8 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                   <button key={item.id} onClick={() => onItemClick(item)} style={s.listingRow}>
                     <div style={{ width: 64, height: 64, borderRadius: 'var(--radius-md)', overflow: 'hidden', flexShrink: 0 }}>
                       <ImageWithFade
-                        src={item.image}
+                        src={toThumbUrl(item.image)}
+                        fallbackSrc={item.image}
                         alt={item.title}
                         style={s.listingImg as any}
                         fallback={
@@ -802,7 +806,7 @@ function OfferScreen({ item, onBack }: { item: Listing; onBack: () => void }) {
       <div style={s.scrollContent}>
         {/* Item summary */}
         <div style={s.offerItemCard}>
-          <img src={item.image} alt={item.title} style={s.offerItemImg} />
+          <img src={item.image} alt={item.title} loading="lazy" decoding="async" style={s.offerItemImg} />
           <div style={s.offerItemInfo}>
             <span style={s.offerItemTitle}>{item.title}</span>
             <span style={s.offerItemPrice}>Listed at {item.price}</span>
@@ -887,7 +891,7 @@ function CheckoutScreen({ item, onBack, onConfirm }: { item: Listing; onBack: ()
       <div style={s.scrollContent}>
         {/* Item */}
         <div style={s.checkoutItem}>
-          <img src={item.image} alt={item.title} style={s.checkoutImg} />
+          <img src={item.image} alt={item.title} loading="lazy" decoding="async" style={s.checkoutImg} />
           <div style={s.checkoutItemInfo}>
             <span style={s.checkoutItemTitle}>{item.title}</span>
             <span style={s.checkoutItemPrice}>{item.price}</span>

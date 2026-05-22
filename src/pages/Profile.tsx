@@ -246,7 +246,16 @@ function ProfileHeader({ profile }: { profile: any }) {
 
       const { error: uploadErr } = await supabase.storage
         .from('avatars')
-        .upload(path, uploadBlob, { upsert: true, contentType: uploadBlob.type || file.type });
+        .upload(path, uploadBlob, {
+          upsert: true,
+          contentType: uploadBlob.type || file.type,
+          // Timestamped filename → URL is the version → safe to mark
+          // as immutable. Browser & CDN keep the avatar bytes for a
+          // year without revalidating. New uploads write to new paths
+          // and update profiles.avatar_url, so the cache never gets
+          // stuck on a stale image.
+          cacheControl: '31536000, immutable',
+        });
 
       if (uploadErr) throw new Error(uploadErr.message);
 
