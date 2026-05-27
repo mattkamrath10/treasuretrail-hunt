@@ -19,6 +19,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Badge, type BadgeVariant } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { toThumbUrl } from '../lib/imageCompress';
+import { BecomeHostCard } from '../components/BecomeHostCard';
 
 type FilterId =
   | 'all'
@@ -747,6 +748,8 @@ export default function Home() {
           </button>
         </div>
       )}
+
+      <BecomeHostCard surface="home" />
 
       <div style={styles.feed}>
         {loadError && (

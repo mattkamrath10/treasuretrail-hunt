@@ -9,6 +9,7 @@ import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
 import { compressImage } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
 import UserFindsGrid from '../components/UserFindsGrid';
+import { BecomeHostCard } from '../components/BecomeHostCard';
 import {
   fetchMyScoutApplication,
   submitScoutApplication,
@@ -439,6 +440,7 @@ function OverviewTab({ profile }: { profile: any }) {
   const repScore = profile?.reputation_score ?? 0;
   return (
     <>
+      <BecomeHostCard surface="profile" />
       <AiScanUsageCard />
       <div style={styles.reputationCard}>
         <div style={styles.repLeft}>
