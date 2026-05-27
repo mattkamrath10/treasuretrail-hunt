@@ -16,6 +16,7 @@ import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { toThumbUrl } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
+import { flashToast } from '../lib/toast';
 
 /**
  * Public event detail page (/event/:id).
@@ -486,26 +487,6 @@ function legacyCopy(text: string): boolean {
   } catch {
     return false;
   }
-}
-
-/** Tiny ephemeral toast for share/copy feedback. */
-function flashToast(msg: string) {
-  const el = document.createElement('div');
-  el.textContent = msg;
-  Object.assign(el.style, {
-    position: 'fixed', bottom: '88px', left: '50%', transform: 'translateX(-50%)',
-    background: 'rgba(17,17,17,0.92)', color: '#fff',
-    padding: '10px 16px', borderRadius: '20px',
-    fontSize: '13px', fontWeight: '600', zIndex: '9999',
-    boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-    transition: 'opacity 200ms', opacity: '0',
-  } as CSSStyleDeclaration);
-  document.body.appendChild(el);
-  requestAnimationFrame(() => { el.style.opacity = '1'; });
-  setTimeout(() => {
-    el.style.opacity = '0';
-    setTimeout(() => el.remove(), 250);
-  }, 1500);
 }
 
 /* --------------- Styles --------------- */

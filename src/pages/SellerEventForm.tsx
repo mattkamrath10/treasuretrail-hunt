@@ -14,6 +14,9 @@ import { uploadCompressedImage } from '../lib/uploadImage';
 import { toThumbUrl } from '../lib/imageCompress';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { EmptyState } from '../components/ui/EmptyState';
+import { flashToast } from '../lib/toast';
+
+const LOG = '[SELLER_FORM]';
 
 /**
  * Holder-only event create + edit form. Two routes share this component:
@@ -78,9 +81,11 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
     let cancelled = false;
     setLoading(true);
     setErr(null);
+    console.log(LOG, 'load', { id, holderId: user.id });
     Promise.all([fetchMyEvent(id, user.id), fetchEventFeaturedItems(id)])
       .then(([e, its]) => {
         if (cancelled) return;
+        console.log(LOG, 'load:result', { event: !!e, items: its.length });
         if (!e) { setErr('Event not found or you don\'t have access to edit it.'); setLoading(false); return; }
         setTitle(e.title);
         setDescription(e.description);
@@ -98,6 +103,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       })
       .catch((e: any) => {
         if (cancelled) return;
+        console.error(LOG, 'load:error', e);
         setErr(e?.message ?? 'Failed to load event');
         setLoading(false);
       });
@@ -151,14 +157,37 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
     setSaving(true);
     try {
       if (isEdit && id) {
+        console.log(LOG, 'save:update', { id, status: payload.status });
         await updateEvent(id, payload);
+        // Re-fetch items from DB so we surface any drift between local
+        // state and what RLS actually allows us to read back. If the
+        // counts disagree, the user gets an immediate visible warning
+        // rather than discovering the loss on a later page load.
+        const fresh = await fetchEventFeaturedItems(id);
+        const localCount = items?.length ?? 0;
+        console.log(LOG, 'save:resync', { localCount, dbCount: fresh.length });
+        setItems(fresh);
+        if (fresh.length !== localCount) {
+          flashToast(
+            `Saved, but featured items out of sync: ${localCount} local vs ${fresh.length} in DB`,
+            'error',
+            4000,
+          );
+        } else {
+          flashToast('Changes saved', 'success');
+        }
       } else {
+        console.log(LOG, 'save:create');
         const row = await createEvent(user.id, payload);
+        console.log(LOG, 'save:create:ok', { id: row.id });
+        flashToast('Event created', 'success');
         // On create, hop straight to edit URL so user can add featured items
         navigate(`/seller/event/${row.id}`, { replace: true });
       }
     } catch (e: any) {
+      console.error(LOG, 'save:error', e);
       setErr(`Save failed: ${e?.message ?? 'unknown error'}`);
+      flashToast(`Save failed: ${e?.message ?? 'unknown error'}`, 'error', 4000);
     } finally {
       setSaving(false);
     }
@@ -166,35 +195,57 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
 
   // Featured-item operations (edit only)
   const onAddItem = async (input: { title: string; price: number | null; coverFile: File | null }) => {
-    if (!id || !user) return;
-    // Parent-level cap guard. Child UI also enforces this but a stale
-    // child state, double-click, or direct API call could bypass it.
-    // The DB trigger added in the migration is the final backstop.
+    if (!id || !user) {
+      console.warn(LOG, 'addItem:abort', { hasId: !!id, hasUser: !!user });
+      throw new Error('Not ready — please reload the page');
+    }
     if ((items?.length ?? 0) >= 12) {
       throw new Error('Max 12 featured items per event');
     }
+    console.log(LOG, 'addItem:start', {
+      eventId: id, title: input.title, price: input.price, hasFile: !!input.coverFile,
+    });
     let image_url: string | null = null;
     let thumb_url: string | null = null;
     if (input.coverFile) {
+      console.log(LOG, 'addItem:upload:start', { name: input.coverFile.name, bytes: input.coverFile.size });
       const dataUrl = await fileToDataUrl(input.coverFile);
       const up = await uploadCompressedImage(dataUrl, { userId: user.id, folder: 'events' });
       image_url = up.url;
       thumb_url = up.thumbUrl;
+      console.log(LOG, 'addItem:upload:ok', { url: image_url });
     }
-    const row = await addEventFeaturedItem(id, {
-      title: input.title.trim(),
-      price: input.price,
-      image_url,
-      thumb_url,
-      position: (items?.length ?? 0),
-    });
-    setItems((prev) => [...(prev ?? []), row]);
+    try {
+      const row = await addEventFeaturedItem(id, {
+        title: input.title.trim(),
+        price: input.price,
+        image_url,
+        thumb_url,
+        position: (items?.length ?? 0),
+      });
+      console.log(LOG, 'addItem:insert:ok', { itemId: row.id });
+      setItems((prev) => [...(prev ?? []), row]);
+      flashToast('Item added', 'success');
+    } catch (e: any) {
+      // Visible to the user — not just an inline form error — because
+      // RLS/trigger errors are subtle and easy to miss.
+      console.error(LOG, 'addItem:insert:error', e);
+      flashToast(`Couldn't add item: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+      throw e;
+    }
   };
 
   const onRemoveItem = async (itemId: string) => {
     if (!confirm('Remove this featured item?')) return;
-    await deleteEventFeaturedItem(itemId);
-    setItems((prev) => (prev ?? []).filter((i) => i.id !== itemId));
+    try {
+      console.log(LOG, 'removeItem', { itemId });
+      await deleteEventFeaturedItem(itemId);
+      setItems((prev) => (prev ?? []).filter((i) => i.id !== itemId));
+      flashToast('Item removed', 'success');
+    } catch (e: any) {
+      console.error(LOG, 'removeItem:error', e);
+      flashToast(`Couldn't remove item: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+    }
   };
 
   /* --------------- render --------------- */
