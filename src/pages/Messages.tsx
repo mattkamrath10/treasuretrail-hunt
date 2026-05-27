@@ -10,6 +10,8 @@ import {
   type Conversation, type ChatMessage,
 } from '../lib/messaging';
 import { supabase } from '../lib/supabase';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { toThumbUrl } from '../lib/imageCompress';
 
 /**
  * Messages.tsx — real direct-message inbox.
@@ -123,7 +125,12 @@ function InboxView({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string
                     aria-label={`Open chat with @${c.other_username}`}
                   >
                     {c.other_avatar_url ? (
-                      <img src={c.other_avatar_url} alt={c.other_username || 'hunter'} style={styles.avatarImg} />
+                      <ImageWithFade
+                        src={toThumbUrl(c.other_avatar_url) ?? c.other_avatar_url}
+                        fallbackSrc={c.other_avatar_url}
+                        alt={c.other_username || 'user'}
+                        style={styles.avatarImg}
+                      />
                     ) : (
                       <div style={styles.avatarFallback}>{initial}</div>
                     )}
@@ -323,7 +330,12 @@ function ConversationView({ conversationId, onBack }: { conversationId: string; 
           disabled={!conv?.other_username}
         >
           {conv?.other_avatar_url ? (
-            <img src={conv.other_avatar_url} alt={conv.other_username || 'hunter'} style={styles.avatarImgSm} />
+            <ImageWithFade
+              src={toThumbUrl(conv.other_avatar_url) ?? conv.other_avatar_url}
+              fallbackSrc={conv.other_avatar_url}
+              alt={conv.other_username || 'user'}
+              style={styles.avatarImgSm}
+            />
           ) : (
             <div style={styles.avatarFallbackSm}>{otherInitial}</div>
           )}

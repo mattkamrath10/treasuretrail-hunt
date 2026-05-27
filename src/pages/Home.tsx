@@ -633,7 +633,7 @@ export default function Home() {
           <TooltipBtn onClick={() => navigate('/live')} btnStyle={styles.liveBtn} label="Live Hub" desc="Active missions and live events">
             <Zap size={14} style={{ color: 'var(--color-error-500)' }} />
           </TooltipBtn>
-          <TooltipBtn onClick={() => navigate('/community')} btnStyle={styles.communityBtn} label="Community" desc="Share finds with other hunters">
+          <TooltipBtn onClick={() => navigate('/community')} btnStyle={styles.communityBtn} label="Community" desc="Share finds and tips with other buyers">
             <Users size={14} style={{ color: 'var(--color-secondary-600)' }} />
           </TooltipBtn>
           <TooltipBtn onClick={() => navigate('/marketplace')} btnStyle={styles.marketBtn} label="Marketplace" desc="Browse and list items for sale">
@@ -642,7 +642,7 @@ export default function Home() {
           <TooltipBtn onClick={() => navigate('/events')} btnStyle={styles.eventsBtn} label="Events" desc="Estate sales and local events">
             <Calendar size={14} style={{ color: 'var(--color-success-600)' }} />
           </TooltipBtn>
-          <TooltipBtn onClick={() => navigate('/scout-map')} btnStyle={styles.mapBtn} label="Scout Map" desc="View hunter activity near you">
+          <TooltipBtn onClick={() => navigate('/scout-map')} btnStyle={styles.mapBtn} label="Scout Map" desc="See activity near you on the map">
             <MapPin size={16} style={{ color: 'var(--color-secondary-600)' }} />
           </TooltipBtn>
           <TooltipBtn onClick={() => navigate('/auctions')} btnStyle={styles.auctionBtn} label="Auction Radar" desc="Discover live auctions and scout opportunities">
@@ -792,7 +792,7 @@ export default function Home() {
               title={isTrulyEmpty ? 'No finds yet' : 'Nothing matches those filters'}
               body={
                 isTrulyEmpty
-                  ? 'Be the first to share a find — your post will appear in the feed for the whole TreasureTrail community.'
+                  ? 'Be the first to share a find — your post will appear in the feed for the whole community.'
                   : activeFilter === 'all'
                     ? 'Try clearing your location filter to see more finds.'
                     : 'Try a different category or clear your filters.'
@@ -969,7 +969,7 @@ export default function Home() {
                         U
                       </div>
                       <div style={styles.cardMeta}>
-                        <span style={styles.username}>@hunter</span>
+                        <span style={styles.username}>@user</span>
                         <span style={styles.timeAgo}>
                           {new Date(p.created_at).toLocaleDateString()}
                           {item.location ? ` • ${item.location}` : ''}
@@ -1269,9 +1269,9 @@ const COMPARISONS = [
     others: 'Listing-first: you already know what you want.',
   },
   {
-    feature: 'Live treasure hunting',
-    tt: 'Scan, log, and share finds in real time while you\'re out hunting.',
-    others: 'No in-the-field tools. You list after the fact.',
+    feature: 'Local resale events',
+    tt: 'Estate sales, yard sales, flea markets, and auctions — all in one feed.',
+    others: 'No event discovery. Just static listings.',
   },
   {
     feature: 'AI valuation',
@@ -1280,12 +1280,12 @@ const COMPARISONS = [
   },
   {
     feature: 'Community scouts',
-    tt: 'Hire local hunters to inspect or pick up items for you.',
+    tt: 'Hire local scouts to inspect or pick up items for you.',
     others: 'No scouting network. You\'re on your own.',
   },
   {
     feature: 'Flip culture',
-    tt: 'Built for resellers, pickers, and collectors who love the hunt.',
+    tt: 'Built for resellers, pickers, and collectors who shop local sales.',
     others: 'General buying and selling — no focus on the flip.',
   },
 ];
@@ -1300,7 +1300,7 @@ function InfoPanel({ onClose }: { onClose: () => void }) {
         <div style={panelStyles.header}>
           <div>
             <h2 style={panelStyles.title}>How TreasureTrail Works</h2>
-            <p style={panelStyles.subtitle}>The app built for real-world treasure hunters</p>
+            <p style={panelStyles.subtitle}>The marketplace for estate sales, yard sales, flea markets &amp; auctions</p>
           </div>
           <button onClick={onClose} style={panelStyles.closeBtn}>
             <X size={18} style={{ color: 'var(--color-neutral-500)' }} />
@@ -1311,7 +1311,7 @@ function InfoPanel({ onClose }: { onClose: () => void }) {
           {/* What is it */}
           <div style={panelStyles.introBanner}>
             <p style={panelStyles.introText}>
-              TreasureTrail is a live treasure hunting platform — part community, part marketplace, part AI tool — designed for people who love finding, flipping, and collecting real-world items.
+              TreasureTrail is the local marketplace for in-person resale events — estate sales, yard sales, flea markets, and auctions. Hosts list their events and featured items; buyers discover what's nearby, save events, and show up.
             </p>
           </div>
 
@@ -1357,7 +1357,7 @@ function InfoPanel({ onClose }: { onClose: () => void }) {
           {/* Tagline */}
           <div style={panelStyles.tagline}>
             <TrendingUp size={16} style={{ color: 'var(--color-primary-500)' }} />
-            <p style={panelStyles.taglineText}>Not just a marketplace — a hunting ground.</p>
+            <p style={panelStyles.taglineText}>Discover what's for sale near you — before you drive out.</p>
           </div>
         </div>
       </div>

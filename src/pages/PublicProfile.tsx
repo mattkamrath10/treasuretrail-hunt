@@ -11,6 +11,8 @@ import { submitScoutApplication, fetchMyScoutApplication, type ScoutApplication 
 import { getOrCreateConversation } from '../lib/messaging';
 import { blockUser, isUserBlocked } from '../lib/blocks';
 import UserFindsGrid from '../components/UserFindsGrid';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { toThumbUrl } from '../lib/imageCompress';
 
 export default function PublicProfile() {
   const { username } = useParams<{ username: string }>();
@@ -239,7 +241,7 @@ export default function PublicProfile() {
       <div style={s.content}>
         <div style={s.card}>
           {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.username} style={s.avatar} />
+            <ImageWithFade src={toThumbUrl(profile.avatar_url) ?? profile.avatar_url} fallbackSrc={profile.avatar_url} alt={profile.username} style={s.avatar} />
           ) : (
             <div style={s.avatarPlaceholder}>
               <span style={s.avatarInitial}>
