@@ -18,6 +18,7 @@ export function BecomeHostCard({ surface }: { surface: 'home' | 'profile' }) {
     try { return sessionStorage.getItem(storageKey) === '1'; } catch { return false; }
   });
   const [upgrading, setUpgrading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Hide for holders and for users who've dismissed it this session.
@@ -29,14 +30,23 @@ export function BecomeHostCard({ surface }: { surface: 'home' | 'profile' }) {
   };
 
   const becomeHost = async () => {
+    setErr(null);
     setUpgrading(true);
+    console.log('[BECOME_HOST] click → updating profile.account_type=holder');
     const { error } = await updateProfile({ account_type: 'holder' });
     setUpgrading(false);
     if (error) {
-      console.error('[BECOME_HOST] updateProfile failed', error);
+      console.error('[BECOME_HOST] updateProfile failed:', error);
+      // Surface a useful hint when the migration hasn't been applied yet
+      // (we see this exact PostgREST error during local dev when the
+      // schema cache doesn't know about the new column).
+      const missingCol = /account_type.*column.*schema cache|column.*account_type.*does not exist/i.test(error);
+      setErr(missingCol
+        ? 'Setup not finished — the database migration for hosting hasn\'t been applied yet. Ask the admin to run the latest SQL.'
+        : `Couldn't switch to a host account: ${error}`);
       return;
     }
-    // Send them to their new dashboard right away.
+    console.log('[BECOME_HOST] success → navigating to /seller');
     navigate('/seller');
   };
 
@@ -54,10 +64,15 @@ export function BecomeHostCard({ surface }: { surface: 'home' | 'profile' }) {
           List your estate sale, yard sale, flea market or auction and reach
           local buyers. Free to publish.
         </p>
-        <button onClick={becomeHost} disabled={upgrading} style={styles.cta}>
+        <button
+          onClick={becomeHost}
+          disabled={upgrading}
+          style={{ ...styles.cta, opacity: upgrading ? 0.7 : 1, cursor: upgrading ? 'wait' : 'pointer' }}
+        >
           {upgrading ? 'Setting up…' : 'Become a Host'}
           {!upgrading && <ArrowRight size={14} />}
         </button>
+        {err && <p style={styles.error}>{err}</p>}
       </div>
     </div>
   );
@@ -110,4 +125,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     fontSize: 'var(--font-size-xs)', fontWeight: 700, cursor: 'pointer',
   },
+  error: {
+    margin: '6px 0 0',
+    padding: '6px 8px',
+    borderRadius: 6,
+    backgroundColor: 'var(--color-error-50, #fef2f2)',
+    color: 'var(--color-error-700, #b91c1c)',
+    fontSize: 'var(--font-size-xs)',
+    lineHeight: 1.35,
+  },
 };
+
