@@ -28,6 +28,27 @@ CREATE INDEX IF NOT EXISTS profiles_account_type_idx
   ON public.profiles (account_type)
   WHERE account_type = 'holder';
 
+-- 1b. is_holder() helper -----------------------------------------------------
+-- SECURITY DEFINER so policies can check the caller's account_type without
+-- triggering RLS recursion on profiles. Used by the events write policies
+-- below — relying on `auth.uid() = holder_id` alone is not enough because a
+-- seeker could still INSERT events with their own UID via direct API calls.
+CREATE OR REPLACE FUNCTION public.is_holder()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND account_type = 'holder'
+  );
+$$;
+
+REVOKE ALL    ON FUNCTION public.is_holder() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.is_holder() TO authenticated;
+
 -- 2. events ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.events (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -68,18 +89,18 @@ CREATE POLICY events_select_public ON public.events
 DROP POLICY IF EXISTS events_insert_own ON public.events;
 CREATE POLICY events_insert_own ON public.events
   FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = holder_id);
+  WITH CHECK (auth.uid() = holder_id AND public.is_holder());
 
 DROP POLICY IF EXISTS events_update_own ON public.events;
 CREATE POLICY events_update_own ON public.events
   FOR UPDATE TO authenticated
-  USING (auth.uid() = holder_id)
-  WITH CHECK (auth.uid() = holder_id);
+  USING      (auth.uid() = holder_id AND public.is_holder())
+  WITH CHECK (auth.uid() = holder_id AND public.is_holder());
 
 DROP POLICY IF EXISTS events_delete_own ON public.events;
 CREATE POLICY events_delete_own ON public.events
   FOR DELETE TO authenticated
-  USING (auth.uid() = holder_id);
+  USING (auth.uid() = holder_id AND public.is_holder());
 
 -- 3. event_featured_items ---------------------------------------------------
 -- Small gallery of "preview" items per event. Not a full marketplace listing
