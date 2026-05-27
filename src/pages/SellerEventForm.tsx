@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, MapPin, ImagePlus, Loader2, Plus, Trash2, Save,
-  Eye, X, Store,
+  Eye, X, Store, Radio, Video,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchMyEvent, createEvent, updateEvent,
   fetchEventFeaturedItems, addEventFeaturedItem, deleteEventFeaturedItem,
+  PLATFORM_META, SHOW_CATEGORY_LABELS,
   type EventCategory, type EventStatus, type EventUpsert, type EventFeaturedItem,
+  type EventKind, type EventPlatform, type ShowCategory,
 } from '../lib/events';
 import { uploadCompressedImage } from '../lib/uploadImage';
 import { toThumbUrl } from '../lib/imageCompress';
@@ -70,6 +72,13 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   const [status,       setStatus]      = useState<EventStatus>('draft');
   const [uploadingCover, setUploadingCover] = useState(false);
 
+  // Phase 2 — online live event fields.
+  const [eventKind,    setEventKind]    = useState<EventKind>('local');
+  const [platform,     setPlatform]     = useState<EventPlatform>('whatnot');
+  const [livestreamUrl,setLivestreamUrl]= useState('');
+  const [sellerHandle, setSellerHandle] = useState('');
+  const [showCategory, setShowCategory] = useState<ShowCategory | ''>('');
+
   // featured items (edit only)
   const [items, setItems] = useState<EventFeaturedItem[] | null>(null);
 
@@ -98,6 +107,11 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
         setCoverUrl(e.cover_image_url);
         setCoverThumb(e.cover_thumb_url);
         setStatus(e.status);
+        setEventKind(e.event_kind);
+        setPlatform(e.platform ?? 'whatnot');
+        setLivestreamUrl(e.livestream_url ?? '');
+        setSellerHandle(e.seller_handle ?? '');
+        setShowCategory(e.show_category ?? '');
         setItems(its);
         setLoading(false);
       })
@@ -140,18 +154,42 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       setErr('End must be after start'); return;
     }
 
+    // Online-event validation — mirror of DB CHECK constraint. If we let
+    // a bad URL through, the DB throws a cryptic CHECK error; better to
+    // catch it inline.
+    if (eventKind === 'online') {
+      const url = livestreamUrl.trim();
+      if (!url) { setErr('Livestream URL is required for online events'); return; }
+      if (!PLATFORM_META[platform].urlPattern.test(url)) {
+        setErr(`That URL doesn\'t look like a ${PLATFORM_META[platform].label} link.`);
+        return;
+      }
+      if (sellerHandle.trim() && !/^@?[A-Za-z0-9_.-]{1,40}$/.test(sellerHandle.trim())) {
+        setErr('Seller handle can only contain letters, numbers, dots, dashes and underscores.');
+        return;
+      }
+    }
+
+    const isOnline = eventKind === 'online';
     const payload: EventUpsert = {
       title: title.trim(),
       description: description.trim(),
       category,
       starts_at: new Date(startsAt).toISOString(),
       ends_at: endsAt ? new Date(endsAt).toISOString() : null,
-      address: address.trim() || null,
-      city:    city.trim()    || null,
-      region:  region.trim()  || null,
+      // Address fields are local-only; null them out for online so the
+      // DB shape-integrity CHECK doesn't complain on a kind switch.
+      address: isOnline ? null : (address.trim() || null),
+      city:    isOnline ? null : (city.trim()    || null),
+      region:  isOnline ? null : (region.trim()  || null),
       cover_image_url: coverUrl,
       cover_thumb_url: coverThumb,
       status,
+      event_kind:     eventKind,
+      platform:       isOnline ? platform : null,
+      livestream_url: isOnline ? livestreamUrl.trim() : null,
+      seller_handle:  isOnline ? (sellerHandle.trim() || null) : null,
+      show_category:  isOnline ? (showCategory || null) : null,
     };
 
     setSaving(true);
@@ -298,6 +336,31 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
             />
           </section>
 
+          {/* Kind toggle — local vs online live show */}
+          <section style={s.section}>
+            <h3 style={s.sectionTitle}>Event type</h3>
+            <div style={s.kindRow}>
+              <button
+                type="button"
+                onClick={() => setEventKind('local')}
+                style={{ ...s.kindCard, ...(eventKind === 'local' ? s.kindCardActive : {}) }}
+              >
+                <MapPin size={18} />
+                <span style={s.kindLabel}>Local sale</span>
+                <span style={s.kindHint}>Estate, yard, flea, in-person auction</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEventKind('online')}
+                style={{ ...s.kindCard, ...(eventKind === 'online' ? s.kindCardActive : {}) }}
+              >
+                <Radio size={18} />
+                <span style={s.kindLabel}>Online live show</span>
+                <span style={s.kindHint}>Whatnot, Poshmark Live, eBay Live</span>
+              </button>
+            </div>
+          </section>
+
           {/* Basics */}
           <section style={s.section}>
             <h3 style={s.sectionTitle}>Basics</h3>
@@ -347,27 +410,79 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
             />
           </section>
 
-          {/* Where */}
-          <section style={s.section}>
-            <h3 style={s.sectionTitle}><MapPin size={14} style={{ verticalAlign: -2 }} /> Where</h3>
-            <label style={s.label}>Address</label>
-            <input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="123 Main St"
-              style={s.input}
-            />
-            <div style={s.row2}>
-              <div style={{ flex: 1 }}>
-                <label style={s.label}>City</label>
-                <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Portland" style={s.input} />
+          {/* Where (local) / Live show details (online) */}
+          {eventKind === 'local' ? (
+            <section style={s.section}>
+              <h3 style={s.sectionTitle}><MapPin size={14} style={{ verticalAlign: -2 }} /> Where</h3>
+              <label style={s.label}>Address</label>
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="123 Main St"
+                style={s.input}
+              />
+              <div style={s.row2}>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>City</label>
+                  <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Portland" style={s.input} />
+                </div>
+                <div style={{ width: 120 }}>
+                  <label style={s.label}>State / Region</label>
+                  <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="OR" style={s.input} />
+                </div>
               </div>
-              <div style={{ width: 120 }}>
-                <label style={s.label}>State / Region</label>
-                <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="OR" style={s.input} />
-              </div>
-            </div>
-          </section>
+            </section>
+          ) : (
+            <section style={s.section}>
+              <h3 style={s.sectionTitle}><Video size={14} style={{ verticalAlign: -2 }} /> Live show details</h3>
+
+              <label style={s.label}>Platform <span style={s.req}>*</span></label>
+              <select
+                value={platform}
+                onChange={(e) => setPlatform(e.target.value as EventPlatform)}
+                style={s.input}
+              >
+                {(Object.keys(PLATFORM_META) as EventPlatform[]).map((p) => (
+                  <option key={p} value={p}>{PLATFORM_META[p].label}</option>
+                ))}
+              </select>
+
+              <label style={s.label}>Livestream URL <span style={s.req}>*</span></label>
+              <input
+                value={livestreamUrl}
+                onChange={(e) => setLivestreamUrl(e.target.value)}
+                placeholder={PLATFORM_META[platform].placeholderUrl}
+                style={s.input}
+                inputMode="url"
+                spellCheck={false}
+              />
+              <p style={s.sectionHint}>
+                Must be a public link on {PLATFORM_META[platform].label}. We open it in a new tab — TreasureTrail never hosts the stream.
+              </p>
+
+              <label style={s.label}>Your handle on {PLATFORM_META[platform].label} (optional)</label>
+              <input
+                value={sellerHandle}
+                onChange={(e) => setSellerHandle(e.target.value)}
+                placeholder="@yourhandle"
+                style={s.input}
+                spellCheck={false}
+                maxLength={40}
+              />
+
+              <label style={s.label}>What you're selling (optional)</label>
+              <select
+                value={showCategory}
+                onChange={(e) => setShowCategory(e.target.value as ShowCategory | '')}
+                style={s.input}
+              >
+                <option value="">— Choose a category —</option>
+                {(Object.keys(SHOW_CATEGORY_LABELS) as ShowCategory[]).map((c) => (
+                  <option key={c} value={c}>{SHOW_CATEGORY_LABELS[c]}</option>
+                ))}
+              </select>
+            </section>
+          )}
 
           {/* Status */}
           <section style={s.section}>
@@ -798,6 +913,28 @@ const s: Record<string, React.CSSProperties> = {
     background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff',
     cursor: 'pointer',
   },
+  kindRow: {
+    display: 'flex', gap: 8,
+  },
+  kindCard: {
+    flex: 1,
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4,
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    background: 'var(--color-neutral-0)',
+    color: 'var(--color-neutral-700)',
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  kindCardActive: {
+    borderColor: 'var(--color-primary-500)',
+    background: 'var(--color-primary-50, #fff7ed)',
+    color: 'var(--color-primary-700)',
+    boxShadow: '0 0 0 2px rgba(217,119,6,0.15)',
+  },
+  kindLabel: { fontSize: 13, fontWeight: 700, marginTop: 4 },
+  kindHint: { fontSize: 11, color: 'var(--color-neutral-500)', lineHeight: 1.3 },
   addItemBox: {
     padding: 'var(--space-3)',
     border: '1px dashed var(--color-neutral-200)',

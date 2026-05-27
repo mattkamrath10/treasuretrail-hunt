@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, MapPin, Share2, Bookmark, BookmarkCheck,
-  Navigation, Loader2, Store, Pencil, X, ExternalLink,
+  Navigation, Loader2, Store, Pencil, X, ExternalLink, Radio,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
   fetchEvent, fetchEventFeaturedItems,
+  PLATFORM_META, SHOW_CATEGORY_LABELS, isLiveNow, isStartingSoon,
   type EventRow, type EventFeaturedItem, type EventCategory,
 } from '../lib/events';
 import { trackEventView, trackEventClick } from '../lib/eventAnalytics';
@@ -242,9 +243,21 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
 
   const isOwner = user?.id === event.holder_id;
   const dateLabel = formatEventDate(event.starts_at, event.ends_at);
-  const fullAddress = [event.address, event.city, event.region].filter(Boolean).join(', ');
+  const isOnline = event.event_kind === 'online';
+  const fullAddress = isOnline ? '' : [event.address, event.city, event.region].filter(Boolean).join(', ');
   const hasLocation = fullAddress.length > 0;
   const hasContactTarget = !!holder?.username;
+  const platformMeta = isOnline && event.platform ? PLATFORM_META[event.platform] : null;
+  const live = isLiveNow(event);
+  const soon = !live && isStartingSoon(event);
+
+  // Join Live Show — opens external URL in a new tab. rel attributes prevent
+  // window.opener access + referrer leakage on the destination.
+  const onJoinLiveShow = () => {
+    if (!event.livestream_url) return;
+    trackEventClick(event.id, 'livestream').catch(() => {});
+    window.open(event.livestream_url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div style={s.container}>
@@ -275,8 +288,43 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
 
       {/* Title + meta block */}
       <section style={s.section}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-          <Badge variant="category">{CATEGORY_LABEL[event.category]}</Badge>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+          {platformMeta ? (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '4px 8px', borderRadius: 999,
+              background: platformMeta.color, color: '#fff',
+              fontSize: 11, fontWeight: 700,
+            }}>
+              <Radio size={11} /> {platformMeta.label}
+            </span>
+          ) : (
+            <Badge variant="category">{CATEGORY_LABEL[event.category]}</Badge>
+          )}
+          {live && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '4px 8px', borderRadius: 999,
+              background: '#dc2626', color: '#fff',
+              fontSize: 11, fontWeight: 700,
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+              LIVE NOW
+            </span>
+          )}
+          {soon && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center',
+              padding: '4px 8px', borderRadius: 999,
+              background: '#fef3c7', color: '#92400e',
+              fontSize: 11, fontWeight: 700,
+            }}>
+              Starting soon
+            </span>
+          )}
+          {isOnline && event.show_category && (
+            <Badge variant="category">{SHOW_CATEGORY_LABELS[event.show_category]}</Badge>
+          )}
         </div>
         <h1 style={s.title}>{event.title}</h1>
 
@@ -290,9 +338,23 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
             <span>{fullAddress}</span>
           </div>
         )}
+        {isOnline && event.seller_handle && (
+          <div style={s.metaRow}>
+            <Store size={14} style={{ color: 'var(--color-neutral-500)' }} />
+            <span>{event.seller_handle.startsWith('@') ? event.seller_handle : `@${event.seller_handle}`} on {platformMeta?.label}</span>
+          </div>
+        )}
 
         {/* Primary CTAs */}
         <div style={s.ctaRow}>
+          {isOnline && event.livestream_url && (
+            <button
+              onClick={onJoinLiveShow}
+              style={{ ...s.primaryBtnLg, background: platformMeta?.color }}
+            >
+              <ExternalLink size={14} /> {live ? 'Join Live Show' : 'Open on ' + (platformMeta?.label ?? 'platform')}
+            </button>
+          )}
           {hasLocation && (
             <button onClick={onDirections} style={s.primaryBtnLg}>
               <Navigation size={14} /> Directions

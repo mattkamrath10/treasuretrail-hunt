@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Calendar, Store, Plus, Bookmark, BookmarkCheck, Search,
+  Radio, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fetchPublishedEvents, type EventRow, type EventCategory } from '../lib/events';
+import {
+  fetchPublishedEvents, PLATFORM_META, isLiveNow, isStartingSoon,
+  type EventRow, type EventCategory,
+} from '../lib/events';
 import { isEventSaved, saveEvent, unsaveEvent } from '../lib/eventSaves';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { toThumbUrl } from '../lib/imageCompress';
@@ -19,14 +23,14 @@ import { BecomeHostCard } from '../components/BecomeHostCard';
  * pivot to a professional marketplace + event-discovery platform.
  */
 
-const CATEGORY_FILTERS: { id: 'all' | EventCategory; label: string }[] = [
-  { id: 'all',                label: 'All' },
-  { id: 'estate_sale',        label: 'Estate' },
-  { id: 'yard_sale',          label: 'Yard' },
-  { id: 'flea_market',        label: 'Flea Market' },
-  { id: 'auction',            label: 'Auction' },
-  { id: 'pop_up',             label: 'Pop-up' },
-  { id: 'collectibles_show',  label: 'Collectibles' },
+type FilterId = 'all' | 'local' | 'online' | 'live' | 'soon';
+
+const KIND_FILTERS: { id: FilterId; label: string }[] = [
+  { id: 'all',    label: 'All' },
+  { id: 'local',  label: 'Local' },
+  { id: 'online', label: 'Online live' },
+  { id: 'live',   label: 'Live now' },
+  { id: 'soon',   label: 'Starting soon' },
 ];
 
 const CATEGORY_LABEL: Record<EventCategory, string> = {
@@ -46,8 +50,15 @@ export default function Events({ onBack }: { onBack: () => void }) {
 
   const [events, setEvents] = useState<EventRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | EventCategory>('all');
+  const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
+  // Tick once a minute so Live Now / Starting Soon flips state on its own
+  // without a refresh.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,13 +69,18 @@ export default function Events({ onBack }: { onBack: () => void }) {
     return () => { cancelled = true; };
   }, []);
 
+  const now = Date.now();
   const filtered = (events ?? []).filter((e) => {
-    if (filter !== 'all' && e.category !== filter) return false;
+    if (filter === 'local'  && e.event_kind !== 'local')  return false;
+    if (filter === 'online' && e.event_kind !== 'online') return false;
+    if (filter === 'live'   && !isLiveNow(e, now))        return false;
+    if (filter === 'soon'   && !isStartingSoon(e, now))   return false;
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       if (!(e.title.toLowerCase().includes(q)
             || (e.city ?? '').toLowerCase().includes(q)
-            || (e.address ?? '').toLowerCase().includes(q))) return false;
+            || (e.address ?? '').toLowerCase().includes(q)
+            || (e.seller_handle ?? '').toLowerCase().includes(q))) return false;
     }
     return true;
   });
@@ -101,7 +117,7 @@ export default function Events({ onBack }: { onBack: () => void }) {
       </div>
 
       <div style={s.filterRow}>
-        {CATEGORY_FILTERS.map((f) => (
+        {KIND_FILTERS.map((f) => (
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
@@ -185,7 +201,15 @@ function EventCard({ event }: { event: EventRow }) {
   };
 
   const dateLabel = formatEventDate(event.starts_at, event.ends_at);
-  const locationLabel = [event.city, event.region].filter(Boolean).join(', ') || event.address || '';
+  const isOnline = event.event_kind === 'online';
+  const platformMeta = isOnline && event.platform ? PLATFORM_META[event.platform] : null;
+  const locationLabel = isOnline
+    ? (event.seller_handle
+        ? `${event.seller_handle.startsWith('@') ? event.seller_handle : '@' + event.seller_handle}${platformMeta ? ' · ' + platformMeta.label : ''}`
+        : (platformMeta?.label ?? 'Online live show'))
+    : ([event.city, event.region].filter(Boolean).join(', ') || event.address || '');
+  const live = isLiveNow(event);
+  const soon = !live && isStartingSoon(event);
 
   return (
     <article
@@ -218,8 +242,39 @@ function EventCard({ event }: { event: EventRow }) {
         </button>
       </div>
       <div style={s.cardBody}>
-        <div style={s.cardBadges}>
-          <Badge variant="category">{CATEGORY_LABEL[event.category] ?? 'Event'}</Badge>
+        <div style={{ ...s.cardBadges, flexWrap: 'wrap' }}>
+          {platformMeta ? (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '2px 8px', borderRadius: 999,
+              background: platformMeta.color, color: '#fff',
+              fontSize: 10, fontWeight: 700,
+            }}>
+              <Radio size={10} /> {platformMeta.label}
+            </span>
+          ) : (
+            <Badge variant="category">{CATEGORY_LABEL[event.category] ?? 'Event'}</Badge>
+          )}
+          {live && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '2px 8px', borderRadius: 999,
+              background: '#dc2626', color: '#fff',
+              fontSize: 10, fontWeight: 700,
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+              LIVE
+            </span>
+          )}
+          {soon && (
+            <span style={{
+              padding: '2px 8px', borderRadius: 999,
+              background: '#fef3c7', color: '#92400e',
+              fontSize: 10, fontWeight: 700,
+            }}>
+              Soon
+            </span>
+          )}
         </div>
         <h3 style={s.cardTitle}>{event.title}</h3>
         <div style={s.cardMeta}>
@@ -228,7 +283,9 @@ function EventCard({ event }: { event: EventRow }) {
         </div>
         {locationLabel && (
           <div style={s.cardMeta}>
-            <MapPin size={12} style={{ color: 'var(--color-neutral-500)' }} />
+            {isOnline
+              ? <ExternalLink size={12} style={{ color: 'var(--color-neutral-500)' }} />
+              : <MapPin       size={12} style={{ color: 'var(--color-neutral-500)' }} />}
             <span>{locationLabel}</span>
           </div>
         )}

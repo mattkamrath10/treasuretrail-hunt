@@ -11,6 +11,61 @@ export type EventCategory =
 
 export type EventStatus = 'draft' | 'published' | 'cancelled';
 
+export type EventKind = 'local' | 'online';
+
+export type EventPlatform =
+  | 'whatnot'
+  | 'poshmark_live'
+  | 'posh_party'
+  | 'ebay_live'
+  | 'other';
+
+export type ShowCategory =
+  | 'sneakers'
+  | 'sportscards'
+  | 'tradingcards'
+  | 'coins'
+  | 'jewelry'
+  | 'vintage'
+  | 'collectibles'
+  | 'fashion'
+  | 'toys'
+  | 'art'
+  | 'other';
+
+/**
+ * Per-platform metadata for badges, branding, and URL validation.
+ *
+ * `urlPattern` is mirrored from the DB CHECK constraint in
+ * 20260527000002_phase2_online_events.sql — keep both in sync if either
+ * changes, or the form will silently let users save URLs the DB then
+ * rejects (or vice versa).
+ */
+export const PLATFORM_META: Record<
+  EventPlatform,
+  { label: string; color: string; urlPattern: RegExp; placeholderUrl: string }
+> = {
+  whatnot:       { label: 'Whatnot',       color: '#FFCC00', urlPattern: /^https:\/\/(www\.)?whatnot\.com\//i,                placeholderUrl: 'https://www.whatnot.com/live/...' },
+  poshmark_live: { label: 'Poshmark Live', color: '#7C1F4E', urlPattern: /^https:\/\/(www\.)?(poshmark\.com|posh\.mk)\//i,    placeholderUrl: 'https://poshmark.com/show/...' },
+  posh_party:    { label: 'Posh Party',    color: '#B83280', urlPattern: /^https:\/\/(www\.)?(poshmark\.com|posh\.mk)\//i,    placeholderUrl: 'https://poshmark.com/party/...' },
+  ebay_live:     { label: 'eBay Live',     color: '#0064D2', urlPattern: /^https:\/\/(www\.)?ebay\.com\//i,                   placeholderUrl: 'https://www.ebay.com/live/...' },
+  other:         { label: 'Other',         color: '#525252', urlPattern: /^https:\/\//i,                                       placeholderUrl: 'https://...' },
+};
+
+export const SHOW_CATEGORY_LABELS: Record<ShowCategory, string> = {
+  sneakers:     'Sneakers',
+  sportscards:  'Sports cards',
+  tradingcards: 'Trading cards (TCG)',
+  coins:        'Coins & bullion',
+  jewelry:      'Jewelry',
+  vintage:      'Vintage',
+  collectibles: 'Collectibles',
+  fashion:      'Fashion',
+  toys:         'Toys',
+  art:          'Art',
+  other:        'Other',
+};
+
 export interface EventRow {
   id: string;
   holder_id: string;
@@ -27,6 +82,12 @@ export interface EventRow {
   cover_image_url: string | null;
   cover_thumb_url: string | null;
   status: EventStatus;
+  // Phase 2 — online live event fields.
+  event_kind: EventKind;
+  platform: EventPlatform | null;
+  livestream_url: string | null;
+  seller_handle: string | null;
+  show_category: ShowCategory | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,7 +118,37 @@ export interface EventUpsert {
   cover_image_url?: string | null;
   cover_thumb_url?: string | null;
   status: EventStatus;
+  // Phase 2.
+  event_kind?: EventKind;
+  platform?: EventPlatform | null;
+  livestream_url?: string | null;
+  seller_handle?: string | null;
+  show_category?: ShowCategory | null;
 }
+
+/* ---------------- Time-based helpers (Live now / Starting soon) ---------- */
+
+const SOON_WINDOW_MS    = 60 * 60 * 1000;       // 60 min before start
+const ASSUMED_SHOW_LEN  = 2  * 60 * 60 * 1000;  // online events without
+                                                // an ends_at → assume 2h
+                                                // window so "Live Now"
+                                                // doesn't stick forever.
+
+export function isStartingSoon(e: EventRow, now: number = Date.now()): boolean {
+  const start = new Date(e.starts_at).getTime();
+  return start > now && start - now <= SOON_WINDOW_MS;
+}
+
+export function isLiveNow(e: EventRow, now: number = Date.now()): boolean {
+  const start = new Date(e.starts_at).getTime();
+  if (start > now) return false;
+  const end = e.ends_at
+    ? new Date(e.ends_at).getTime()
+    : (e.event_kind === 'online' ? start + ASSUMED_SHOW_LEN : start + ASSUMED_SHOW_LEN);
+  return now < end;
+}
+
+/* ---------------- Queries ------------------------------------------------ */
 
 /** Public feed of published events, soonest first. */
 export async function fetchPublishedEvents(opts?: { city?: string | null; limit?: number }) {

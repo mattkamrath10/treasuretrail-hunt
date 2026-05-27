@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Calendar, MapPin, Eye, Pencil, Trash2,
-  Store, Save, X, Loader2,
+  Store, Save, X, Loader2, Radio, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
-  fetchMyEvents, deleteEvent, type EventRow, type EventStatus,
+  fetchMyEvents, deleteEvent, PLATFORM_META,
+  type EventRow, type EventStatus,
 } from '../lib/events';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -219,7 +220,11 @@ function EventRowCard({
   onDelete: () => void;
 }) {
   const badge = STATUS_BADGE[event.status];
-  const location = [event.city, event.region].filter(Boolean).join(', ') || event.address || '';
+  const isOnline = event.event_kind === 'online';
+  const platformMeta = isOnline && event.platform ? PLATFORM_META[event.platform] : null;
+  const location = isOnline
+    ? (event.seller_handle ?? platformMeta?.label ?? 'Online live show')
+    : ([event.city, event.region].filter(Boolean).join(', ') || event.address || '');
   return (
     <article style={s.eventRow}>
       <button onClick={onView} style={s.thumbBtn} aria-label="View event">
@@ -239,13 +244,27 @@ function EventRowCard({
           <h4 style={s.eventTitle} onClick={onView}>{event.title}</h4>
           <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
+        {platformMeta && (
+          <div style={{ marginTop: 2, marginBottom: 4 }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '2px 8px', borderRadius: 999,
+              background: platformMeta.color, color: '#fff',
+              fontSize: 10, fontWeight: 700,
+            }}>
+              <Radio size={10} /> {platformMeta.label}
+            </span>
+          </div>
+        )}
         <div style={s.eventMeta}>
           <Calendar size={12} />
           <span>{formatDate(event.starts_at)}</span>
         </div>
         {location && (
           <div style={s.eventMeta}>
-            <MapPin size={12} />
+            {isOnline
+              ? <ExternalLink size={12} />
+              : <MapPin       size={12} />}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{location}</span>
           </div>
         )}

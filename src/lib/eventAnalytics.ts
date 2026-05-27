@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export type EventClickKind = 'directions' | 'featured_item' | 'contact' | 'share';
+export type EventClickKind = 'directions' | 'featured_item' | 'contact' | 'share' | 'livestream';
 
 /**
  * Record a view of an event. Dedupes per (event, viewer, day) via the
@@ -48,6 +48,7 @@ const ZERO_CLICKS: EventEngagement['click_counts'] = {
   featured_item: 0,
   contact: 0,
   share: 0,
+  livestream: 0,
 };
 
 /** One-shot engagement fetch for a single event (used by the holder dashboard). */
