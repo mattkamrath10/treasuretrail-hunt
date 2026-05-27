@@ -511,6 +511,8 @@ function FeaturedItemsEditor({
   const [err,  setErr]          = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const hasDraft = title.trim().length > 0 || price.trim().length > 0 || !!file;
+
   const submit = async () => {
     if (!title.trim()) { setErr('Item needs a title'); return; }
     if (items.length >= MAX_ITEMS) { setErr(`Max ${MAX_ITEMS} items per event`); return; }
@@ -566,6 +568,9 @@ function FeaturedItemsEditor({
         <p style={s.sectionHint}>Maximum reached. Remove an item to add another.</p>
       ) : (
         <div style={s.addItemBox}>
+          <p style={s.addItemHeading}>
+            Add a new item — fill in below, then click <strong>Add item</strong> to save it to this event.
+          </p>
           <div style={s.row2}>
             <input
               value={title}
@@ -591,11 +596,28 @@ function FeaturedItemsEditor({
                 <X size={13} /> Clear
               </button>
             )}
-            <button onClick={submit} disabled={busy} style={{ ...s.primaryBtn, marginLeft: 'auto' }}>
-              {busy ? <Loader2 size={13} className="spin" /> : <Plus size={13} />}
+            <button
+              onClick={submit}
+              disabled={busy}
+              style={{
+                ...s.primaryBtnLg,
+                marginLeft: 'auto',
+                ...(hasDraft && !busy ? s.addItemBtnHighlight : {}),
+              }}
+            >
+              {busy ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
               {busy ? 'Adding…' : 'Add item'}
             </button>
           </div>
+          {/* When the user has typed something but hasn't clicked Add yet,
+              call it out — this is the single most common pitfall, where
+              "Save changes" gets clicked with an in-progress draft and the
+              item is silently dropped. */}
+          {hasDraft && !busy && (
+            <p style={s.draftWarn}>
+              ⚠ You have an unsaved item draft. Click <strong>Add item</strong> above, or it won't be saved with this event.
+            </p>
+          )}
           {err && <p style={s.errorText}>{err}</p>}
           <input
             ref={fileRef}
@@ -781,6 +803,26 @@ const s: Record<string, React.CSSProperties> = {
     border: '1px dashed var(--color-neutral-200)',
     borderRadius: 'var(--radius-md)',
     backgroundColor: 'var(--color-neutral-50)',
+  },
+  addItemHeading: {
+    margin: '0 0 8px',
+    fontSize: 12,
+    color: 'var(--color-neutral-600)',
+    lineHeight: 1.4,
+  },
+  addItemBtnHighlight: {
+    boxShadow: '0 0 0 3px rgba(217, 119, 6, 0.25)',
+    transform: 'scale(1.02)',
+  },
+  draftWarn: {
+    margin: '8px 0 0',
+    padding: '8px 10px',
+    borderRadius: 6,
+    backgroundColor: 'var(--color-warning-50, #fffbeb)',
+    border: '1px solid var(--color-warning-200, #fde68a)',
+    color: 'var(--color-warning-700, #b45309)',
+    fontSize: 12,
+    lineHeight: 1.4,
   },
 
   // bottom bar

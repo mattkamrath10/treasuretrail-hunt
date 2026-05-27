@@ -18,6 +18,8 @@ import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { flashToast } from '../lib/toast';
 
+const LOG = '[EVENT_DETAIL]';
+
 /**
  * Public event detail page (/event/:id).
  *
@@ -85,9 +87,15 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
     setItems([]);
     setHolder(null);
 
+    console.log(LOG, 'load', { id });
     Promise.all([fetchEvent(id), fetchEventFeaturedItems(id)])
       .then(async ([e, its]) => {
         if (cancelled) return;
+        console.log(LOG, 'load:result', {
+          event: e ? { id: e.id, status: e.status, holder_id: e.holder_id } : null,
+          itemCount: its.length,
+          items: its.map((i) => ({ id: i.id, title: i.title, hasImage: !!i.image_url })),
+        });
         if (!e) { setNotFound(true); setLoading(false); return; }
         setEvent(e);
         setItems(its);
@@ -112,6 +120,7 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
       })
       .catch((e: any) => {
         if (cancelled) return;
+        console.error(LOG, 'load:error', e);
         setErr(e?.message ?? 'Failed to load event');
         setLoading(false);
       });
@@ -318,10 +327,18 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
         </section>
       )}
 
-      {/* Featured items */}
-      {items.length > 0 && (
-        <section style={s.section}>
-          <h3 style={s.sectionTitle}>Featured items</h3>
+      {/* Featured items — always render the section so an empty state is
+          visible. Hiding the header entirely makes "where did my items
+          go?" impossible to diagnose. */}
+      <section style={s.section}>
+        <h3 style={s.sectionTitle}>Featured items</h3>
+        {items.length === 0 ? (
+          <p style={s.emptyHint}>
+            {isOwner
+              ? 'No featured items yet. Add some from the edit page so buyers can preview what\'s for sale.'
+              : 'The host hasn\'t added featured items yet.'}
+          </p>
+        ) : (
           <div style={s.itemGrid}>
             {items.map((it, idx) => (
               <button
@@ -350,8 +367,8 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
               </button>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Host card */}
       {holder && (
@@ -579,6 +596,12 @@ const s: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-700)',
     whiteSpace: 'pre-wrap',
     lineHeight: 1.55,
+  },
+  emptyHint: {
+    margin: 0,
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-neutral-500)',
+    fontStyle: 'italic',
   },
 
   ctaRow: {
