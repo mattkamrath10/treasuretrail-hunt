@@ -10,6 +10,7 @@ import { supabase, type CommunityPost, type Profile } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { Lightbox } from '../components/ui/Lightbox';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
 import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 import { shareWithImage } from '../lib/shareWithImage';
@@ -459,16 +460,13 @@ export default function FindDetail() {
         </div>
       </div>
 
-      {imageZoomed && post.image_url && (
-        <div
-          onClick={() => setImageZoomed(false)}
-          role="dialog"
-          aria-modal="true"
-          style={styles.zoomBackdrop}
-        >
-          <img src={post.image_url} alt={post.caption || 'Find image'} style={styles.zoomImg} />
-        </div>
-      )}
+      <Lightbox
+        open={imageZoomed}
+        src={post.image_url}
+        alt={post.caption || 'Find image'}
+        onClose={() => setImageZoomed(false)}
+        onUnrenderable={(msg) => showToast(msg)}
+      />
 
       {toast && (
         <div role="status" aria-live="polite" style={styles.toast}>{toast}</div>

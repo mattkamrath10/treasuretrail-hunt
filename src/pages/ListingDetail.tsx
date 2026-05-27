@@ -9,6 +9,7 @@ import { supabase, type MarketplaceListing, type Profile } from '../lib/supabase
 import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { Lightbox } from '../components/ui/Lightbox';
 import { canDeletePost, deletePost, marketplaceListingToDeletable } from '../lib/moderation';
 import { followUser, unfollowUser, checkIsFollowing, attachProfiles } from '../lib/database';
 import { getOrCreateConversation } from '../lib/messaging';
@@ -496,11 +497,13 @@ export default function ListingDetail() {
         </div>
       </div>
 
-      {imageZoomed && listing.image_url && (
-        <div onClick={() => setImageZoomed(false)} role="dialog" aria-modal="true" style={styles.zoomBackdrop}>
-          <img src={listing.image_url} alt={listing.title || 'Listing image'} style={styles.zoomImg} />
-        </div>
-      )}
+      <Lightbox
+        open={imageZoomed}
+        src={listing.image_url}
+        alt={listing.title || 'Listing image'}
+        onClose={() => setImageZoomed(false)}
+        onUnrenderable={(msg) => showToast(msg)}
+      />
 
       {toast && <div role="status" aria-live="polite" style={styles.toast}>{toast}</div>}
     </div>
