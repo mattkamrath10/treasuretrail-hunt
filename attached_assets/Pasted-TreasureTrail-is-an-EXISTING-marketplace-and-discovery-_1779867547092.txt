@@ -1,0 +1,71 @@
+TreasureTrail is an EXISTING marketplace and discovery app focused on estate sales, auctions, yard sales, flea markets, collectibles, and reseller events.
+
+IMPORTANT:
+DO NOT rebuild the application from scratch.
+
+First, analyze the existing project structure, routing, authentication, database schema, reusable components, UI structure, and current architecture.
+
+We are EXTENDING the existing app into a seller-driven marketplace platform.
+
+The app now needs TWO account types:
+
+1. Event Seeker
+
+* Browse events
+* Search listings
+* View featured items
+* Save/watch events
+* Receive alerts
+
+2. Event Holder
+
+* Create business profile
+* Create/edit/delete events
+* Upload event photos
+* Upload featured item previews
+* Add event details:
+
+  * title
+  * description
+  * categories
+  * date/time
+  * address/location
+* View simple analytics
+* Purchase boosted visibility later
+
+PHASE 1 GOALS ONLY:
+Build ONLY the following features first:
+
+1. Account type selection during signup
+2. Seller dashboard
+3. Create/edit/delete events
+4. Image upload support
+5. Featured item preview gallery
+6. Local event feed
+7. Basic analytics dashboard:
+
+   * views
+   * saves
+   * clicks
+
+IMPORTANT DEVELOPMENT RULES:
+
+* Reuse existing architecture and database wherever possible
+* Preserve all existing functionality
+* Keep the UI mobile-friendly
+* Keep the code modular and scalable
+* Avoid unnecessary complexity
+* Optimize for low database/storage costs
+* Use compressed images where possible
+* Do NOT build livestreaming
+* Do NOT build advanced AI systems yet
+* Do NOT build auction bidding yet
+
+The platform should feel like a professional marketplace and event discovery platform for the resale economy.
+
+Before generating code:
+
+1. Explain the current architecture you detect
+2. Explain the safest integration plan
+3. List any database/schema changes needed
+4. Then begin implementing Phase 1 step-by-step instead of generating everything at once.
