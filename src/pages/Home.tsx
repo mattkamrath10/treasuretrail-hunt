@@ -6,6 +6,7 @@ import NotificationBell from '../components/NotificationBell';
 import { checkLocalReminders } from '../lib/localReminders';
 import { deriveStatus, statusPriority } from '../lib/eventSchedule';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
+import { HostEventCTA } from '../components/HostEventCTA';
 import { fetchCommunityPosts, togglePostLike, fetchUserLikes } from '../lib/database';
 import { validateFeedItem } from '../lib/flashFindPayload';
 import { useLiveFeed } from '../hooks/useLiveFeed';
@@ -650,6 +651,8 @@ export default function Home() {
           </TooltipBtn>
         </div>
       </header>
+
+      <HostEventCTA variant="home" />
 
       <div style={styles.categories}>
         {FILTERS.map((f) => (

@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useLiveFeed } from '../hooks/useLiveFeed';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
+import { HostEventCTA } from '../components/HostEventCTA';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
 import ScoutToggles from '../components/listing/ScoutToggles';
@@ -324,6 +325,8 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         </div>
         <div style={{ width: '36px' }} />
       </header>
+
+      <HostEventCTA variant="live" />
 
       {/* ── Search bar ── */}
       <div style={st.searchRow}>

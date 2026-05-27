@@ -16,6 +16,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
 import { BecomeHostCard } from '../components/BecomeHostCard';
+import { HostEventCTA } from '../components/HostEventCTA';
 
 /**
  * Local Events feed — the primary real-events surface. Replaces the older
@@ -103,6 +104,7 @@ export default function Events({ onBack }: { onBack: () => void }) {
         )}
       </header>
 
+      <HostEventCTA variant="events" />
       <BecomeHostCard surface="home" />
 
       <div style={s.searchRow}>
