@@ -21,6 +21,13 @@ export type Profile = {
   membership_tier: 'free' | 'pro';
   follower_count: number;
   following_count: number;
+  // Phase 1 — seller-driven marketplace. Everyone defaults to 'seeker';
+  // a user becomes a 'holder' (event host) by flipping this from the
+  // Profile page. Holder-only UI gates on this flag.
+  account_type: 'seeker' | 'holder';
+  business_name: string | null;
+  business_bio: string | null;
+  business_logo_url: string | null;
   created_at: string;
   updated_at: string;
 };
