@@ -142,6 +142,25 @@ CREATE POLICY event_featured_items_write ON public.event_featured_items
     EXISTS (SELECT 1 FROM public.events e WHERE e.id = event_id AND e.holder_id = auth.uid())
   );
 
+-- Cap: at most 12 featured items per event. Client-side UI enforces this
+-- but the trigger is the only thing that holds under concurrent inserts
+-- or direct API/devtools writes that bypass the form.
+CREATE OR REPLACE FUNCTION public.enforce_event_featured_items_cap()
+RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF (SELECT count(*) FROM public.event_featured_items WHERE event_id = NEW.event_id) >= 12 THEN
+    RAISE EXCEPTION 'event_featured_items: max 12 items per event' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS event_featured_items_cap ON public.event_featured_items;
+CREATE TRIGGER event_featured_items_cap
+  BEFORE INSERT ON public.event_featured_items
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_event_featured_items_cap();
+
 -- 4. event_saves -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.event_saves (
   user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

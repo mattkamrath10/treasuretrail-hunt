@@ -94,6 +94,23 @@ export async function fetchEvent(id: string) {
   return (data ?? null) as EventRow | null;
 }
 
+/**
+ * Owner-scoped fetch for the edit page. Without the `holder_id` filter
+ * a holder could open another holder's published event URL and have the
+ * edit form silently preload it (RLS still blocks saves, but the load
+ * itself leaks edit affordances). Always use this for /seller/event/:id.
+ */
+export async function fetchMyEvent(id: string, holderId: string) {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('id', id)
+    .eq('holder_id', holderId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data ?? null) as EventRow | null;
+}
+
 export async function createEvent(holderId: string, input: EventUpsert) {
   const { data, error } = await supabase
     .from('events')

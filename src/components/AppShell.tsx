@@ -23,6 +23,7 @@ const Community = lazy(() => import('../pages/Community'));
 const Events = lazy(() => import('../pages/Events'));
 const LiveHub = lazy(() => import('../pages/LiveHub'));
 const SellerDashboard = lazy(() => import('../pages/SellerDashboard'));
+const SellerEventForm = lazy(() => import('../pages/SellerEventForm'));
 const FindDetail = lazy(() => import('../pages/FindDetail'));
 const ListingDetail = lazy(() => import('../pages/ListingDetail'));
 const PublicProfile = lazy(() => import('../pages/PublicProfile'));
@@ -82,6 +83,11 @@ function LiveHubPage() {
 function SellerDashboardPage() {
   const navigate = useNavigate();
   return <SellerDashboard onBack={() => navigate('/events')} />;
+}
+
+function SellerEventFormPage() {
+  const navigate = useNavigate();
+  return <SellerEventForm onBack={() => navigate('/seller')} />;
 }
 
 // Suspense fallback while a route chunk loads. Kept intentionally minimal
@@ -150,6 +156,8 @@ export default function AppShell() {
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/seller" element={<SellerDashboardPage />} />
+            <Route path="/seller/new" element={<SellerEventFormPage />} />
+            <Route path="/seller/event/:id" element={<SellerEventFormPage />} />
             <Route path="/live" element={<LiveHubPage />} />
             <Route path="/achievements" element={<AchievementsPage />} />
             <Route path="/profile" element={<Profile />} />
