@@ -25,13 +25,24 @@ function ensureKeyframes() {
       from { opacity: 0; transform: translateY(8px); }
       to   { opacity: 1; transform: translateY(0); }
     }
+    @keyframes ttProHeroPulse {
+      0%, 100% { text-shadow: 0 0 22px rgba(251, 191, 36, 0.18), 0 0 44px rgba(251, 191, 36, 0.08); }
+      50%      { text-shadow: 0 0 28px rgba(251, 191, 36, 0.42), 0 0 64px rgba(251, 191, 36, 0.22); }
+    }
+    .tt-pro-hero-title { animation: ttProHeroPulse 3.6s ease-in-out infinite; }
     .tt-pro-card { transition: transform .25s ease, box-shadow .25s ease; }
     .tt-pro-card:hover { transform: translateY(-3px); }
     .tt-pro-cta { transition: transform .15s ease, filter .15s ease; }
     .tt-pro-cta:hover { transform: translateY(-1px); filter: brightness(1.05); }
     .tt-pro-cta:active { transform: translateY(0); filter: brightness(0.96); }
+    @media (min-width: 760px) {
+      .tt-pro-plans-grid { grid-template-columns: 1fr 1fr 1.08fr !important; align-items: stretch; gap: 18px !important; }
+      .tt-pro-card-highlight { transform: scale(1.05); transform-origin: center; }
+      .tt-pro-card-highlight:hover { transform: scale(1.05) translateY(-3px); }
+    }
     @media (prefers-reduced-motion: reduce) {
-      .tt-pro-pulse, .tt-pro-glow, .tt-pro-shimmer, .tt-pro-fade { animation: none !important; }
+      .tt-pro-pulse, .tt-pro-glow, .tt-pro-shimmer, .tt-pro-fade,
+      .tt-pro-hero-title, .tt-pro-best-value { animation: none !important; }
       .tt-pro-shimmer { display: none !important; }
     }
   `;
@@ -53,6 +64,8 @@ type Plan = {
   tagline: string;
   features: string[];
   cta: string;
+  footnote?: string;
+  ctaFootnote?: string;
   highlight?: boolean;
 };
 
@@ -84,6 +97,7 @@ const PLANS: Plan[] = [
       'Shareable event flyer',
     ],
     cta: 'Boost an event',
+    footnote: 'Perfect for yard sales, estate sales, flea markets & auction events.',
   },
   {
     id: 'pro',
@@ -99,7 +113,8 @@ const PLANS: Plan[] = [
       'Sales & reach analytics',
       'Priority placement, every time',
     ],
-    cta: 'Go Pro Seller',
+    cta: 'Start Growing Now',
+    ctaFootnote: 'More viewers • More bids • More customers',
     highlight: true,
   },
 ];
@@ -129,7 +144,7 @@ export default function Pro({ onBack }: { onBack: () => void }) {
       </header>
 
       <section style={s.hero} className="tt-pro-fade">
-        <h1 style={s.heroTitle}>
+        <h1 className="tt-pro-hero-title" style={s.heroTitle}>
           Grow your live sales <br />and local events.
         </h1>
         <p style={s.heroSub}>
@@ -144,12 +159,15 @@ export default function Pro({ onBack }: { onBack: () => void }) {
         </div>
       </section>
 
-      <section style={s.plansWrap}>
+      <section className="tt-pro-plans-grid" style={s.plansWrap}>
         {PLANS.map((p) => (
           <PlanCard key={p.id} plan={p} onPick={() => handlePlan(p.id)} />
         ))}
       </section>
 
+      <p style={s.trustLine}>
+        Designed for real sellers, real events, and real-time discovery.
+      </p>
       <p style={s.footnote}>
         Cancel or pause anytime. Boosts charged per promoted event. Pro Seller billed monthly.
       </p>
@@ -161,17 +179,20 @@ function PlanCard({ plan, onPick }: { plan: Plan; onPick: () => void }) {
   const highlight = !!plan.highlight;
   return (
     <article
-      className={`tt-pro-card ${highlight ? 'tt-pro-glow' : ''}`}
+      className={`tt-pro-card ${highlight ? 'tt-pro-glow tt-pro-card-highlight' : ''}`}
       style={{
         ...s.card,
         ...(highlight ? s.cardHighlight : {}),
       }}
     >
       {highlight && (
-        <span style={s.badge}>
-          <Sparkles size={11} strokeWidth={2.6} />
-          MOST POPULAR
-        </span>
+        <div style={s.badgeStack}>
+          <span className="tt-pro-best-value" style={s.bestValue}>BEST VALUE</span>
+          <span style={s.badge}>
+            <Sparkles size={11} strokeWidth={2.6} />
+            MOST POPULAR
+          </span>
+        </div>
       )}
 
       <header style={s.cardHead}>
@@ -202,6 +223,10 @@ function PlanCard({ plan, onPick }: { plan: Plan; onPick: () => void }) {
         ))}
       </ul>
 
+      {plan.footnote && (
+        <p style={s.planFootnote}>{plan.footnote}</p>
+      )}
+
       <button
         type="button"
         onClick={onPick}
@@ -214,6 +239,10 @@ function PlanCard({ plan, onPick }: { plan: Plan; onPick: () => void }) {
         {highlight && <span className="tt-pro-shimmer" style={s.ctaShimmer} aria-hidden="true" />}
         <span style={{ position: 'relative', zIndex: 1 }}>{plan.cta}</span>
       </button>
+
+      {plan.ctaFootnote && (
+        <p style={s.ctaFootnote}>{plan.ctaFootnote}</p>
+      )}
     </article>
   );
 }
@@ -299,21 +328,35 @@ const s: Record<string, CSSProperties> = {
   },
   card: {
     position: 'relative',
-    padding: '22px 20px 20px',
+    padding: '26px 20px 22px',
     borderRadius: 18,
     background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
     border: '1px solid rgba(255,255,255,0.08)',
     color: '#f5f5f7',
     display: 'flex', flexDirection: 'column', gap: 12,
     transform: 'translateZ(0)',
+    minWidth: 0,
   },
   cardHighlight: {
     background: 'linear-gradient(180deg, rgba(251, 191, 36, 0.08) 0%, rgba(217, 119, 6, 0.04) 100%)',
     border: '1px solid rgba(251, 191, 36, 0.55)',
     animation: 'ttProGlow 2.8s ease-in-out infinite',
   },
+  badgeStack: {
+    position: 'absolute', top: -22, right: 16,
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
+    zIndex: 2,
+  },
+  bestValue: {
+    display: 'inline-block',
+    padding: '3px 8px',
+    borderRadius: 6,
+    background: 'rgba(251, 191, 36, 0.18)',
+    border: '1px solid rgba(251, 191, 36, 0.55)',
+    color: '#fbbf24',
+    fontSize: 9, fontWeight: 800, letterSpacing: '0.14em',
+  },
   badge: {
-    position: 'absolute', top: -12, right: 16,
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '5px 10px',
     borderRadius: 999,
@@ -380,11 +423,27 @@ const s: Record<string, CSSProperties> = {
     background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
     color: '#78350f',
   },
+  planFootnote: {
+    margin: '2px 0 0',
+    fontSize: 11,
+    color: 'rgba(245,245,247,0.55)',
+    fontStyle: 'italic',
+    lineHeight: 1.4,
+  },
+  ctaFootnote: {
+    margin: '8px 0 0',
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'rgba(251, 191, 36, 0.9)',
+    textAlign: 'center',
+    letterSpacing: '0.02em',
+  },
   cta: {
     position: 'relative',
     overflow: 'hidden',
-    marginTop: 12,
-    padding: '14px 16px',
+    marginTop: 'auto',
+    minHeight: 52,
+    padding: '15px 18px',
     border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 999,
     background: 'rgba(255,255,255,0.06)',
@@ -392,6 +451,7 @@ const s: Record<string, CSSProperties> = {
     fontSize: 14, fontWeight: 700,
     cursor: 'pointer',
     WebkitTapHighlightColor: 'transparent',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   ctaPro: {
     border: 'none',
@@ -410,8 +470,18 @@ const s: Record<string, CSSProperties> = {
     animation: 'ttProShimmer 3.2s ease-in-out infinite',
     willChange: 'transform',
   },
+  trustLine: {
+    margin: '32px auto 0',
+    maxWidth: 560,
+    padding: '0 20px',
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'rgba(251, 191, 36, 0.85)',
+    letterSpacing: '0.01em',
+  },
   footnote: {
-    margin: '24px auto 0',
+    margin: '10px auto 0',
     maxWidth: 560,
     padding: '0 20px',
     textAlign: 'center',
