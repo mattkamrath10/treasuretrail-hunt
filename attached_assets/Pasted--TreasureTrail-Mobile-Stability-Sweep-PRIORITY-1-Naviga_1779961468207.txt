@@ -1,0 +1,153 @@
+# TreasureTrail Mobile Stability Sweep
+
+## PRIORITY 1 — Navigation & Scrolling
+
+These were the biggest repeated bugs.
+
+Test ALL pages:
+
+* Discover
+* Live
+* Sell
+* Wanted
+* Profile
+* EventDetail
+* FindDetail
+* ListingDetail
+
+Verify:
+
+* vertical scrolling works
+* no frozen pages
+* no horizontal drift
+* no sideways panning
+* BottomNav stays fixed
+* no double scrollbars
+* no giant image overflow
+
+---
+
+# PRIORITY 2 — Activity / Detail Pages
+
+From Profile → Activity:
+
+Tap:
+
+* uploaded finds
+* listings
+* flash finds
+* wanted posts
+
+Verify:
+
+* opens inside app page
+* NOT raw image viewer
+* images stay constrained
+* no giant zoomed image
+* no white screen
+* no sideways movement
+
+---
+
+# PRIORITY 3 — Share Links
+
+These were previously broken.
+
+Test sharing:
+
+* profile
+* event
+* wanted item
+* listing/find
+
+Send to:
+
+* Messages
+* Gmail
+* Notes
+
+Open links from:
+
+* cold Safari load
+* Messages
+* Gmail
+
+Verify:
+
+* app loads correctly
+* no blank white page
+* no .txt download
+* routes hydrate properly
+
+---
+
+# PRIORITY 4 — Wanted Flow
+
+Test:
+
+1. create wanted item
+2. upload image
+3. verify image appears
+4. tap wanted card
+5. open wanted detail
+6. verify username visible
+7. verify profile opens
+8. verify contact/message CTA exists
+
+---
+
+# PRIORITY 5 — Live Events
+
+Test:
+
+* active live
+* expired live
+* no-image live
+
+Verify:
+
+* no gray hero
+* Whatnot branding appears
+* expired streams route correctly
+* "Visit Whatnot" works
+* no dead stream URLs
+
+---
+
+# PRIORITY 6 — Mobile Safe Areas
+
+On iPhone Safari:
+
+Verify:
+
+* content not hidden behind dynamic island
+* BottomNav not cut off
+* buttons not blocked by Safari toolbar
+* no weird safe-area jumps
+
+---
+
+# PRIORITY 7 — Performance
+
+Watch for:
+
+* laggy scrolling
+* image flickering
+* delayed taps
+* page flashes
+* white flashes between routes
+* giant image loads
+
+---
+
+# AFTER ALL TESTS
+
+ONLY THEN:
+
+* start polishing visuals
+* add messaging
+* add advanced social features
+* add notifications
+* add monetization improvements
+
+Right now stability matters more than expansion.
