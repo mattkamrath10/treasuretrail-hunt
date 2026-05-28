@@ -6,3 +6,9 @@ id = "E_0-zc92O-dxMxkpG-wIx"
 uri = "file://dist/treasuretrail.tar.gz"
 type = "unspecified"
 title = "TreasureTrail source archive"
+
+[[outputs]]
+id = "Vt48oOMt89TsXJUMmWDxc"
+uri = "file://exports/treasuretrail.tar.gz"
+type = "unspecified"
+title = "TreasureTrail source (tar.gz)"
