@@ -1,0 +1,116 @@
+Redesign the app navigation and homepage structure to simplify the user experience and make the platform feel more visual, modern, and discovery-focused.
+
+CRITICAL BUG TO FIX FIRST:
+Uploaded event images are not rendering even when manually uploaded from the user's computer.
+This is NOT a scraping issue.
+Investigate and fix:
+
+* image upload path
+* image retrieval
+* Supabase bucket access
+* rendering logic
+* mobile image display
+* fallback image override bugs
+
+Never show blank gray image placeholders if an uploaded image exists.
+
+NEW APP STRUCTURE
+
+BOTTOM NAVIGATION:
+
+1. Discover
+2. Live
+3. Wanted
+4. Sell
+5. Profile
+
+REMOVE:
+
+* separate “Events” tab
+* separate “Flash Finds” tab
+
+These feel fragmented and confusing.
+
+DISCOVER PAGE:
+Create a visually rich homepage with horizontal scrolling image rows.
+
+SECTION 1 — LIVE NOW
+Purpose:
+Real-time livestream shopping discovery.
+
+Include:
+
+* Whatnot streams
+* Poshmark Live
+* eBay Live
+* auction livestreams
+
+Large image thumbnails.
+LIVE badges.
+Viewer counts if available.
+
+SECTION 2 — LOCAL EVENTS
+Purpose:
+Real-world events nearby.
+
+Include:
+
+* yard sales
+* estate sales
+* flea markets
+* local auctions
+
+Map/location emphasis.
+Image-first cards.
+
+SECTION 3 — FLASH FINDS
+Purpose:
+User-uploaded products and discoveries.
+
+Examples:
+
+* collectibles
+* furniture
+* electronics
+* vintage items
+
+SECTION 4 — WANTED ITEMS
+Purpose:
+People searching for items.
+
+Examples:
+
+* “Looking for Pokémon cards”
+* “Need vintage watches”
+* “Searching for mid-century furniture”
+
+This creates marketplace interaction and demand signals.
+
+SELL PAGE:
+Combine:
+
+* create local event
+* create livestream event
+* upload product/find
+* create wanted post
+
+One unified seller creation flow.
+
+DESIGN DIRECTION:
+
+* image-heavy
+* modern discovery-feed feel
+* similar energy to Whatnot / TikTok Shop / OfferUp
+* fewer text-heavy blocks
+* avoid empty space
+* every section should feel visually alive
+* prioritize mobile UX
+
+IMPORTANT:
+If an image fails:
+
+* use platform logos
+* generated branded placeholders
+* or category fallback graphics
+
+Never show empty gray boxes.
