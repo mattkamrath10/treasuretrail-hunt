@@ -22,6 +22,7 @@ import { toThumbUrl } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { flashToast } from '../lib/toast';
+import { shareWithImage } from '../lib/shareWithImage';
 
 const LOG = '[EVENT_DETAIL]';
 
@@ -158,36 +159,23 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
   const onShare = async () => {
     if (!event) return;
     trackEventClick(event.id, 'share').catch(() => {});
-    const url = window.location.href;
-    // Three-tier fallback so the button always does *something*:
-    //   1. Native share sheet (mobile)
-    //   2. Async clipboard API (modern browsers, secure context)
-    //   3. Legacy execCommand('copy') via hidden textarea
-    //   4. Final manual-copy prompt
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: event.title, text: event.title, url });
-        return;
-      }
-    } catch {
-      // User cancelled native share — don't fall through to clipboard.
-      return;
+    // Canonical URL — always use origin + /event/:id so a share from a
+    // deep-linked tab still produces a sharable URL (window.location.href
+    // can include hash/query state that breaks the link unfurl).
+    const url = `${window.location.origin}/event/${event.id}`;
+    const result = await shareWithImage({
+      url,
+      title: event.title,
+      text: event.title,
+      imageUrl: event.cover_image_url || null,
+    });
+    if (result.kind === 'copied') flashToast('Link copied');
+    else if (result.kind === 'unsupported') window.prompt('Copy this link to share:', url);
+    else if (result.kind === 'error') {
+      // Fall back through legacy copy → manual prompt.
+      if (legacyCopy(url)) flashToast('Link copied');
+      else window.prompt('Copy this link to share:', url);
     }
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        flashToast('Link copied');
-        return;
-      }
-    } catch {
-      // Fall through to legacy path.
-    }
-    if (legacyCopy(url)) {
-      flashToast('Link copied');
-      return;
-    }
-    // Final fallback — at least surface the URL so the user can copy it.
-    window.prompt('Copy this link to share:', url);
   };
 
   const onDirections = () => {
@@ -616,6 +604,7 @@ const s: Record<string, React.CSSProperties> = {
   header: {
     display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
     padding: 'var(--space-4)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-4))',
     backgroundColor: 'var(--color-neutral-0)',
     borderBottom: '1px solid var(--color-neutral-100)',
     position: 'sticky', top: 0, zIndex: 10,

@@ -1400,6 +1400,7 @@ const panelStyles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     padding: '16px 20px 12px',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
     borderBottom: '1px solid var(--color-neutral-100)',
     flexShrink: 0,
   },
@@ -1596,7 +1597,12 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 'var(--space-4) var(--space-4)',
-    height: 'var(--header-height)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-4))',
+    // Fixed height was the source of the dynamic-island collision —
+    // add the inset to the base header height so the chrome grows
+    // with the device's status bar instead of clipping under it.
+    minHeight: 'var(--header-height)',
+    height: 'auto',
     backgroundColor: 'var(--color-neutral-0)',
     borderBottom: '1px solid var(--color-neutral-100)',
     flexShrink: 0,

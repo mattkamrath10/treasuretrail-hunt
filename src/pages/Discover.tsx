@@ -385,6 +385,7 @@ const s: Record<string, CSSProperties> = {
   header: {
     position: 'sticky', top: 0, zIndex: 20,
     padding: '12px 16px 10px',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
     background: 'rgba(11,11,16,0.92)',
     backdropFilter: 'blur(10px)',
     borderBottom: '1px solid rgba(255,255,255,0.06)',

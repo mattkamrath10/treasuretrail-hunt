@@ -153,6 +153,7 @@ const s: Record<string, CSSProperties> = {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '14px 16px',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
     background: 'rgba(11,11,16,0.92)',
     backdropFilter: 'blur(10px)',
     borderBottom: '1px solid rgba(255,255,255,0.06)',

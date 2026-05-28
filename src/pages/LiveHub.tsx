@@ -537,6 +537,9 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 // ─── Listing card ─────────────────────────────────────────────────────────────
 
 function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: () => void }) {
+  // Track image load failures so we can swap to the branded fallback
+  // block instead of leaving an empty gray void (see ARCHITECTURE §5).
+  const [imgFailed, setImgFailed] = useState(false);
   const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
   const platformLabel = listing.platform.charAt(0).toUpperCase() + listing.platform.slice(1);
   const typeLabel = LISTING_TYPE_LABELS[listing.listing_type] ?? listing.listing_type;
@@ -551,14 +554,25 @@ function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: 
 
   return (
     <button onClick={onClick} style={st.card}>
-      {listing.image_url && (
-        <div style={st.cardImgWrap}>
-          <img src={listing.image_url} alt={listing.title} style={st.cardImg} />
-          {liveBadge && (
-            <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>
-          )}
-        </div>
-      )}
+      <div style={st.cardImgWrap}>
+        {listing.image_url && !imgFailed ? (
+          <img src={listing.image_url} alt={listing.title} style={st.cardImg} loading="lazy" onError={() => setImgFailed(true)} />
+        ) : (
+          // No-image / broken-image fallback — platform-branded block so
+          // the card never renders a gray void. Whatnot listings get the
+          // official logo; other platforms get a wordmark on a tinted bg.
+          <div style={{ ...st.cardImgFallback, backgroundColor: `${color}14` }}>
+            {listing.platform === 'whatnot' ? (
+              <img src="/whatnot-logo.jpg" alt="Whatnot" style={st.cardImgFallbackLogo} />
+            ) : (
+              <span style={{ ...st.cardImgFallbackLabel, color }}>{platformLabel}</span>
+            )}
+          </div>
+        )}
+        {liveBadge && (
+          <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>
+        )}
+      </div>
       <div style={st.cardBody}>
         <div style={st.cardTop}>
           <span style={{ ...st.platformBadge, backgroundColor: `${color}18`, color }}>{platformLabel}</span>
@@ -786,11 +800,29 @@ function EventDetailModal({ listing, onClose, onScout }: {
             </button>
           </div>
 
-          {/* View external listing */}
-          <a href={listing.external_url} target="_blank" rel="noopener noreferrer" style={det.viewBtn}>
-            <ExternalLink size={14} />
-            <span>View Full Listing</span>
-          </a>
+          {/* View external listing — guard against missing/invalid URLs
+              so we never open about:blank or a junk scheme. Whatnot
+              listings fall back to the platform browse page. */}
+          {(() => {
+            const safeUrl = isValidHttpUrl(listing.external_url || '')
+              ? listing.external_url
+              : (PLATFORM_TABS.find((t) => t.key === listing.platform)?.url ?? null);
+            if (!safeUrl) {
+              return (
+                <div style={{ ...det.viewBtn, opacity: 0.55, cursor: 'not-allowed' }} aria-disabled="true">
+                  <ExternalLink size={14} />
+                  <span>Link unavailable</span>
+                </div>
+              );
+            }
+            const isFallback = safeUrl !== listing.external_url;
+            return (
+              <a href={safeUrl} target="_blank" rel="noopener noreferrer" style={det.viewBtn}>
+                <ExternalLink size={14} />
+                <span>{isFallback ? `Visit ${platformLabel}` : 'View Full Listing'}</span>
+              </a>
+            );
+          })()}
         </div>
       </div>
     </div>
@@ -1434,7 +1466,7 @@ function ScoutsModal({ onClose }: { onClose: () => void }) {
 const st: Record<string, React.CSSProperties> = {
   container: { backgroundColor: 'var(--color-neutral-0)' },
 
-  header: { position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', backgroundColor: 'var(--color-neutral-0)', flexShrink: 0 },
+  header: { position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)', paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-3))', borderBottom: '1px solid var(--color-neutral-100)', backgroundColor: 'var(--color-neutral-0)', flexShrink: 0 },
   backBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-600)' },
   headerCenter: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
   headerTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
@@ -1479,6 +1511,9 @@ const st: Record<string, React.CSSProperties> = {
   card: { width: '100%', textAlign: 'left', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-neutral-100)', overflow: 'hidden', marginBottom: 'var(--space-3)', backgroundColor: 'var(--color-neutral-0)' },
   cardImgWrap: { position: 'relative', height: '150px', backgroundColor: 'var(--color-neutral-50)' },
   cardImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  cardImgFallback: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  cardImgFallbackLogo: { width: 'auto', height: '56px', maxWidth: '70%', objectFit: 'contain' },
+  cardImgFallbackLabel: { fontSize: 'var(--font-size-lg)', fontWeight: 800, letterSpacing: '0.02em', textTransform: 'uppercase' as const },
   liveBadge: { position: 'absolute', top: '10px', left: '10px', display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-error-500)', color: '#fff', fontSize: '10px', fontWeight: 700 },
   liveBadgeDot: { width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#fff', animation: 'pulse 1.5s infinite' },
   cardBody: { padding: '10px var(--space-3) var(--space-3)' },

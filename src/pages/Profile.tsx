@@ -11,6 +11,7 @@ import { compressImage } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
 import UserFindsGrid from '../components/UserFindsGrid';
 import { BecomeHostCard } from '../components/BecomeHostCard';
+import { shareWithImage } from '../lib/shareWithImage';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity';
 
@@ -37,23 +38,24 @@ export default function Profile() {
   const handleShare = async () => {
     const username = profile?.username;
     const profileUrl = `${window.location.origin}/u/${username || ''}`;
-    const shareData = {
-      title: `${username ? '@' + username : 'My'} TreasureTrail Profile`,
-      text: `Check out my TreasureTrail profile!`,
+    const title = `${username ? '@' + username : 'My'} TreasureTrail Profile`;
+    const text = `Check out my TreasureTrail profile!`;
+
+    const result = await shareWithImage({
       url: profileUrl,
-    };
+      title,
+      text,
+      imageUrl: profile?.avatar_url || null,
+    });
 
-    if (navigator.share && navigator.canShare?.(shareData)) {
-      try {
-        await navigator.share(shareData);
-        return;
-      } catch (_) {
-      }
+    if (result.kind === 'shared' || result.kind === 'cancelled') return;
+    if (result.kind === 'copied') {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+      return;
     }
-
+    // unsupported / error — last-ditch legacy copy.
     try {
-      await navigator.clipboard.writeText(profileUrl);
-    } catch (_) {
       const ta = document.createElement('textarea');
       ta.value = profileUrl;
       ta.style.position = 'fixed';
@@ -62,9 +64,11 @@ export default function Profile() {
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } catch {
+      window.prompt('Copy this link to share:', profileUrl);
     }
-    setShareCopied(true);
-    setTimeout(() => setShareCopied(false), 2500);
   };
 
   if (isGuest) {
@@ -829,6 +833,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 'var(--space-4)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-4))',
     backgroundColor: 'var(--color-neutral-0)',
     borderBottom: '1px solid var(--color-neutral-100)',
     flexShrink: 0,

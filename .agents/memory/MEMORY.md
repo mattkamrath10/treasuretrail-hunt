@@ -1,3 +1,4 @@
+- [Mobile architecture rules](mobile-architecture-rules.md) — pointer to repo-root `ARCHITECTURE.md` covering scroll/detail/deep-link/safe-area/image/external-link rules; fix the shared helper, not the call site.
 - [Event image bug — toThumbUrl double-process](event-image-thumb-double-process.md) — `toThumbUrl(cover_thumb_url)` rewrites already-thumb URLs into `.thumb.thumb.jpg` (404s); always pass the raw stored thumb to <img>, or make toThumbUrl idempotent.
 - [Mobile detail-page containment](mobile-detail-page-containment.md) — wrap every detail route in <MobileDetailPage>; never put touch-action:pan-y on html/body or PageScroll (kills horizontal carousels on iOS).
 - [Supabase image upload pipeline](supabase-image-upload.md) — uploads go to public `avatars` bucket, path `${userId}/${folder}/${timestamp}.jpg` + `.thumb.jpg`; RLS keys on `name LIKE auth.uid()||'/%'`; thumb upload failure is non-fatal and only console.warns.
