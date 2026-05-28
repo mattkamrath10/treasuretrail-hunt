@@ -330,7 +330,14 @@ function formatShort(iso: string): string {
 
 const s: Record<string, CSSProperties> = {
   page: {
-    minHeight: '100%',
+    // AppShell wraps every route in a flex container with `overflow:
+    // hidden` on the content slot, so each page MUST own its own
+    // vertical scroll. Without `height:100%` + `overflowY:auto` here
+    // the mouse wheel / trackpad / touch scroll all do nothing.
+    height: '100%',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch',
     background: 'radial-gradient(900px 500px at 50% -10%, rgba(217, 119, 6, 0.10), transparent 60%), #0b0b10',
     color: '#f5f5f7',
     paddingBottom: 16,
