@@ -42,11 +42,22 @@ export async function attachProfiles<T extends Record<string, unknown>>(
 }
 
 export async function fetchCommunityPosts(limit = 20): Promise<CommunityPost[]> {
-  const { data, error } = await supabase
-    .from('community_posts')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  // is_hidden is gated on the Phase-1 monetization migration. Retry
+  // without the filter on 42703 so the feed stays alive during rollout.
+  const build = (withHidden: boolean) => {
+    let q = supabase
+      .from('community_posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (withHidden) q = q.eq('is_hidden', false);
+    return q;
+  };
+  let { data, error } = await build(true);
+  if (error?.code === '42703' && /is_hidden/i.test(error.message ?? '')) {
+    console.warn('[FETCH_COMMUNITY_POSTS] is_hidden column missing — retrying without moderation filter. Apply migration 20260528000002_monetization_phase1.sql to enable.');
+    ({ data, error } = await build(false));
+  }
 
   // Surface real errors rather than silently returning []. The caller
   // (typically a useLiveFeed-backed feed) can then engage backoff and the
@@ -141,12 +152,23 @@ export async function fetchUserLikes(userId: string): Promise<Set<string>> {
 }
 
 export async function fetchMarketplaceListings(limit = 20): Promise<MarketplaceListing[]> {
-  const { data, error } = await supabase
-    .from('marketplace_listings')
-    .select('*')
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  // is_hidden is gated on the Phase-1 monetization migration. Retry
+  // without the filter on 42703 so the feed stays alive during rollout.
+  const build = (withHidden: boolean) => {
+    let q = supabase
+      .from('marketplace_listings')
+      .select('*')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (withHidden) q = q.eq('is_hidden', false);
+    return q;
+  };
+  let { data, error } = await build(true);
+  if (error?.code === '42703' && /is_hidden/i.test(error.message ?? '')) {
+    console.warn('[FETCH_MARKETPLACE] is_hidden column missing — retrying without moderation filter. Apply migration 20260528000002_monetization_phase1.sql to enable.');
+    ({ data, error } = await build(false));
+  }
 
   if (error) {
     // PGRST205 = table missing in schema cache (marketplace not provisioned)

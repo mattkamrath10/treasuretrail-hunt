@@ -14,6 +14,9 @@ import { PageScroll } from '../components/ui/PageScroll';
 import { toThumbUrl } from '../lib/imageCompress';
 import { HostEventCTA } from '../components/HostEventCTA';
 import NotificationBell from '../components/NotificationBell';
+import { BoostedBadge, BOOSTED_CARD_GLOW } from '../components/ui/BoostedBadge';
+import { isBoosted } from '../lib/boost';
+import { rankDiscoverFeed, STATIC_PROBES } from '../lib/feedRanking';
 
 const LOG = '[DISCOVER]';
 
@@ -42,18 +45,18 @@ export default function Discover() {
     return () => { cancelled = true; };
   }, []);
 
-  // "Live Now" surface: actually-live shows first, then upcoming, then
-  // recently-ended last so the carousel never opens with a dead link.
-  const liveAndOnline = events
-    .filter((e) => e.event_kind === 'online' || isLiveNow(e))
-    .sort((a, b) => {
-      const score = (e: EventRow) =>
-        isLiveNow(e) ? 0 : isExpiredLive(e) ? 2 : 1;
-      const diff = score(a) - score(b);
-      if (diff !== 0) return diff;
-      return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
-    });
-  const localEvents = events.filter((e) => e.event_kind === 'local');
+  // "Live Now" surface: rank by Phase-1 priority — live+boosted first,
+  // then live, then boosted, then newest, with expired pushed to the
+  // bottom. `rankDiscoverFeed` is the single source of truth for ordering.
+  const liveAndOnline = rankDiscoverFeed(
+    events.filter((e) => e.event_kind === 'online' || isLiveNow(e)),
+    { isLive: isLiveNow, isExpired: isExpiredLive, createdAt: (e) => e.starts_at },
+  );
+  // Local events: no "live" concept, but boosted should still float up.
+  const localEvents = rankDiscoverFeed(
+    events.filter((e) => e.event_kind === 'local'),
+    { ...STATIC_PROBES, createdAt: (e) => e.starts_at },
+  );
 
   const q = query.trim().toLowerCase();
   const matchQ = (s: string | null | undefined) => !q || (s ?? '').toLowerCase().includes(q);
@@ -191,8 +194,9 @@ function LiveCard({ event, onClick }: { event: EventRow; onClick: () => void }) 
   const live = isLiveNow(event);
   const expired = isExpiredLive(event);
   const isWhatnot = event.platform === 'whatnot';
+  const boosted = isBoosted(event);
   return (
-    <article style={s.cardLg} onClick={onClick} role="button" tabIndex={0}>
+    <article style={{ ...s.cardLg, ...(boosted ? BOOSTED_CARD_GLOW : null) }} onClick={onClick} role="button" tabIndex={0}>
       <div style={s.cardImgLg}>
         <ImageWithFade
           src={event.cover_thumb_url ?? toThumbUrl(event.cover_image_url)}
@@ -203,6 +207,7 @@ function LiveCard({ event, onClick }: { event: EventRow; onClick: () => void }) 
         />
         <div style={s.cardOverlay} />
         <div style={s.cardBadgeRow}>
+          {boosted && <BoostedBadge />}
           {live && (
             <span style={{ ...s.badge, background: '#dc2626' }}>
               <span style={s.liveDot} /> LIVE
@@ -237,8 +242,9 @@ function LiveCard({ event, onClick }: { event: EventRow; onClick: () => void }) 
 
 function LocalEventCard({ event, onClick }: { event: EventRow; onClick: () => void }) {
   const where = [event.city, event.region].filter(Boolean).join(', ') || event.address || 'Local event';
+  const boosted = isBoosted(event);
   return (
-    <article style={s.cardLg} onClick={onClick} role="button" tabIndex={0}>
+    <article style={{ ...s.cardLg, ...(boosted ? BOOSTED_CARD_GLOW : null) }} onClick={onClick} role="button" tabIndex={0}>
       <div style={s.cardImgLg}>
         <ImageWithFade
           src={event.cover_thumb_url ?? toThumbUrl(event.cover_image_url)}
@@ -249,6 +255,7 @@ function LocalEventCard({ event, onClick }: { event: EventRow; onClick: () => vo
         />
         <div style={s.cardOverlay} />
         <div style={s.cardBadgeRow}>
+          {boosted && <BoostedBadge />}
           <span style={{ ...s.badge, background: 'rgba(245, 158, 11, 0.95)' }}>
             <Calendar size={10} /> {formatShort(event.starts_at)}
           </span>
@@ -265,8 +272,9 @@ function LocalEventCard({ event, onClick }: { event: EventRow; onClick: () => vo
 }
 
 function FindCard({ post, onClick }: { post: CommunityPost; onClick: () => void }) {
+  const boosted = isBoosted(post);
   return (
-    <article style={s.cardMd} onClick={onClick} role="button" tabIndex={0}>
+    <article style={{ ...s.cardMd, ...(boosted ? BOOSTED_CARD_GLOW : null) }} onClick={onClick} role="button" tabIndex={0}>
       <div style={s.cardImgMd}>
         <ImageWithFade
           src={toThumbUrl(post.image_url)}
@@ -277,6 +285,7 @@ function FindCard({ post, onClick }: { post: CommunityPost; onClick: () => void 
         />
         <div style={s.cardOverlay} />
         <div style={s.cardBadgeRow}>
+          {boosted && <BoostedBadge />}
           {post.estimated_value != null && (
             <span style={{ ...s.badge, background: 'rgba(139, 92, 246, 0.95)' }}>
               <Sparkles size={10} /> ${Math.round(post.estimated_value)}
@@ -299,8 +308,9 @@ function FindCard({ post, onClick }: { post: CommunityPost; onClick: () => void 
 function WantedCard({ item, onClick }: { item: WantedItemWithRequester; onClick: () => void }) {
   const where = [item.city, item.region].filter(Boolean).join(', ');
   const handle = item.requester?.username ?? null;
+  const boosted = isBoosted(item);
   return (
-    <article style={s.cardMd} onClick={onClick} role="button" tabIndex={0} aria-label={`Open wanted post: ${item.title}`}>
+    <article style={{ ...s.cardMd, ...(boosted ? BOOSTED_CARD_GLOW : null) }} onClick={onClick} role="button" tabIndex={0} aria-label={`Open wanted post: ${item.title}`}>
       <div style={s.cardImgMd}>
         <ImageWithFade
           src={item.thumb_url ?? toThumbUrl(item.image_url)}
@@ -311,6 +321,7 @@ function WantedCard({ item, onClick }: { item: WantedItemWithRequester; onClick:
         />
         <div style={s.cardOverlay} />
         <div style={s.cardBadgeRow}>
+          {boosted && <BoostedBadge />}
           <span style={{ ...s.badge, background: 'rgba(16, 185, 129, 0.95)' }}>
             <Search size={10} /> {WANTED_CATEGORY_LABEL[item.category]}
           </span>

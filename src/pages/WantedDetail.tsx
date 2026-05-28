@@ -14,6 +14,11 @@ import { MediaFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
 import { toThumbUrl } from '../lib/imageCompress';
 import { setPendingIntent } from '../lib/pendingIntent';
+import { Zap } from 'lucide-react';
+import { isBoosted, boostExpiresInLabel } from '../lib/boost';
+import { startBoostPurchase } from '../lib/payments';
+import { flashToast } from '../lib/toast';
+import { trackAnalyticsEvent } from '../lib/analytics';
 
 // Optional prefilled opener so the recipient sees context immediately
 // instead of an empty bubble. Kept short — the sender can edit before
@@ -41,7 +46,17 @@ export default function WantedDetail() {
     if (!id) { setErr('Missing id'); setLoading(false); return; }
     let cancelled = false;
     fetchWantedItemWithRequester(id)
-      .then((row) => { if (!cancelled) { setItem(row); setLoading(false); } })
+      .then((row) => {
+        if (cancelled) return;
+        setItem(row);
+        setLoading(false);
+        // Phase-1 analytics firehose: record the view once on hydrate.
+        // Best-effort — failures must never block render.
+        if (row) {
+          trackAnalyticsEvent({ kind: 'view', targetKind: 'wanted', targetId: row.id })
+            .catch(() => { /* best-effort */ });
+        }
+      })
       .catch((e: any) => { if (!cancelled) { setErr(e?.message ?? 'Failed to load'); setLoading(false); } });
     return () => { cancelled = true; };
   }, [id]);
@@ -189,10 +204,22 @@ export default function WantedDetail() {
         {isOwner ? (
           // Owner can't message themselves — show a muted state-of-affairs
           // panel instead of a disabled CTA so the page doesn't look broken.
-          <div style={s.ownerNote}>
-            <UserCircle2 size={14} style={{ color: 'rgba(245,245,247,0.55)' }} />
-            <span>This is your request</span>
-          </div>
+          // Below it we surface the Boost CTA so the owner has a single
+          // obvious way to raise visibility.
+          <>
+            <div style={s.ownerNote}>
+              <UserCircle2 size={14} style={{ color: 'rgba(245,245,247,0.55)' }} />
+              <span>This is your request</span>
+            </div>
+            <OwnerBoostRow
+              item={item}
+              onApplied={async () => {
+                if (!id) return;
+                const fresh = await fetchWantedItemWithRequester(id);
+                if (fresh) setItem(fresh);
+              }}
+            />
+          </>
         ) : (
           <div style={s.ctaRow}>
             <button
@@ -382,5 +409,66 @@ const s: Record<string, CSSProperties> = {
     background: 'rgba(15,15,20,0.95)', color: '#fff',
     fontSize: 13, fontWeight: 600, zIndex: 50,
     border: '1px solid rgba(255,255,255,0.1)',
+  },
+};
+
+/**
+ * Owner-only Boost row for wanted posts. Mirrors the EventDetail version
+ * — see that file for behavior notes. Payments mocked in Phase 1.
+ */
+function OwnerBoostRow({ item, onApplied }: { item: WantedItemWithRequester; onApplied: () => Promise<void> | void }) {
+  const [busy, setBusy] = useState(false);
+  const active = isBoosted(item);
+  const remaining = boostExpiresInLabel(item);
+
+  const onBoost = async () => {
+    setBusy(true);
+    const res = await startBoostPurchase({ targetKind: 'wanted', targetId: item.id });
+    setBusy(false);
+    if (!res.ok) { flashToast(`Boost failed: ${res.error}`, 'error'); return; }
+    flashToast('Boost active for 72 hours.', 'success');
+    await onApplied();
+  };
+
+  return (
+    <div style={ownerBoostStyles.row}>
+      {active ? (
+        <span style={ownerBoostStyles.activePill}>
+          <Zap size={12} style={{ color: '#fbbf24' }} /> Boosted{remaining ? ` · ${remaining} left` : ''}
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={onBoost}
+          disabled={busy}
+          style={{ ...ownerBoostStyles.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
+        >
+          {busy ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
+          Boost — $3 / 72h
+        </button>
+      )}
+    </div>
+  );
+}
+
+const ownerBoostStyles: Record<string, CSSProperties> = {
+  row: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 10, flexWrap: 'wrap',
+  },
+  boostBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '10px 16px', minHeight: 40, borderRadius: 999,
+    background: 'linear-gradient(135deg, #fbbf24, #f59e0b 55%, #d97706)',
+    color: '#1a1208', border: '1px solid rgba(251,191,36,0.55)',
+    fontSize: 13, fontWeight: 800,
+    boxShadow: '0 6px 18px rgba(251, 191, 36, 0.28)',
+  },
+  activePill: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '8px 12px', borderRadius: 999,
+    background: 'rgba(251, 191, 36, 0.12)',
+    border: '1px solid rgba(251, 191, 36, 0.35)',
+    color: '#fbbf24', fontSize: 12, fontWeight: 700,
   },
 };

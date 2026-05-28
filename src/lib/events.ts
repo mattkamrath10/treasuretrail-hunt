@@ -88,6 +88,15 @@ export interface EventRow {
   livestream_url: string | null;
   seller_handle: string | null;
   show_category: ShowCategory | null;
+  // Phase 1 monetization — boost + moderation. Optional so older code
+  // paths that don't SELECT them still typecheck. See
+  // `supabase/migrations/20260528000002_monetization_phase1.sql`.
+  boosted_at?: string | null;
+  boost_expires_at?: string | null;
+  boost_type?: 'paid' | 'pro' | null;
+  priority_score?: number | null;
+  is_hidden?: boolean | null;
+  report_count?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -205,16 +214,30 @@ export function resolveExternalEventUrl(e: EventRow, now: number = Date.now()): 
 
 /* ---------------- Queries ------------------------------------------------ */
 
-/** Public feed of published events, soonest first. */
+/** Public feed of published events, soonest first.
+ *
+ * Hidden-row filtering is best-effort: until the Phase-1 monetization
+ * migration (`20260528000002_monetization_phase1.sql`) lands, the
+ * `is_hidden` column doesn't exist and Postgres returns 42703. We
+ * detect that one error code and transparently retry without the
+ * filter so the feed never goes blank during migration rollout. */
 export async function fetchPublishedEvents(opts?: { city?: string | null; limit?: number }) {
-  let q = supabase
-    .from('events')
-    .select('*')
-    .eq('status', 'published')
-    .order('starts_at', { ascending: true })
-    .limit(opts?.limit ?? 50);
-  if (opts?.city) q = q.eq('city', opts.city);
-  const { data, error } = await q;
+  const build = (withHidden: boolean) => {
+    let q = supabase
+      .from('events')
+      .select('*')
+      .eq('status', 'published')
+      .order('starts_at', { ascending: true })
+      .limit(opts?.limit ?? 50);
+    if (withHidden) q = q.eq('is_hidden', false);
+    if (opts?.city) q = q.eq('city', opts.city);
+    return q;
+  };
+  let { data, error } = await build(true);
+  if (error?.code === '42703' && /is_hidden/i.test(error.message ?? '')) {
+    console.warn('[FETCH_PUBLISHED_EVENTS] is_hidden column missing — retrying without moderation filter. Apply migration 20260528000002_monetization_phase1.sql to enable.');
+    ({ data, error } = await build(false));
+  }
   if (error) throw new Error(error.message);
   return (data ?? []) as EventRow[];
 }

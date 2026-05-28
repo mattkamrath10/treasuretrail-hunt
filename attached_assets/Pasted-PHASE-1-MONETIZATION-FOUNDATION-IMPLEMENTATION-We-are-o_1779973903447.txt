@@ -1,0 +1,227 @@
+PHASE 1 — MONETIZATION FOUNDATION IMPLEMENTATION
+
+We are officially implementing the first monetization layer for TreasureTrail.
+
+GOAL:
+Create a SIMPLE, STABLE, production-ready monetization foundation before submitting the app to Flippa.
+
+We are using a 3-tier structure:
+
+1. FREE USER
+2. BOOSTED EVENT / BOOSTED POST ($3 one-time)
+3. TREASURETRAIL PRO ($9/month)
+
+IMPORTANT:
+This phase is architecture + gating + UI preparation.
+DO NOT build fake placeholder premium systems.
+DO NOT over-engineer.
+Keep everything mobile-first and stable.
+
+---
+
+## PHASE 1 TASKS
+
+1. CREATE FEATURE MATRIX
+
+Create a centralized feature entitlement system.
+
+Define:
+
+* free features
+* boosted features
+* pro features
+
+Example structure:
+
+* src/lib/entitlements.ts
+
+Include helper functions like:
+
+* canBoost()
+* canCreateUnlimitedEvents()
+* canViewAnalytics()
+* isProUser()
+
+Keep it clean and extensible.
+
+---
+
+2. USER ACCOUNT TIERS
+
+Add support for account tiers:
+
+* free
+* pro
+
+Store on profile/user record.
+
+Do NOT integrate Stripe yet.
+Use mocked/manual entitlement state for now.
+
+Requirements:
+
+* graceful fallback if tier missing
+* default = free
+
+---
+
+3. BOOST SYSTEM ARCHITECTURE
+
+Implement reusable boost infrastructure.
+
+Boost targets:
+
+* local events
+* live events
+* wanted posts
+* flash finds
+
+Each boost should support:
+
+* boosted_at
+* boost_expires_at
+* boost_type
+* priority_score
+
+Create helper:
+
+* isBoosted()
+
+Boost duration:
+
+* default 72 hours
+
+---
+
+4. BOOSTED UI STATES
+
+Add visual differentiation for boosted content.
+
+Requirements:
+
+* “BOOSTED” badge
+* subtle gold glow
+* higher feed placement
+* premium styling consistent with dark UI
+
+DO NOT overdo animations.
+
+---
+
+5. DISCOVER FEED PRIORITY
+
+Update feed ranking logic.
+
+Priority:
+
+1. active live boosted
+2. active live
+3. boosted local events
+4. boosted wanted posts
+5. newest content
+6. expired content last
+
+Keep ranking logic centralized.
+
+---
+
+6. PRO BADGE / PRO UI
+
+Restore and stabilize Pro UI.
+
+Requirements:
+
+* visible Pro CTA on Discover/Home/Profile
+* “Upgrade to Pro”
+* Pro badge on profiles
+* gated Pro features show lock/upgrade states
+
+DO NOT create broken dead-end buttons.
+
+---
+
+7. ANALYTICS LITE (FOUNDATION ONLY)
+
+Prepare lightweight analytics architecture.
+
+Track:
+
+* views
+* clicks
+* messages started
+* saves
+* profile visits
+
+Do NOT build advanced charts yet.
+Just ensure data model exists cleanly.
+
+---
+
+8. PAYMENT PREP PREP ONLY
+
+Do NOT integrate Stripe yet.
+
+Instead:
+
+* create clear payment integration boundaries
+* isolate upgrade actions
+* isolate boost purchase actions
+
+Prepare:
+
+* startBoostPurchase()
+* startProUpgrade()
+
+with mocked success responses for now.
+
+---
+
+9. ADMIN / MODERATION HOOKS
+
+Add lightweight moderation fields:
+
+* is_hidden
+* is_reported
+* report_count
+
+for:
+
+* events
+* wanted posts
+* flash finds
+
+No admin dashboard yet.
+Just prep the schema and filters.
+
+---
+
+10. MOBILE QA REQUIREMENTS
+
+Verify:
+
+* no scroll regressions
+* no horizontal overflow
+* no frozen pages
+* no broken safe-area behavior
+* no white screens
+* no broken share links
+
+Do not regress the architecture fixes we already completed.
+
+---
+
+## OUTPUT REQUIRED
+
+At completion provide:
+
+1. monetization architecture summary
+2. entitlement map
+3. DB/schema changes
+4. feed ranking logic summary
+5. mocked payment flow summary
+6. remaining work before Stripe integration
+7. remaining work before Flippa submission
+
+IMPORTANT:
+Prioritize reliability and clarity over feature quantity.
+This phase is about making the app feel investable and structurally real.

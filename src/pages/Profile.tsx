@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase';
 import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
 import { compressImage } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
+import { ProBadge } from '../components/ui/ProBadge';
+import { isProUser } from '../lib/entitlements';
 import UserFindsGrid from '../components/UserFindsGrid';
 import { BecomeHostCard } from '../components/BecomeHostCard';
 import { shareWithImage } from '../lib/shareWithImage';
@@ -18,7 +20,9 @@ type ProfileTab = 'overview' | 'reputation' | 'activity';
 type TrustIndicator = { label: string; icon: typeof Shield; earned: boolean };
 
 function getTrustIndicators(profile: any): TrustIndicator[] {
-  const isPro = profile?.membership_tier === 'pro';
+  // Use the canonical entitlement helper so any tier-resolution change
+  // (e.g. trials, grace periods) ripples through every UI surface.
+  const isPro = isProUser(profile);
   return [
     { label: 'Member since ' + (profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'), icon: Calendar, earned: !!profile?.created_at },
     { label: 'Profile photo added', icon: ImageIcon, earned: !!profile?.avatar_url },
@@ -326,18 +330,15 @@ function ProfileHeader({ profile }: { profile: any }) {
         <p style={styles.uploadError}>{uploadError}</p>
       )}
 
-      <h2 style={styles.username}>@{profile?.username || 'treasure_hunter'}</h2>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <h2 style={styles.username}>@{profile?.username || 'treasure_hunter'}</h2>
+        {isProUser(profile) && <ProBadge size="md" />}
+      </div>
       {profile?.bio && <p style={styles.bio}>{profile.bio}</p>}
       <div style={styles.rankRow}>
         <span style={styles.rankBadge}>{profile?.treasure_rank || 'Hunter'}</span>
         <span style={styles.levelBadge}>Lv. {profile?.level || 1}</span>
         <span style={styles.xpBadge}>{profile?.xp || 0} XP</span>
-        {profile?.membership_tier === 'pro' && (
-          <span style={proStyles.proBadge}>
-            <Crown size={11} style={{ color: 'var(--color-neutral-0)' }} />
-            <span>PRO</span>
-          </span>
-        )}
       </div>
       <span style={styles.joinDate}>Member since {joinDate}</span>
 

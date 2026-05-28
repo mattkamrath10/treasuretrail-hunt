@@ -1,7 +1,11 @@
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Crown, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, Crown, Loader2, Sparkles } from 'lucide-react';
 import { PageScroll } from '../components/ui/PageScroll';
+import { useAuth } from '../context/AuthContext';
+import { startProUpgrade } from '../lib/payments';
+import { isProUser } from '../lib/entitlements';
+import { flashToast } from '../lib/toast';
 
 const KEYFRAME_ID = 'tt-pro-pricing-keyframes';
 
@@ -94,16 +98,16 @@ const PLANS: Plan[] = [
     features: [
       'Featured pin on the local map',
       'Push notifications to nearby buyers',
-      'Priority placement for 7 days',
+      'Priority placement for 72 hours',
       'Shareable event flyer',
     ],
     cta: 'Boost an event',
-    footnote: 'Perfect for yard sales, estate sales, flea markets & auction events.',
+    footnote: 'One-time $3 — perfect for yard sales, estate sales, flea markets & auction events.',
   },
   {
     id: 'pro',
     name: 'Pro Seller',
-    price: '$10',
+    price: '$9',
     cadence: '/ per month',
     tagline: 'Whatnot · Poshmark Live · eBay Live',
     features: [
@@ -122,13 +126,39 @@ const PLANS: Plan[] = [
 
 export default function Pro({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
+  const { profile, user, refreshProfile } = useAuth();
+  const [busy, setBusy] = useState<PlanId | null>(null);
   useEffect(ensureKeyframes, []);
 
-  const handlePlan = (id: PlanId) => {
+  const alreadyPro = isProUser(profile);
+
+  // Phase 1 — payments are MOCKED in src/lib/payments.ts. The Pro plan
+  // flips the user's tier directly on click; Boost requires picking a
+  // specific event/post (we send the user to their seller dashboard to
+  // pick one). When Stripe lands in Phase 2 the only change is the
+  // implementation of startProUpgrade — this UI stays put.
+  const handlePlan = async (id: PlanId) => {
     console.log('[PRO_PRICING] click', { plan: id });
-    if (id === 'free') navigate('/seller/new');
-    else if (id === 'boost') navigate('/seller/new');
-    else navigate('/seller/new');
+    if (id === 'free') { navigate('/seller/new'); return; }
+    if (id === 'boost') {
+      // Boost is per-content. Surface the seller flow where the user
+      // owns content and can hit "Boost — $3" on a specific item.
+      if (!user) { navigate('/'); return; }
+      navigate('/seller/new');
+      return;
+    }
+    // id === 'pro'
+    if (!user) { navigate('/'); return; }
+    if (alreadyPro) { flashToast("You're already Pro — enjoy your unlimited boosts.", 'info'); return; }
+    setBusy('pro');
+    const res = await startProUpgrade();
+    setBusy(null);
+    if (!res.ok) {
+      flashToast(`Could not upgrade: ${res.error}`, 'error');
+      return;
+    }
+    await refreshProfile();
+    flashToast('Welcome to Pro! Priority placement is now active.', 'success');
   };
 
   return (
@@ -162,7 +192,13 @@ export default function Pro({ onBack }: { onBack: () => void }) {
 
       <section className="tt-pro-plans-grid" style={s.plansWrap}>
         {PLANS.map((p) => (
-          <PlanCard key={p.id} plan={p} onPick={() => handlePlan(p.id)} />
+          <PlanCard
+            key={p.id}
+            plan={p}
+            disabled={p.id === 'pro' && alreadyPro}
+            busy={busy === p.id}
+            onPick={() => handlePlan(p.id)}
+          />
         ))}
       </section>
 
@@ -176,7 +212,12 @@ export default function Pro({ onBack }: { onBack: () => void }) {
   );
 }
 
-function PlanCard({ plan, onPick }: { plan: Plan; onPick: () => void }) {
+function PlanCard({ plan, onPick, busy = false, disabled = false }: {
+  plan: Plan;
+  onPick: () => void;
+  busy?: boolean;
+  disabled?: boolean;
+}) {
   const highlight = !!plan.highlight;
   return (
     <article
@@ -231,14 +272,20 @@ function PlanCard({ plan, onPick }: { plan: Plan; onPick: () => void }) {
       <button
         type="button"
         onClick={onPick}
-        className={`tt-pro-cta ${highlight ? 'tt-pro-pulse' : ''}`}
+        disabled={busy || disabled}
+        className={`tt-pro-cta ${highlight && !disabled ? 'tt-pro-pulse' : ''}`}
         style={{
           ...s.cta,
           ...(highlight ? s.ctaPro : {}),
+          opacity: disabled ? 0.6 : 1,
+          cursor: busy || disabled ? 'default' : 'pointer',
         }}
       >
-        {highlight && <span className="tt-pro-shimmer" style={s.ctaShimmer} aria-hidden="true" />}
-        <span style={{ position: 'relative', zIndex: 1 }}>{plan.cta}</span>
+        {highlight && !disabled && <span className="tt-pro-shimmer" style={s.ctaShimmer} aria-hidden="true" />}
+        <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          {busy && <Loader2 size={14} className="spin" />}
+          {disabled ? 'Active' : plan.cta}
+        </span>
       </button>
 
       {plan.ctaFootnote && (

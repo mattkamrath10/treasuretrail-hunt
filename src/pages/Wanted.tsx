@@ -12,6 +12,9 @@ import { toThumbUrl } from '../lib/imageCompress';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PageScroll } from '../components/ui/PageScroll';
+import { BoostedBadge, BOOSTED_CARD_GLOW } from '../components/ui/BoostedBadge';
+import { isBoosted } from '../lib/boost';
+import { rankDiscoverFeed, STATIC_PROBES } from '../lib/feedRanking';
 
 export default function Wanted({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
@@ -29,12 +32,17 @@ export default function Wanted({ onBack }: { onBack: () => void }) {
   }, []);
 
   const q = query.trim().toLowerCase();
-  const filtered = (items ?? []).filter((i) =>
+  const filteredRaw = (items ?? []).filter((i) =>
     !q
     || i.title.toLowerCase().includes(q)
     || (i.description ?? '').toLowerCase().includes(q)
     || (i.city ?? '').toLowerCase().includes(q)
   );
+  // Boosted wanted posts float to the top; ties broken by newest.
+  const filtered = rankDiscoverFeed(filteredRaw, {
+    ...STATIC_PROBES,
+    createdAt: (i) => i.created_at,
+  });
 
   return (
     <PageScroll style={s.page}>
@@ -91,15 +99,19 @@ function WantedCard({ item }: { item: WantedItemWithRequester }) {
   const [hover, setHover] = useState(false);
   const where = [item.city, item.region].filter(Boolean).join(', ');
   const handle = item.requester?.username ?? null;
+  const boosted = isBoosted(item);
   const open = () => navigate(`/wanted/${item.id}`);
   return (
     <article
       style={{
         ...s.card,
+        ...(boosted ? BOOSTED_CARD_GLOW : null),
         cursor: 'pointer',
         transform: hover ? 'translateY(-2px)' : 'none',
-        borderColor: hover ? 'rgba(16, 185, 129, 0.45)' : 'rgba(255,255,255,0.08)',
-        boxShadow: hover ? '0 8px 24px rgba(16, 185, 129, 0.18)' : 'none',
+        borderColor: hover
+          ? 'rgba(16, 185, 129, 0.45)'
+          : boosted ? 'rgba(251, 191, 36, 0.55)' : 'rgba(255,255,255,0.08)',
+        boxShadow: hover ? '0 8px 24px rgba(16, 185, 129, 0.18)' : (boosted ? BOOSTED_CARD_GLOW.boxShadow : 'none'),
         transition: 'transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
       }}
       onMouseEnter={() => setHover(true)}
@@ -120,6 +132,11 @@ function WantedCard({ item }: { item: WantedItemWithRequester }) {
         />
         <span style={s.wantedBadge}>WANTED</span>
         <span style={s.catBadge}>{WANTED_CATEGORY_LABEL[item.category]}</span>
+        {boosted && (
+          <span style={{ position: 'absolute', bottom: 8, left: 8 }}>
+            <BoostedBadge />
+          </span>
+        )}
         {item.max_budget != null && (
           <span style={s.budgetBadge}>up to ${Math.round(item.max_budget)}</span>
         )}

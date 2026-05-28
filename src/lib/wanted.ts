@@ -37,6 +37,13 @@ export interface WantedItemRow {
   image_url: string | null;
   thumb_url: string | null;
   status: WantedStatus;
+  // Phase 1 monetization — boost + moderation. Optional for migration safety.
+  boosted_at?: string | null;
+  boost_expires_at?: string | null;
+  boost_type?: 'paid' | 'pro' | null;
+  priority_score?: number | null;
+  is_hidden?: boolean | null;
+  report_count?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -54,14 +61,24 @@ export interface WantedUpsert {
 }
 
 export async function fetchOpenWantedItems(opts?: { limit?: number; category?: WantedCategory }) {
-  let q = supabase
-    .from('wanted_items')
-    .select('*')
-    .eq('status', 'open')
-    .order('created_at', { ascending: false })
-    .limit(opts?.limit ?? 50);
-  if (opts?.category) q = q.eq('category', opts.category);
-  const { data, error } = await q;
+  // is_hidden is gated on the Phase-1 monetization migration. Retry
+  // without the filter on 42703 so the feed stays alive during rollout.
+  const build = (withHidden: boolean) => {
+    let q = supabase
+      .from('wanted_items')
+      .select('*')
+      .eq('status', 'open')
+      .order('created_at', { ascending: false })
+      .limit(opts?.limit ?? 50);
+    if (withHidden) q = q.eq('is_hidden', false);
+    if (opts?.category) q = q.eq('category', opts.category);
+    return q;
+  };
+  let { data, error } = await build(true);
+  if (error?.code === '42703' && /is_hidden/i.test(error.message ?? '')) {
+    console.warn('[FETCH_OPEN_WANTED] is_hidden column missing — retrying without moderation filter. Apply migration 20260528000002_monetization_phase1.sql to enable.');
+    ({ data, error } = await build(false));
+  }
   if (error) throw new Error(error.message);
   return (data ?? []) as WantedItemRow[];
 }

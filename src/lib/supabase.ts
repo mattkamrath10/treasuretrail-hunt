@@ -49,6 +49,14 @@ export type CommunityPost = {
   like_count: number;
   comment_count: number;
   share_count: number;
+  // Phase 1 monetization — boost + moderation columns. Optional so
+  // existing query paths that don't SELECT them still typecheck.
+  boosted_at?: string | null;
+  boost_expires_at?: string | null;
+  boost_type?: 'paid' | 'pro' | null;
+  priority_score?: number | null;
+  is_hidden?: boolean | null;
+  report_count?: number | null;
   created_at: string;
   profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
 };
@@ -70,6 +78,13 @@ export type MarketplaceListing = {
   shipping_available?: boolean | null;
   scout_needed?: boolean | null;
   marketplace_found?: string | null;
+  // Phase 1 monetization — boost + moderation columns.
+  boosted_at?: string | null;
+  boost_expires_at?: string | null;
+  boost_type?: 'paid' | 'pro' | null;
+  priority_score?: number | null;
+  is_hidden?: boolean | null;
+  report_count?: number | null;
   profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
 };
 

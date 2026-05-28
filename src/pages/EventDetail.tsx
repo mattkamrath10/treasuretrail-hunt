@@ -16,6 +16,7 @@ import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { MediaFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
 import { trackEventView, trackEventClick } from '../lib/eventAnalytics';
+import { trackAnalyticsEvent } from '../lib/analytics';
 import { isEventSaved, saveEvent, unsaveEvent } from '../lib/eventSaves';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { toThumbUrl } from '../lib/imageCompress';
@@ -23,6 +24,9 @@ import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { flashToast } from '../lib/toast';
 import { shareWithImage } from '../lib/shareWithImage';
+import { Zap } from 'lucide-react';
+import { isBoosted, boostExpiresInLabel } from '../lib/boost';
+import { startBoostPurchase } from '../lib/payments';
 
 const LOG = '[EVENT_DETAIL]';
 
@@ -106,10 +110,15 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
         setEvent(e);
         setItems(its);
 
-        // Fire view-tracking once per event-id load.
+        // Fire view-tracking once per event-id load. Two parallel
+        // streams: the legacy `event_analytics` table (per-event count
+        // RPC) and the Phase-1 thin firehose `analytics_events`. Both
+        // are best-effort — analytics failures must never block render.
         if (viewedFor.current !== e.id) {
           viewedFor.current = e.id;
           trackEventView(e.id).catch(() => { /* best-effort */ });
+          trackAnalyticsEvent({ kind: 'view', targetKind: 'event', targetId: e.id })
+            .catch(() => { /* best-effort */ });
         }
 
         // Holder lookup — RLS on profiles should permit public read of
@@ -405,6 +414,15 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
             </button>
           )}
         </div>
+
+        {/* Owner-only Boost CTA. We render either the live status (if a
+            boost is already active) or a single primary CTA that runs the
+            mocked $3/72h purchase flow. After a successful boost we
+            re-fetch the event so the badge + status update in place. */}
+        {isOwner && <OwnerBoostRow event={event} onApplied={async () => {
+          const fresh = await fetchEvent(event.id);
+          if (fresh) setEvent(fresh);
+        }} />}
       </section>
 
       {/* Description */}
@@ -797,5 +815,70 @@ const s: Record<string, React.CSSProperties> = {
   lightboxBody: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
     maxWidth: 720,
+  },
+};
+
+/**
+ * Owner-only Boost row rendered on the event detail page. Two states:
+ *  - Already boosted → muted status pill with remaining hours.
+ *  - Not boosted    → primary CTA running the mocked $3 / 72h purchase.
+ *
+ * Payments are MOCKED in Phase 1 (see src/lib/payments.ts). Stripe is a
+ * Phase 2 swap behind `startBoostPurchase`.
+ */
+function OwnerBoostRow({ event, onApplied }: { event: EventRow; onApplied: () => Promise<void> | void }) {
+  const [busy, setBusy] = useState(false);
+  const active = isBoosted(event);
+  const remaining = boostExpiresInLabel(event);
+
+  const onBoost = async () => {
+    setBusy(true);
+    const res = await startBoostPurchase({ targetKind: 'event', targetId: event.id });
+    setBusy(false);
+    if (!res.ok) { flashToast(`Boost failed: ${res.error}`, 'error'); return; }
+    flashToast('Boost active for 72 hours.', 'success');
+    await onApplied();
+  };
+
+  return (
+    <div style={ownerBoostStyles.row}>
+      {active ? (
+        <span style={ownerBoostStyles.activePill}>
+          <Zap size={12} style={{ color: '#fbbf24' }} /> Boosted{remaining ? ` · ${remaining} left` : ''}
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={onBoost}
+          disabled={busy}
+          style={{ ...ownerBoostStyles.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
+        >
+          {busy ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
+          Boost — $3 / 72h
+        </button>
+      )}
+    </div>
+  );
+}
+
+const ownerBoostStyles = {
+  row: {
+    display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+    gap: 8, marginTop: 10, flexWrap: 'wrap' as const,
+  },
+  boostBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '10px 16px', minHeight: 40, borderRadius: 999,
+    background: 'linear-gradient(135deg, #fbbf24, #f59e0b 55%, #d97706)',
+    color: '#1a1208', border: '1px solid rgba(251,191,36,0.55)',
+    fontSize: 13, fontWeight: 800,
+    boxShadow: '0 6px 18px rgba(251, 191, 36, 0.28)',
+  },
+  activePill: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '8px 12px', borderRadius: 999,
+    background: 'rgba(251, 191, 36, 0.12)',
+    border: '1px solid rgba(251, 191, 36, 0.35)',
+    color: '#fbbf24', fontSize: 12, fontWeight: 700,
   },
 };
