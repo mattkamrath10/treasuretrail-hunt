@@ -6,7 +6,7 @@ import {
 import { fetchPublishedEvents, PLATFORM_META, isLiveNow, isExpiredLive, type EventRow } from '../lib/events';
 import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { fetchCommunityPosts } from '../lib/database';
-import { fetchOpenWantedItems, WANTED_CATEGORY_LABEL, type WantedItemRow } from '../lib/wanted';
+import { fetchOpenWantedItemsWithRequesters, WANTED_CATEGORY_LABEL, type WantedItemWithRequester } from '../lib/wanted';
 import type { CommunityPost } from '../lib/supabase';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
@@ -20,7 +20,7 @@ export default function Discover() {
   const navigate = useNavigate();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [finds, setFinds] = useState<CommunityPost[]>([]);
-  const [wanted, setWanted] = useState<WantedItemRow[]>([]);
+  const [wanted, setWanted] = useState<WantedItemWithRequester[]>([]);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export default function Discover() {
     Promise.allSettled([
       fetchPublishedEvents({ limit: 40 }),
       fetchCommunityPosts(24),
-      fetchOpenWantedItems({ limit: 24 }),
+      fetchOpenWantedItemsWithRequesters({ limit: 24 }),
     ]).then(([e, f, w]) => {
       if (cancelled) return;
       if (e.status === 'fulfilled') setEvents(e.value);
@@ -122,7 +122,7 @@ export default function Discover() {
         onSeeAll={() => navigate('/wanted')}
       >
         {wanted.filter((w) => matchQ(w.title) || matchQ(w.category)).slice(0, 16).map((w) => (
-          <WantedCard key={w.id} item={w} onClick={() => navigate('/wanted')} />
+          <WantedCard key={w.id} item={w} onClick={() => navigate(`/wanted/${w.id}`)} />
         ))}
         {wanted.length === 0 && <EmptyWantedTeaser onCreate={() => navigate('/sell/wanted')} />}
       </Section>
@@ -295,10 +295,11 @@ function FindCard({ post, onClick }: { post: CommunityPost; onClick: () => void 
   );
 }
 
-function WantedCard({ item, onClick }: { item: WantedItemRow; onClick: () => void }) {
+function WantedCard({ item, onClick }: { item: WantedItemWithRequester; onClick: () => void }) {
   const where = [item.city, item.region].filter(Boolean).join(', ');
+  const handle = item.requester?.username ?? null;
   return (
-    <article style={s.cardMd} onClick={onClick} role="button" tabIndex={0}>
+    <article style={s.cardMd} onClick={onClick} role="button" tabIndex={0} aria-label={`Open wanted post: ${item.title}`}>
       <div style={s.cardImgMd}>
         <ImageWithFade
           src={item.thumb_url ?? toThumbUrl(item.image_url)}
@@ -321,7 +322,14 @@ function WantedCard({ item, onClick }: { item: WantedItemRow; onClick: () => voi
       </div>
       <div style={s.cardBody}>
         <h3 style={s.cardTitleSm}>{item.title}</h3>
-        {where && <p style={s.cardMeta}><MapPin size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />{where}</p>}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+          {handle ? (
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>@{handle}</span>
+          ) : (
+            <span style={{ fontSize: 11, color: 'rgba(245,245,247,0.4)' }}>Requester unavailable</span>
+          )}
+          {where && <span style={s.cardMeta}><MapPin size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />{where}</span>}
+        </div>
       </div>
     </article>
   );

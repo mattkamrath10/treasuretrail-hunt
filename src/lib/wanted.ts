@@ -66,6 +66,47 @@ export async function fetchOpenWantedItems(opts?: { limit?: number; category?: W
   return (data ?? []) as WantedItemRow[];
 }
 
+/** Lightweight identity slice attached to wanted items so cards/detail
+ *  pages can render @username + avatar without a per-card round-trip. */
+export interface WantedRequester {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+export type WantedItemWithRequester = WantedItemRow & { requester: WantedRequester | null };
+
+async function attachRequesters(rows: WantedItemRow[]): Promise<WantedItemWithRequester[]> {
+  if (rows.length === 0) return [];
+  const ids = Array.from(new Set(rows.map((r) => r.user_id)));
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, avatar_url')
+    .in('id', ids);
+  // Profile fetch is best-effort — a stale or deleted requester just renders
+  // the "Requester unavailable" empty state instead of blowing up the card.
+  if (error) console.warn('[wanted] requester fetch failed:', error.message);
+  const map = new Map((data ?? []).map((p: any) => [p.id as string, p as WantedRequester]));
+  return rows.map((r) => ({ ...r, requester: map.get(r.user_id) ?? null }));
+}
+
+export async function fetchOpenWantedItemsWithRequesters(opts?: { limit?: number; category?: WantedCategory }) {
+  const rows = await fetchOpenWantedItems(opts);
+  return attachRequesters(rows);
+}
+
+export async function fetchWantedItemWithRequester(id: string): Promise<WantedItemWithRequester | null> {
+  const { data, error } = await supabase
+    .from('wanted_items')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const [withReq] = await attachRequesters([data as WantedItemRow]);
+  return withReq;
+}
+
 export async function fetchMyWantedItems(userId: string) {
   const { data, error } = await supabase
     .from('wanted_items')

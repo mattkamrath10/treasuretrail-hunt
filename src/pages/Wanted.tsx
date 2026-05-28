@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Search, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
-  fetchOpenWantedItems, WANTED_CATEGORY_LABEL, type WantedItemRow,
+  fetchOpenWantedItemsWithRequesters, WANTED_CATEGORY_LABEL,
+  type WantedItemWithRequester,
 } from '../lib/wanted';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
@@ -14,13 +15,13 @@ import { EmptyState } from '../components/ui/EmptyState';
 export default function Wanted({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [items, setItems] = useState<WantedItemRow[] | null>(null);
+  const [items, setItems] = useState<WantedItemWithRequester[] | null>(null);
   const [query, setQuery] = useState('');
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchOpenWantedItems({ limit: 100 })
+    fetchOpenWantedItemsWithRequesters({ limit: 100 })
       .then((rows) => { if (!cancelled) setItems(rows); })
       .catch((e: any) => { if (!cancelled) { setItems([]); setErr(e?.message ?? 'Failed to load wanted items'); } });
     return () => { cancelled = true; };
@@ -84,10 +85,30 @@ export default function Wanted({ onBack }: { onBack: () => void }) {
   );
 }
 
-function WantedCard({ item }: { item: WantedItemRow }) {
+function WantedCard({ item }: { item: WantedItemWithRequester }) {
+  const navigate = useNavigate();
+  const [hover, setHover] = useState(false);
   const where = [item.city, item.region].filter(Boolean).join(', ');
+  const handle = item.requester?.username ?? null;
+  const open = () => navigate(`/wanted/${item.id}`);
   return (
-    <article style={s.card}>
+    <article
+      style={{
+        ...s.card,
+        cursor: 'pointer',
+        transform: hover ? 'translateY(-2px)' : 'none',
+        borderColor: hover ? 'rgba(16, 185, 129, 0.45)' : 'rgba(255,255,255,0.08)',
+        boxShadow: hover ? '0 8px 24px rgba(16, 185, 129, 0.18)' : 'none',
+        transition: 'transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={open}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open wanted post: ${item.title}`}
+    >
       <div style={s.cardImg}>
         <ImageWithFade
           src={item.thumb_url ?? toThumbUrl(item.image_url)}
@@ -96,6 +117,7 @@ function WantedCard({ item }: { item: WantedItemRow }) {
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           fallback={<MediaFallback kind="wanted" seed={item.id} label={item.title} />}
         />
+        <span style={s.wantedBadge}>WANTED</span>
         <span style={s.catBadge}>{WANTED_CATEGORY_LABEL[item.category]}</span>
         {item.max_budget != null && (
           <span style={s.budgetBadge}>up to ${Math.round(item.max_budget)}</span>
@@ -104,11 +126,18 @@ function WantedCard({ item }: { item: WantedItemRow }) {
       <div style={s.cardBody}>
         <h3 style={s.cardTitle}>{item.title}</h3>
         {item.description && <p style={s.cardDesc}>{item.description}</p>}
-        {where && (
-          <p style={s.cardMeta}>
-            <MapPin size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />{where}
-          </p>
-        )}
+        <div style={s.cardFooter}>
+          {handle ? (
+            <span style={s.cardHandle}>@{handle}</span>
+          ) : (
+            <span style={s.cardHandleMuted}>Requester unavailable</span>
+          )}
+          {where && (
+            <span style={s.cardMeta}>
+              <MapPin size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />{where}
+            </span>
+          )}
+        </div>
       </div>
     </article>
   );
@@ -173,11 +202,17 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 14, overflow: 'hidden',
   },
   cardImg: { position: 'relative', width: '100%', aspectRatio: '16 / 9', background: '#15151a' },
-  catBadge: {
+  wantedBadge: {
     position: 'absolute', top: 8, left: 8,
     padding: '3px 8px', borderRadius: 999,
-    background: 'rgba(16, 185, 129, 0.95)', color: '#fff',
-    fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
+    background: 'linear-gradient(135deg, #10b981, #047857)',
+    color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: '0.06em',
+  },
+  catBadge: {
+    position: 'absolute', top: 8, left: 76,
+    padding: '3px 8px', borderRadius: 999,
+    background: 'rgba(15, 23, 42, 0.78)', color: '#fff',
+    fontSize: 10, fontWeight: 700,
   },
   budgetBadge: {
     position: 'absolute', top: 8, right: 8,
@@ -192,7 +227,13 @@ const s: Record<string, CSSProperties> = {
     lineHeight: 1.4,
     display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
   },
-  cardMeta: { margin: '8px 0 0', fontSize: 11, color: 'rgba(245,245,247,0.55)' },
+  cardMeta: { fontSize: 11, color: 'rgba(245,245,247,0.55)' },
+  cardFooter: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: 8, marginTop: 10, flexWrap: 'wrap',
+  },
+  cardHandle: { fontSize: 11, fontWeight: 700, color: '#10b981' },
+  cardHandleMuted: { fontSize: 11, color: 'rgba(245,245,247,0.4)' },
   emptyCta: {
     minHeight: 44, padding: '10px 18px', borderRadius: 999,
     background: 'linear-gradient(135deg, #10b981, #047857)',

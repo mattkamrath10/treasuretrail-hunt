@@ -13,7 +13,7 @@ const navItems: NavItem[] = [
   { path: '/',        label: 'Discover', icon: Compass, match: (p) => p === '/' || p === '/flash-finds' || p === '/events' },
   { path: '/live',    label: 'Live',     icon: Radio },
   { path: '/sell',    label: 'Sell',     icon: Plus, primary: true, match: (p) => p.startsWith('/sell') || p.startsWith('/seller') },
-  { path: '/wanted',  label: 'Wanted',   icon: Search },
+  { path: '/wanted',  label: 'Wanted',   icon: Search, match: (p) => p === '/wanted' || p.startsWith('/wanted/') },
   { path: '/profile', label: 'Profile',  icon: User,  match: (p) => p === '/profile' || p.startsWith('/profile/') },
 ];
 

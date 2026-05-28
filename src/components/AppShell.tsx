@@ -12,6 +12,7 @@ const Home = lazy(() => import('../pages/Home'));
 const FlashFinds = lazy(() => import('../pages/FlashFinds'));
 const Sell = lazy(() => import('../pages/Sell'));
 const Wanted = lazy(() => import('../pages/Wanted'));
+const WantedDetail = lazy(() => import('../pages/WantedDetail'));
 const WantedForm = lazy(() => import('../pages/WantedForm'));
 const RareRadar = lazy(() => import('../pages/RareRadar'));
 const Alerts = lazy(() => import('../pages/Alerts'));
@@ -171,6 +172,7 @@ export default function AppShell() {
             <Route path="/sell" element={<SellPage />} />
             <Route path="/sell/wanted" element={<WantedFormPage />} />
             <Route path="/wanted" element={<WantedPage />} />
+            <Route path="/wanted/:id" element={<WantedDetail />} />
             <Route path="/rare-radar" element={<RareRadar />} />
             <Route path="/auctions" element={<AuctionsPage />} />
             <Route path="/scout-map" element={<ScoutMapPage />} />

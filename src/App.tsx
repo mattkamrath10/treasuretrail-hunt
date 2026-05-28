@@ -7,6 +7,22 @@ import SignUp from './pages/SignUp';
 import ProfileSetup from './pages/ProfileSetup';
 import AppShell from './components/AppShell';
 
+// Shared deep links (DMs, social, search) must render the destination
+// page on cold load without forcing Onboarding/Login. We detect public
+// share paths from the URL and render AppShell directly — every page
+// listed here already tolerates a null `user` and handles its own
+// "Sign in to …" prompts for write actions.
+const PUBLIC_SHARE_PREFIXES = [
+  '/u/', '/profile/',
+  '/event/',
+  '/wanted/',
+  '/find/',
+  '/listing/',
+];
+function isPublicSharePath(pathname: string): boolean {
+  return PUBLIC_SHARE_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
 function AppContent() {
   const { user, loading, hasCompletedSetup, isGuest, enterGuestMode } = useAuth();
   const [hasOnboarded, setHasOnboarded] = useState(() => {
@@ -18,6 +34,18 @@ function AppContent() {
     localStorage.setItem('tt_onboarded', 'true');
     setHasOnboarded(true);
   };
+
+  // Public deep links bypass onboarding + login entirely. Without this,
+  // a cold tap on /wanted/:id or /u/:handle from Messages dumps the
+  // visitor on the onboarding splash instead of the linked content.
+  const publicShare = typeof window !== 'undefined' && isPublicSharePath(window.location.pathname);
+  if (publicShare && !loading) {
+    return (
+      <Routes>
+        <Route path="/*" element={<AppShell />} />
+      </Routes>
+    );
+  }
 
   if (!hasOnboarded) {
     return <Onboarding onComplete={completeOnboarding} />;
