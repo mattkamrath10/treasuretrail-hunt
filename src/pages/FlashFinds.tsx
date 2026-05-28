@@ -40,8 +40,6 @@ interface FlashFindForm {
   address_reveal_policy: 'on_contact' | 'on_appointment' | 'on_purchase' | 'never';
   pickup_type: string[];
   shipping_available: boolean;
-  scout_needed: boolean;
-  scouts_available: boolean;
   meetup_notes: string;
 }
 
@@ -49,7 +47,6 @@ import { uploadCompressedImage } from '../lib/uploadImage';
 import LocationFields, { type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect, { getMarketplaceLabel as _shared_getMarketplaceLabel } from '../components/listing/MarketplaceFoundSelect';
-import ScoutToggles from '../components/listing/ScoutToggles';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
 import SafetyReminder from '../components/listing/SafetyReminder';
@@ -107,8 +104,6 @@ export default function FlashFinds() {
     address_reveal_policy: 'on_contact',
     pickup_type: [],
     shipping_available: false,
-    scout_needed: false,
-    scouts_available: false,
     meetup_notes: '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -196,7 +191,6 @@ export default function FlashFinds() {
       category: editedForm.category,
       notes: editedForm.notes,
       price: editedForm.price,
-      scout_needed: form.scout_needed || actions.includes('send_scouts'),
     };
     setForm(mergedForm);
 
@@ -256,9 +250,9 @@ export default function FlashFinds() {
       const priceForDb = priceNum !== null && Number.isFinite(priceNum) ? priceNum : undefined;
 
       const needsFlashFindPost =
-        actions.includes('post_flash_finds') || actions.includes('send_scouts');
+        actions.includes('post_flash_finds');
 
-      // 1. Post to Flash Finds (also covers Send to Scouts, which needs the post).
+      // 1. Post to Flash Finds.
       if (needsFlashFindPost) {
         // Build ONE canonical payload. Every downstream consumer (DB
         // insert, optimistic prepend, navigation state) reads from this
@@ -295,7 +289,6 @@ export default function FlashFinds() {
             mergedForm.shipping_available ||
             mergedForm.pickup_type.includes('shipping_available') ||
             mergedForm.pickup_type.includes('nationwide_shipping'),
-          scouts_available: mergedForm.scouts_available,
           meetup_notes: mergedForm.meetup_notes.trim() || undefined,
           estimated_value: canon.price_estimate ?? priceForDb,
         };
@@ -333,7 +326,6 @@ export default function FlashFinds() {
         }
 
         if (actions.includes('post_flash_finds')) completed.push('Posted to Flash Finds');
-        if (actions.includes('send_scouts')) completed.push('Scout request flagged');
       }
 
       // 2. Share to Rare Radar — saves a local draft visible on the Rare Radar page.
@@ -413,7 +405,7 @@ export default function FlashFinds() {
     setForm({
       title: '', category: '', notes: '', price: '', location: '', marketplace: '', marketplaceCustom: '',
       general_location: '', exact_address_private: '', address_reveal_policy: 'on_contact',
-      pickup_type: [], shipping_available: false, scout_needed: false, scouts_available: false, meetup_notes: '',
+      pickup_type: [], shipping_available: false, meetup_notes: '',
     });
     setSubmitError('');
   };
@@ -818,14 +810,6 @@ function DetailsForm({
             <PickupTypeChips
               value={form.pickup_type}
               onChange={(next) => setForm({ ...form, pickup_type: next })}
-            />
-          </div>
-
-          <div style={styles.field}>
-            <ScoutToggles
-              scoutNeeded={form.scout_needed}
-              scoutsAvailable={form.scouts_available}
-              onChange={(v) => setForm({ ...form, scout_needed: v.scout_needed, scouts_available: v.scouts_available })}
             />
           </div>
 

@@ -16,7 +16,6 @@ import { canDeletePost, deletePost, marketplaceListingToDeletable } from '../lib
 import { followUser, unfollowUser, checkIsFollowing, attachProfiles } from '../lib/database';
 import { getOrCreateConversation } from '../lib/messaging';
 import { saveListing, unsaveListing, isListingSaved } from '../lib/savedListings';
-import { createScoutRequest, hasOpenScoutRequest } from '../lib/scouts';
 import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 import { blockUser, isUserBlocked } from '../lib/blocks';
 import { shareWithImage } from '../lib/shareWithImage';
@@ -26,8 +25,6 @@ type FullListing = MarketplaceListing & {
   description?: string | null;
   general_location?: string | null;
   marketplace_found?: string | null;
-  scout_needed?: boolean | null;
-  scouts_available?: boolean | null;
   profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'> | null;
 };
 
@@ -44,9 +41,7 @@ export default function ListingDetail() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [following, setFollowing] = useState(false);
-  const [scoutSent, setScoutSent] = useState(false);
   const [messaging, setMessaging] = useState(false);
-  const [scouting, setScouting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [imageZoomed, setImageZoomed] = useState(false);
@@ -86,14 +81,13 @@ export default function ListingDetail() {
     return () => { cancelled = true; };
   }, [id]);
 
-  // ---- hydrate per-user state (saved/following/scout) ------------------
+  // ---- hydrate per-user state (saved/following/block) ------------------
   useEffect(() => {
     if (!id || !user || !listing) return;
     let cancelled = false;
     isListingSaved(user.id, id, LISTING_KIND).then((v) => { if (!cancelled) setSaved(v); });
     if (listing.seller_id && listing.seller_id !== user.id) {
       checkIsFollowing(user.id, listing.seller_id).then((v) => { if (!cancelled) setFollowing(v); });
-      hasOpenScoutRequest(id, LISTING_KIND, user.id).then((v) => { if (!cancelled) setScoutSent(v); });
       isUserBlocked(user.id, listing.seller_id).then((v) => { if (!cancelled) setBlocked(v); });
     }
     return () => { cancelled = true; };
@@ -244,24 +238,6 @@ export default function ListingDetail() {
     navigate(`/messages/${conversationId}`);
   };
 
-  const handleScout = async () => {
-    if (!user) { showToast('Sign in to request a scout'); return; }
-    if (!listing?.seller_id || listing.seller_id === user.id) return;
-    if (scoutSent || scouting) return;
-    setScouting(true);
-    const { error } = await createScoutRequest({
-      listingId: listing.id,
-      listingKind: LISTING_KIND,
-      sellerId: listing.seller_id,
-      requesterId: user.id,
-      listingTitle: listing.title,
-    });
-    setScouting(false);
-    if (error) { showToast(error); return; }
-    setScoutSent(true);
-    showToast('Scout request sent');
-  };
-
   const handleDelete = async () => {
     if (!listing || deleting) return;
     const ok = window.confirm('Delete this listing? This cannot be undone.');
@@ -351,7 +327,6 @@ export default function ListingDetail() {
             }
           />
           <div style={styles.heroBadgeStack}>
-            {listing.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
             {listing.profiles?.scout_verified && <Badge variant="verified" icon={Shield}>Verified Seller</Badge>}
           </div>
           {priceStr && (
@@ -396,7 +371,6 @@ export default function ListingDetail() {
                 <span style={styles.uploaderName}>@{username}</span>
                 <span style={styles.uploaderSub}>
                   {listing.profiles.treasure_rank || 'Hunter'}
-                  {listing.profiles.scout_verified ? ' • Verified' : ''}
                 </span>
               </div>
               <ArrowLeft size={18} style={{ transform: 'rotate(180deg)', color: 'var(--color-neutral-400)' }} />
@@ -452,13 +426,6 @@ export default function ListingDetail() {
                   label={messaging ? 'Opening…' : 'Message Seller'}
                   disabled={messaging || !listing.seller_id}
                   onClick={handleMessage}
-                />
-                <ActionButton
-                  icon={Eye}
-                  label={scoutSent ? 'Scout Requested' : (scouting ? 'Sending…' : 'Scout This Item')}
-                  active={scoutSent}
-                  disabled={scoutSent || scouting || !listing.seller_id}
-                  onClick={handleScout}
                 />
                 <ActionButton
                   icon={following ? UserCheck : UserPlus}

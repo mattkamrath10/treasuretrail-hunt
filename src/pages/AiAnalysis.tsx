@@ -24,7 +24,6 @@ import {
 export type AiActionKey =
   | 'post_flash_finds'
   | 'share_rare_radar'
-  | 'send_scouts'
   | 'save_analysis'
   | 'watch_trends'
   | 'share';
@@ -73,7 +72,6 @@ const CONDITIONS: { key: ConditionKey; label: string; desc: string }[] = [
 const ACTIONS: { key: AiActionKey; label: string; description: string; Icon: typeof Zap; color: string }[] = [
   { key: 'post_flash_finds', label: 'Post to Flash Finds', description: 'Share with the community feed', Icon: Zap,       color: 'var(--color-primary-600)'   },
   { key: 'share_rare_radar', label: 'Share to Rare Radar', description: 'Add as a reference for hunters',  Icon: Eye,       color: 'var(--color-secondary-600)' },
-  { key: 'send_scouts',      label: 'Send to Scouts',      description: 'Request local pickup help',       Icon: Send,      color: 'var(--color-accent-600)'    },
   { key: 'save_analysis',    label: 'Save Analysis',       description: 'Keep this for later editing',     Icon: Bookmark,  color: 'var(--color-success-600)'   },
   { key: 'watch_trends',     label: 'Watch Trends',        description: 'Track this category over time',   Icon: BarChart3, color: 'var(--color-warning-600)'   },
   { key: 'share',            label: 'Share',               description: 'Native share / copy link',        Icon: Share2,    color: 'var(--color-neutral-700)'   },

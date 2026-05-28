@@ -7,8 +7,6 @@ interface Props {
   marketplaceFound?: string | null;
   pickupType?: string[] | null;
   shippingAvailable?: boolean;
-  scoutNeeded?: boolean;
-  scoutsAvailable?: boolean;
   meetupNotes?: string | null;
   hasPrivateAddress?: boolean;
   addressRevealPolicy?: string | null;
@@ -27,8 +25,6 @@ export default function LogisticsBlock(props: Props) {
     marketplaceFound,
     pickupType,
     shippingAvailable,
-    scoutNeeded,
-    scoutsAvailable,
     meetupNotes,
     hasPrivateAddress,
     addressRevealPolicy,
@@ -42,8 +38,6 @@ export default function LogisticsBlock(props: Props) {
     !generalLocation &&
     !marketplaceLabel &&
     !hasPickup &&
-    !scoutNeeded &&
-    !scoutsAvailable &&
     !meetupNotes &&
     !hasPrivateAddress;
   if (isEmpty) return null;
@@ -81,21 +75,6 @@ export default function LogisticsBlock(props: Props) {
               {pickupList.map((p) => (
                 <span key={p} style={st.chip}>{getPickupTypeLabel(p)}</span>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {(scoutNeeded || scoutsAvailable) && (
-        <div style={st.row}>
-          <div style={st.iconCol}>
-            <Truck size={14} style={{ color: 'var(--color-warning-500)' }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <span style={st.label}>Scouts</span>
-            <div style={st.chipRow}>
-              {scoutNeeded && <span style={{ ...st.chip, ...st.chipWarn }}>Scout needed</span>}
-              {scoutsAvailable && <span style={{ ...st.chip, ...st.chipGreen }}>Scouts available</span>}
             </div>
           </div>
         </div>

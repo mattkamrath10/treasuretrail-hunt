@@ -367,7 +367,7 @@ function FeedView({
           <div style={styles.emptyState}>
             <Search size={32} style={{ color: 'var(--color-neutral-300)', marginBottom: 12 }} />
             <p style={styles.emptyTitle}>No active hunts yet</p>
-            <p style={styles.emptySub}>Be the first — post what you're looking for and scouts will find it for you.</p>
+            <p style={styles.emptySub}>Be the first — post what you're looking for and sellers will reach out.</p>
           </div>
         )}
 
@@ -466,14 +466,10 @@ function FeedView({
                 <button
                   onClick={() => navigate('/messages')}
                   style={styles.scoutBtn}
-                  aria-label={`Offer to scout ${item.title}`}
+                  aria-label={`Message about ${item.title}`}
                 >
-                  <span>Scout This</span>
+                  <span>I Have This</span>
                 </button>
-              </div>
-
-              <div style={styles.scoutCountRow}>
-                <span style={styles.scoutCount}>{item.scouts} scouts watching</span>
               </div>
             </article>
           );
@@ -894,7 +890,7 @@ function MatchesView({ onBack }: { onBack: () => void }) {
           fontSize: 'var(--font-size-sm)',
           lineHeight: 1.5,
         }}>
-          AI match suggestions arrive here once your hunts attract scout activity.
+          AI match suggestions arrive here once your hunts get matches.
           Post a hunt to get started.
         </div>
 
@@ -1194,15 +1190,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-0)',
-  },
-  scoutCountRow: {
-    marginTop: 'var(--space-2)',
-    paddingTop: 'var(--space-2)',
-    borderTop: '1px solid var(--color-neutral-50)',
-  },
-  scoutCount: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-400)',
   },
   trendingSection: {
     marginBottom: 'var(--space-4)',

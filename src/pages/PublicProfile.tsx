@@ -336,7 +336,7 @@ export default function PublicProfile() {
         <div style={s.ctaCard}>
           <Shield size={24} style={{ color: 'var(--color-primary-500)', marginBottom: 8 }} />
           <p style={s.ctaTitle}>Join TreasureTrail</p>
-          <p style={s.ctaSub}>Discover hidden treasures, follow scouts, and build your own collection.</p>
+          <p style={s.ctaSub}>Discover hidden treasures, follow sellers, and build your own collection.</p>
           <button onClick={() => navigate('/')} style={s.ctaBtn}>Get Started Free</button>
         </div>
       </div>

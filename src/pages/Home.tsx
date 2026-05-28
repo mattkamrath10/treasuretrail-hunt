@@ -651,10 +651,7 @@ export default function Home() {
           <TooltipBtn onClick={() => navigate('/events')} btnStyle={styles.eventsBtn} label="Events" desc="Estate sales and local events">
             <Calendar size={14} style={{ color: 'var(--color-success-600)' }} />
           </TooltipBtn>
-          <TooltipBtn onClick={() => navigate('/scout-map')} btnStyle={styles.mapBtn} label="Scout Map" desc="See activity near you on the map">
-            <MapPin size={16} style={{ color: 'var(--color-secondary-600)' }} />
-          </TooltipBtn>
-          <TooltipBtn onClick={() => navigate('/auctions')} btnStyle={styles.auctionBtn} label="Auction Radar" desc="Discover live auctions and scout opportunities">
+          <TooltipBtn onClick={() => navigate('/auctions')} btnStyle={styles.auctionBtn} label="Auction Radar" desc="Discover live auctions in your area">
             <Gavel size={16} style={{ color: 'var(--color-primary-600)' }} />
           </TooltipBtn>
         </div>
@@ -928,7 +925,7 @@ export default function Home() {
                 />
                 <div style={styles.badgeStack}>
                   {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
-                  {p.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
+                  
                 </div>
                 {p.marketplace_found && (
                   <div style={styles.priceBadgeWrap}>
@@ -1161,7 +1158,7 @@ function MarketplaceCard({
         />
         <div style={styles.badgeStack}>
           {marketplaceLabel && <Badge variant="marketplace">{marketplaceLabel}</Badge>}
-          {listing.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
+          
         </div>
         {priceDisplay && (
           <span style={styles.priceBadge}>{priceDisplay}</span>
@@ -1258,13 +1255,6 @@ const FEATURES = [
     desc: 'Discover live Whatnot streams, HiBid auctions, Poshmark listings, and estate sales in one feed.',
   },
   {
-    icon: Users,
-    color: 'var(--color-success-600)',
-    bg: 'var(--color-success-50)',
-    title: 'Scout Network',
-    desc: 'Hire local scouts to inspect or pick up items for you, or offer your own scout services.',
-  },
-  {
     icon: ShoppingBag,
     color: 'var(--color-error-500)',
     bg: 'var(--color-error-50)',
@@ -1288,11 +1278,6 @@ const COMPARISONS = [
     feature: 'AI valuation',
     tt: 'Instant AI estimates help you decide on the spot.',
     others: 'Manual research required outside the platform.',
-  },
-  {
-    feature: 'Community scouts',
-    tt: 'Hire local scouts to inspect or pick up items for you.',
-    others: 'No scouting network. You\'re on your own.',
   },
   {
     feature: 'Flip culture',
@@ -2174,7 +2159,7 @@ function ExternalListingCard({ listing, index, onClick }: { listing: ExternalLis
       )}
 
       <div style={{ ...styles.cardActions, paddingTop: 'var(--space-2)' }}>
-        {listing.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
+        
         {listing.ships_available && <Badge variant="shipping">Ships</Badge>}
         <button onClick={onClick} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary-600)', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}>
           <ExternalLink size={12} />

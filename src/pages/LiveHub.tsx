@@ -4,8 +4,8 @@ import {
   ArrowLeft, Gavel, X, Clock, ExternalLink,
   Upload, ToggleLeft, ToggleRight, ChevronDown,
   Search, SlidersHorizontal, MapPin, Calendar,
-  Truck, Package, UserCheck, AlertCircle, ChevronRight,
-  Store, Users, Bell, BellOff,
+  Truck, Package, ChevronRight,
+  Store, Zap, Bell, BellOff, Loader2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -16,12 +16,16 @@ import LocationFields, { isValidGeneralLocation, type LocationValue } from '../c
 import { HostEventCTA } from '../components/HostEventCTA';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
-import ScoutToggles from '../components/listing/ScoutToggles';
 import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
 import { GuestOverlay } from '../components/GuestGate';
 import { PageScroll } from '../components/ui/PageScroll';
+import { fetchMyEvents } from '../lib/events';
+import type { EventRow } from '../lib/events';
+import { startBoostPurchase } from '../lib/payments';
+import { isBoosted, boostExpiresInLabel } from '../lib/boost';
+import { flashToast } from '../lib/toast';
 import {
   effectiveStartMs, deriveStatus, statusBadges, formatScheduleRange,
   formatStartCountdown, formatEndCountdown, durationMs, formatDuration,
@@ -42,7 +46,6 @@ interface ExternalListing {
   image_url: string | null;
   start_at: string | null;
   ends_at: string | null;
-  scout_needed: boolean;
   ships_available: boolean;
   status: string;
   created_at: string;
@@ -246,7 +249,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   const [showFilters,      setShowFilters]      = useState(false);
   const [showAddPlatform,  setShowAddPlatform]  = useState(false);
   const [showUploadEvent,  setShowUploadEvent]  = useState(false);
-  const [showScouts,       setShowScouts]       = useState(false);
+  const [showBoost,        setShowBoost]        = useState(false);
   const [selectedListing,  setSelectedListing]  = useState<ExternalListing | null>(null);
   const [uploadBanner,     setUploadBanner]     = useState(false);
 
@@ -400,9 +403,15 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
             <Store size={14} style={{ color: 'var(--color-primary-600)' }} />
             <span style={st.actionBtnLabel2}>Add Marketplace</span>
           </button>
-          <button onClick={() => setShowScouts(true)} style={st.actionBtnSecondaryFlex}>
-            <Users size={14} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={st.actionBtnLabel2}>Scouts</span>
+          <button
+            onClick={() => {
+              if (!user) { navigate('/login'); return; }
+              setShowBoost(true);
+            }}
+            style={st.actionBtnBoost}
+          >
+            <Zap size={14} style={{ color: '#1a1208' }} />
+            <span style={st.actionBtnBoostLabel}>Boost Event</span>
           </button>
         </div>
       </div>
@@ -478,7 +487,6 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
         <EventDetailModal
           listing={selectedListing}
           onClose={() => setSelectedListing(null)}
-          onScout={() => { setSelectedListing(null); navigate('/scout-map'); }}
         />
       )}
       {showFilters && (
@@ -529,8 +537,11 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           }}
         />
       )}
-      {showScouts && (
-        <ScoutsModal onClose={() => setShowScouts(false)} />
+      {showBoost && user && (
+        <BoostPickerModal
+          userId={user.id}
+          onClose={() => setShowBoost(false)}
+        />
       )}
     </PageScroll>
   );
@@ -611,11 +622,8 @@ function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: 
 
         {listing.category && <span style={st.categoryTag}>{listing.category}</span>}
 
-        {/* Scout & logistics badges */}
+        {/* Logistics badges */}
         <div style={st.badgeRow}>
-          {listing.scout_needed && (
-            <span style={st.badgeScout}><AlertCircle size={9} />Scout Needed</span>
-          )}
           {listing.ships_available ? (
             <span style={st.badgeShips}><Truck size={9} />Ships</span>
           ) : (
@@ -633,10 +641,9 @@ function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: 
 
 // ─── Event detail modal ───────────────────────────────────────────────────────
 
-function EventDetailModal({ listing, onClose, onScout }: {
+function EventDetailModal({ listing, onClose }: {
   listing: ExternalListing;
   onClose: () => void;
-  onScout: () => void;
 }) {
   const { user } = useAuth();
   const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
@@ -768,9 +775,8 @@ function EventDetailModal({ listing, onClose, onScout }: {
             </button>
           )}
 
-          {/* Scout & logistics badges */}
+          {/* Logistics badges */}
           <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' as const, marginBottom: 'var(--space-4)' }}>
-            {listing.scout_needed && <span style={st.badgeScout}><AlertCircle size={10} />Scout Needed</span>}
             {listing.ships_available
               ? <span style={st.badgeShips}><Truck size={10} />Shipping Available</span>
               : <span style={st.badgeLocal}><Package size={10} />Local Pickup Only</span>}
@@ -782,8 +788,6 @@ function EventDetailModal({ listing, onClose, onScout }: {
               marketplaceFound={(listing as ExternalListing & Record<string, unknown>).marketplace_found as string}
               pickupType={(listing as ExternalListing & Record<string, unknown>).pickup_type as string[]}
               shippingAvailable={listing.ships_available}
-              scoutNeeded={listing.scout_needed}
-              scoutsAvailable={(listing as ExternalListing & Record<string, unknown>).scouts_available as boolean}
               meetupNotes={(listing as ExternalListing & Record<string, unknown>).meetup_notes as string}
               hasPrivateAddress={Boolean((listing as ExternalListing & Record<string, unknown>).exact_address_private)}
               addressRevealPolicy={(listing as ExternalListing & Record<string, unknown>).address_reveal_policy as string}
@@ -794,18 +798,6 @@ function EventDetailModal({ listing, onClose, onScout }: {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
             <ReportListingButton table="external_listings" listingId={listing.id} />
-          </div>
-
-          {/* Scout action buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-            <button onClick={onScout} style={det.scoutOfferBtn}>
-              <UserCheck size={16} style={{ color: 'var(--color-neutral-0)' }} />
-              <span style={det.scoutBtnText}>Offer Scout Services</span>
-            </button>
-            <button onClick={onScout} style={det.pickupBtn}>
-              <MapPin size={16} style={{ color: 'var(--color-primary-600)' }} />
-              <span style={det.pickupBtnText}>Need Pickup Help</span>
-            </button>
           </div>
 
           {/* View external listing — guard against missing/invalid URLs
@@ -928,13 +920,13 @@ function FilterDrawer({ dateFilter, setDateFilter, customDate, setCustomDate, so
 
 interface PlatformForm {
   platform_name: string; website_url: string; description: string;
-  platform_type: string; shipping_supported: boolean; scout_friendly: boolean; logo_url: string;
+  platform_type: string; shipping_supported: boolean; logo_url: string;
 }
 
 function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
   const [form, setForm] = useState<PlatformForm>({
     platform_name: '', website_url: '', description: '', platform_type: 'marketplace',
-    shipping_supported: false, scout_friendly: false, logo_url: '',
+    shipping_supported: false, logo_url: '',
   });
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState('');
@@ -954,7 +946,7 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
     const { error: err } = await supabase.from('platform_submissions').insert({
       platform_name: form.platform_name.trim(), website_url: form.website_url.trim() || null,
       description: form.description.trim() || null, platform_type: form.platform_type,
-      shipping_supported: form.shipping_supported, scout_friendly: form.scout_friendly,
+      shipping_supported: form.shipping_supported,
       logo_url: form.logo_url.trim() || null, submitted_by: userId ?? null,
     });
     setSaving(false);
@@ -999,12 +991,6 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
                 {form.shipping_supported ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
               </button>
             </div>
-            <div style={mo.toggleItem}>
-              <span style={mo.toggleLabel}>Scout Friendly</span>
-              <button onClick={() => set('scout_friendly', !form.scout_friendly)} style={mo.toggleBtn}>
-                {form.scout_friendly ? <ToggleRight size={28} style={{ color: 'var(--color-warning-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
-              </button>
-            </div>
           </div>
           {error && <p style={mo.errorText}>{error}</p>}
           {success && <p style={mo.successText}>{success}</p>}
@@ -1025,7 +1011,7 @@ interface EventForm {
   start_date: string; start_time: string;
   end_date: string;   end_time: string;
   same_day: boolean; multi_day: boolean; no_end_time: boolean;
-  scout_needed: boolean; ships_available: boolean;
+  ships_available: boolean;
 }
 
 function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: (created?: ExternalListing) => void }) {
@@ -1034,13 +1020,12 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
     price_display: '', category: '', image_url: '',
     start_date: '', start_time: '', end_date: '', end_time: '',
     same_day: true, multi_day: false, no_end_time: false,
-    scout_needed: false, ships_available: false,
+    ships_available: false,
   });
   const [loc, setLoc] = useState<LocationValue>({
     general_location: '', exact_address_private: '', address_reveal_policy: 'on_contact',
   });
   const [pickupType, setPickupType] = useState<string[]>([]);
-  const [scoutsAvailable, setScoutsAvailable] = useState(false);
   const [meetupNotes, setMeetupNotes] = useState('');
   const [marketplaceKey, setMarketplaceKey] = useState('');
   const [marketplaceCustom, setMarketplaceCustom] = useState('');
@@ -1164,7 +1149,6 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       image_url: form.image_url.trim() || null,
       start_at: startIso,
       ends_at: endIso,
-      scout_needed: form.scout_needed,
       ships_available: shipping,
       local_pickup: pickupType.includes('local_pickup') || !shipping,
       status: 'active',
@@ -1173,7 +1157,6 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
       exact_address_private: loc.exact_address_private.trim() || null,
       address_reveal_policy: loc.address_reveal_policy,
       pickup_type: pickupType,
-      scouts_available: scoutsAvailable,
       meetup_notes: meetupNotes.trim() || null,
       marketplace_found: marketplaceValue,
     };
@@ -1371,14 +1354,6 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
             <PickupTypeChips value={pickupType} onChange={setPickupType} />
           </div>
 
-          <div style={{ marginTop: 12 }}>
-            <ScoutToggles
-              scoutNeeded={form.scout_needed}
-              scoutsAvailable={scoutsAvailable}
-              onChange={(v) => { set('scout_needed', v.scout_needed); setScoutsAvailable(v.scouts_available); }}
-            />
-          </div>
-
           <label style={{ ...mo.label, marginTop: 12 }}>Meetup Notes (optional)</label>
           <textarea
             style={{ ...mo.input, minHeight: 60, fontFamily: 'inherit' as const, resize: 'vertical' as const }}
@@ -1403,71 +1378,147 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
   );
 }
 
-// ─── Scouts modal ─────────────────────────────────────────────────────────────
+// ─── Boost picker modal ───────────────────────────────────────────────────────
+// Lets the user pick one of their hosted events and run the mocked $3 / 72h
+// boost from Phase 1. Payments are MOCKED via lib/payments.ts; Stripe is a
+// Phase 2 swap behind startBoostPurchase. Routing-to-login is handled by the
+// caller — this modal is only mounted when a user session exists.
+function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [err, setErr] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-const SCOUT_OPTIONS = [
-  { icon: UserCheck, label: 'Offer Scout Services', sub: 'Let buyers know you can scout locally', color: 'var(--color-success-600)', bg: 'var(--color-success-50)', border: 'var(--color-success-200)' },
-  { icon: MapPin,    label: 'Need Pickup Help',      sub: 'Request a local scout for pickup or inspection', color: 'var(--color-primary-600)', bg: 'var(--color-primary-50)', border: 'var(--color-primary-200)' },
-  { icon: Truck,     label: 'Shipping Coordination', sub: 'Connect with shippers for remote purchases', color: 'var(--color-secondary-600)', bg: 'var(--color-secondary-50)', border: 'var(--color-secondary-200)' },
-  { icon: Package,   label: 'Local Sourcing Help',   sub: 'Find resellers who know the local market', color: 'var(--color-warning-600)', bg: 'var(--color-warning-50)', border: 'var(--color-warning-200)' },
-];
+  const reload = async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const rows = await fetchMyEvents(userId);
+      setEvents(rows);
+    } catch (e: any) {
+      setErr(e?.message ?? 'Could not load your events.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-function ScoutsModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => { reload(); }, [userId]);
+
+  const handleBoost = async (event: EventRow) => {
+    if (isBoosted(event)) return;
+    setBusyId(event.id);
+    const res = await startBoostPurchase({ targetKind: 'event', targetId: event.id });
+    setBusyId(null);
+    if (!res.ok) {
+      flashToast(`Boost failed: ${res.error}`, 'error');
+      return;
+    }
+    flashToast('Boost active for 72 hours.', 'success');
+    await reload();
+  };
+
   return (
     <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={mo.sheet}>
         <div style={mo.handle} />
         <div style={mo.header}>
-          <span style={mo.title}>Scout Coordination</span>
+          <span style={mo.title}>Boost an Event</span>
           <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
         </div>
         <div style={mo.body}>
-          <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-500)', lineHeight: 1.5, marginBottom: 'var(--space-4)' }}>
-            Connect with local scouts, arrange pickup help, and coordinate sourcing assistance for live events and auctions.
-          </p>
+          <ul style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 'var(--space-4)', paddingLeft: 18 }}>
+            <li style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)', lineHeight: 1.5 }}>Boost for 72h</li>
+            <li style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)', lineHeight: 1.5 }}>Appear higher in Discover/Live feeds</li>
+            <li style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)', lineHeight: 1.5 }}>Increase visibility to nearby buyers</li>
+          </ul>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            {SCOUT_OPTIONS.map(({ icon: Icon, label, sub, color, bg, border }) => (
-              <button
-                key={label}
-                disabled
-                title="Coming soon"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-                  padding: '14px var(--space-4)', borderRadius: 'var(--radius-lg)',
-                  backgroundColor: bg, border: `1.5px solid ${border}`, width: '100%', textAlign: 'left',
-                  opacity: 0.55, cursor: 'not-allowed',
-                }}
-              >
-                <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', backgroundColor: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Icon size={17} style={{ color: '#fff' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-neutral-900)', marginBottom: '2px' }}>{label}</p>
-                  <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', lineHeight: 1.3 }}>{sub}</p>
-                </div>
-                <ChevronRight size={16} style={{ color: 'var(--color-neutral-300)', flexShrink: 0 }} />
-              </button>
-            ))}
-          </div>
+          {loading && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '24px 0', color: 'var(--color-neutral-500)' }}>
+              <Loader2 size={16} className="spin" />
+              <span style={{ fontSize: 'var(--font-size-sm)' }}>Loading your events…</span>
+            </div>
+          )}
 
-          <div style={{ marginTop: 'var(--space-5)', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)' }}>
-            <p style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-neutral-700)', marginBottom: 'var(--space-2)' }}>
-              About Scout Coordination
-            </p>
-            <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', lineHeight: 1.5 }}>
-              Scouts are local resellers who can inspect items, attend auctions on your behalf, coordinate local pickup, or help ship items you win remotely. Mark events as "Scout Needed" when uploading to attract available scouts in the area.
-            </p>
-          </div>
+          {!loading && err && (
+            <p style={mo.errorText}>{err}</p>
+          )}
 
-          <button onClick={onClose} style={{ ...mo.submitBtn, marginTop: 'var(--space-4)', background: 'var(--color-neutral-800)' }}>
-            Got It
-          </button>
+          {!loading && !err && events.length === 0 && (
+            <div style={{ padding: '24px 0', textAlign: 'center' as const }}>
+              <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-neutral-700)', marginBottom: 6 }}>You don't host any events yet.</p>
+              <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', lineHeight: 1.5 }}>
+                Publish an event from your seller dashboard, then come back to boost it.
+              </p>
+            </div>
+          )}
+
+          {!loading && !err && events.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              {events.map((ev) => {
+                const active = isBoosted(ev);
+                const remaining = boostExpiresInLabel(ev);
+                const busy = busyId === ev.id;
+                return (
+                  <div
+                    key={ev.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                      padding: '12px var(--space-3)', borderRadius: 'var(--radius-lg)',
+                      backgroundColor: 'var(--color-neutral-0)',
+                      border: '1px solid var(--color-neutral-150)',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-neutral-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {ev.title || 'Untitled event'}
+                      </p>
+                      <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: 2 }}>
+                        {ev.city || ev.location || 'Location TBD'}
+                      </p>
+                    </div>
+                    {active ? (
+                      <span style={boostPicker.activePill}>
+                        <Zap size={11} style={{ color: '#fbbf24' }} /> Boosted{remaining ? ` · ${remaining}` : ''}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleBoost(ev)}
+                        disabled={busy}
+                        style={{ ...boostPicker.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
+                      >
+                        {busy ? <Loader2 size={13} className="spin" /> : <Zap size={13} />}
+                        Boost — $3 / 72h
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
+const boostPicker: Record<string, React.CSSProperties> = {
+  boostBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '9px 14px', minHeight: 40, borderRadius: 999,
+    background: 'linear-gradient(135deg, #fbbf24, #f59e0b 55%, #d97706)',
+    color: '#1a1208', border: '1px solid rgba(251,191,36,0.55)',
+    fontSize: 12, fontWeight: 800, flexShrink: 0,
+    boxShadow: '0 4px 12px rgba(251, 191, 36, 0.25)',
+  },
+  activePill: {
+    display: 'inline-flex', alignItems: 'center', gap: 5,
+    padding: '7px 11px', borderRadius: 999,
+    background: 'rgba(251, 191, 36, 0.12)',
+    border: '1px solid rgba(251, 191, 36, 0.35)',
+    color: '#b45309', fontSize: 11, fontWeight: 700, flexShrink: 0,
+  },
+};
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -1504,6 +1555,8 @@ const st: Record<string, React.CSSProperties> = {
   actionRow: { display: 'flex', gap: 'var(--space-2)' },
   actionBtnSecondaryFlex: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', minHeight: 44, padding: '10px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-200)', cursor: 'pointer' },
   actionBtnLabel2: { fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary-700)' },
+  actionBtnBoost: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', minHeight: 44, padding: '10px 12px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, #fbbf24, #f59e0b 55%, #d97706)', border: '1.5px solid rgba(251,191,36,0.55)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(251, 191, 36, 0.25)' },
+  actionBtnBoostLabel: { fontSize: 'var(--font-size-xs)', fontWeight: 800, color: '#1a1208' },
 
   resultsBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px var(--space-4)', flexShrink: 0 },
   resultsText: { fontSize: '11px', color: 'var(--color-neutral-400)' },
@@ -1532,7 +1585,6 @@ const st: Record<string, React.CSSProperties> = {
   cardTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-900)', lineHeight: 1.4, marginBottom: '6px' },
   categoryTag: { display: 'inline-block', fontSize: '10px', color: 'var(--color-secondary-700)', backgroundColor: 'var(--color-secondary-50)', padding: '2px 7px', borderRadius: '4px', marginBottom: '7px' },
   badgeRow: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '6px' },
-  badgeScout: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: 'var(--color-warning-700)', backgroundColor: 'var(--color-warning-50)', padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--color-warning-200)' },
   badgeShips: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: 'var(--color-success-700)', backgroundColor: 'var(--color-success-50)', padding: '2px 7px', borderRadius: '4px' },
   badgeLocal: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: 'var(--color-neutral-600)', backgroundColor: 'var(--color-neutral-100)', padding: '2px 7px', borderRadius: '4px' },
   badgeTimer: { display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--color-error-600)', fontWeight: 600 },
@@ -1541,10 +1593,6 @@ const st: Record<string, React.CSSProperties> = {
 };
 
 const det: Record<string, React.CSSProperties> = {
-  scoutOfferBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-success-500), var(--color-success-700))', cursor: 'pointer' },
-  scoutBtnText: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: '#fff' },
-  pickupBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-300)', cursor: 'pointer' },
-  pickupBtnText: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-primary-700)' },
   viewBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-neutral-100)', fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-neutral-800)', textDecoration: 'none' },
 };
 

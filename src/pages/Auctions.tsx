@@ -17,7 +17,6 @@ import { MediaFallback } from '../components/ui/MediaFallback';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
-import ScoutToggles from '../components/listing/ScoutToggles';
 import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
@@ -42,7 +41,6 @@ interface ExternalListing {
   start_at: string | null;
   ends_at: string | null;
   location: string;
-  scout_needed: boolean;
   status: string;
   created_at: string;
   profiles?: { username: string | null; scout_verified: boolean };
@@ -70,7 +68,6 @@ const TYPE_CHIPS = [
 const EXTRA_CHIPS = [
   { id: 'local',    label: 'Local Pickup' },
   { id: 'ships',    label: 'Ships Available' },
-  { id: 'scout',    label: 'Scout Needed' },
 ];
 
 const CATEGORIES = ['All', 'Fashion', 'Collectibles', 'Electronics', 'Furniture', 'Jewelry', 'Art', 'Watches', 'Books'];
@@ -206,7 +203,6 @@ function HubFeed({
       if (categoryFilter !== 'All' && l.category.toLowerCase() !== categoryFilter.toLowerCase()) return false;
       if (extraFilter === 'local' && !l.local_pickup) return false;
       if (extraFilter === 'ships' && !l.ships_available) return false;
-      if (extraFilter === 'scout' && !l.scout_needed) return false;
       return true;
     })
     .slice()
@@ -415,9 +411,6 @@ function ExternalListingCard({
             {listing.local_pickup && (
               <span style={st.pickupBadge}><Package size={9} /> Pickup</span>
             )}
-            {listing.scout_needed && (
-              <span style={st.scoutBadge}><Users size={9} /> Scout Needed</span>
-            )}
           </div>
           <span style={st.cardBy}>@{listing.profiles?.username ?? 'hunter'}</span>
         </div>
@@ -435,10 +428,6 @@ function ListingDetail({
   onBack: () => void;
   onListingUpdate: (l: ExternalListing) => void;
 }) {
-  const { user } = useAuth();
-  const [scoutLoading, setScoutLoading] = useState(false);
-  const [offerSent, setOfferSent] = useState(false);
-
   const plat = getPlatform(listing.platform);
   const displayLabel = listing.platform === 'other' && listing.platform_label
     ? listing.platform_label
@@ -446,23 +435,6 @@ function ListingDetail({
   const isAuctionType = listing.listing_type === 'live_stream' || listing.listing_type === 'auction';
 
   const openListing = () => window.open(listing.external_url, '_blank', 'noopener,noreferrer');
-
-  const handleScoutNeeded = async () => {
-    if (!user) return;
-    setScoutLoading(true);
-    const { data } = await supabase
-      .from('external_listings')
-      .update({ scout_needed: true })
-      .eq('id', listing.id)
-      .select()
-      .maybeSingle();
-    setScoutLoading(false);
-    if (data) onListingUpdate(data as ExternalListing);
-  };
-
-  const handleOfferScout = () => {
-    setOfferSent(true);
-  };
 
   return (
     <div style={st.container}>
@@ -572,9 +544,6 @@ function ListingDetail({
 
           <div style={st.detailBy}>
             <span style={st.detailByText}>Shared by @{listing.profiles?.username ?? 'hunter'}</span>
-            {listing.profiles?.scout_verified && (
-              <span style={st.verifiedBadge}>Verified Scout</span>
-            )}
           </div>
 
           <div style={st.actionBlock}>
@@ -597,8 +566,6 @@ function ListingDetail({
               marketplaceFound={(listing as ExternalListing & Record<string, unknown>).marketplace_found as string}
               pickupType={(listing as ExternalListing & Record<string, unknown>).pickup_type as string[]}
               shippingAvailable={listing.ships_available}
-              scoutNeeded={listing.scout_needed}
-              scoutsAvailable={(listing as ExternalListing & Record<string, unknown>).scouts_available as boolean}
               meetupNotes={(listing as ExternalListing & Record<string, unknown>).meetup_notes as string}
               hasPrivateAddress={Boolean((listing as ExternalListing & Record<string, unknown>).exact_address_private)}
               addressRevealPolicy={(listing as ExternalListing & Record<string, unknown>).address_reveal_policy as string}
@@ -611,39 +578,6 @@ function ListingDetail({
             <ReportListingButton table="external_listings" listingId={listing.id} />
           </div>
 
-          <div style={st.scoutBlock}>
-            <h3 style={st.scoutBlockTitle}>Scout Coordination</h3>
-            <p style={st.scoutBlockDesc}>
-              Need someone local to inspect, bid in-person, or pick up this item?
-            </p>
-            <div style={st.scoutBtnRow}>
-              {!listing.scout_needed ? (
-                <button
-                  onClick={handleScoutNeeded}
-                  disabled={scoutLoading}
-                  style={st.needScoutBtn}
-                >
-                  {scoutLoading
-                    ? <Loader size={14} style={{ animation: 'spin 0.8s linear infinite' }} />
-                    : <Users size={14} />}
-                  I Need a Scout
-                </button>
-              ) : (
-                <span style={st.scoutNeededPill}>
-                  <Users size={12} /> Scout Requested
-                </span>
-              )}
-
-              {!offerSent ? (
-                <button onClick={handleOfferScout} style={st.offerScoutBtn}>
-                  <Users size={14} />
-                  Offer Scout Services
-                </button>
-              ) : (
-                <span style={st.offerSentPill}>Scout offer sent!</span>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -677,12 +611,10 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     multi_day: false,
     no_end_time: false,
     location: '',
-    scout_needed: false,
     general_location: '',
     exact_address_private: '',
     address_reveal_policy: 'on_contact' as 'on_contact' | 'on_appointment' | 'on_purchase' | 'never',
     pickup_type: [] as string[],
-    scouts_available: false,
     meetup_notes: '',
     marketplace_key: '',
     marketplace_custom: '',
@@ -743,13 +675,11 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         start_at: startIso,
         ends_at: endIso,
         location: form.general_location || form.location.trim(),
-        scout_needed: form.scout_needed,
         status: 'active',
         general_location: form.general_location,
         exact_address_private: form.exact_address_private.trim() || null,
         address_reveal_policy: form.address_reveal_policy,
         pickup_type: form.pickup_type,
-        scouts_available: form.scouts_available,
         meetup_notes: form.meetup_notes.trim() || null,
         marketplace_found: marketplaceValue,
       })
@@ -1033,14 +963,6 @@ function SubmitSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                     set('ships_available', next.includes('shipping_available') || next.includes('nationwide_shipping'));
                     set('local_pickup', next.includes('local_pickup'));
                   }}
-                />
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <ScoutToggles
-                  scoutNeeded={form.scout_needed}
-                  scoutsAvailable={form.scouts_available}
-                  onChange={(v) => { set('scout_needed', v.scout_needed); set('scouts_available', v.scouts_available); }}
                 />
               </div>
 
@@ -1398,17 +1320,6 @@ const st: Record<string, React.CSSProperties> = {
     backgroundColor: 'var(--color-warning-50)',
     color: 'var(--color-warning-700)',
   },
-  scoutBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '3px',
-    padding: '2px 7px',
-    borderRadius: 'var(--radius-full)',
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-medium)',
-    backgroundColor: 'var(--color-primary-50)',
-    color: 'var(--color-primary-700)',
-  },
   cardBy: {
     fontSize: 'var(--font-size-xs)',
     color: 'var(--color-neutral-400)',
@@ -1601,82 +1512,6 @@ const st: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
     width: '100%',
-  },
-  scoutBlock: {
-    backgroundColor: 'var(--color-primary-50)',
-    border: '1px solid var(--color-primary-100)',
-    borderRadius: 'var(--radius-lg)',
-    padding: '16px',
-  },
-  scoutBlockTitle: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-primary-900)',
-    marginBottom: '4px',
-  },
-  scoutBlockDesc: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-primary-700)',
-    marginBottom: '14px',
-    lineHeight: '1.5',
-  },
-  scoutBtnRow: {
-    display: 'flex',
-    gap: '10px',
-    flexWrap: 'wrap',
-  },
-  needScoutBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '10px 16px',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--color-primary-600)',
-    color: 'var(--color-neutral-0)',
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  scoutNeededPill: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px',
-    padding: '10px 16px',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--color-success-50)',
-    color: 'var(--color-success-700)',
-    border: '1px solid var(--color-success-200)',
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  offerScoutBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '10px 16px',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--color-neutral-0)',
-    color: 'var(--color-primary-700)',
-    border: '1px solid var(--color-primary-300)',
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  offerSentPill: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '10px 16px',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--color-success-50)',
-    color: 'var(--color-success-700)',
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    flex: 1,
   },
 };
 

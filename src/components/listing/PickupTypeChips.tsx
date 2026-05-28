@@ -1,10 +1,9 @@
-import { Truck, Package, Users, MapPin, Globe, Calendar } from 'lucide-react';
+import { Package, Users, MapPin, Globe, Calendar } from 'lucide-react';
 
 export const PICKUP_TYPES = [
   { id: 'local_pickup',              label: 'Local Pickup',             icon: MapPin },
   { id: 'shipping_available',        label: 'Shipping Available',       icon: Package },
   { id: 'meetup_only',               label: 'Meetup Only',              icon: Users },
-  { id: 'scout_delivery_available',  label: 'Scout Delivery',           icon: Truck },
   { id: 'nationwide_shipping',       label: 'Nationwide Shipping',      icon: Globe },
   { id: 'appointment_required',      label: 'Appointment Required',     icon: Calendar },
 ] as const;

@@ -32,12 +32,11 @@ interface Challenge {
 
 const badges: Badge[] = [
   { id: '1', label: 'First Find', description: 'Post your first discovery', icon: Zap, tier: 'bronze', earned: false },
-  { id: '2', label: '10 Successful Scouts', description: 'Complete 10 scout missions', icon: Users, tier: 'silver', earned: false, progress: 0, maxProgress: 10 },
   { id: '3', label: 'Auction Winner', description: 'Win your first auction', icon: Trophy, tier: 'bronze', earned: false },
   { id: '4', label: 'Rare Item Hunter', description: 'Find an item with 9+ rarity score', icon: Eye, tier: 'gold', earned: false },
   { id: '5', label: 'Estate Sale Expert', description: 'Complete 25 estate sale finds', icon: MapPin, tier: 'silver', earned: false, progress: 0, maxProgress: 25 },
   { id: '6', label: 'Luxury Watch Specialist', description: 'Identify 5 luxury watches', icon: Clock, tier: 'gold', earned: false, progress: 0, maxProgress: 5 },
-  { id: '7', label: 'Trusted Scout', description: 'Maintain 4.8+ rating for 30 days', icon: Shield, tier: 'platinum', earned: false },
+  { id: '7', label: 'Top Seller', description: 'Maintain 4.8+ rating for 30 days', icon: Shield, tier: 'platinum', earned: false },
   { id: '8', label: 'Fast Responder', description: 'Average response time under 15 min', icon: Clock, tier: 'silver', earned: false },
   { id: '9', label: 'Top Flipper', description: 'Achieve $5,000+ in flip profits', icon: TrendingUp, tier: 'gold', earned: false, progress: 0, maxProgress: 5000 },
   { id: '10', label: 'Power Collector', description: 'Save 100 items to collection', icon: Star, tier: 'platinum', earned: false, progress: 0, maxProgress: 100 },
@@ -45,7 +44,7 @@ const badges: Badge[] = [
 
 const challenges: Challenge[] = [
   { id: '1', title: 'Daily Discovery', description: 'Post 1 Flash Find today', xp: 50, progress: 0, total: 1, type: 'daily', timeLeft: '18h' },
-  { id: '2', title: 'Scout Streak', description: 'Complete 3 pickups this week', xp: 200, progress: 0, total: 3, type: 'weekly', timeLeft: '4d' },
+  { id: '2', title: 'Sale Streak', description: 'Make 3 sales this week', xp: 200, progress: 0, total: 3, type: 'weekly', timeLeft: '4d' },
   { id: '3', title: 'Auction Hunter', description: 'Win 2 auctions this week', xp: 300, progress: 0, total: 2, type: 'weekly', timeLeft: '4d' },
   { id: '4', title: 'Market Maven', description: 'Save 10 items from AI analysis', xp: 150, progress: 0, total: 10, type: 'weekly', timeLeft: '4d' },
   { id: '5', title: 'Summer Treasure Hunt', description: 'Find 20 items at estate sales this season', xp: 1000, progress: 0, total: 20, type: 'seasonal', timeLeft: '62d' },

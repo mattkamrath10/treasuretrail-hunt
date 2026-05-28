@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 export type BadgeVariant =
   | 'neutral'
   | 'marketplace'
-  | 'scout'
+  | 'boost'
   | 'shipping'
   | 'pickup'
   | 'verified'
@@ -15,7 +15,7 @@ export type BadgeVariant =
 const VARIANT_STYLES: Record<BadgeVariant, { bg: string; fg: string }> = {
   neutral:     { bg: 'var(--color-neutral-100)',   fg: 'var(--color-neutral-700)'   },
   marketplace: { bg: 'var(--color-accent-50)',     fg: 'var(--color-accent-700)'    },
-  scout:       { bg: 'var(--color-warning-500)',   fg: '#ffffff'                    },
+  boost:       { bg: 'var(--color-warning-500)',   fg: '#ffffff'                    },
   shipping:    { bg: 'var(--color-success-50)',    fg: 'var(--color-success-700)'   },
   pickup:      { bg: 'var(--color-success-50)',    fg: 'var(--color-success-700)'   },
   verified:    { bg: 'var(--color-primary-50)',    fg: 'var(--color-primary-700)'   },

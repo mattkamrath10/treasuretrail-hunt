@@ -4,7 +4,7 @@ import { ArrowLeft, Shield, TriangleAlert as AlertTriangle, Flag, CircleCheck as
 type SafetyView = 'hub' | 'report' | 'trust' | 'disputes' | 'admin' | 'education';
 
 type ReportStep = 'reason' | 'details' | 'confirm';
-type ReportReason = 'scam' | 'fake_listing' | 'fake_scout' | 'harassment' | 'spam' | 'counterfeit' | 'noshow' | 'misleading_ai' | 'suspicious';
+type ReportReason = 'scam' | 'fake_listing' | 'harassment' | 'spam' | 'counterfeit' | 'noshow' | 'misleading_ai' | 'suspicious';
 
 interface DisputeCase {
   id: string;
@@ -18,7 +18,6 @@ interface DisputeCase {
 const reportReasons: { id: ReportReason; label: string; icon: typeof Flag }[] = [
   { id: 'scam', label: 'Scam Attempt', icon: AlertTriangle },
   { id: 'fake_listing', label: 'Fake Listing', icon: Package },
-  { id: 'fake_scout', label: 'Fake Scout', icon: Users },
   { id: 'harassment', label: 'Harassment', icon: MessageCircle },
   { id: 'spam', label: 'Spam', icon: Flag },
   { id: 'counterfeit', label: 'Counterfeit Item', icon: Shield },
@@ -30,11 +29,9 @@ const reportReasons: { id: ReportReason; label: string; icon: typeof Flag }[] = 
 const disputeCases: DisputeCase[] = [
   { id: 'D-1042', type: 'Item Not Received', status: 'investigating', title: 'Rolex Submariner order #TT-28491', date: 'May 14, 2026' },
   { id: 'D-1038', type: 'Wrong Item Shipped', status: 'resolved', title: 'Danish Teak Credenza', date: 'May 10, 2026', resolution: 'Full refund issued' },
-  { id: 'D-1035', type: 'Scout No-Show', status: 'resolved', title: 'Pickup request #SC-892', date: 'May 8, 2026', resolution: 'Scout suspended, credit issued' },
 ];
 
 const verificationBadges = [
-  { id: 'scout', label: 'Verified Scout', desc: 'Complete 10 successful pickups', progress: 100, earned: true },
   { id: 'seller', label: 'Verified Seller', desc: '20+ sales with 4.5+ rating', progress: 100, earned: true },
   { id: 'pickup', label: 'Pickup Verified', desc: 'ID confirmed for local meetups', progress: 75, earned: false },
   { id: 'highvalue', label: 'High-Value Trusted', desc: 'Handle $5k+ items successfully', progress: 60, earned: false },
@@ -167,7 +164,6 @@ function SafetyHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v:
           <h3 style={st.sectionTitle}>Marketplace Safety Labels</h3>
           <div style={st.labelsGrid}>
             <SafetyLabel icon={Zap} label="AI Authenticated" color="var(--color-primary-500)" />
-            <SafetyLabel icon={Users} label="Scout Verified" color="var(--color-accent-500)" />
             <SafetyLabel icon={MapPin} label="Safe Meetup Zone" color="var(--color-success-500)" />
             <SafetyLabel icon={Shield} label="Verified Seller" color="var(--color-secondary-500)" />
             <SafetyLabel icon={Lock} label="Buyer Protected" color="var(--color-warning-600)" />
@@ -476,7 +472,7 @@ function DisputeCenter({ onBack }: { onBack: () => void }) {
         <div style={st.section}>
           <h3 style={st.sectionTitle}>File a New Dispute</h3>
           <div style={st.disputeTypes}>
-            {['Item Not Received', 'Wrong Item Shipped', 'Damaged Item', 'Scout No-Show', 'Pickup Failed', 'Counterfeit Dispute'].map((t) => (
+            {['Item Not Received', 'Wrong Item Shipped', 'Damaged Item', 'Pickup Failed', 'Counterfeit Dispute'].map((t) => (
               <button
                 key={t}
                 style={st.disputeTypeBtn}
@@ -548,11 +544,6 @@ function AdminDashboard({ onBack }: { onBack: () => void }) {
               <div style={st.integrityBar}><div style={{ ...st.integrityBarFill, width: '99%', backgroundColor: 'var(--color-secondary-500)' }} /></div>
             </div>
             <div style={st.integrityItem}>
-              <span style={st.integrityVal}>342</span>
-              <span style={st.integrityLbl}>Trusted Scout Activity</span>
-              <div style={st.integrityBar}><div style={{ ...st.integrityBarFill, width: '85%', backgroundColor: 'var(--color-primary-500)' }} /></div>
-            </div>
-            <div style={st.integrityItem}>
               <span style={st.integrityVal}>1.8h</span>
               <span style={st.integrityLbl}>Avg Resolution Time</span>
               <div style={st.integrityBar}><div style={{ ...st.integrityBarFill, width: '90%', backgroundColor: 'var(--color-accent-500)' }} /></div>
@@ -610,7 +601,6 @@ function SafetyEducation({ onBack }: { onBack: () => void }) {
     { title: 'Safe Auction Tips', desc: 'Coordinate auction pickups and payments securely', icon: Shield, color: 'var(--color-secondary-500)' },
     { title: 'Local Pickup Safety', desc: 'Best practices for meeting sellers in person', icon: MapPin, color: 'var(--color-success-500)' },
     { title: 'High-Value Item Safety', desc: 'Extra precautions for luxury and rare items', icon: Star, color: 'var(--color-primary-500)' },
-    { title: 'Working with Scouts', desc: 'How to verify and coordinate safely with scouts', icon: Users, color: 'var(--color-accent-500)' },
   ];
 
   return (
@@ -652,7 +642,6 @@ function SafetyEducation({ onBack }: { onBack: () => void }) {
             <div style={st.checkRow}><CheckCircle size={14} style={{ color: 'var(--color-success-500)' }} /><span style={st.checkText}>Use AI authentication for high-value items</span></div>
             <div style={st.checkRow}><CheckCircle size={14} style={{ color: 'var(--color-success-500)' }} /><span style={st.checkText}>Meet in designated Safe Meetup Zones</span></div>
             <div style={st.checkRow}><CheckCircle size={14} style={{ color: 'var(--color-success-500)' }} /><span style={st.checkText}>Report suspicious listings immediately</span></div>
-            <div style={st.checkRow}><CheckCircle size={14} style={{ color: 'var(--color-success-500)' }} /><span style={st.checkText}>Use Scout Verified inspections for luxury items</span></div>
           </div>
         </div>
       </div>

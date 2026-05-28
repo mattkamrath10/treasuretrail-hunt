@@ -178,11 +178,6 @@ export default function FindDetail() {
     if (uname) navigate(`/profile/${uname}`);
   };
 
-  const handleScout = () => {
-    if (!post?.scout_needed) return;
-    navigate('/rare-radar');
-  };
-
   const handleDelete = async () => {
     if (!post || deleting) return;
     const ok = window.confirm('Delete this find? This cannot be undone.');
@@ -291,7 +286,6 @@ export default function FindDetail() {
           />
           <div style={styles.heroBadgeStack}>
             {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
-            {post.scout_needed && <Badge variant="scout">Scout Needed</Badge>}
           </div>
           {post.marketplace_found && (
             <div style={styles.heroSourceBadge}>
@@ -336,7 +330,6 @@ export default function FindDetail() {
                 <span style={styles.uploaderName}>@{username}</span>
                 <span style={styles.uploaderSub}>
                   {post.profiles?.treasure_rank || 'Hunter'}
-                  {post.profiles?.scout_verified ? ' • Verified Scout' : ''}
                 </span>
               </div>
               <ArrowLeft size={18} style={{ transform: 'rotate(180deg)', color: 'var(--color-neutral-400)' }} />
@@ -414,13 +407,6 @@ export default function FindDetail() {
               disabled
               hint="Coming Soon"
               onClick={() => {}}
-            />
-            <ActionButton
-              icon={Eye}
-              label="Scout This Item"
-              disabled={!post.scout_needed}
-              hint={post.scout_needed ? undefined : 'Not requested'}
-              onClick={handleScout}
             />
             <ActionButton
               icon={Bookmark}

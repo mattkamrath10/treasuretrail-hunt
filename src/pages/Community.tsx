@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   ArrowLeft, Heart, MessageCircle, Share2, Bookmark,
-  MapPin, Users, Plus,
+  MapPin, Plus,
   Search, Camera,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -16,12 +16,11 @@ type CommunityView = 'feed' | 'create' | 'discover' | 'profile' | 'stories';
 interface FeedPost {
   id: string;
   user: { name: string; handle: string; rank: string; avatar: string; verified: boolean };
-  type: 'find' | 'flip' | 'auction_win' | 'collection' | 'scout_story' | 'sale';
+  type: 'find' | 'flip' | 'auction_win' | 'collection' | 'sale';
   image: string;
   caption: string;
   tags: string[];
   location?: string;
-  scoutAssisted?: boolean;
   rarity?: number;
   estimatedValue?: string;
   likes: number;
@@ -140,7 +139,6 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
               caption: rp.caption,
               tags: rp.tags || [],
               location: rp.location || undefined,
-              scoutAssisted: rp.scout_assisted,
               rarity: rp.rarity_score || undefined,
               estimatedValue: rp.estimated_value ? `$${rp.estimated_value.toLocaleString()}` : undefined,
               likes: rp.like_count,
@@ -186,11 +184,11 @@ async function sharePost(post: FeedPost) {
 function FeedCard({ post, onLike, onSave }: { post: FeedPost; onLike: () => void; onSave: () => void }) {
   const typeLabels: Record<string, string> = {
     find: 'Rare Find', flip: 'Flip Win', auction_win: 'Auction Win',
-    collection: 'Collection', scout_story: 'Scout Story', sale: 'Sold',
+    collection: 'Collection', sale: 'Sold',
   };
   const typeColors: Record<string, string> = {
     find: 'var(--color-primary-500)', flip: 'var(--color-success-500)', auction_win: 'var(--color-error-500)',
-    collection: 'var(--color-secondary-500)', scout_story: 'var(--color-accent-500)', sale: 'var(--color-warning-600)',
+    collection: 'var(--color-secondary-500)', sale: 'var(--color-warning-600)',
   };
 
   return (
@@ -274,9 +272,6 @@ function FeedCard({ post, onLike, onSave }: { post: FeedPost; onLike: () => void
           {post.location && (
             <span style={s.postLocation}><MapPin size={10} /> {post.location}</span>
           )}
-          {post.scoutAssisted && (
-            <span style={s.postScoutBadge}><Users size={10} /> Scout Assisted</span>
-          )}
         </div>
       </div>
     </div>
@@ -297,7 +292,6 @@ function CreatePost({ onBack }: { onBack: () => void }) {
     { id: 'flip', label: 'Flip Win' },
     { id: 'auction_win', label: 'Auction' },
     { id: 'collection', label: 'Collection' },
-    { id: 'scout_story', label: 'Scout Story' },
     { id: 'sale', label: 'For Sale' },
   ];
 
@@ -311,7 +305,7 @@ function CreatePost({ onBack }: { onBack: () => void }) {
       caption: caption.trim(),
       tags: tagArray,
       for_sale: postType === 'sale',
-      scout_assisted: postType === 'scout_story',
+      scout_assisted: false,
       category: selectedCat.toLowerCase(),
       location: postLocation.trim() || undefined,
       general_location: postLocation.trim() || undefined,
@@ -392,10 +386,6 @@ function CreatePost({ onBack }: { onBack: () => void }) {
           <div style={s.createToggleRow}>
             <span style={s.createToggleLabel}>For Sale</span>
             <div style={s.toggle}><div style={s.toggleKnob} /></div>
-          </div>
-          <div style={s.createToggleRow}>
-            <span style={s.createToggleLabel}>Scout Assisted</span>
-            <div style={{ ...s.toggle, backgroundColor: 'var(--color-primary-500)' }}><div style={{ ...s.toggleKnob, transform: 'translateX(14px)' }} /></div>
           </div>
           <div style={s.createToggleRow}>
             <span style={s.createToggleLabel}>Show Estimated Value</span>
@@ -539,7 +529,6 @@ const s: Record<string, React.CSSProperties> = {
   postTag: { fontSize: '10px', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-primary-600)' },
   postLocationRow: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)' },
   postLocation: { display: 'flex', alignItems: 'center', gap: '2px', fontSize: '10px', color: 'var(--color-neutral-400)' },
-  postScoutBadge: { display: 'flex', alignItems: 'center', gap: '2px', fontSize: '10px', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-accent-600)', backgroundColor: 'var(--color-accent-50)', padding: '1px 6px', borderRadius: 'var(--radius-full)' },
 
   // FAB
   fab: { position: 'absolute', bottom: 'var(--space-4)', right: 'var(--space-4)', width: '52px', height: '52px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(234, 179, 8, 0.4)' },

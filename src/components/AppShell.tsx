@@ -22,7 +22,6 @@ const Alerts = lazy(() => import('../pages/Alerts'));
 const Profile = lazy(() => import('../pages/Profile'));
 const Auctions = lazy(() => import('../pages/Auctions'));
 const Messages = lazy(() => import('../pages/Messages'));
-const ScoutMap = lazy(() => import('../pages/ScoutMap'));
 const Achievements = lazy(() => import('../pages/Achievements'));
 const Marketplace = lazy(() => import('../pages/Marketplace'));
 const Pro = lazy(() => import('../pages/Pro'));
@@ -47,11 +46,6 @@ function MessagesPage() {
   // Single component handles both `/messages` (inbox) and `/messages/:id`
   // (chat) — it branches on useParams() internally.
   return <Messages onBack={() => navigate('/alerts')} />;
-}
-
-function ScoutMapPage() {
-  const navigate = useNavigate();
-  return <ScoutMap onBack={() => navigate('/')} />;
 }
 
 function AchievementsPage() {
@@ -230,7 +224,6 @@ export default function AppShell() {
             <Route path="/wanted/:id" element={<WantedDetail />} />
             <Route path="/rare-radar" element={<RareRadar />} />
             <Route path="/auctions" element={<AuctionsPage />} />
-            <Route path="/scout-map" element={<ScoutMapPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             {/* Dedicated chat view for a single conversation. Same Messages
                 component branches on useParams() to render the chat UI. */}

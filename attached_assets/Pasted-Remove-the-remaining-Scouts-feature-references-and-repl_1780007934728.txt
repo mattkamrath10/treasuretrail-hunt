@@ -1,0 +1,89 @@
+Remove the remaining “Scouts” feature references and replace them with monetization-focused functionality.
+
+Goals:
+
+* TreasureTrail is now a marketplace/discovery/live-events platform, not a scout-network app.
+* Remove leftover beta/UI clutter related to Scouts.
+* Preserve database safety (no destructive drops yet).
+
+Tasks:
+
+1. Remove remaining Scouts UI
+
+* Delete the “Scouts” button/tab from Live Events and any remaining visible navigation.
+* Remove any “Become a Scout” CTA, labels, badges, menu items, placeholder cards, or onboarding references still visible in the frontend.
+* Remove dead imports/components related to Scouts that are no longer used.
+
+2. Replace the Live Events “Scouts” button
+   Replace it with:
+
+* “Boost Event”
+  OR
+* “Promote”
+
+Preferred:
+
+* gold/orange premium styling
+* small lightning bolt or rocket icon
+* should visually match monetization features
+
+3. Boost flow behavior
+   When tapped:
+
+* if user is not logged in:
+
+  * route to login/signup flow
+* if logged in:
+
+  * open the existing boost purchase flow created during Monetization Phase 1
+
+4. Add contextual helper text
+   In the boost modal/page:
+
+* “Boost your event for 72 hours”
+* “Appear higher in Discover and Live feeds”
+* “Increase visibility to nearby buyers”
+
+5. Keep backend safe
+   DO NOT:
+
+* delete scout tables
+* delete scout migrations
+* remove historical data
+
+Only remove frontend exposure and references.
+
+6. Audit remaining occurrences
+   Run a repo-wide search for:
+
+* scout
+* scouts
+* trusted scout
+* scoutApplications
+* scout badge
+
+Remove or replace anything user-facing that still appears.
+
+7. Maintain architecture rules
+
+* Use PageScroll where needed
+* Preserve safe-area insets
+* Preserve sticky headers
+* No overflow regressions
+* No horizontal scrolling
+
+8. Validation
+   Before finishing:
+
+* npm run build
+* tsc --noEmit
+* verify app boots clean
+* verify no broken imports
+* verify Live Events page still scrolls correctly
+* verify Boost CTA works on mobile Safari
+
+Then provide:
+
+* concise summary
+* list of files changed
+* any remaining scout-related backend artifacts intentionally preserved

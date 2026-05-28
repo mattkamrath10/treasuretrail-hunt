@@ -20,7 +20,6 @@ import type { MarketplaceListing } from '../lib/supabase';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
-import ScoutToggles from '../components/listing/ScoutToggles';
 import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
@@ -47,8 +46,6 @@ interface Listing {
   marketplace_found?: string;
   pickup_type?: string[];
   shipping_available?: boolean;
-  scout_needed?: boolean;
-  scouts_available?: boolean;
   meetup_notes?: string;
   has_private_address?: boolean;
   address_reveal_policy?: string;
@@ -127,8 +124,6 @@ function toListingShape(l: MarketplaceListing & Record<string, unknown>): Listin
     marketplace_found: (l.marketplace_found as string) || undefined,
     pickup_type: (l.pickup_type as string[]) || [],
     shipping_available: (l.shipping_available as boolean) ?? undefined,
-    scout_needed: (l.scout_needed as boolean) ?? false,
-    scouts_available: (l.scouts_available as boolean) ?? false,
     meetup_notes: (l.meetup_notes as string) || undefined,
     has_private_address: Boolean(l.exact_address_private),
     address_reveal_policy: (l.address_reveal_policy as string) || undefined,
@@ -187,9 +182,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
     if (activeCategory !== 'All' && item.category !== activeCategory) return false;
     if (activeFilter === 'Local Pickup' && !item.localPickup && !item.pickup_type?.includes('local_pickup')) return false;
     if (activeFilter === 'Shipping' && !item.shipping_available && !item.pickup_type?.includes('shipping_available') && !item.pickup_type?.includes('nationwide_shipping')) return false;
-    if (activeFilter === 'Scout Help' && !item.scout_needed && !item.scouts_available) return false;
     if (activeFilter === 'Auction' && !item.auction) return false;
-    if (activeFilter === 'Scout Verified' && !item.verified) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       const hay = `${item.title} ${item.category} ${item.seller}`.toLowerCase();
@@ -202,7 +195,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
   const hotFinds = filtered.filter((l) => l.image).slice(0, 4);
   const recent = filtered;
 
-  const filters = ['Local Pickup', 'Shipping', 'Scout Help', 'Auction', 'Scout Verified'];
+  const filters = ['Local Pickup', 'Shipping', 'Auction'];
 
   const EmptyState = ({ label }: { label: string }) => (
     <div style={s.emptyState}>
@@ -502,8 +495,6 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
               marketplaceFound={item.marketplace_found}
               pickupType={item.pickup_type}
               shippingAvailable={item.shipping_available}
-              scoutNeeded={item.scout_needed}
-              scoutsAvailable={item.scouts_available}
               meetupNotes={item.meetup_notes}
               hasPrivateAddress={item.has_private_address}
               addressRevealPolicy={item.address_reveal_policy}
@@ -525,10 +516,6 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
             <div style={s.trustItem}>
               <Zap size={14} style={{ color: 'var(--color-primary-500)' }} />
               <span style={s.trustText}>AI Authenticated</span>
-            </div>
-            <div style={s.trustItem}>
-              <Users size={14} style={{ color: 'var(--color-accent-500)' }} />
-              <span style={s.trustText}>Scout Inspection Available</span>
             </div>
           </div>
 
@@ -566,8 +553,6 @@ function CreateListing({ onBack, onPreview }: { onBack: () => void; onPreview: (
   const [pickupType, setPickupType] = useState<string[]>(['local_pickup']);
   const [marketplaceKey, setMarketplaceKey] = useState('');
   const [marketplaceCustom, setMarketplaceCustom] = useState('');
-  const [scoutNeeded, setScoutNeeded] = useState(false);
-  const [scoutsAvailable, setScoutsAvailable] = useState(false);
   const [meetupNotes, setMeetupNotes] = useState('');
   const [auctionEnabled, setAuctionEnabled] = useState(false);
 
@@ -603,8 +588,6 @@ function CreateListing({ onBack, onPreview }: { onBack: () => void; onPreview: (
       address_reveal_policy: loc.address_reveal_policy,
       pickup_type: pickupType,
       shipping_available: shipping,
-      scout_needed: scoutNeeded,
-      scouts_available: scoutsAvailable,
       meetup_notes: meetupNotes.trim() || undefined,
       marketplace_found: marketplaceValue,
     });
@@ -709,14 +692,6 @@ function CreateListing({ onBack, onPreview }: { onBack: () => void; onPreview: (
 
             <div style={s.formGroup}>
               <PickupTypeChips value={pickupType} onChange={setPickupType} />
-            </div>
-
-            <div style={s.formGroup}>
-              <ScoutToggles
-                scoutNeeded={scoutNeeded}
-                scoutsAvailable={scoutsAvailable}
-                onChange={(v) => { setScoutNeeded(v.scout_needed); setScoutsAvailable(v.scouts_available); }}
-              />
             </div>
 
             <div style={s.formGroup}>
@@ -880,7 +855,7 @@ function OfferScreen({ item, onBack }: { item: Listing; onBack: () => void }) {
 }
 
 function CheckoutScreen({ item, onBack, onConfirm }: { item: Listing; onBack: () => void; onConfirm: () => void }) {
-  const [delivery, setDelivery] = useState<'shipping' | 'pickup' | 'scout'>('shipping');
+  const [delivery, setDelivery] = useState<'shipping' | 'pickup'>('shipping');
   return (
     <div style={s.container}>
       <header style={s.header}>
@@ -936,16 +911,6 @@ function CheckoutScreen({ item, onBack, onConfirm }: { item: Listing; onBack: ()
               <div style={s.deliveryOptionInfo}>
                 <span style={s.deliveryOptionTitle}>Local Pickup</span>
                 <span style={s.deliveryOptionDetail}>Free - Brooklyn, NY</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setDelivery('scout')}
-              style={{ ...s.deliveryOption, ...(delivery === 'scout' ? s.deliveryOptionActive : {}) }}
-            >
-              <Users size={16} style={{ color: 'var(--color-accent-500)' }} />
-              <div style={s.deliveryOptionInfo}>
-                <span style={s.deliveryOptionTitle}>Scout Assisted Delivery</span>
-                <span style={s.deliveryOptionDetail}>1-2 days - $35</span>
               </div>
             </button>
           </div>
