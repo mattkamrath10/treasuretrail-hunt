@@ -16,6 +16,7 @@ import { uploadCompressedImage } from '../lib/uploadImage';
 import { toThumbUrl } from '../lib/imageCompress';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { EmptyState } from '../components/ui/EmptyState';
+import { PageScroll } from '../components/ui/PageScroll';
 import { flashToast } from '../lib/toast';
 
 const LOG = '[SELLER_FORM]';
@@ -290,15 +291,15 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
 
   if (!profile) {
     return (
-      <div style={s.container}>
+      <PageScroll style={s.container}>
         <Header onBack={onBack} title={isEdit ? 'Edit event' : 'New event'} />
         <div style={s.loadingWrap}><Loader2 size={22} className="spin" /></div>
-      </div>
+      </PageScroll>
     );
   }
   if (!isHolder) {
     return (
-      <div style={s.container}>
+      <PageScroll style={s.container}>
         <Header onBack={onBack} title="New event" />
         <EmptyState
           icon={Store}
@@ -306,12 +307,12 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
           body="Switch to a host account to create and edit events."
           action={<button onClick={() => navigate('/events')} style={s.primaryBtn}>Go to events</button>}
         />
-      </div>
+      </PageScroll>
     );
   }
 
   return (
-    <div style={s.container}>
+    <PageScroll style={s.container}>
       <Header onBack={onBack} title={isEdit ? 'Edit event' : 'New event'} right={
         isEdit && id ? (
           <button onClick={() => navigate(`/event/${id}`)} style={s.ghostBtn}>
@@ -537,7 +538,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
           </div>
         </>
       )}
-    </div>
+    </PageScroll>
   );
 }
 
@@ -771,13 +772,13 @@ function toLocalInput(iso: string): string {
 const s: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex', flexDirection: 'column',
-    height: '100%', overflowY: 'auto',
     backgroundColor: 'var(--color-neutral-50)',
     paddingBottom: 88,
   },
   header: {
     display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
     padding: 'var(--space-4)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-4))',
     backgroundColor: 'var(--color-neutral-0)',
     borderBottom: '1px solid var(--color-neutral-100)',
     position: 'sticky', top: 0, zIndex: 10,

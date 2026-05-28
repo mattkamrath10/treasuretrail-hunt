@@ -6,6 +6,7 @@ import { createWantedItem, WANTED_CATEGORY_LABEL, type WantedCategory } from '..
 import { uploadCompressedImage } from '../lib/uploadImage';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
+import { PageScroll } from '../components/ui/PageScroll';
 
 const LOG = '[WANTED_FORM]';
 
@@ -90,7 +91,7 @@ export default function WantedForm({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div style={s.page}>
+    <PageScroll style={s.page}>
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn} aria-label="Back"><ArrowLeft size={20} /></button>
         <h1 style={s.headerTitle}>New wanted post</h1>
@@ -181,7 +182,7 @@ export default function WantedForm({ onBack }: { onBack: () => void }) {
           {saving ? 'Posting…' : 'Post wanted item'}
         </button>
       </form>
-    </div>
+    </PageScroll>
   );
 }
 
@@ -196,16 +197,13 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 const s: Record<string, CSSProperties> = {
   page: {
-    height: '100%',
-    overflowY: 'auto',
-    overflowX: 'hidden',
-    WebkitOverflowScrolling: 'touch',
     background: '#0b0b10', color: '#f5f5f7', paddingBottom: 40,
   },
   header: {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '14px 16px',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
     background: 'rgba(11,11,16,0.92)',
     backdropFilter: 'blur(10px)',
     borderBottom: '1px solid rgba(255,255,255,0.06)',
