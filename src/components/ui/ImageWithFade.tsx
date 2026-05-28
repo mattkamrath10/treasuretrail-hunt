@@ -38,10 +38,6 @@ export function ImageWithFade({
     setErrored(false);
   }, [src]);
 
-  if (!currentSrc || errored) {
-    return <>{fallback ?? null}</>;
-  }
-
   const handleError = () => {
     // Log once per failed URL so prod issues are diagnosable from the
     // browser console without us having to reproduce locally.
@@ -54,36 +50,54 @@ export function ImageWithFade({
     setErrored(true);
   };
 
+  const hasImage = !!currentSrc && !errored;
+
+  // Render the `fallback` element as the ALWAYS-ON background layer.
+  // The <img> fades in on top once it loads. This kills the light-mode
+  // shimmer that previously flashed across dark Discover cards while
+  // also guaranteeing "never a blank gray box" — there's always a
+  // branded gradient underneath every media slot.
+  //
+  // If no `fallback` was supplied we keep the legacy shimmer for
+  // backwards-compat with non-dark surfaces.
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', ...containerStyle }}>
-      {!loaded && (
-        <div
-          aria-hidden="true"
-          className="tt-shimmer"
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', ...containerStyle }}>
+      <div style={{ position: 'absolute', inset: 0 }}>
+        {fallback ?? (
+          <div
+            aria-hidden="true"
+            className="tt-shimmer"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(90deg, var(--color-neutral-100) 0px, var(--color-neutral-50) 200px, var(--color-neutral-100) 400px)',
+              backgroundSize: '800px 100%',
+              animation: 'ttShimmer 1.4s ease-in-out infinite',
+            }}
+          />
+        )}
+      </div>
+      {hasImage && (
+        <img
+          src={currentSrc as string}
+          alt={alt}
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={handleError}
+          className="tt-fade"
           style={{
-            position: 'absolute',
-            inset: 0,
-            background:
-              'linear-gradient(90deg, var(--color-neutral-100) 0px, var(--color-neutral-50) 200px, var(--color-neutral-100) 400px)',
-            backgroundSize: '800px 100%',
-            animation: 'ttShimmer 1.4s ease-in-out infinite',
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            ...style,
+            opacity: loaded ? 1 : 0,
+            transition: 'opacity 220ms ease',
           }}
         />
       )}
-      <img
-        src={currentSrc}
-        alt={alt}
-        loading={eager ? 'eager' : 'lazy'}
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-        onError={handleError}
-        className="tt-fade"
-        style={{
-          ...style,
-          opacity: loaded ? 1 : 0,
-          transition: 'opacity 280ms ease',
-        }}
-      />
     </div>
   );
 }

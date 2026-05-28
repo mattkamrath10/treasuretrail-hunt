@@ -17,6 +17,10 @@ export function ensureUiKeyframes() {
     @media (prefers-reduced-motion: reduce) {
       .tt-shimmer, .tt-fade { animation: none !important; transition: none !important; }
     }
+    /* Horizontal scroll rows (Discover): hide native scrollbars while
+       keeping wheel / touch / drag scrolling enabled. */
+    .tt-hscroll { scrollbar-width: none; -ms-overflow-style: none; }
+    .tt-hscroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
   `;
   document.head.appendChild(style);
 }

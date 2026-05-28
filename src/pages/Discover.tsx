@@ -131,6 +131,24 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
   children: React.ReactNode;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
+
+  // Desktop ergonomics: vertical mouse-wheel over a horizontal row
+  // translates to horizontal scroll (Netflix/Whatnot behavior). Touch
+  // and shift+wheel already work natively, so we only intercept the
+  // pure-vertical wheel and only when the row actually overflows.
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY === 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel as EventListener);
+  }, []);
+
   return (
     <section style={s.section}>
       <div style={s.sectionHead}>
@@ -385,12 +403,16 @@ const s: Record<string, CSSProperties> = {
     color: '#fbbf24', fontSize: 12, fontWeight: 700, flexShrink: 0,
   },
   row: {
-    display: 'flex', gap: 12,
-    overflowX: 'auto', overflowY: 'hidden',
+    display: 'flex',
+    flexWrap: 'nowrap',
+    gap: 12,
+    overflowX: 'auto',
+    overflowY: 'hidden',
     padding: '0 16px 4px',
     scrollSnapType: 'x mandatory',
     WebkitOverflowScrolling: 'touch',
-    scrollbarWidth: 'none',
+    overscrollBehaviorX: 'contain',
+    touchAction: 'pan-x pan-y',
   },
   cardLg: {
     flex: '0 0 auto',
