@@ -1,0 +1,83 @@
+Rebuild the membership/pricing page using the attached screenshot as the visual reference.
+
+DO NOT change routing, backend, database, authentication, or any existing app functionality.
+
+ONLY redesign the pricing/membership page UI.
+
+Requirements:
+
+* Mobile-first responsive layout
+* Premium dark charcoal background
+* Gold/orange gradient accents and glowing CTA buttons
+* Smooth modern animations using pure CSS only
+* Keep it lightweight and fast on iPhone/mobile
+
+Pricing Plans:
+
+1. Free Plan — $0
+
+* List one local event
+* Basic event details & photos
+* Appear on local map
+* Save favorites
+
+2. Local Event Boost — $3 per promoted event
+
+* Featured placement on local map
+* Push notifications to nearby buyers
+* Priority placement for 7 days
+* Shareable event flyer
+* Designed for yard sales, estate sales, flea markets, auctions
+
+3. Pro Seller — $10/month
+   (Make this card visually dominant with glowing gold border)
+
+Features:
+
+* Unlimited event & livestream boosts
+* Cross-promote Whatnot, Poshmark Live, and eBay Live shows
+* Personal seller storefront
+* Go-live notifications
+* Sales & reach analytics
+* Priority placement in feeds
+* Built for auction houses, estate sale companies, live sellers, flea market vendors, and online auction sellers
+
+Hero Section Copy:
+
+Headline:
+“Grow your live sales and local events.”
+
+Subheadline:
+“Built for event hosts and live sellers — from driveway yard sales to Whatnot shows. Get more buyers, more views, more foot traffic, and higher bids in real time.”
+
+Add audience tags/chips:
+Estate Sales
+Yard Sales
+Flea Markets
+Auction Houses
+Whatnot
+Poshmark Live
+eBay Live
+
+Design requirements:
+
+* Strong glowing CTA buttons
+* Gold/orange premium aesthetic
+* Smooth hover animations
+* Subtle shimmer/glow effects
+* Modern card design
+* Large mobile-friendly buttons
+* Make the Pro Seller plan the visual focal point
+
+Important:
+
+* Keep existing project structure intact
+* No backend changes
+* No database changes
+* No new dependencies unless absolutely necessary
+* Replace the current pricing page only
+
+After building:
+
+* show me preview screenshots first before publishing
+* then publish the updated pricing page
