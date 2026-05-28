@@ -13,6 +13,12 @@ import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
 import { toThumbUrl } from '../lib/imageCompress';
+import { setPendingIntent } from '../lib/pendingIntent';
+
+// Optional prefilled opener so the recipient sees context immediately
+// instead of an empty bubble. Kept short — the sender can edit before
+// hitting send.
+const DEFAULT_PREFILL = "Hi, I think I may have the item you're looking for.";
 
 // Public route — /wanted/:id. Renders without auth so shared links from
 // Messages / external browsers hydrate cleanly. Auth is only required for
@@ -20,7 +26,7 @@ import { toThumbUrl } from '../lib/imageCompress';
 export default function WantedDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isGuest, exitGuestMode } = useAuth();
   const [item, setItem] = useState<WantedItemWithRequester | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -44,10 +50,29 @@ export default function WantedDetail() {
   const requesterHandle = requester?.username ?? null;
   const isOwner = !!user && !!requester && user.id === requester.id;
 
-  const handleIHaveIt = async () => {
-    if (!user) { showToast('Sign in to message the requester'); return; }
-    if (!requester?.id) { showToast('Requester unavailable'); return; }
+  const handleMessageRequester = async () => {
+    if (!requester?.id || !id) { showToast('Requester unavailable'); return; }
     if (isOwner) { showToast("That's your wanted post"); return; }
+
+    // Unauthenticated visitor (cold deep-link OR guest mode): stash the
+    // intent and bounce to the auth screen. AppShell's resume hook picks
+    // the intent back up once `user` becomes truthy and lands them in the
+    // freshly-created conversation.
+    if (!user) {
+      setPendingIntent({
+        kind: 'message_requester',
+        wantedId: id,
+        requesterId: requester.id,
+        prefill: DEFAULT_PREFILL,
+      });
+      if (isGuest) exitGuestMode();
+      // navigate('/') so App.tsx re-evaluates: publicShare=false → no user
+      // → Login screen renders. Public share paths bypass Login, so we
+      // must leave /wanted/:id for the gate to fire.
+      navigate('/');
+      return;
+    }
+
     setOpening(true);
     const { conversationId, error } = await getOrCreateConversation({
       otherUserId: requester.id,
@@ -60,7 +85,9 @@ export default function WantedDetail() {
       if (requesterHandle) navigate(`/u/${requesterHandle}`);
       return;
     }
-    navigate(`/messages/${conversationId}`);
+    // Pass the prefilled opener via location.state so the composer seeds
+    // its draft once on mount. The user can edit/delete before sending.
+    navigate(`/messages/${conversationId}`, { state: { prefill: DEFAULT_PREFILL } });
   };
 
   const handleViewProfile = () => {
@@ -159,30 +186,39 @@ export default function WantedDetail() {
           )}
         </div>
 
-        <div style={s.ctaRow}>
-          <button
-            onClick={handleIHaveIt}
-            disabled={!requester || isOwner || opening}
-            style={{
-              ...s.primaryCta,
-              opacity: !requester || isOwner ? 0.5 : 1,
-              cursor: !requester || isOwner ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {opening ? <Loader2 size={14} className="spin" /> : <MessageCircle size={14} />}
-            {isOwner ? 'Your post' : 'I Have This Item'}
-          </button>
-          <button
-            onClick={handleViewProfile}
-            disabled={!requester}
-            style={{ ...s.secondaryCta, opacity: requester ? 1 : 0.5, cursor: requester ? 'pointer' : 'not-allowed' }}
-          >
-            <UserCircle2 size={14} /> View Profile
-          </button>
-        </div>
+        {isOwner ? (
+          // Owner can't message themselves — show a muted state-of-affairs
+          // panel instead of a disabled CTA so the page doesn't look broken.
+          <div style={s.ownerNote}>
+            <UserCircle2 size={14} style={{ color: 'rgba(245,245,247,0.55)' }} />
+            <span>This is your request</span>
+          </div>
+        ) : (
+          <div style={s.ctaRow}>
+            <button
+              onClick={handleMessageRequester}
+              disabled={!requester || opening}
+              style={{
+                ...s.primaryCta,
+                opacity: !requester ? 0.5 : 1,
+                cursor: !requester ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {opening ? <Loader2 size={14} className="spin" /> : <MessageCircle size={14} />}
+              Message Requester
+            </button>
+            <button
+              onClick={handleViewProfile}
+              disabled={!requester}
+              style={{ ...s.secondaryCta, opacity: requester ? 1 : 0.5, cursor: requester ? 'pointer' : 'not-allowed' }}
+            >
+              <UserCircle2 size={14} /> View Profile
+            </button>
+          </div>
+        )}
 
-        {!user && requester && (
-          <p style={s.signinHint}>Sign in to message @{requesterHandle ?? 'this user'} directly.</p>
+        {!user && requester && !isOwner && (
+          <p style={s.signinHint}>Sign in to message @{requesterHandle ?? 'this user'} — we'll bring you straight back here.</p>
         )}
       </section>
 
@@ -329,6 +365,13 @@ const s: Record<string, CSSProperties> = {
     background: 'rgba(255,255,255,0.06)',
     color: '#fff', border: '1px solid rgba(255,255,255,0.12)',
     fontSize: 14, fontWeight: 700, cursor: 'pointer',
+  },
+  ownerNote: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    minHeight: 46, padding: '0 16px', borderRadius: 12,
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px dashed rgba(255,255,255,0.12)',
+    color: 'rgba(245,245,247,0.7)', fontSize: 13, fontWeight: 600,
   },
   signinHint: {
     margin: '12px 0 0', fontSize: 12, color: 'rgba(245,245,247,0.55)', textAlign: 'center',

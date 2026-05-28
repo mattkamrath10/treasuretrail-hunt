@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import ProfileSetup from './pages/ProfileSetup';
 import AppShell from './components/AppShell';
+import { readPendingIntent } from './lib/pendingIntent';
 
 // Shared deep links (DMs, social, search) must render the destination
 // page on cold load without forcing Onboarding/Login. We detect public
@@ -47,7 +48,14 @@ function AppContent() {
     );
   }
 
-  if (!hasOnboarded) {
+  // A pending post-auth intent (e.g. "Message Requester" from a cold deep
+  // link on /wanted/:id) must skip the onboarding splash and go straight
+  // to Login/SignUp so the user can finish the action they just started.
+  // Without this, navigate('/') from WantedDetail would land first-time
+  // visitors on Onboarding and the intent would feel abandoned.
+  const hasPendingIntent = typeof window !== 'undefined' && !!readPendingIntent();
+
+  if (!hasOnboarded && !hasPendingIntent) {
     return <Onboarding onComplete={completeOnboarding} />;
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { CSSProperties } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Send, MessageCircle, Loader, Tag,
 } from 'lucide-react';
@@ -168,9 +168,21 @@ function InboxView({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string
 function ConversationView({ conversationId, onBack }: { conversationId: string; onBack: () => void }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [conv, setConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [draft, setDraft] = useState('');
+  // Seed the composer once from navigation state (e.g. "Message Requester"
+  // CTA on WantedDetail passes a friendly opener). We consume the state on
+  // first render and then clear it so a later back/forward doesn't re-seed.
+  const initialPrefill = (location.state as { prefill?: string } | null)?.prefill ?? '';
+  const [draft, setDraft] = useState(initialPrefill);
+  useEffect(() => {
+    if (initialPrefill) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // run once per mount intentionally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -1,7 +1,10 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import BottomNav from './BottomNav';
 import OfflineBanner from './OfflineBanner';
+import { useAuth } from '../context/AuthContext';
+import { readPendingIntent, clearPendingIntent } from '../lib/pendingIntent';
+import { getOrCreateConversation } from '../lib/messaging';
 
 // Route-level code splitting — each page becomes its own chunk so the
 // initial bundle only includes Home + the shell. Other pages stream in
@@ -159,7 +162,59 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
+/**
+ * Resume a pre-auth pending intent once the user becomes authenticated.
+ *
+ * Flow: an unauth visitor on a public share page (e.g. /wanted/:id) taps
+ * "Message Requester" → we stash a PendingIntent in sessionStorage and
+ * bounce them to Login. After they sign in, App.tsx re-renders AppShell
+ * with `user` truthy; this hook fires the deferred action (open or
+ * create the DM thread, then navigate) and clears the intent.
+ *
+ * The ref guard prevents a double-execute if React re-runs the effect
+ * during the same auth flip.
+ */
+function useResumePendingIntent() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const handledRef = useRef(false);
+
+  useEffect(() => {
+    if (!user || handledRef.current) return;
+    const intent = readPendingIntent();
+    if (!intent) return;
+    handledRef.current = true;
+    clearPendingIntent();
+
+    (async () => {
+      if (intent.kind === 'message_requester') {
+        // Owner of the wanted item somehow ended up with this intent (e.g.
+        // signed in as the same account that posted it) — bail to the
+        // wanted page instead of trying to message themselves.
+        if (intent.requesterId === user.id) {
+          navigate(`/wanted/${intent.wantedId}`, { replace: true });
+          return;
+        }
+        const { conversationId, error } = await getOrCreateConversation({
+          otherUserId: intent.requesterId,
+        });
+        if (error || !conversationId) {
+          // Couldn't open chat — drop them back on the wanted page so the
+          // CTA is still there to retry.
+          navigate(`/wanted/${intent.wantedId}`, { replace: true });
+          return;
+        }
+        navigate(`/messages/${conversationId}`, {
+          replace: true,
+          state: intent.prefill ? { prefill: intent.prefill } : undefined,
+        });
+      }
+    })();
+  }, [user, navigate]);
+}
+
 export default function AppShell() {
+  useResumePendingIntent();
   return (
     <div style={styles.container}>
       <OfflineBanner />
