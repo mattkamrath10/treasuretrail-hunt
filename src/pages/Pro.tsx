@@ -1,6 +1,7 @@
 import { useEffect, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Crown, Sparkles } from 'lucide-react';
+import { PageScroll } from '../components/ui/PageScroll';
 
 const KEYFRAME_ID = 'tt-pro-pricing-keyframes';
 
@@ -131,7 +132,7 @@ export default function Pro({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div style={s.page}>
+    <PageScroll style={s.page}>
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn} aria-label="Back">
           <ArrowLeft size={20} />
@@ -171,7 +172,7 @@ export default function Pro({ onBack }: { onBack: () => void }) {
       <p style={s.footnote}>
         Cancel or pause anytime. Boosts charged per promoted event. Pro Seller billed monthly.
       </p>
-    </div>
+    </PageScroll>
   );
 }
 
@@ -264,6 +265,7 @@ const s: Record<string, CSSProperties> = {
     justifyContent: 'space-between',
     gap: 12,
     padding: '14px 16px',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
     background: 'rgba(11, 11, 16, 0.85)',
     backdropFilter: 'blur(10px)',
     borderBottom: '1px solid rgba(255,255,255,0.06)',
