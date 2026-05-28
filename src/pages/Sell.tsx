@@ -1,6 +1,7 @@
 import { type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Radio, Sparkles, Search, ChevronRight } from 'lucide-react';
+import { PageScroll } from '../components/ui/PageScroll';
 
 type Tile = {
   id: string;
@@ -49,7 +50,7 @@ const TILES: Tile[] = [
 export default function Sell({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
   return (
-    <div style={s.page}>
+    <PageScroll style={s.page}>
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn} aria-label="Back">
           <ArrowLeft size={20} />
@@ -86,12 +87,12 @@ export default function Sell({ onBack }: { onBack: () => void }) {
       </div>
 
       <p style={s.footnote}>All posts are free. Boost any event or livestream from <a onClick={() => navigate('/pro')} style={s.link}>Membership</a>.</p>
-    </div>
+    </PageScroll>
   );
 }
 
 const s: Record<string, CSSProperties> = {
-  page: { minHeight: '100%', background: '#0b0b10', color: '#f5f5f7', paddingBottom: 24 },
+  page: { background: '#0b0b10', color: '#f5f5f7', paddingBottom: 24 },
   header: {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',

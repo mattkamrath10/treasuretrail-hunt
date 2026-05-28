@@ -11,6 +11,7 @@ import { MediaFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { PageScroll } from '../components/ui/PageScroll';
 
 export default function Wanted({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export default function Wanted({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <div style={s.page}>
+    <PageScroll style={s.page}>
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn} aria-label="Back"><ArrowLeft size={20} /></button>
         <div style={s.headerTitleWrap}>
@@ -81,7 +82,7 @@ export default function Wanted({ onBack }: { onBack: () => void }) {
           {filtered.map((item) => <WantedCard key={item.id} item={item} />)}
         </div>
       )}
-    </div>
+    </PageScroll>
   );
 }
 
@@ -145,12 +146,7 @@ function WantedCard({ item }: { item: WantedItemWithRequester }) {
 
 const s: Record<string, CSSProperties> = {
   page: {
-    // AppShell's content slot is overflow:hidden, so each page owns
-    // its own scroll. Matches Discover/Home/Events pattern.
-    height: '100%',
-    overflowY: 'auto',
-    overflowX: 'hidden',
-    WebkitOverflowScrolling: 'touch',
+    // PageScroll owns the scroll — this only contributes visual chrome.
     background: '#0b0b10', color: '#f5f5f7', paddingBottom: 24,
   },
   header: {

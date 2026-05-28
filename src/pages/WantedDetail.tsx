@@ -11,6 +11,7 @@ import {
 import { getOrCreateConversation } from '../lib/messaging';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
+import { PageScroll } from '../components/ui/PageScroll';
 import { toThumbUrl } from '../lib/imageCompress';
 
 // Public route — /wanted/:id. Renders without auth so shared links from
@@ -69,16 +70,16 @@ export default function WantedDetail() {
 
   if (loading) {
     return (
-      <div style={s.page}>
+      <PageScroll style={s.page}>
         <Header onBack={() => navigate(-1)} />
         <div style={s.centerFill}><Loader2 size={28} className="spin" style={{ color: '#10b981' }} /></div>
-      </div>
+      </PageScroll>
     );
   }
 
   if (err || !item) {
     return (
-      <div style={s.page}>
+      <PageScroll style={s.page}>
         <Header onBack={() => navigate(-1)} />
         <div style={s.centerFill}>
           <div style={s.emptyCard}>
@@ -88,7 +89,7 @@ export default function WantedDetail() {
             <button onClick={() => navigate('/wanted')} style={s.primaryCta}>Browse wanted items</button>
           </div>
         </div>
-      </div>
+      </PageScroll>
     );
   }
 
@@ -99,7 +100,7 @@ export default function WantedDetail() {
   const displayName = requester?.display_name || requester?.username || null;
 
   return (
-    <div style={s.page}>
+    <PageScroll style={s.page}>
       <Header onBack={() => navigate(-1)} />
 
       <div style={s.hero}>
@@ -186,7 +187,7 @@ export default function WantedDetail() {
       </section>
 
       {toast && <div style={s.toast}>{toast}</div>}
-    </div>
+    </PageScroll>
   );
 }
 
@@ -229,11 +230,7 @@ function AvatarFallback({ initial }: { initial: string }) {
 }
 
 const s: Record<string, CSSProperties> = {
-  page: {
-    height: '100%', overflowY: 'auto', overflowX: 'hidden',
-    WebkitOverflowScrolling: 'touch',
-    background: '#0b0b10', color: '#f5f5f7', paddingBottom: 32,
-  },
+  page: { background: '#0b0b10', color: '#f5f5f7', paddingBottom: 32 },
   header: {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', gap: 10,
@@ -250,7 +247,7 @@ const s: Record<string, CSSProperties> = {
   },
   headerTitle: { margin: 0, fontSize: 16, fontWeight: 800, color: '#fff' },
   centerFill: {
-    minHeight: 'calc(100vh - 60px)',
+    minHeight: '60vh',
     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
   },
   emptyCard: {

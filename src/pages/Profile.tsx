@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
+import { PageScroll } from '../components/ui/PageScroll';
 import { supabase } from '../lib/supabase';
 import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
 import { compressImage } from '../lib/imageCompress';
@@ -68,17 +69,17 @@ export default function Profile() {
 
   if (isGuest) {
     return (
-      <div style={styles.container}>
+      <PageScroll style={styles.container}>
         <GuestOverlay
           title="Your Treasure Profile"
           subtitle="Create a free account to build your TreasureRank, track finds, and connect with collectors."
         />
-      </div>
+      </PageScroll>
     );
   }
 
   return (
-    <div style={styles.container}>
+    <PageScroll style={styles.container}>
       <header style={styles.header}>
         <h1 style={styles.title}>Profile</h1>
         <div style={styles.headerActions}>
@@ -154,7 +155,7 @@ export default function Profile() {
           {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
         </button>
       </div>
-    </div>
+    </PageScroll>
   );
 }
 
@@ -818,13 +819,12 @@ const settingsStyles: Record<string, React.CSSProperties> = {
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
     backgroundColor: 'var(--color-neutral-0)',
   },
   header: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 10,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -882,8 +882,6 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: 'none',
   },
   content: {
-    flex: 1,
-    overflow: 'auto',
     padding: 'var(--space-4)',
   },
 

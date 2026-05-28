@@ -19,6 +19,7 @@ import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
 import { GuestOverlay } from '../components/GuestGate';
+import { PageScroll } from '../components/ui/PageScroll';
 import {
   effectiveStartMs, deriveStatus, statusBadges, formatScheduleRange,
   formatStartCountdown, formatEndCountdown, durationMs, formatDuration,
@@ -306,7 +307,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   ].filter(Boolean).length;
 
   return (
-    <div style={st.container}>
+    <PageScroll style={st.container}>
       {isGuest && (
         <GuestOverlay
           title="Live Events are for members"
@@ -529,7 +530,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
       {showScouts && (
         <ScoutsModal onClose={() => setShowScouts(false)} />
       )}
-    </div>
+    </PageScroll>
   );
 }
 
@@ -1431,9 +1432,9 @@ function ScoutsModal({ onClose }: { onClose: () => void }) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const st: Record<string, React.CSSProperties> = {
-  container: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--color-neutral-0)' },
+  container: { backgroundColor: 'var(--color-neutral-0)' },
 
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
+  header: { position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', backgroundColor: 'var(--color-neutral-0)', flexShrink: 0 },
   backBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-600)' },
   headerCenter: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
   headerTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
@@ -1468,7 +1469,7 @@ const st: Record<string, React.CSSProperties> = {
   resultsText: { fontSize: '11px', color: 'var(--color-neutral-400)' },
   sortLabel: { fontSize: '11px', color: 'var(--color-primary-600)', fontWeight: 600 },
 
-  feed: { flex: 1, overflowY: 'auto', padding: 'var(--space-2) var(--space-4) var(--space-4)' },
+  feed: { padding: 'var(--space-2) var(--space-4) var(--space-4)' },
   successBanner: { flexShrink: 0, margin: '8px 16px 0', padding: '10px 14px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-success-50, #ecfdf5)', color: 'var(--color-success-700, #047857)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', border: '1px solid var(--color-success-200, #a7f3d0)' },
   emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', textAlign: 'center' },
   emptyTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-700)', marginBottom: '6px' },

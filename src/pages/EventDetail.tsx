@@ -14,6 +14,7 @@ import {
 } from '../lib/events';
 import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { MediaFallback } from '../components/ui/MediaFallback';
+import { PageScroll } from '../components/ui/PageScroll';
 import { trackEventView, trackEventClick } from '../lib/eventAnalytics';
 import { isEventSaved, saveEvent, unsaveEvent } from '../lib/eventSaves';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -214,16 +215,16 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
 
   if (loading) {
     return (
-      <div style={s.container}>
+      <PageScroll style={s.container}>
         <Header onBack={onBack} />
         <div style={s.loadingWrap}><Loader2 size={22} className="spin" /></div>
-      </div>
+      </PageScroll>
     );
   }
 
   if (notFound || (!event && !err)) {
     return (
-      <div style={s.container}>
+      <PageScroll style={s.container}>
         <Header onBack={onBack} />
         <EmptyState
           icon={Calendar}
@@ -231,16 +232,16 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
           body="This event may have been removed or isn't published yet."
           action={<button onClick={() => navigate('/events')} style={s.primaryBtn}>Browse events</button>}
         />
-      </div>
+      </PageScroll>
     );
   }
 
   if (err || !event) {
     return (
-      <div style={s.container}>
+      <PageScroll style={s.container}>
         <Header onBack={onBack} />
         <div style={s.errorBanner}>{err ?? 'Failed to load event'}</div>
-      </div>
+      </PageScroll>
     );
   }
 
@@ -268,7 +269,7 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div style={s.container}>
+    <PageScroll style={s.container}>
       <Header onBack={onBack} />
 
       {/* Status banner for draft/cancelled — only the owner sees this; the
@@ -507,7 +508,7 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
       {lightboxIdx != null && items[lightboxIdx] && (
         <Lightbox item={items[lightboxIdx]} onClose={() => setLightboxIdx(null)} />
       )}
-    </div>
+    </PageScroll>
   );
 }
 
@@ -609,8 +610,6 @@ function legacyCopy(text: string): boolean {
 
 const s: Record<string, React.CSSProperties> = {
   container: {
-    display: 'flex', flexDirection: 'column',
-    height: '100%', overflowY: 'auto',
     backgroundColor: 'var(--color-neutral-50)',
     paddingBottom: 'var(--space-6)',
   },

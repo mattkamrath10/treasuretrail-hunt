@@ -10,6 +10,7 @@ import { fetchOpenWantedItemsWithRequesters, WANTED_CATEGORY_LABEL, type WantedI
 import type { CommunityPost } from '../lib/supabase';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
+import { PageScroll } from '../components/ui/PageScroll';
 import { toThumbUrl } from '../lib/imageCompress';
 import { HostEventCTA } from '../components/HostEventCTA';
 import NotificationBell from '../components/NotificationBell';
@@ -58,7 +59,7 @@ export default function Discover() {
   const matchQ = (s: string | null | undefined) => !q || (s ?? '').toLowerCase().includes(q);
 
   return (
-    <div style={s.page}>
+    <PageScroll style={s.page}>
       <header style={s.header}>
         <div style={s.brandRow}>
           <span style={s.brandWord}>TreasureTrail</span>
@@ -128,7 +129,7 @@ export default function Discover() {
       </Section>
 
       <div style={{ height: 24 }} />
-    </div>
+    </PageScroll>
   );
 }
 
@@ -374,12 +375,7 @@ function formatShort(iso: string): string {
 
 const s: Record<string, CSSProperties> = {
   page: {
-    // AppShell wraps every route in a flex container with `overflow:
-    // hidden` on the content slot, so each page MUST own its own
-    // vertical scroll. Without `height:100%` + `overflowY:auto` here
-    // the mouse wheel / trackpad / touch scroll all do nothing.
-    height: '100%',
-    overflowY: 'auto',
+    // PageScroll owns the scroll container — this just adds visual chrome.
     overflowX: 'hidden',
     WebkitOverflowScrolling: 'touch',
     background: 'radial-gradient(900px 500px at 50% -10%, rgba(217, 119, 6, 0.10), transparent 60%), #0b0b10',
