@@ -79,14 +79,23 @@ export type WantedItemWithRequester = WantedItemRow & { requester: WantedRequest
 async function attachRequesters(rows: WantedItemRow[]): Promise<WantedItemWithRequester[]> {
   if (rows.length === 0) return [];
   const ids = Array.from(new Set(rows.map((r) => r.user_id)));
+  // NOTE: the profiles table has `username` + `avatar_url` only — there is
+  // no `display_name` column. Selecting a non-existent column 400s the whole
+  // query and every wanted card silently falls back to "Requester unavailable".
+  // If a display-name field is ever added, add it here AND to WantedRequester.
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, avatar_url')
+    .select('id, username, avatar_url')
     .in('id', ids);
   // Profile fetch is best-effort — a stale or deleted requester just renders
   // the "Requester unavailable" empty state instead of blowing up the card.
   if (error) console.warn('[wanted] requester fetch failed:', error.message);
-  const map = new Map((data ?? []).map((p: any) => [p.id as string, p as WantedRequester]));
+  const map = new Map(
+    (data ?? []).map((p: any) => [
+      p.id as string,
+      { id: p.id, username: p.username ?? null, display_name: null, avatar_url: p.avatar_url ?? null } as WantedRequester,
+    ]),
+  );
   return rows.map((r) => ({ ...r, requester: map.get(r.user_id) ?? null }));
 }
 
