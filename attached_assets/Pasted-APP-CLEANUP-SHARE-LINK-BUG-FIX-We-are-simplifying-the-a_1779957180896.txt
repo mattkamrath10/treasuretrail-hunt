@@ -1,0 +1,86 @@
+APP CLEANUP + SHARE LINK BUG FIX
+
+We are simplifying the app direction and fixing broken mobile profile sharing in one push.
+
+PART 1 — REMOVE SCOUT SYSTEM (FRONTEND ONLY)
+
+The app direction has shifted toward:
+- Discover
+- Live sellers
+- Local events
+- Flash finds
+- Wanted items
+
+The Scout system now feels outdated/confusing and should be removed from the UI.
+
+Requirements:
+1. Remove Scout sections/tabs from Profile
+2. Remove:
+   - Scout application card
+   - Pending review UI
+   - Withdraw application button
+   - Scout badges/references
+3. Remove Scout references from:
+   - navigation
+   - onboarding
+   - menus
+   - profile sections
+4. Replace the empty Profile space with:
+   - recent activity
+   - hosted live events
+   - wanted posts
+   - flash finds
+   - saved items
+5. Keep database tables untouched for now
+6. No destructive migrations
+7. Frontend cleanup only
+
+PART 2 — FIX BROKEN PROFILE SHARE LINKS
+
+Current bug:
+When sharing a profile from mobile, the generated URL downloads a .txt file (example: mattkamrath.txt) instead of opening a real public profile page.
+
+Fix requirements:
+1. Create a public shareable profile route:
+   /profile/:username
+   OR
+   /u/:username
+
+2. Share links should generate URLs like:
+   https://treasuretrail-hunt.com/profile/mattkamrath
+
+3. Public profile pages must work WITHOUT login
+
+4. Public profile page should display:
+   - username
+   - avatar
+   - finds
+   - hosted live events
+   - wanted posts
+   - follower count
+
+5. If profile does not exist:
+   show branded "Profile not found" page
+
+6. Share button behavior:
+   - use navigator.share on mobile when available
+   - fallback copies URL to clipboard
+
+7. Remove ALL .txt generation/download behavior entirely
+
+8. Do NOT break existing logged-in profile behavior
+
+PART 3 — QA / MOBILE CHECKS
+
+Verify:
+- iPhone Safari profile links open correctly
+- Android Chrome profile links open correctly
+- Shared links work in text messages
+- Shared links work in Facebook Messenger
+- No blank screens
+- No download prompts
+- Bottom navigation still works
+- Profile pages scroll properly
+
+Do not deploy partial work.
+Build clean and verify all routes before publish.

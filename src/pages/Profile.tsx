@@ -10,14 +10,8 @@ import { compressImage } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
 import UserFindsGrid from '../components/UserFindsGrid';
 import { BecomeHostCard } from '../components/BecomeHostCard';
-import {
-  fetchMyScoutApplication,
-  submitScoutApplication,
-  withdrawScoutApplication,
-  type ScoutApplication,
-} from '../lib/scoutApplications';
 
-type ProfileTab = 'overview' | 'reputation' | 'activity' | 'scouts';
+type ProfileTab = 'overview' | 'reputation' | 'activity';
 
 type TrustIndicator = { label: string; icon: typeof Shield; earned: boolean };
 
@@ -117,7 +111,7 @@ export default function Profile() {
         <ProfileHeader profile={profile} />
 
         <div style={styles.tabs}>
-          {(['overview', 'reputation', 'activity', 'scouts'] as ProfileTab[]).map((t) => (
+          {(['overview', 'reputation', 'activity'] as ProfileTab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -131,7 +125,6 @@ export default function Profile() {
         {tab === 'overview' && <OverviewTab profile={profile} />}
         {tab === 'reputation' && <ReputationTab profile={profile} />}
         {tab === 'activity' && <ActivityTab />}
-        {tab === 'scouts' && <ScoutsTab />}
 
         {/* Prominent, clearly-labeled Sign Out CTA at the bottom of the
             Profile page. The header has an icon-only sign-out button as
@@ -532,7 +525,7 @@ function ReputationTab({ profile }: { profile: any }) {
         <div style={styles.repPanelHeader}>
           <div style={styles.trustedBadge}>
             <Shield size={20} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={styles.trustedText}>{profile?.scout_verified ? 'Trusted Scout' : 'Building Reputation'}</span>
+            <span style={styles.trustedText}>Building Reputation</span>
           </div>
           <div style={styles.repScoreLarge}>
             <span style={styles.repScoreNum}>{score.toFixed(1)}</span>
@@ -589,258 +582,6 @@ function ActivityTab() {
     </div>
   );
 }
-
-function ScoutsTab() {
-  const { user, profile, refreshProfile } = useAuth();
-  const [app, setApp] = useState<ScoutApplication | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showApply, setShowApply] = useState(false);
-  const [pitch, setPitch] = useState('');
-  const [region, setRegion] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // Refetches the latest scout_application row AND the user's profile.
-  // Both are needed because the apply_scout_verification trigger writes
-  // to profiles.scout_verified server-side on status transitions — so an
-  // admin's approval is invisible to the client until we re-pull profile.
-  //
-  // In-flight guard via a ref prevents the focus + visibilitychange
-  // listeners from firing two concurrent refreshes when a tab returns
-  // to the foreground (both events typically fire back-to-back).
-  const refreshingRef = useRef(false);
-  const refresh = async () => {
-    if (!user || refreshingRef.current) return;
-    refreshingRef.current = true;
-    try {
-      const a = await fetchMyScoutApplication(user.id);
-      setApp(a);
-      await refreshProfile();
-    } finally {
-      refreshingRef.current = false;
-    }
-  };
-
-  useEffect(() => {
-    if (!user) { setLoading(false); return; }
-    let cancelled = false;
-    (async () => {
-      const a = await fetchMyScoutApplication(user.id);
-      if (cancelled) return;
-      setApp(a);
-      setLoading(false);
-      // Always pull a fresh profile on tab open — covers the case where
-      // approval happened in another session / via DB SQL / via an admin
-      // tool while this client was offline.
-      if (a?.status === 'approved' || a?.status === 'declined') {
-        await refreshProfile();
-      } else {
-        // Even with no terminal-status application, refresh so legacy
-        // direct-grant scout_verified flips show up.
-        await refreshProfile();
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user]);
-
-  // Re-sync whenever the tab is brought back to the foreground. This is
-  // what makes "approve in DB → user opens app → badge appears" work
-  // without a manual reload.
-  useEffect(() => {
-    const onFocus = () => { refresh(); };
-    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [user]);
-
-  if (loading) {
-    return (
-      <div style={styles.emptyTabState}>
-        <Loader size={20} style={{ color: 'var(--color-neutral-400)', animation: 'spin 1s linear infinite' }} />
-      </div>
-    );
-  }
-
-  const isVerified = !!profile?.scout_verified;
-
-  if (isVerified) {
-    return (
-      <div style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <Shield size={16} style={{ color: 'var(--color-primary-600)' }} />
-          <h3 style={styles.sectionTitle}>You're a Verified Scout</h3>
-        </div>
-        <p style={styles.emptyTabSub}>
-          Your verified badge appears on your profile and listings.
-        </p>
-      </div>
-    );
-  }
-
-  // Already applied → show status card.
-  if (app && app.status !== 'withdrawn' && app.status !== 'declined') {
-    return (
-      <div style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <Shield size={16} style={{ color: 'var(--color-primary-600)' }} />
-          <h3 style={styles.sectionTitle}>Scout application</h3>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            <Badge variant={app.status === 'approved' ? 'verified' : 'warning'}>
-              {app.status === 'pending' ? 'Pending review' : app.status}
-            </Badge>
-            <span style={styles.emptyTabSub}>
-              Submitted {new Date(app.created_at).toLocaleDateString()}
-            </span>
-          </div>
-          {app.region && (
-            <p style={styles.emptyTabSub}>Region: {app.region}</p>
-          )}
-          {app.pitch && (
-            <p style={{ ...styles.emptyTabSub, whiteSpace: 'pre-wrap' }}>{app.pitch}</p>
-          )}
-          {app.status === 'pending' && (
-            <button
-              onClick={async () => {
-                const { error } = await withdrawScoutApplication(app.id);
-                if (!error) setApp({ ...app, status: 'withdrawn' });
-              }}
-              style={{
-                alignSelf: 'flex-start', marginTop: 'var(--space-2)',
-                padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-neutral-200)',
-                backgroundColor: 'var(--color-neutral-0)',
-                color: 'var(--color-neutral-700)', fontSize: 'var(--font-size-sm)',
-                cursor: 'pointer',
-              }}
-            >
-              Withdraw application
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Not applied (or withdrawn/declined) → show CTA + apply form.
-  return (
-    <div style={styles.section}>
-      <div style={styles.sectionHeader}>
-        <Shield size={16} style={{ color: 'var(--color-primary-600)' }} />
-        <h3 style={styles.sectionTitle}>Become a Verified Scout</h3>
-      </div>
-      <p style={{ ...styles.emptyTabSub, marginBottom: 'var(--space-3)' }}>
-        Scouts help collectors source rare finds and earn a verified badge on
-        their profile. Tell us a bit about your specialties and we'll review.
-      </p>
-      {app && app.status === 'declined' && (
-        <p style={{ ...styles.emptyTabSub, color: 'var(--color-error-600)' }}>
-          Your previous application was declined. You can submit a new one.
-        </p>
-      )}
-      {!showApply ? (
-        <button
-          onClick={() => setShowApply(true)}
-          style={{
-            alignSelf: 'flex-start',
-            padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
-            border: 'none', backgroundColor: 'var(--color-primary-500)',
-            color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)',
-            fontWeight: 'var(--font-weight-bold)', cursor: 'pointer',
-          }}
-        >
-          Apply to be a Scout
-        </button>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)' }}>
-            Region (city or area)
-            <input
-              type="text"
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              maxLength={120}
-              placeholder="e.g. Portland, OR"
-              style={{
-                padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-neutral-200)',
-                fontSize: 'var(--font-size-base)',
-              }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)' }}>
-            Why should you be a Scout? (min 20 chars)
-            <textarea
-              value={pitch}
-              onChange={(e) => setPitch(e.target.value)}
-              maxLength={2000}
-              placeholder="Specialties, experience, the kinds of finds you source…"
-              style={{
-                padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-neutral-200)',
-                fontSize: 'var(--font-size-base)', minHeight: 120, resize: 'vertical',
-                fontFamily: 'inherit',
-              }}
-            />
-          </label>
-          {submitError && (
-            <p style={{ margin: 0, color: 'var(--color-error-600)', fontSize: 'var(--font-size-sm)' }}>
-              {submitError}
-            </p>
-          )}
-          <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
-            <button
-              onClick={() => { setShowApply(false); setSubmitError(null); }}
-              disabled={submitting}
-              style={{
-                padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-neutral-200)',
-                backgroundColor: 'var(--color-neutral-0)',
-                color: 'var(--color-neutral-700)', fontSize: 'var(--font-size-sm)',
-                fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                if (!user) return;
-                setSubmitting(true);
-                setSubmitError(null);
-                const { application, error } = await submitScoutApplication({
-                  applicantId: user.id,
-                  pitch,
-                  region,
-                });
-                setSubmitting(false);
-                if (error) { setSubmitError(error); return; }
-                setApp(application);
-                setShowApply(false);
-                setPitch(''); setRegion('');
-              }}
-              disabled={submitting}
-              style={{
-                padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
-                border: 'none', backgroundColor: 'var(--color-primary-500)',
-                color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)',
-                fontWeight: 'var(--font-weight-bold)', cursor: 'pointer',
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
-              {submitting ? 'Submitting…' : 'Submit application'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { profile, updateProfile } = useAuth();

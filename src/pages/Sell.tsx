@@ -40,7 +40,7 @@ const TILES: Tile[] = [
     id: 'wanted',
     icon: Search,
     title: 'Wanted post',
-    desc: 'Tell sellers and scouts exactly what you\'re looking for.',
+    desc: 'Tell sellers exactly what you\'re looking for.',
     accent: '#10b981',
     to: '/sell/wanted',
   },

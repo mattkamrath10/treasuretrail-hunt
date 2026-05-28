@@ -28,7 +28,7 @@ const slides: Slide[] = [
   {
     icon: Radar,
     title: 'Find What You\'re Looking For',
-    description: 'Post items you want and let our network of scouts help you find them in the wild.',
+    description: 'Post items you want and let local sellers and collectors help you find them.',
     color: 'var(--color-secondary-500)',
   },
 ];

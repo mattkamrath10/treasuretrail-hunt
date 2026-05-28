@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader, MessageCircle, BadgeCheck } from 'lucide-react';
+import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader, MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
 import { notifyUser } from '../lib/notifications';
 import { accountAge, reputationTier, normalizeReputation } from '../lib/reputation';
-import { submitScoutApplication, fetchMyScoutApplication, type ScoutApplication } from '../lib/scoutApplications';
 import { getOrCreateConversation } from '../lib/messaging';
 import { blockUser, isUserBlocked } from '../lib/blocks';
 import UserFindsGrid from '../components/UserFindsGrid';
@@ -27,13 +26,6 @@ export default function PublicProfile() {
   // the profile card paints immediately and the storefront numbers fill in.
   const [findsCount, setFindsCount] = useState<number | null>(null);
   const [savesReceived, setSavesReceived] = useState<number | null>(null);
-  // Scout-application state. Owner-only — non-owners see the verified badge.
-  const [myApp, setMyApp] = useState<ScoutApplication | null>(null);
-  const [appOpen, setAppOpen] = useState(false);
-  const [appPitch, setAppPitch] = useState('');
-  const [appRegion, setAppRegion] = useState('');
-  const [appBusy, setAppBusy] = useState(false);
-  const [appError, setAppError] = useState<string | null>(null);
   // Message + block (non-owner only)
   const [messaging, setMessaging] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -112,12 +104,6 @@ export default function PublicProfile() {
     return () => { cancelled = true; };
   }, [profile?.id]);
 
-  // Self-only: hydrate the latest scout application so the CTA reflects state.
-  useEffect(() => {
-    if (!user || !profile?.id || user.id !== profile.id) return;
-    fetchMyScoutApplication(user.id).then(setMyApp).catch(() => {});
-  }, [user, profile?.id]);
-
   const handleMessage = async () => {
     if (!user) { showToast('Sign in to message'); return; }
     if (!profile?.id || isSelf || messaging) return;
@@ -139,24 +125,6 @@ export default function PublicProfile() {
     setBlocked(true);
     showToast(`Blocked @${profile.username}`);
     window.setTimeout(() => navigate('/'), 700);
-  };
-
-  const handleSubmitScoutApp = async () => {
-    if (!user || appBusy) return;
-    setAppBusy(true);
-    setAppError(null);
-    const { application, error } = await submitScoutApplication({
-      applicantId: user.id,
-      pitch: appPitch,
-      region: appRegion,
-    });
-    setAppBusy(false);
-    if (error || !application) { setAppError(error || 'Could not submit'); return; }
-    setMyApp(application);
-    setAppOpen(false);
-    setAppPitch('');
-    setAppRegion('');
-    showToast('Application submitted for review');
   };
 
   const handleToggleFollow = async () => {
@@ -257,15 +225,6 @@ export default function PublicProfile() {
             <span style={s.rankBadge}>{profile.treasure_rank || 'Hunter'}</span>
             <span style={s.levelBadge}>Lv. {profile.level || 1}</span>
             <span style={s.xpBadge}>{profile.xp || 0} XP</span>
-            {profile.scout_verified && (
-              <span
-                style={s.verifiedBadge}
-                title="Approved by TreasureTrail moderators"
-                aria-label="Verified Scout"
-              >
-                <BadgeCheck size={12} /> Verified Scout
-              </span>
-            )}
           </div>
 
           {(profile.location_city || profile.location_state) && (
@@ -334,58 +293,6 @@ export default function PublicProfile() {
             <Shield size={14} />
             <span>{blocked ? 'Blocked' : (blockBusy ? 'Blocking…' : 'Block User')}</span>
           </button>
-        )}
-
-        {/* Self-only: Verified Scout application CTA */}
-        {isSelf && !profile.scout_verified && (
-          <div style={s.repCard}>
-            <BadgeCheck size={18} style={{ color: 'var(--color-primary-500)' }} />
-            <div style={s.repInfo}>
-              <span style={s.repTitle}>Become a Verified Scout</span>
-              <span style={s.repSub}>
-                {myApp?.status === 'pending' ? 'Application under review.' :
-                 myApp?.status === 'declined' ? 'Previous application was declined — try again with more detail.' :
-                 'Apply to get the trusted-scout badge and priority in scout requests.'}
-              </span>
-            </div>
-            <button
-              onClick={() => setAppOpen(true)}
-              disabled={myApp?.status === 'pending'}
-              style={s.repApplyBtn}
-            >
-              {myApp?.status === 'pending' ? 'Pending' : 'Apply'}
-            </button>
-          </div>
-        )}
-
-        {appOpen && (
-          <div style={s.modalOverlay} onClick={() => setAppOpen(false)}>
-            <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
-              <h2 style={s.modalTitle}>Verified Scout Application</h2>
-              <p style={s.modalSub}>Tell us where you scout and what you specialize in. A moderator will review within a few days.</p>
-              <input
-                value={appRegion}
-                onChange={(e) => setAppRegion(e.target.value)}
-                placeholder="Region (e.g. Brooklyn, NY)"
-                style={s.modalInput}
-                maxLength={120}
-              />
-              <textarea
-                value={appPitch}
-                onChange={(e) => setAppPitch(e.target.value)}
-                placeholder="What do you scout? What's your experience? (20-2000 chars)"
-                style={s.modalTextarea}
-                maxLength={2000}
-              />
-              {appError && <span style={{ color: 'var(--color-error-600, #b91c1c)', fontSize: 12 }}>{appError}</span>}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setAppOpen(false)} style={{ ...s.modalSecondary, flex: 1 }}>Cancel</button>
-                <button onClick={handleSubmitScoutApp} disabled={appBusy} style={{ ...s.modalPrimary, flex: 1 }}>
-                  {appBusy ? 'Submitting…' : 'Submit'}
-                </button>
-              </div>
-            </div>
-          </div>
         )}
 
         {toast && (
