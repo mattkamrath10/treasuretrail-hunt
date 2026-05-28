@@ -115,6 +115,11 @@ export function toThumbUrl(url?: string | null): string | null {
     const u = new URL(url);
     if (!/\.supabase\.co$/i.test(u.hostname)) return url;
     if (!u.pathname.startsWith('/storage/v1/object/public/')) return url;
+    // Idempotency guard. If the path already contains `.thumb.` (caller
+    // already passed us the stored thumb URL), a second rewrite would
+    // produce `.thumb.thumb.jpg` which 404s. Real bug seen in prod that
+    // made uploaded event covers render as gray placeholders.
+    if (/\.thumb\.(jpe?g|png|webp)$/i.test(u.pathname)) return url;
   } catch {
     return url;
   }

@@ -1,18 +1,20 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Hop as Home, Zap, Calendar, Gavel, User } from 'lucide-react';
+import { Compass, Radio, Search, Plus, User } from 'lucide-react';
 
 interface NavItem {
   path: string;
   label: string;
-  icon: typeof Home;
+  icon: typeof Compass;
+  match?: (pathname: string) => boolean;
+  primary?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Home Feed', icon: Home },
-  { path: '/flash-finds', label: 'Flash Finds', icon: Zap },
-  { path: '/events', label: 'Events', icon: Calendar },
-  { path: '/live', label: 'Live Events', icon: Gavel },
-  { path: '/profile', label: 'Profile', icon: User },
+  { path: '/',        label: 'Discover', icon: Compass, match: (p) => p === '/' || p === '/flash-finds' || p === '/events' },
+  { path: '/live',    label: 'Live',     icon: Radio },
+  { path: '/sell',    label: 'Sell',     icon: Plus, primary: true, match: (p) => p.startsWith('/sell') || p.startsWith('/seller') },
+  { path: '/wanted',  label: 'Wanted',   icon: Search },
+  { path: '/profile', label: 'Profile',  icon: User,  match: (p) => p === '/profile' || p.startsWith('/profile/') },
 ];
 
 export default function BottomNav() {
@@ -22,37 +24,55 @@ export default function BottomNav() {
   return (
     <nav style={styles.nav}>
       {navItems.map((item) => {
-        const isActive = location.pathname === item.path;
+        const isActive = item.match ? item.match(location.pathname) : location.pathname === item.path;
         const Icon = item.icon;
+        const accent = item.primary
+          ? 'linear-gradient(135deg, #fbbf24, #f59e0b)'
+          : undefined;
         return (
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
             style={{
               ...styles.button,
-              ...(isActive ? styles.active : {}),
+              ...(item.primary ? styles.primaryButton : {}),
             }}
             aria-label={item.label}
+            aria-current={isActive ? 'page' : undefined}
           >
-            <Icon
-              size={22}
-              strokeWidth={isActive ? 2.5 : 1.8}
+            <span
               style={{
-                color: isActive ? 'var(--color-primary-500)' : 'var(--color-neutral-400)',
-                transition: 'color var(--transition-fast), transform var(--transition-fast)',
-                transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                ...styles.iconWrap,
+                ...(item.primary ? { ...styles.iconWrapPrimary, background: accent } : {}),
               }}
-            />
+            >
+              <Icon
+                size={item.primary ? 22 : 22}
+                strokeWidth={isActive ? 2.4 : 1.9}
+                style={{
+                  color: item.primary
+                    ? '#fff'
+                    : isActive
+                      ? 'var(--color-primary-500)'
+                      : 'var(--color-neutral-400)',
+                  transition: 'color var(--transition-fast)',
+                }}
+              />
+            </span>
             <span
               style={{
                 ...styles.label,
-                color: isActive ? 'var(--color-primary-600)' : 'var(--color-neutral-400)',
-                fontWeight: isActive ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)',
+                color: item.primary
+                  ? 'var(--color-primary-700)'
+                  : isActive
+                    ? 'var(--color-primary-600)'
+                    : 'var(--color-neutral-500)',
+                fontWeight: isActive || item.primary ? 700 : 500,
               }}
             >
               {item.label}
             </span>
-            {isActive && <span style={styles.indicator} />}
+            {isActive && !item.primary && <span style={styles.indicator} />}
           </button>
         );
       })}
@@ -78,26 +98,38 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '2px',
+    gap: 2,
     padding: 'var(--space-2) var(--space-3)',
     position: 'relative',
-    minWidth: '56px',
-    transition: 'transform var(--transition-fast)',
+    minWidth: 56,
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
   },
-  active: {},
+  primaryButton: {},
+  iconWrap: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 10,
+  },
+  iconWrapPrimary: {
+    width: 44, height: 44, borderRadius: 14,
+    boxShadow: '0 6px 16px rgba(217, 119, 6, 0.45)',
+    marginTop: -10,
+  },
   label: {
     fontSize: 'var(--font-size-xs)',
-    lineHeight: '1',
+    lineHeight: 1,
     transition: 'color var(--transition-fast)',
     whiteSpace: 'nowrap' as const,
   },
   indicator: {
     position: 'absolute',
-    top: '0',
+    top: 0,
     left: '50%',
     transform: 'translateX(-50%)',
-    width: '24px',
-    height: '3px',
+    width: 24,
+    height: 3,
     borderRadius: '0 0 var(--radius-full) var(--radius-full)',
     backgroundColor: 'var(--color-primary-500)',
   },

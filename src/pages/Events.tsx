@@ -11,6 +11,7 @@ import {
 } from '../lib/events';
 import { isEventSaved, saveEvent, unsaveEvent } from '../lib/eventSaves';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -222,15 +223,11 @@ function EventCard({ event }: { event: EventRow }) {
     >
       <div style={s.cardImg}>
         <ImageWithFade
-          src={toThumbUrl(event.cover_thumb_url || event.cover_image_url)}
+          src={event.cover_thumb_url ?? toThumbUrl(event.cover_image_url)}
           fallbackSrc={event.cover_image_url}
           alt={event.title}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          fallback={
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-neutral-100)' }}>
-              <Calendar size={32} style={{ color: 'var(--color-neutral-300)' }} />
-            </div>
-          }
+          fallback={<MediaFallback kind={event.event_kind === 'online' ? 'live' : 'event'} seed={event.id} label={event.title} />}
         />
         <button
           onClick={toggleSave}

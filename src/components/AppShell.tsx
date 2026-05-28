@@ -7,8 +7,12 @@ import OfflineBanner from './OfflineBanner';
 // initial bundle only includes Home + the shell. Other pages stream in
 // on first navigation. Vite content-hashes the chunks, so cache busting
 // after a republish is automatic.
+const Discover = lazy(() => import('../pages/Discover'));
 const Home = lazy(() => import('../pages/Home'));
 const FlashFinds = lazy(() => import('../pages/FlashFinds'));
+const Sell = lazy(() => import('../pages/Sell'));
+const Wanted = lazy(() => import('../pages/Wanted'));
+const WantedForm = lazy(() => import('../pages/WantedForm'));
 const RareRadar = lazy(() => import('../pages/RareRadar'));
 const Alerts = lazy(() => import('../pages/Alerts'));
 const Profile = lazy(() => import('../pages/Profile'));
@@ -74,6 +78,21 @@ function CommunityPage() {
 function EventsPage() {
   const navigate = useNavigate();
   return <Events onBack={() => navigate('/')} />;
+}
+
+function SellPage() {
+  const navigate = useNavigate();
+  return <Sell onBack={() => navigate('/')} />;
+}
+
+function WantedPage() {
+  const navigate = useNavigate();
+  return <Wanted onBack={() => navigate('/')} />;
+}
+
+function WantedFormPage() {
+  const navigate = useNavigate();
+  return <WantedForm onBack={() => navigate('/sell')} />;
 }
 
 function LiveHubPage() {
@@ -146,8 +165,12 @@ export default function AppShell() {
       <div style={styles.content}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Discover />} />
+            <Route path="/home" element={<Home />} />
             <Route path="/flash-finds" element={<FlashFinds />} />
+            <Route path="/sell" element={<SellPage />} />
+            <Route path="/sell/wanted" element={<WantedFormPage />} />
+            <Route path="/wanted" element={<WantedPage />} />
             <Route path="/rare-radar" element={<RareRadar />} />
             <Route path="/auctions" element={<AuctionsPage />} />
             <Route path="/scout-map" element={<ScoutMapPage />} />

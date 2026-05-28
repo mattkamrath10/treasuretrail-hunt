@@ -1,0 +1,2 @@
+- [Event image bug — toThumbUrl double-process](event-image-thumb-double-process.md) — `toThumbUrl(cover_thumb_url)` rewrites already-thumb URLs into `.thumb.thumb.jpg` (404s); always pass the raw stored thumb to <img>, or make toThumbUrl idempotent.
+- [Supabase image upload pipeline](supabase-image-upload.md) — uploads go to public `avatars` bucket, path `${userId}/${folder}/${timestamp}.jpg` + `.thumb.jpg`; RLS keys on `name LIKE auth.uid()||'/%'`; thumb upload failure is non-fatal and only console.warns.

@@ -43,6 +43,9 @@ export function ImageWithFade({
   }
 
   const handleError = () => {
+    // Log once per failed URL so prod issues are diagnosable from the
+    // browser console without us having to reproduce locally.
+    if (currentSrc) console.warn('[ImageWithFade] load failed', currentSrc);
     if (fallbackSrc && currentSrc !== fallbackSrc) {
       setCurrentSrc(fallbackSrc);
       setLoaded(false);
