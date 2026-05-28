@@ -5,6 +5,7 @@ import {
   ArrowLeft, Send, MessageCircle, Loader, Tag,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { PageScroll } from '../components/ui/PageScroll';
 import {
   fetchConversations, fetchMessages, sendMessage, markConversationRead,
   type Conversation, type ChatMessage,
@@ -86,7 +87,11 @@ function InboxView({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string
   }, [load]);
 
   return (
-    <div style={styles.page}>
+    // Canonical: PageScroll owns the only scroll container on the page;
+    // the header pins via position:sticky from inside that scroller.
+    // Ad-hoc flex:1 + overflow:auto chains were swallowing touch scroll
+    // on iPhone Safari because the flex child lacked min-height:0.
+    <PageScroll style={styles.page}>
       <header style={styles.topBar}>
         <button onClick={onBack} style={styles.iconBtn} aria-label="Back">
           <ArrowLeft size={20} />
@@ -95,7 +100,7 @@ function InboxView({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string
         <span style={{ width: 44 }} />
       </header>
 
-      <div style={styles.scroll}>
+      <div style={styles.inboxBody}>
         {loading ? (
           <div style={styles.stateBlock}>
             <Loader size={22} style={{ color: 'var(--color-primary-500)', animation: 'spin 0.8s linear infinite' }} />
@@ -158,7 +163,7 @@ function InboxView({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string
           </ul>
         )}
       </div>
-    </div>
+    </PageScroll>
   );
 }
 
@@ -330,7 +335,11 @@ function ConversationView({ conversationId, onBack }: { conversationId: string; 
   const otherInitial = (conv?.other_username || 'h').slice(0, 1).toUpperCase();
 
   return (
-    <div style={styles.page}>
+    // Canonical: single PageScroll owns the page scroll. Header pins via
+    // sticky top, composer via sticky bottom — both anchor to the same
+    // scrolling viewport, which is the only pattern that works reliably
+    // on iPhone Safari (nested flex+overflow loses touch scroll).
+    <PageScroll ref={scrollRef} style={styles.page}>
       <header style={styles.topBar}>
         <button onClick={onBack} style={styles.iconBtn} aria-label="Back to inbox">
           <ArrowLeft size={20} />
@@ -366,7 +375,7 @@ function ConversationView({ conversationId, onBack }: { conversationId: string; 
         )}
       </header>
 
-      <div ref={scrollRef} style={styles.chatScroll}>
+      <div style={styles.chatBody}>
         {loading ? (
           <div style={styles.stateBlock}>
             <Loader size={22} style={{ color: 'var(--color-primary-500)', animation: 'spin 0.8s linear infinite' }} />
@@ -392,8 +401,12 @@ function ConversationView({ conversationId, onBack }: { conversationId: string; 
         )}
       </div>
 
-      {/* Sticky composer. Padding-bottom respects the iOS keyboard / safe-area
-          inset so the input is never hidden behind the home indicator. */}
+      {/* Composer pins to the bottom of the PageScroll viewport via
+          position:sticky. Padding-bottom respects the iOS safe-area
+          inset so the input is never hidden behind the home indicator.
+          The message list above carries paddingBottom equal to the
+          composer height so the last bubble isn't covered when scrolled
+          to the bottom. */}
       <div style={styles.composer}>
         {error && <div style={styles.errorBanner}>{error}</div>}
         <div style={styles.composerRow}>
@@ -424,7 +437,7 @@ function ConversationView({ conversationId, onBack }: { conversationId: string; 
           </button>
         </div>
       </div>
-    </div>
+    </PageScroll>
   );
 }
 
@@ -452,13 +465,25 @@ function formatRelative(iso: string): string {
 // styles
 // =====================================================================
 const styles: Record<string, CSSProperties> = {
-  page: { height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-neutral-50)', overflow: 'hidden' },
+  // PageScroll applies height:100% + overflow-y:auto. We only layer on
+  // the page background here — no `display:flex`/`overflow:hidden`,
+  // since those would defeat the canonical single-scroller pattern.
+  page: { backgroundColor: 'var(--color-neutral-50)' },
   topBar: {
-    flexShrink: 0, display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+    display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
     padding: 'var(--space-3) var(--space-4)',
     paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
     backgroundColor: 'var(--color-neutral-0)', borderBottom: '1px solid var(--color-neutral-200)',
     position: 'sticky', top: 0, zIndex: 10,
+  },
+  // Body wrappers — no overflow here, the PageScroll parent handles it.
+  inboxBody: { width: '100%' },
+  chatBody: {
+    padding: 'var(--space-3) var(--space-4)',
+    // Reserve room for the sticky composer (~44px input + 8px top pad
+    // + 8px bottom pad + safe-area). Without this, scrolling to the
+    // bottom of the thread leaves the last bubble hidden under it.
+    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
   },
   topTitle: { flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 'var(--font-size-base)', color: 'var(--color-neutral-900)' },
   iconBtn: {
@@ -471,11 +496,6 @@ const styles: Record<string, CSSProperties> = {
     background: 'transparent', border: 'none', padding: '0 4px', cursor: 'pointer', textAlign: 'left',
   },
   chatHeaderName: { fontSize: 'var(--font-size-base)', fontWeight: 700, color: 'var(--color-neutral-900)' },
-  scroll: { flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' },
-  chatScroll: {
-    flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-    padding: 'var(--space-3) var(--space-4)',
-  },
   list: { listStyle: 'none', margin: 0, padding: 0 },
   row: {
     width: '100%', display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
@@ -537,7 +557,7 @@ const styles: Record<string, CSSProperties> = {
   bubbleText: { fontSize: 'var(--font-size-sm)', lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   bubbleTime: { fontSize: 10, opacity: 0.7, alignSelf: 'flex-end' },
   composer: {
-    flexShrink: 0,
+    position: 'sticky', bottom: 0, zIndex: 10,
     backgroundColor: 'var(--color-neutral-0)',
     borderTop: '1px solid var(--color-neutral-200)',
     padding: 'var(--space-2) var(--space-3)',
