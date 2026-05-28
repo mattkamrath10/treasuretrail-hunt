@@ -115,7 +115,15 @@ function WantedCard({ item }: { item: WantedItemRow }) {
 }
 
 const s: Record<string, CSSProperties> = {
-  page: { minHeight: '100%', background: '#0b0b10', color: '#f5f5f7', paddingBottom: 24 },
+  page: {
+    // AppShell's content slot is overflow:hidden, so each page owns
+    // its own scroll. Matches Discover/Home/Events pattern.
+    height: '100%',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch',
+    background: '#0b0b10', color: '#f5f5f7', paddingBottom: 24,
+  },
   header: {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', gap: 10,

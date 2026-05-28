@@ -115,7 +115,7 @@ export default function WantedForm({ onBack }: { onBack: () => void }) {
             </div>
           )}
           <input
-            type="file" accept="image/*" capture="environment"
+            type="file" accept="image/*"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickImage(f); }}
             style={{ display: 'none' }}
             disabled={uploading}
@@ -195,7 +195,13 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 const s: Record<string, CSSProperties> = {
-  page: { minHeight: '100%', background: '#0b0b10', color: '#f5f5f7', paddingBottom: 40 },
+  page: {
+    height: '100%',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch',
+    background: '#0b0b10', color: '#f5f5f7', paddingBottom: 40,
+  },
   header: {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
