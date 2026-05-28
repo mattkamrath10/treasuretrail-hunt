@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { Lightbox } from '../components/ui/Lightbox';
+import { MobileDetailPage } from '../components/ui/MobileDetailPage';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
 import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 import { shareWithImage } from '../lib/shareWithImage';
@@ -237,7 +238,7 @@ export default function FindDetail() {
   const tags: string[] = Array.isArray(post.tags) ? post.tags.filter(Boolean) : [];
 
   return (
-    <div style={styles.page}>
+    <MobileDetailPage>
       {/* sticky top bar */}
       <header style={styles.topBar}>
         <button onClick={handleBack} style={styles.iconBtn} aria-label="Back">
@@ -266,9 +267,8 @@ export default function FindDetail() {
         </div>
       </header>
 
-      <div style={styles.scroll}>
-        {/* hero image */}
-        <button
+      {/* hero image */}
+      <button
           type="button"
           onClick={() => post.image_url && setImageZoomed(true)}
           style={styles.heroBtn}
@@ -458,7 +458,6 @@ export default function FindDetail() {
 
           <div style={{ height: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }} />
         </div>
-      </div>
 
       <Lightbox
         open={imageZoomed}
@@ -566,7 +565,7 @@ export default function FindDetail() {
           </div>
         </div>
       )}
-    </div>
+    </MobileDetailPage>
   );
 }
 
@@ -648,13 +647,6 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-neutral-0)', fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-bold)', cursor: 'pointer',
   },
-  page: {
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    backgroundColor: 'var(--color-neutral-50)',
-    overflow: 'hidden',
-  },
   topBar: {
     flexShrink: 0,
     display: 'flex',
@@ -686,11 +678,6 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
-  },
-  scroll: {
-    flex: 1,
-    overflowY: 'auto',
-    WebkitOverflowScrolling: 'touch',
   },
   heroBtn: {
     position: 'relative',

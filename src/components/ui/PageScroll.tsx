@@ -19,10 +19,16 @@ import { forwardRef, type CSSProperties, type HTMLAttributes, type ReactNode } f
  */
 export const PAGE_SCROLL_STYLE: CSSProperties = {
   height: '100%',
+  width: '100%',
+  maxWidth: '100vw',
   overflowY: 'auto',
   overflowX: 'hidden',
   WebkitOverflowScrolling: 'touch',
   overscrollBehaviorY: 'contain',
+  // No `touch-action: pan-y` here — that's a detail-page-specific
+  // constraint and belongs on MobileDetailPage. Setting it at the
+  // generic scroll container would suppress horizontal swipe on any
+  // child carousel that uses overflowX:auto inside a normal feed page.
 };
 
 type PageScrollProps = HTMLAttributes<HTMLDivElement> & {

@@ -5,6 +5,7 @@ import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader, Me
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
+import { MobileDetailPage } from '../components/ui/MobileDetailPage';
 import { notifyUser } from '../lib/notifications';
 import { accountAge, reputationTier, normalizeReputation } from '../lib/reputation';
 import { getOrCreateConversation } from '../lib/messaging';
@@ -187,7 +188,7 @@ export default function PublicProfile() {
   }
 
   return (
-    <div style={s.page}>
+    <MobileDetailPage style={{ maxWidth: 480, margin: '0 auto' }}>
       <header style={s.header}>
         <button
           onClick={() => {
@@ -339,7 +340,7 @@ export default function PublicProfile() {
           <button onClick={() => navigate('/')} style={s.ctaBtn}>Get Started Free</button>
         </div>
       </div>
-    </div>
+    </MobileDetailPage>
   );
 }
 
@@ -363,14 +364,6 @@ const followStyles: Record<string, CSSProperties> = {
 };
 
 const s: Record<string, CSSProperties> = {
-  page: {
-    minHeight: '100vh',
-    backgroundColor: 'var(--color-neutral-50)',
-    maxWidth: '480px',
-    margin: '0 auto',
-    display: 'flex',
-    flexDirection: 'column',
-  },
   center: {
     minHeight: '100vh',
     display: 'flex',

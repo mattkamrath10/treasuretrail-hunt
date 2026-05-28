@@ -205,6 +205,48 @@ input, textarea, select {
   background-clip: content-box;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Mobile viewport-containment safety net.
+ *
+ * iPhone Safari will happily let a single oversize <img> (e.g. a
+ * Supabase-hosted hero photo at its natural 4032×3024 pixel size) blow
+ * the page wider than the viewport, which then lets the user pan the
+ * whole page sideways like a desktop webpage. AppShell's own
+ * overflow:hidden doesn't save us because the bleed happens inside the
+ * scrolling content slot.
+ *
+ * Belt-and-suspenders defense:
+ *   1. Lock html/body to the visual viewport width and forbid
+ *      horizontal scroll at the root.
+ *   2. Cap every <img> at its container width so a raw asset can never
+ *      push layout out. Fixed-size avatars/icons already override this
+ *      via inline width:NN style, which still wins.
+ *   3. overscroll-behavior-x:none kills the rubber-band horizontal
+ *      bounce. We deliberately do NOT set `touch-action: pan-y` at
+ *      the root — iOS resolves touch-action by walking up, so an
+ *      ancestor pan-y would suppress horizontal swipe in any feed
+ *      carousel. The per-page lock lives on <MobileDetailPage>.
+ * ──────────────────────────────────────────────────────────────────────────── */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+html, body {
+  overscroll-behavior-x: none;
+  /* Intentionally NOT setting `touch-action: pan-y` here. iOS resolves
+   * touch-action by walking up from the touched element, so an
+   * ancestor `pan-y` would suppress horizontal swipes on the Discover
+   * row, FlashFinds reel, and the Lightbox. The per-page lock lives
+   * on <MobileDetailPage> instead, which sits BELOW any horizontal
+   * carousel that declares its own `touch-action: pan-x`. */
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; }

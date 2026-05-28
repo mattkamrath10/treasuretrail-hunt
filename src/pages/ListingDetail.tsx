@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { Lightbox } from '../components/ui/Lightbox';
+import { MobileDetailPage } from '../components/ui/MobileDetailPage';
 import { canDeletePost, deletePost, marketplaceListingToDeletable } from '../lib/moderation';
 import { followUser, unfollowUser, checkIsFollowing, attachProfiles } from '../lib/database';
 import { getOrCreateConversation } from '../lib/messaging';
@@ -316,7 +317,7 @@ export default function ListingDetail() {
     : (listing.price ? `$${listing.price}` : '');
 
   return (
-    <div style={styles.page}>
+    <MobileDetailPage>
       <header style={styles.topBar}>
         <button onClick={handleBack} style={styles.iconBtn} aria-label="Back">
           <ArrowLeft size={20} />
@@ -327,8 +328,7 @@ export default function ListingDetail() {
         </button>
       </header>
 
-      <div style={styles.scroll}>
-        <button
+      <button
           type="button"
           onClick={() => listing.image_url && setImageZoomed(true)}
           style={styles.heroBtn}
@@ -495,7 +495,6 @@ export default function ListingDetail() {
 
           <div style={{ height: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }} />
         </div>
-      </div>
 
       <Lightbox
         open={imageZoomed}
@@ -506,7 +505,7 @@ export default function ListingDetail() {
       />
 
       {toast && <div role="status" aria-live="polite" style={styles.toast}>{toast}</div>}
-    </div>
+    </MobileDetailPage>
   );
 }
 
@@ -544,7 +543,6 @@ function ActionButton({
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-neutral-50)', overflow: 'hidden' },
   topBar: {
     flexShrink: 0, display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
     padding: 'var(--space-3) var(--space-4)',
@@ -558,7 +556,6 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: 'transparent', color: 'var(--color-neutral-800)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
   },
-  scroll: { flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' },
   heroBtn: {
     position: 'relative', width: '100%', aspectRatio: '4 / 3', minHeight: 240,
     backgroundColor: 'var(--color-neutral-100)', border: 'none', padding: 0,
