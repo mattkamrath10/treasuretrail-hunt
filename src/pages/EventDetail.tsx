@@ -9,8 +9,11 @@ import { supabase } from '../lib/supabase';
 import {
   fetchEvent, fetchEventFeaturedItems,
   PLATFORM_META, SHOW_CATEGORY_LABELS, isLiveNow, isStartingSoon,
+  isExpiredLive, resolveExternalEventUrl,
   type EventRow, type EventFeaturedItem, type EventCategory,
 } from '../lib/events';
+import { WhatnotIcon } from '../components/ui/WhatnotIcon';
+import { MediaFallback } from '../components/ui/MediaFallback';
 import { trackEventView, trackEventClick } from '../lib/eventAnalytics';
 import { isEventSaved, saveEvent, unsaveEvent } from '../lib/eventSaves';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -248,15 +251,20 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
   const hasLocation = fullAddress.length > 0;
   const hasContactTarget = !!holder?.username;
   const platformMeta = isOnline && event.platform ? PLATFORM_META[event.platform] : null;
+  const isWhatnot = event.platform === 'whatnot';
   const live = isLiveNow(event);
+  const expired = isExpiredLive(event);
   const soon = !live && isStartingSoon(event);
 
-  // Join Live Show — opens external URL in a new tab. rel attributes prevent
-  // window.opener access + referrer leakage on the destination.
+  // Join Live Show — opens external URL in a new tab. If the show
+  // window has closed we send users to the seller's storefront instead
+  // of the dead livestream URL so they never land on Whatnot's "show
+  // ended" page. rel attrs prevent window.opener + referrer leakage.
   const onJoinLiveShow = () => {
-    if (!event.livestream_url) return;
+    const url = resolveExternalEventUrl(event);
+    if (!url) return;
     trackEventClick(event.id, 'livestream').catch(() => {});
-    window.open(event.livestream_url, '_blank', 'noopener,noreferrer');
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -271,17 +279,31 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {/* Cover */}
+      {/* Cover — branded fallback (Whatnot tile for Whatnot shows,
+          warm gradient + icon otherwise) so this slot is never the
+          empty gray box users were seeing on expired streams. */}
       <div style={s.cover}>
         <ImageWithFade
-          src={toThumbUrl(event.cover_thumb_url || event.cover_image_url) ?? undefined}
+          src={event.cover_thumb_url || toThumbUrl(event.cover_image_url) || undefined}
           fallbackSrc={event.cover_image_url}
           alt={event.title}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           fallback={
-            <div style={s.coverFallback}>
-              <Calendar size={36} style={{ color: 'var(--color-neutral-300)' }} />
-            </div>
+            isWhatnot ? (
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#0a0a0a',
+              }}>
+                <WhatnotIcon size={96} style={{ borderRadius: 22 }} />
+              </div>
+            ) : (
+              <MediaFallback
+                kind={isOnline ? 'live' : 'event'}
+                seed={event.id}
+                label={event.title}
+              />
+            )
           }
         />
       </div>
@@ -293,10 +315,10 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               padding: '4px 8px', borderRadius: 999,
-              background: platformMeta.color, color: '#fff',
+              background: platformMeta.color, color: isWhatnot ? '#000' : '#fff',
               fontSize: 11, fontWeight: 700,
             }}>
-              <Radio size={11} /> {platformMeta.label}
+              {isWhatnot ? <WhatnotIcon size={12} /> : <Radio size={11} />} {platformMeta.label}
             </span>
           ) : (
             <Badge variant="category">{CATEGORY_LABEL[event.category]}</Badge>
@@ -310,6 +332,16 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
             }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
               LIVE NOW
+            </span>
+          )}
+          {expired && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center',
+              padding: '4px 8px', borderRadius: 999,
+              background: 'rgba(0,0,0,0.7)', color: '#fff',
+              fontSize: 11, fontWeight: 700,
+            }}>
+              Recently Live
             </span>
           )}
           {soon && (
@@ -350,9 +382,14 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
           {isOnline && event.livestream_url && (
             <button
               onClick={onJoinLiveShow}
-              style={{ ...s.primaryBtnLg, background: platformMeta?.color }}
+              style={{ ...s.primaryBtnLg, background: platformMeta?.color, color: isWhatnot ? '#000' : '#fff' }}
             >
-              <ExternalLink size={14} /> {live ? 'Join Live Show' : 'Open on ' + (platformMeta?.label ?? 'platform')}
+              {isWhatnot ? <WhatnotIcon size={14} /> : <ExternalLink size={14} />}{' '}
+              {live
+                ? 'Join Live Show'
+                : expired
+                  ? `Visit ${platformMeta?.label ?? 'storefront'}`
+                  : `Open on ${platformMeta?.label ?? 'platform'}`}
             </button>
           )}
           {hasLocation && (

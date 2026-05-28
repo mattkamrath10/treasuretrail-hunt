@@ -148,6 +148,61 @@ export function isLiveNow(e: EventRow, now: number = Date.now()): boolean {
   return now < end;
 }
 
+/**
+ * An online (Whatnot etc) event whose computed show window has
+ * already closed. We can't poll the platform to confirm the stream
+ * actually ended, so we treat the assumed-2h window after `starts_at`
+ * (or the explicit `ends_at`) as the source of truth. Used to:
+ *   - drop the "LIVE" badge,
+ *   - re-label CTAs to "Open on Whatnot" / "Recently Live",
+ *   - swap the dead livestream URL for the seller's storefront so
+ *     users never land on Whatnot's "show ended" page.
+ */
+export function isExpiredLive(e: EventRow, now: number = Date.now()): boolean {
+  if (e.event_kind !== 'online') return false;
+  const start = new Date(e.starts_at).getTime();
+  if (start > now) return false;
+  const end = e.ends_at
+    ? new Date(e.ends_at).getTime()
+    : start + ASSUMED_SHOW_LEN;
+  return now >= end;
+}
+
+/**
+ * Best-effort storefront URL for a given event's seller. For Whatnot
+ * we can reconstruct `https://www.whatnot.com/user/<handle>` from the
+ * `seller_handle` field. For everything else (and as a final fallback)
+ * we return the platform's browse/home page instead of a dead show
+ * URL.
+ */
+export function platformStorefrontUrl(e: EventRow): string {
+  const handle = (e.seller_handle ?? '').trim().replace(/^@/, '');
+  switch (e.platform) {
+    case 'whatnot':
+      return handle ? `https://www.whatnot.com/user/${encodeURIComponent(handle)}` : 'https://www.whatnot.com/';
+    case 'poshmark_live':
+    case 'posh_party':
+      return handle ? `https://poshmark.com/closet/${encodeURIComponent(handle)}` : 'https://poshmark.com/';
+    case 'ebay_live':
+      return handle ? `https://www.ebay.com/usr/${encodeURIComponent(handle)}` : 'https://www.ebay.com/';
+    default:
+      return 'https://www.whatnot.com/';
+  }
+}
+
+/**
+ * Resolve the URL the "Open" CTA should actually navigate to. If the
+ * show is still inside its live window we send users to the real
+ * livestream; once the window has closed we fall back to the seller's
+ * storefront so they land on something real (and can follow / catch
+ * the next show) instead of a dead page.
+ */
+export function resolveExternalEventUrl(e: EventRow, now: number = Date.now()): string | null {
+  if (!e.livestream_url) return null;
+  if (isExpiredLive(e, now)) return platformStorefrontUrl(e);
+  return e.livestream_url;
+}
+
 /* ---------------- Queries ------------------------------------------------ */
 
 /** Public feed of published events, soonest first. */

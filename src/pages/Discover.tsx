@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, ChevronRight, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar,
 } from 'lucide-react';
-import { fetchPublishedEvents, PLATFORM_META, isLiveNow, type EventRow } from '../lib/events';
+import { fetchPublishedEvents, PLATFORM_META, isLiveNow, isExpiredLive, type EventRow } from '../lib/events';
+import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { fetchCommunityPosts } from '../lib/database';
 import { fetchOpenWantedItems, WANTED_CATEGORY_LABEL, type WantedItemRow } from '../lib/wanted';
 import type { CommunityPost } from '../lib/supabase';
@@ -40,8 +41,18 @@ export default function Discover() {
     return () => { cancelled = true; };
   }, []);
 
-  const liveAndOnline = events.filter((e) => e.event_kind === 'online' || isLiveNow(e));
-  const localEvents   = events.filter((e) => e.event_kind === 'local');
+  // "Live Now" surface: actually-live shows first, then upcoming, then
+  // recently-ended last so the carousel never opens with a dead link.
+  const liveAndOnline = events
+    .filter((e) => e.event_kind === 'online' || isLiveNow(e))
+    .sort((a, b) => {
+      const score = (e: EventRow) =>
+        isLiveNow(e) ? 0 : isExpiredLive(e) ? 2 : 1;
+      const diff = score(a) - score(b);
+      if (diff !== 0) return diff;
+      return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
+    });
+  const localEvents = events.filter((e) => e.event_kind === 'local');
 
   const q = query.trim().toLowerCase();
   const matchQ = (s: string | null | undefined) => !q || (s ?? '').toLowerCase().includes(q);
@@ -177,6 +188,8 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
 function LiveCard({ event, onClick }: { event: EventRow; onClick: () => void }) {
   const platform = event.platform ? PLATFORM_META[event.platform] : null;
   const live = isLiveNow(event);
+  const expired = isExpiredLive(event);
+  const isWhatnot = event.platform === 'whatnot';
   return (
     <article style={s.cardLg} onClick={onClick} role="button" tabIndex={0}>
       <div style={s.cardImgLg}>
@@ -194,13 +207,18 @@ function LiveCard({ event, onClick }: { event: EventRow; onClick: () => void }) 
               <span style={s.liveDot} /> LIVE
             </span>
           )}
+          {expired && (
+            <span style={{ ...s.badge, background: 'rgba(0,0,0,0.7)', color: '#fff' }}>
+              Past show
+            </span>
+          )}
           {platform && (
-            <span style={{ ...s.badge, background: platform.color, color: platform.label === 'Whatnot' ? '#000' : '#fff' }}>
-              <Radio size={10} /> {platform.label}
+            <span style={{ ...s.badge, background: platform.color, color: isWhatnot ? '#000' : '#fff' }}>
+              {isWhatnot ? <WhatnotIcon size={12} /> : <Radio size={10} />} {platform.label}
             </span>
           )}
         </div>
-        {event.livestream_url && (
+        {event.livestream_url && !expired && (
           <span style={s.cardCornerIcon}>
             <ExternalLink size={12} />
           </span>
