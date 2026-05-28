@@ -8,6 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { fetchCommunityPosts, createCommunityPost, togglePostLike, fetchUserLikes } from '../lib/database';
 import type { CommunityPost } from '../lib/supabase';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback, AvatarFallback } from '../components/ui/MediaFallback';
 
 type CommunityView = 'feed' | 'create' | 'discover' | 'profile' | 'stories';
 
@@ -196,7 +198,9 @@ function FeedCard({ post, onLike, onSave }: { post: FeedPost; onLike: () => void
       {/* Header */}
       <div style={s.postHeader}>
         <div style={s.postAvatarWrap}>
-          <div style={s.postAvatar}><span style={s.postAvatarText}>{post.user.avatar}</span></div>
+          <div style={{ ...s.postAvatar, backgroundColor: 'transparent', overflow: 'hidden' }}>
+            <AvatarFallback name={post.user.name || post.user.handle} seed={post.user.handle || post.user.name} />
+          </div>
           {post.user.verified && <div style={s.postVerifyDot} />}
         </div>
         <div style={s.postUserInfo}>
@@ -215,9 +219,23 @@ function FeedCard({ post, onLike, onSave }: { post: FeedPost; onLike: () => void
         </span>
       </div>
 
-      {/* Image */}
+      {/* Image — route every community post through ImageWithFade +
+          MediaFallback so missing/broken photos render as a branded
+          gradient card instead of a broken-img icon. */}
       <div style={s.postImgWrap}>
-        <img src={post.image} alt={post.caption} loading="lazy" decoding="async" style={s.postImg} />
+        <ImageWithFade
+          src={post.image}
+          alt={post.caption}
+          style={s.postImg as any}
+          fallback={
+            <MediaFallback
+              kind={post.type === 'flip' || post.type === 'auction_win' ? 'auction' : 'find'}
+              category={post.type}
+              seed={post.id}
+              label={post.type === 'flip' ? 'FLIP WIN' : post.type === 'auction_win' ? 'AUCTION WIN' : 'FIND'}
+            />
+          }
+        />
         {post.rarity && <span style={s.postRarityBadge}>{post.rarity} Rarity</span>}
         {post.estimatedValue && <span style={s.postValueBadge}>{post.estimatedValue}</span>}
       </div>

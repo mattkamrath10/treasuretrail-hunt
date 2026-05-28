@@ -19,6 +19,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge, type BadgeVariant } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
 import { BecomeHostCard } from '../components/BecomeHostCard';
 
@@ -161,10 +162,17 @@ function formatMarketplace(raw?: string | null): string {
   return map[raw] ?? raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function ImageFallback({ icon: Icon, size = 56 }: { icon: typeof Bookmark; size?: number }) {
+/**
+ * Legacy adapter — keeps the call sites in Home.tsx unchanged while
+ * routing the actual rendering through the centralized branded
+ * MediaFallback. The `icon` arg is now a hint: ShoppingBag → 'listing',
+ * Bookmark/anything else → 'find'. No more gray boxes anywhere.
+ */
+function ImageFallback({ icon: Icon, kind, seed, label }: { icon: typeof Bookmark; kind?: 'find' | 'listing'; seed?: string; label?: string; size?: number }) {
+  const resolvedKind = kind ?? (Icon === ShoppingBag ? 'listing' : 'find');
   return (
-    <div style={{ width: '100%', height: '100%', minHeight: '220px', backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Icon size={size} style={{ color: 'var(--color-neutral-300)' }} />
+    <div style={{ width: '100%', height: '100%', minHeight: '220px' }}>
+      <MediaFallback kind={resolvedKind} seed={seed} label={label} />
     </div>
   );
 }
@@ -916,7 +924,7 @@ export default function Home() {
                   fallbackSrc={p.image_url}
                   alt={displayCaption}
                   style={styles.cardImage}
-                  fallback={<ImageFallback icon={Bookmark} />}
+                  fallback={<ImageFallback icon={Bookmark} kind="find" seed={p.id} label={displayCaption?.slice(0, 18) || 'FIND'} />}
                 />
                 <div style={styles.badgeStack}>
                   {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
@@ -1149,7 +1157,7 @@ function MarketplaceCard({
           fallbackSrc={listing.image_url}
           alt={listing.title}
           style={styles.cardImage}
-          fallback={<ImageFallback icon={ShoppingBag} />}
+          fallback={<ImageFallback icon={ShoppingBag} kind="listing" seed={listing.id} label={listing.title?.slice(0, 18) || 'LISTING'} />}
         />
         <div style={styles.badgeStack}>
           {marketplaceLabel && <Badge variant="marketplace">{marketplaceLabel}</Badge>}

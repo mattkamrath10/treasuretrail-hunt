@@ -12,6 +12,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { supabase } from '../lib/supabase';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback } from '../components/ui/MediaFallback';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
@@ -344,17 +346,21 @@ function ExternalListingCard({
       style={{ ...st.card, animationDelay: `${delay}ms` }}
       onClick={onOpen}
     >
-      {listing.image_url ? (
-        <div style={st.cardImgWrap}>
-          <img src={listing.image_url} alt={listing.title} style={st.cardImg} loading="lazy" />
-          {isLive && <span style={st.livePill}><Radio size={9} /> LIVE</span>}
-        </div>
-      ) : (
-        <div style={{ ...st.cardImgWrap, ...st.cardImgPlaceholder }}>
-          {getTypeIcon(listing.listing_type, 28)}
-          {isLive && <span style={st.livePill}><Radio size={9} /> LIVE</span>}
-        </div>
-      )}
+      <div style={st.cardImgWrap}>
+        <ImageWithFade
+          src={listing.image_url}
+          alt={listing.title}
+          fallback={
+            <MediaFallback
+              kind={listing.listing_type === 'auction' ? 'auction' : 'live'}
+              platform={listing.platform as any}
+              seed={listing.id}
+              label={displayLabel}
+            />
+          }
+        />
+        {isLive && <span style={st.livePill}><Radio size={9} /> LIVE</span>}
+      </div>
 
       <div style={st.cardBody}>
         <div style={st.cardTopRow}>
@@ -467,18 +473,23 @@ function ListingDetail({
       </header>
 
       <div style={st.detailScroll}>
-        {listing.image_url ? (
-          <div style={st.detailImgWrap}>
-            <img src={listing.image_url} alt={listing.title} style={st.detailImg} />
-            {listing.listing_type === 'live_stream' && (
-              <span style={st.detailLivePill}><Radio size={11} /> LIVE NOW</span>
-            )}
-          </div>
-        ) : (
-          <div style={st.detailImgPlaceholder}>
-            {getTypeIcon(listing.listing_type, 48)}
-          </div>
-        )}
+        <div style={st.detailImgWrap}>
+          <ImageWithFade
+            src={listing.image_url}
+            alt={listing.title}
+            fallback={
+              <MediaFallback
+                kind={listing.listing_type === 'auction' ? 'auction' : 'live'}
+                platform={listing.platform as any}
+                seed={listing.id}
+                label={displayLabel}
+              />
+            }
+          />
+          {listing.listing_type === 'live_stream' && (
+            <span style={st.detailLivePill}><Radio size={11} /> LIVE NOW</span>
+          )}
+        </div>
 
         <div style={st.detailBody}>
           <div style={st.detailTopRow}>

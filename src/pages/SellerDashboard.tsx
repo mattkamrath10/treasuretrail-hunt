@@ -13,6 +13,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { AvatarFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
 
 /**
@@ -100,16 +101,19 @@ export default function SellerDashboard({ onBack }: { onBack: () => void }) {
       <section style={s.businessCard}>
         <div style={s.businessRow}>
           <div style={s.logoWrap}>
-            {profile.business_logo_url ? (
-              <ImageWithFade
-                src={toThumbUrl(profile.business_logo_url)}
-                fallbackSrc={profile.business_logo_url}
-                alt={profile.business_name ?? 'logo'}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              <Store size={22} style={{ color: 'var(--color-neutral-400)' }} />
-            )}
+            <ImageWithFade
+              src={toThumbUrl(profile.business_logo_url)}
+              fallbackSrc={profile.business_logo_url}
+              alt={profile.business_name ?? 'logo'}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              fallback={
+                <AvatarFallback
+                  name={profile.business_name || profile.username || 'Shop'}
+                  seed={profile.id || profile.username || 'shop'}
+                  style={{ borderRadius: 0 }}
+                />
+              }
+            />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2 style={s.bizName}>

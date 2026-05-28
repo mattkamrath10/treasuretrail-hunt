@@ -10,6 +10,7 @@ import { supabase, type CommunityPost, type Profile } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback, AvatarFallback } from '../components/ui/MediaFallback';
 import { Lightbox } from '../components/ui/Lightbox';
 import { MobileDetailPage } from '../components/ui/MobileDetailPage';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
@@ -281,9 +282,11 @@ export default function FindDetail() {
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             containerStyle={{ width: '100%', height: '100%' }}
             fallback={
-              <div style={styles.heroFallback}>
-                <Bookmark size={64} style={{ color: 'var(--color-neutral-300)' }} />
-              </div>
+              <MediaFallback
+                kind="find"
+                seed={post.id}
+                label={(post.caption ?? '').slice(0, 18) || 'FIND'}
+              />
             }
           />
           <div style={styles.heroBadgeStack}>
@@ -322,11 +325,13 @@ export default function FindDetail() {
               there are no dead clicks (architect review). */}
           {post.profiles?.username ? (
             <button onClick={handleProfileClick} style={{ ...styles.uploaderRow, cursor: 'pointer' }} aria-label={`View @${username}'s profile`}>
-              {post.profiles?.avatar_url ? (
-                <img src={post.profiles.avatar_url} alt={username} style={styles.avatarImg} />
-              ) : (
-                <div style={styles.avatarFallback}>{uploaderInitial}</div>
-              )}
+              <div style={styles.avatarImg as any}>
+                <ImageWithFade
+                  src={post.profiles?.avatar_url}
+                  alt={username}
+                  fallback={<AvatarFallback name={username} seed={username} />}
+                />
+              </div>
               <div style={styles.uploaderMeta}>
                 <span style={styles.uploaderName}>@{username}</span>
                 <span style={styles.uploaderSub}>

@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback } from '../components/ui/MediaFallback';
 import {
   ArrowLeft,
   Sparkles,
@@ -156,21 +158,13 @@ export default function AiAnalysis({
 
       <div style={styles.resultsContent}>
         <div style={styles.resultHero}>
-          {photoUrl ? (
-            <img src={photoUrl} alt={edited.title || 'Your find'} style={styles.resultImage} />
-          ) : (
-            <div
-              style={{
-                ...styles.resultImage,
-                backgroundColor: 'var(--color-neutral-100)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Sparkles size={48} style={{ color: 'var(--color-primary-300)' }} />
-            </div>
-          )}
+          <div style={{ ...styles.resultImage, overflow: 'hidden' }}>
+            <ImageWithFade
+              src={photoUrl}
+              alt={edited.title || 'Your find'}
+              fallback={<MediaFallback kind="find" seed={photoUrl || edited.title || 'ai-result'} label={edited.title?.slice(0, 14) || 'FIND'} />}
+            />
+          </div>
         </div>
 
         <div style={styles.resultBody}>

@@ -13,7 +13,7 @@ import {
   type EventRow, type EventFeaturedItem, type EventCategory,
 } from '../lib/events';
 import { WhatnotIcon } from '../components/ui/WhatnotIcon';
-import { MediaFallback } from '../components/ui/MediaFallback';
+import { MediaFallback, AvatarFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
 import { trackEventView, trackEventClick } from '../lib/eventAnalytics';
 import { trackAnalyticsEvent } from '../lib/analytics';
@@ -453,16 +453,15 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
                 style={s.itemTile}
               >
                 <div style={s.itemThumb}>
-                  {it.thumb_url || it.image_url ? (
-                    <ImageWithFade
-                      src={toThumbUrl(it.thumb_url || it.image_url) ?? undefined}
-                      fallbackSrc={it.image_url}
-                      alt={it.title}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <Calendar size={20} style={{ color: 'var(--color-neutral-300)' }} />
-                  )}
+                  <ImageWithFade
+                    src={toThumbUrl(it.thumb_url || it.image_url) ?? undefined}
+                    fallbackSrc={it.image_url}
+                    alt={it.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    fallback={
+                      <MediaFallback kind="find" seed={it.id} label={it.title?.slice(0, 14) || 'ITEM'} compact />
+                    }
+                  />
                 </div>
                 <div style={s.itemBody}>
                   <div style={s.itemTitle}>{it.title}</div>
@@ -482,16 +481,19 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
           <h3 style={s.sectionTitle}>Hosted by</h3>
           <div style={s.hostCard}>
             <div style={s.hostLogo}>
-              {holder.business_logo_url || holder.avatar_url ? (
-                <ImageWithFade
-                  src={toThumbUrl(holder.business_logo_url || holder.avatar_url) ?? undefined}
-                  fallbackSrc={holder.business_logo_url || holder.avatar_url}
-                  alt={holder.business_name ?? 'Host'}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <Store size={20} style={{ color: 'var(--color-neutral-400)' }} />
-              )}
+              <ImageWithFade
+                src={toThumbUrl(holder.business_logo_url || holder.avatar_url) ?? undefined}
+                fallbackSrc={holder.business_logo_url || holder.avatar_url}
+                alt={holder.business_name ?? 'Host'}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                fallback={
+                  <AvatarFallback
+                    name={holder.business_name || holder.username || 'Host'}
+                    seed={holder.id || holder.username || 'host'}
+                    style={{ borderRadius: 0 }}
+                  />
+                }
+              />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={s.hostName}>
@@ -546,17 +548,15 @@ function Lightbox({ item, onClose }: { item: EventFeaturedItem; onClose: () => v
         <X size={18} />
       </button>
       <div style={s.lightboxBody} onClick={(e) => e.stopPropagation()}>
-        {item.image_url ? (
-          <img
+        <div style={{ width: 'min(80vw, 480px)', aspectRatio: '1 / 1', borderRadius: 8, overflow: 'hidden' }}>
+          <ImageWithFade
             src={item.image_url}
             alt={item.title}
-            style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }}
+            eager
+            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+            fallback={<MediaFallback kind="find" seed={item.id} label={item.title?.slice(0, 14) || 'ITEM'} />}
           />
-        ) : (
-          <div style={{ width: 200, height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-neutral-100)', borderRadius: 8 }}>
-            <Calendar size={40} style={{ color: 'var(--color-neutral-300)' }} />
-          </div>
-        )}
+        </div>
         <div style={{ marginTop: 12, textAlign: 'center', color: '#fff' }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{item.title}</div>
           {item.price != null && (

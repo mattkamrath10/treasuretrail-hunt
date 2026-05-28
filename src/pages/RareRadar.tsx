@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestBlurOverlay } from '../components/GuestGate';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback } from '../components/ui/MediaFallback';
 import { createCommunityPost, fetchCommunityPosts } from '../lib/database';
 import { useLiveFeed } from '../hooks/useLiveFeed';
 import {
@@ -405,22 +407,21 @@ function FeedView({
               }}
             >
               <div style={styles.feedCardTop}>
-                {item.image ? (
-                  <img
+                <div style={styles.feedCardImage}>
+                  <ImageWithFade
                     src={item.image}
                     alt={item.title}
-                    style={styles.feedCardImage}
-                    loading="lazy"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    fallback={
+                      <MediaFallback
+                        kind="wanted"
+                        category={item.category}
+                        seed={item.id}
+                        label="WANTED"
+                        compact
+                      />
+                    }
                   />
-                ) : (
-                  <div
-                    style={{ ...styles.feedCardImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    aria-label="No photo provided"
-                  >
-                    <Search size={20} style={{ color: 'var(--color-neutral-300)' }} />
-                  </div>
-                )}
+                </div>
                 <div style={styles.feedCardInfo}>
                   <h3 style={styles.feedCardTitle}>{item.title}</h3>
                   <div style={styles.feedCardMeta}>
@@ -725,7 +726,12 @@ function CreateRequest({
             />
             {photoUrl ? (
               <div style={styles.photoPreviewWrap}>
-                <img src={photoUrl} alt="Reference preview" style={styles.photoPreview} />
+                <ImageWithFade
+                  src={photoUrl}
+                  alt="Reference preview"
+                  style={styles.photoPreview}
+                  fallback={<MediaFallback kind="wanted" seed={photoUrl} label="REF" compact />}
+                />
                 <button
                   type="button"
                   onClick={() => {
@@ -820,7 +826,13 @@ function SuccessView({
         </p>
         <div style={styles.successCard}>
           {hunt.image && hunt.image !== PLACEHOLDER_IMG && (
-            <img src={hunt.image} alt={hunt.title} style={styles.successCardImg} />
+            <div style={{ ...styles.successCardImg, overflow: 'hidden' }}>
+              <ImageWithFade
+                src={hunt.image}
+                alt={hunt.title}
+                fallback={<MediaFallback kind="wanted" seed={hunt.title} label={hunt.title?.slice(0, 14) || 'WANTED'} compact />}
+              />
+            </div>
           )}
           <h3 style={styles.successCardTitle}>{hunt.title}</h3>
           <div style={styles.successCardMeta}>

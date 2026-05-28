@@ -10,6 +10,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useLiveFeed } from '../hooks/useLiveFeed';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback, type FallbackPlatform } from '../components/ui/MediaFallback';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
 import { HostEventCTA } from '../components/HostEventCTA';
 import PickupTypeChips from '../components/listing/PickupTypeChips';
@@ -539,7 +541,6 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: () => void }) {
   // Track image load failures so we can swap to the branded fallback
   // block instead of leaving an empty gray void (see ARCHITECTURE §5).
-  const [imgFailed, setImgFailed] = useState(false);
   const color = PLATFORM_COLORS[listing.platform] ?? PLATFORM_COLORS.other;
   const platformLabel = listing.platform.charAt(0).toUpperCase() + listing.platform.slice(1);
   const typeLabel = LISTING_TYPE_LABELS[listing.listing_type] ?? listing.listing_type;
@@ -555,20 +556,18 @@ function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: 
   return (
     <button onClick={onClick} style={st.card}>
       <div style={st.cardImgWrap}>
-        {listing.image_url && !imgFailed ? (
-          <img src={listing.image_url} alt={listing.title} style={st.cardImg} loading="lazy" onError={() => setImgFailed(true)} />
-        ) : (
-          // No-image / broken-image fallback — platform-branded block so
-          // the card never renders a gray void. Whatnot listings get the
-          // official logo; other platforms get a wordmark on a tinted bg.
-          <div style={{ ...st.cardImgFallback, backgroundColor: `${color}14` }}>
-            {listing.platform === 'whatnot' ? (
-              <img src="/whatnot-logo.jpg" alt="Whatnot" style={st.cardImgFallbackLogo} />
-            ) : (
-              <span style={{ ...st.cardImgFallbackLabel, color }}>{platformLabel}</span>
-            )}
-          </div>
-        )}
+        <ImageWithFade
+          src={listing.image_url}
+          alt={listing.title}
+          fallback={
+            <MediaFallback
+              kind={listing.listing_type === 'auction' ? 'auction' : 'live'}
+              platform={listing.platform as FallbackPlatform}
+              seed={listing.id}
+              label={platformLabel}
+            />
+          }
+        />
         {liveBadge && (
           <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>
         )}
@@ -674,13 +673,22 @@ function EventDetailModal({ listing, onClose, onScout }: {
           <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
         </div>
         <div style={mo.body}>
-          {/* Image */}
-          {listing.image_url && (
-            <div style={{ width: '100%', height: '180px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 'var(--space-3)', position: 'relative' }}>
-              <img src={listing.image_url} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              {liveBadge && <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>}
-            </div>
-          )}
+          {/* Image — always render so missing/broken URLs show branded fallback */}
+          <div style={{ width: '100%', height: '180px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 'var(--space-3)', position: 'relative' }}>
+            <ImageWithFade
+              src={listing.image_url}
+              alt={listing.title}
+              fallback={
+                <MediaFallback
+                  kind={listing.listing_type === 'auction' ? 'auction' : 'live'}
+                  platform={listing.platform as FallbackPlatform}
+                  seed={listing.id}
+                  label={platformLabel}
+                />
+              }
+            />
+            {liveBadge && <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>}
+          </div>
 
           {/* Platform + type */}
           <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap' as const }}>

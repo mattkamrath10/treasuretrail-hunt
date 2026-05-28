@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { ImageWithFade } from './ui/ImageWithFade';
+import { MediaFallback } from './ui/MediaFallback';
 
 type FindRow = {
   id: string;
@@ -84,19 +86,13 @@ export default function UserFindsGrid({ userId, emptyLabel }: { userId: string; 
             style={s.tile}
             aria-label={`Open ${caption}`}
           >
-            {r.image_url ? (
-              <img
+            <div style={s.tileImg as CSSProperties}>
+              <ImageWithFade
                 src={r.image_url}
                 alt={caption}
-                loading="lazy"
-                decoding="async"
-                style={s.tileImg}
+                fallback={<MediaFallback kind="find" seed={r.id} label={caption.slice(0, 14)} compact />}
               />
-            ) : (
-              <div style={s.tileFallback}>
-                <Upload size={20} style={{ color: 'var(--color-neutral-400)' }} />
-              </div>
-            )}
+            </div>
             <span style={s.tileCaption}>{caption}</span>
           </button>
         );
@@ -124,18 +120,8 @@ const s: Record<string, CSSProperties> = {
   tileImg: {
     width: '100%',
     aspectRatio: '1 / 1',
-    objectFit: 'cover',
     borderRadius: 'var(--radius-md)',
-    background: 'var(--color-neutral-100)',
-  },
-  tileFallback: {
-    width: '100%',
-    aspectRatio: '1 / 1',
-    borderRadius: 'var(--radius-md)',
-    background: 'var(--color-neutral-100)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
   tileCaption: {
     fontSize: 'var(--font-size-xs)',

@@ -2,6 +2,8 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon } from 'lucide-react';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import { PageScroll } from '../components/ui/PageScroll';
@@ -299,11 +301,13 @@ function ProfileHeader({ profile }: { profile: any }) {
           aria-label="Change profile photo"
         >
           {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt="Profile avatar"
-              style={styles.avatarImg}
-            />
+            <div style={styles.avatarImg as any}>
+              <ImageWithFade
+                src={avatarUrl}
+                alt="Profile avatar"
+                fallback={<AvatarFallback name={profile?.username ?? 'You'} seed={profile?.username ?? 'avatar'} />}
+              />
+            </div>
           ) : (
             <div style={styles.avatarPlaceholder}>
               {uploading

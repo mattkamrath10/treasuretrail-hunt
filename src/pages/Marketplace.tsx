@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
 import {
   ArrowLeft, Search, Star, Shield, TrendingUp, MapPin,
@@ -299,9 +300,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                           alt={item.title}
                           style={s.featuredImg as any}
                           fallback={
-                            <div style={{ ...s.featuredImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Package size={24} style={{ color: 'var(--color-neutral-300)' }} />
-                            </div>
+                            <MediaFallback kind="listing" category={item.category} seed={item.id} label={item.category || 'LISTING'} />
                           }
                         />
                         <div style={{ position: 'absolute', top: 8, right: 8 }}>
@@ -338,9 +337,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                         alt={item.title}
                         style={s.hotImg as any}
                         fallback={
-                          <div style={{ ...s.hotImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Package size={20} style={{ color: 'var(--color-neutral-300)' }} />
-                          </div>
+                          <MediaFallback kind="listing" category={item.category} seed={item.id} compact />
                         }
                       />
                       <div style={s.hotOverlay}>
@@ -369,9 +366,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                         alt={item.title}
                         style={s.listingImg as any}
                         fallback={
-                          <div style={{ ...s.listingImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Package size={18} style={{ color: 'var(--color-neutral-300)' }} />
-                          </div>
+                          <MediaFallback kind="listing" category={item.category} seed={item.id} compact />
                         }
                       />
                     </div>
@@ -439,9 +434,7 @@ function ItemDetail({ item, onBack, onOffer, onBuyNow }: {
             alt={item.title}
             style={s.detailImg as any}
             fallback={
-              <div style={{ ...s.detailImg, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Package size={36} style={{ color: 'var(--color-neutral-300)' }} />
-              </div>
+              <MediaFallback kind="listing" category={item.category} seed={item.id} label={item.category || 'LISTING'} />
             }
           />
           <div style={{ position: 'absolute', top: 'var(--space-3)', right: 'var(--space-3)' }}>
@@ -769,7 +762,9 @@ function CreateListing({ onBack, onPreview }: { onBack: () => void; onPreview: (
           <div style={s.createSection}>
             <div style={s.previewCard}>
               <div style={s.previewImgWrap}>
-                <div style={s.previewImgPlaceholder}><Package size={32} style={{ color: 'var(--color-neutral-300)' }} /></div>
+                <div style={s.previewImgPlaceholder}>
+                  <MediaFallback kind="listing" category={category} seed={title || 'preview'} label={category || 'PREVIEW'} compact />
+                </div>
               </div>
               <div style={s.previewInfo}>
                 <span style={s.previewTitle}>{title}</span>
@@ -806,7 +801,13 @@ function OfferScreen({ item, onBack }: { item: Listing; onBack: () => void }) {
       <div style={s.scrollContent}>
         {/* Item summary */}
         <div style={s.offerItemCard}>
-          <img src={item.image} alt={item.title} loading="lazy" decoding="async" style={s.offerItemImg} />
+          <div style={s.offerItemImg as any}>
+            <ImageWithFade
+              src={item.image}
+              alt={item.title}
+              fallback={<MediaFallback kind="listing" category={item.category} seed={item.id} compact />}
+            />
+          </div>
           <div style={s.offerItemInfo}>
             <span style={s.offerItemTitle}>{item.title}</span>
             <span style={s.offerItemPrice}>Listed at {item.price}</span>
@@ -891,7 +892,13 @@ function CheckoutScreen({ item, onBack, onConfirm }: { item: Listing; onBack: ()
       <div style={s.scrollContent}>
         {/* Item */}
         <div style={s.checkoutItem}>
-          <img src={item.image} alt={item.title} loading="lazy" decoding="async" style={s.checkoutImg} />
+          <div style={s.checkoutImg as any}>
+            <ImageWithFade
+              src={item.image}
+              alt={item.title}
+              fallback={<MediaFallback kind="listing" category={item.category} seed={item.id} compact />}
+            />
+          </div>
           <div style={s.checkoutItemInfo}>
             <span style={s.checkoutItemTitle}>{item.title}</span>
             <span style={s.checkoutItemPrice}>{item.price}</span>

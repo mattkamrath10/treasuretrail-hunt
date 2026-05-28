@@ -50,6 +50,8 @@ import LocationFields, { type LocationValue } from '../components/listing/Locati
 import PickupTypeChips from '../components/listing/PickupTypeChips';
 import MarketplaceFoundSelect, { getMarketplaceLabel as _shared_getMarketplaceLabel } from '../components/listing/MarketplaceFoundSelect';
 import ScoutToggles from '../components/listing/ScoutToggles';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback } from '../components/ui/MediaFallback';
 import SafetyReminder from '../components/listing/SafetyReminder';
 
 // Legacy shape kept for callers that still import it from this file.
@@ -729,17 +731,13 @@ function DetailsForm({
 
       <div style={styles.detailsContent}>
         <div style={styles.miniPreview}>
-          {photoUrl ? (
-            <img
+          <div style={{ ...styles.miniImage, borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+            <ImageWithFade
               src={photoUrl}
               alt="Your find"
-              style={{ ...styles.miniImage, objectFit: 'cover' }}
+              fallback={<MediaFallback kind="find" seed={photoUrl || 'find-mini'} label="FIND" compact />}
             />
-          ) : (
-            <div style={{ ...styles.miniImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)' }}>
-              <Camera size={20} style={{ color: 'var(--color-neutral-400)' }} />
-            </div>
-          )}
+          </div>
           <div style={styles.miniMeta}>
             <span style={styles.miniLabel}>Your find</span>
             <span style={styles.miniHint}>Add details below</span>
@@ -901,17 +899,13 @@ function Confirmation({
         </div>
 
         <div style={styles.postedCard}>
-          {photoUrl ? (
-            <img
+          <div style={{ ...styles.postedImage, borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+            <ImageWithFade
               src={photoUrl}
               alt={form.title || 'Your find'}
-              style={{ ...styles.postedImage, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }}
+              fallback={<MediaFallback kind="find" seed={photoUrl || form.title || 'find-posted'} label={form.title?.slice(0, 14) || 'FIND'} compact />}
             />
-          ) : (
-            <div style={{ ...styles.postedImage, backgroundColor: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)' }}>
-              <Camera size={24} style={{ color: 'var(--color-neutral-400)' }} />
-            </div>
-          )}
+          </div>
           <div style={styles.postedInfo}>
             <h3 style={styles.postedTitle}>{form.title}</h3>
             <div style={styles.postedMeta}>

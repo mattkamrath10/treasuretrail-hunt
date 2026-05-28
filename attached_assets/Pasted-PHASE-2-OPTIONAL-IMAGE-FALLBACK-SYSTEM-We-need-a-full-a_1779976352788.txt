@@ -1,0 +1,169 @@
+PHASE 2 — OPTIONAL IMAGE FALLBACK SYSTEM
+
+We need a full audit and replacement of every gray/blank optional-image placeholder across TreasureTrail.
+
+GOAL:
+No optional-image content in the app should ever render as:
+
+* plain gray boxes
+* empty containers
+* broken image placeholders
+* low-quality fallback states
+
+The app should ALWAYS look intentional and visually branded.
+
+---
+
+## TASK
+
+Audit EVERY feature/page/component where image upload is optional.
+
+Examples include:
+
+* Live events
+* Auctions
+* Yard sales
+* Wanted posts
+* Flash finds
+* Marketplace listings
+* Seller profiles
+* Community posts
+* Future categories
+
+Find all locations where:
+
+* image_url is null
+* image fails to load
+* upload skipped
+* placeholder is currently gray
+
+---
+
+## REPLACE WITH CATEGORY FALLBACK CARDS
+
+Create branded fallback visual states by category/platform.
+
+Examples:
+
+LIVE AUCTION
+
+* dark blue gradient
+* “LIVE AUCTION” typography
+* subtle pulse/live indicator
+* platform logo if available
+
+YARD SALE
+
+* warm orange/yellow gradient
+* “YARD SALE”
+* subtle neighborhood/community styling
+
+ESTATE SALE
+
+* elegant brown/gold styling
+* “ESTATE SALE”
+
+WANTED ITEM
+
+* dark premium card
+* category icon
+* “WANTED”
+
+FLASH FIND
+
+* energetic treasure/find styling
+
+WHATNOT
+
+* official Whatnot branding/logo
+
+HIBID
+
+* auction-style branding
+
+GENERIC FALLBACK
+
+* premium TreasureTrail gradient
+* NEVER plain gray
+
+---
+
+## REQUIREMENTS
+
+1. CENTRALIZED SYSTEM
+
+Create a reusable fallback generator/helper.
+
+Example:
+
+* getFallbackVisual(type, category, platform)
+
+Avoid hardcoding random placeholder divs throughout the app.
+
+---
+
+2. IMAGE FAILURE SUPPORT
+
+Fallbacks must ALSO appear when:
+
+* image fails to load
+* remote CDN image breaks
+* Supabase image missing
+
+Use onError handling consistently.
+
+---
+
+3. MOBILE-FIRST
+
+Fallbacks must:
+
+* fit viewport correctly
+* avoid overflow
+* maintain aspect ratios
+* preserve scroll performance
+
+---
+
+4. DARK PREMIUM UI
+
+Match existing TreasureTrail style:
+
+* dark UI
+* warm gold accents
+* subtle gradients
+* premium marketplace feel
+
+DO NOT use:
+
+* cheap stock placeholders
+* generic emoji blocks
+* flat gray cards
+
+---
+
+5. PERFORMANCE
+
+Do NOT create heavy animated canvases.
+
+Keep lightweight:
+
+* CSS gradients
+* icons
+* typography
+* minimal effects
+
+---
+
+6. AUDIT OUTPUT REQUIRED
+
+At completion provide:
+
+* every page/component audited
+* every fallback type added
+* screenshots/examples if possible
+* any remaining gray states still unresolved
+
+IMPORTANT:
+The app should NEVER visually punish users for skipping optional photos.
+Optional-photo flows must still look polished and intentional.

@@ -12,6 +12,7 @@ import { getOrCreateConversation } from '../lib/messaging';
 import { blockUser, isUserBlocked } from '../lib/blocks';
 import UserFindsGrid from '../components/UserFindsGrid';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { AvatarFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
 
 export default function PublicProfile() {
@@ -209,15 +210,14 @@ export default function PublicProfile() {
 
       <div style={s.content}>
         <div style={s.card}>
-          {profile.avatar_url ? (
-            <ImageWithFade src={toThumbUrl(profile.avatar_url) ?? profile.avatar_url} fallbackSrc={profile.avatar_url} alt={profile.username} style={s.avatar} />
-          ) : (
-            <div style={s.avatarPlaceholder}>
-              <span style={s.avatarInitial}>
-                {(profile.username || 'T')[0].toUpperCase()}
-              </span>
-            </div>
-          )}
+          <div style={s.avatar as any}>
+            <ImageWithFade
+              src={toThumbUrl(profile.avatar_url) ?? profile.avatar_url}
+              fallbackSrc={profile.avatar_url}
+              alt={profile.username}
+              fallback={<AvatarFallback name={profile.username} seed={profile.username} />}
+            />
+          </div>
 
           <h1 style={s.username}>@{profile.username}</h1>
           {profile.bio && <p style={s.bio}>{profile.bio}</p>}
