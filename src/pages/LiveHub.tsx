@@ -25,6 +25,7 @@ import { fetchMyEvents, fetchPublishedEvents } from '../lib/events';
 import type { EventRow } from '../lib/events';
 import { startBoostPurchase } from '../lib/payments';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
+import { isProUser } from '../lib/entitlements';
 import { BoostedBadge } from '../components/ui/BoostedBadge';
 import { flashToast } from '../lib/toast';
 import { setPendingIntent } from '../lib/pendingIntent';
@@ -1497,6 +1498,8 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
 // Phase 2 swap behind startBoostPurchase. Routing-to-login is handled by the
 // caller — this modal is only mounted when a user session exists.
 function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const { profile } = useAuth();
+  const isPro = isProUser(profile);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [err, setErr] = useState('');
@@ -1604,7 +1607,7 @@ function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => 
                         style={{ ...boostPicker.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
                       >
                         {busy ? <Loader2 size={13} className="spin" /> : <Zap size={13} />}
-                        Boost — $3 / 72h
+                        {isPro ? 'Boost Event — Included with Pro' : 'Boost — $3 / 72h'}
                       </button>
                     )}
                   </div>

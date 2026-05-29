@@ -16,6 +16,7 @@ import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { MediaFallback, AvatarFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
 import { trackEventView, trackEventClick } from '../lib/eventAnalytics';
+import { isProUser } from '../lib/entitlements';
 import { trackAnalyticsEvent } from '../lib/analytics';
 import { isEventSaved, saveEvent, unsaveEvent } from '../lib/eventSaves';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -864,6 +865,8 @@ const s: Record<string, React.CSSProperties> = {
  * Phase 2 swap behind `startBoostPurchase`.
  */
 function OwnerBoostRow({ event, onApplied }: { event: EventRow; onApplied: () => Promise<void> | void }) {
+  const { profile } = useAuth();
+  const isPro = isProUser(profile);
   const [busy, setBusy] = useState(false);
   const active = isBoosted(event);
   const remaining = boostExpiresInLabel(event);
@@ -897,7 +900,7 @@ function OwnerBoostRow({ event, onApplied }: { event: EventRow; onApplied: () =>
           style={{ ...ownerBoostStyles.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
         >
           {busy ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
-          Boost — $3 / 72h
+          {isPro ? 'Boost Event — Included with Pro' : 'Boost — $3 / 72h'}
         </button>
       )}
     </div>
