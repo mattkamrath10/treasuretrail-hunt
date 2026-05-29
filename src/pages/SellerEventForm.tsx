@@ -62,6 +62,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
 
   const [title,        setTitle]       = useState('');
   const [description,  setDescription] = useState('');
+  const [eventUrl,     setEventUrl]    = useState('');
   const [category,     setCategory]    = useState<EventCategory>('estate_sale');
   const [startsAt,     setStartsAt]    = useState(''); // datetime-local
   const [endsAt,       setEndsAt]      = useState('');
@@ -99,6 +100,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
         if (!e) { setErr('Event not found or you don\'t have access to edit it.'); setLoading(false); return; }
         setTitle(e.title);
         setDescription(e.description);
+        setEventUrl(e.event_url ?? '');
         setCategory(e.category);
         setStartsAt(toLocalInput(e.starts_at));
         setEndsAt(e.ends_at ? toLocalInput(e.ends_at) : '');
@@ -155,6 +157,15 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       setErr('End must be after start'); return;
     }
 
+    // Optional Event URL — validate only when provided. Must be a real
+    // http(s) link so the EventDetail "Visit Event Page" button never
+    // opens a broken or javascript: URL.
+    const cleanEventUrl = eventUrl.trim();
+    if (cleanEventUrl && !isValidHttpUrl(cleanEventUrl)) {
+      setErr('Event URL must be a valid link starting with http:// or https://');
+      return;
+    }
+
     // Online-event validation — mirror of DB CHECK constraint. If we let
     // a bad URL through, the DB throws a cryptic CHECK error; better to
     // catch it inline.
@@ -186,6 +197,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       cover_image_url: coverUrl,
       cover_thumb_url: coverThumb,
       status,
+      event_url:      cleanEventUrl || null,
       event_kind:     eventKind,
       platform:       isOnline ? platform : null,
       livestream_url: isOnline ? livestreamUrl.trim() : null,
@@ -390,6 +402,20 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
               style={{ ...s.input, minHeight: 110, resize: 'vertical' }}
               maxLength={2000}
             />
+
+            <label style={s.label}>Event URL (optional)</label>
+            <input
+              value={eventUrl}
+              onChange={(e) => setEventUrl(e.target.value)}
+              placeholder="https://facebook.com/events/… or estate-sale / auction page"
+              style={s.input}
+              inputMode="url"
+              spellCheck={false}
+              maxLength={500}
+            />
+            <p style={s.sectionHint}>
+              Link a Facebook event, estate-sale site, HiBid auction, Whatnot stream, or any external event page. Opens in a new tab — keep links out of the description.
+            </p>
           </section>
 
           {/* When */}
@@ -757,6 +783,17 @@ function fileToDataUrl(file: File): Promise<string> {
     r.onerror = () => reject(r.error);
     r.readAsDataURL(file);
   });
+}
+
+/** True only for well-formed http(s) URLs. Rejects javascript:, data:,
+ *  bare strings, and other non-web schemes. */
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 /** Convert ISO → value accepted by <input type="datetime-local">. */

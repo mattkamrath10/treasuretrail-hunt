@@ -254,6 +254,20 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
   const expired = isExpiredLive(event);
   const soon = !live && isStartingSoon(event);
 
+  // Optional external event page. Only render the link for well-formed
+  // http(s) URLs so a malformed/legacy value never produces a dead or
+  // unsafe (javascript:) button.
+  const safeEventUrl = (() => {
+    const raw = event.event_url?.trim();
+    if (!raw) return null;
+    try {
+      const u = new URL(raw);
+      return u.protocol === 'http:' || u.protocol === 'https:' ? raw : null;
+    } catch {
+      return null;
+    }
+  })();
+
   // Join Live Show — opens external URL in a new tab. If the show
   // window has closed we send users to the seller's storefront instead
   // of the dead livestream URL so they never land on Whatnot's "show
@@ -430,6 +444,23 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
         <section style={s.section}>
           <h3 style={s.sectionTitle}>About this event</h3>
           <p style={s.description}>{event.description}</p>
+        </section>
+      )}
+
+      {/* Event Website — optional external link (Facebook event, estate-sale
+          site, HiBid auction, etc). Hidden entirely when empty or invalid so
+          the section never renders a dead button. Opens in a new tab. */}
+      {safeEventUrl && (
+        <section style={s.section}>
+          <h3 style={s.sectionTitle}>🔗 Event Website</h3>
+          <a
+            href={safeEventUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={s.eventUrlBtn}
+          >
+            <ExternalLink size={14} /> Visit Event Page
+          </a>
         </section>
       )}
 
@@ -720,6 +751,14 @@ const s: Record<string, React.CSSProperties> = {
     background: 'var(--color-primary-600, #d97706)',
     color: '#fff',
     fontSize: 12, fontWeight: 700,
+  },
+  eventUrlBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '10px 16px', borderRadius: 'var(--radius-md)',
+    border: 'none', cursor: 'pointer', textDecoration: 'none',
+    background: 'var(--color-primary-600, #d97706)',
+    color: '#fff',
+    fontSize: 'var(--font-size-sm)', fontWeight: 700,
   },
   primaryBtnLg: {
     display: 'inline-flex', alignItems: 'center', gap: 6,

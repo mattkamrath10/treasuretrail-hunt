@@ -88,6 +88,10 @@ export interface EventRow {
   livestream_url: string | null;
   seller_handle: string | null;
   show_category: ShowCategory | null;
+  // Optional external event page (Facebook event, estate-sale site, HiBid
+  // auction, Whatnot stream, etc). Optional so rows fetched before the
+  // `20260529000001_event_url.sql` migration lands still typecheck.
+  event_url?: string | null;
   // Phase 1 monetization — boost + moderation. Optional so older code
   // paths that don't SELECT them still typecheck. See
   // `supabase/migrations/20260528000002_monetization_phase1.sql`.
@@ -133,6 +137,8 @@ export interface EventUpsert {
   livestream_url?: string | null;
   seller_handle?: string | null;
   show_category?: ShowCategory | null;
+  // Optional external event page link (any kind of event).
+  event_url?: string | null;
 }
 
 /* ---------------- Time-based helpers (Live now / Starting soon) ---------- */
@@ -280,23 +286,51 @@ export async function fetchMyEvent(id: string, holderId: string) {
   return (data ?? null) as EventRow | null;
 }
 
+// `event_url` arrives before its column may exist (the
+// `20260529000001_event_url.sql` migration is applied by hand in the
+// Supabase SQL editor). Sending the field to a table without the column
+// errors and would break ALL event creation/edits. So we strip it and
+// retry once, mirroring the is_hidden pattern in fetchPublishedEvents.
+//
+// Two error shapes are possible depending on the path: raw Postgres
+// returns `42703` (undefined_column), while PostgREST's schema cache
+// returns `PGRST204` ("Could not find the 'event_url' column"). Tolerate
+// both, scoped to event_url so we never mask an unrelated failure.
+const isMissingEventUrl = (
+  error: { code?: string; message?: string; details?: string } | null,
+) => {
+  if (!error) return false;
+  const haystack = `${error.message ?? ''} ${error.details ?? ''}`;
+  if (!/event_url/i.test(haystack)) return false;
+  return error.code === '42703' || error.code === 'PGRST204';
+};
+
 export async function createEvent(holderId: string, input: EventUpsert) {
-  const { data, error } = await supabase
-    .from('events')
-    .insert({ ...input, holder_id: holderId })
-    .select('*')
-    .single();
+  const build = (withUrl: boolean) => {
+    const payload: Record<string, unknown> = { ...input, holder_id: holderId };
+    if (!withUrl) delete payload.event_url;
+    return supabase.from('events').insert(payload).select('*').single();
+  };
+  let { data, error } = await build(true);
+  if (isMissingEventUrl(error)) {
+    console.warn('[CREATE_EVENT] event_url column missing — retrying without it. Apply migration 20260529000001_event_url.sql to enable event links.');
+    ({ data, error } = await build(false));
+  }
   if (error) throw new Error(error.message);
   return data as EventRow;
 }
 
 export async function updateEvent(id: string, patch: Partial<EventUpsert>) {
-  const { data, error } = await supabase
-    .from('events')
-    .update(patch)
-    .eq('id', id)
-    .select('*')
-    .single();
+  const build = (withUrl: boolean) => {
+    const payload: Record<string, unknown> = { ...patch };
+    if (!withUrl) delete payload.event_url;
+    return supabase.from('events').update(payload).eq('id', id).select('*').single();
+  };
+  let { data, error } = await build(true);
+  if (isMissingEventUrl(error)) {
+    console.warn('[UPDATE_EVENT] event_url column missing — retrying without it. Apply migration 20260529000001_event_url.sql to enable event links.');
+    ({ data, error } = await build(false));
+  }
   if (error) throw new Error(error.message);
   return data as EventRow;
 }
