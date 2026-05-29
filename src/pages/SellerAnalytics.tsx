@@ -40,7 +40,12 @@ export default function SellerAnalytics({ onBack }: { onBack: () => void }) {
         const r = await fetchSellerReach(rows.map((e) => e.id));
         if (!cancelled) setReach(r);
       } catch (e: any) {
-        if (!cancelled) { setEvents([]); setLoadError(e?.message ?? 'Failed to load analytics'); }
+        // Keep any events we already fetched visible — a reach failure should
+        // surface as an error banner, not masquerade as "No events yet".
+        if (!cancelled) {
+          setEvents((prev) => prev ?? []);
+          setLoadError(e?.message ?? 'Failed to load analytics');
+        }
       }
     })();
     return () => { cancelled = true; };

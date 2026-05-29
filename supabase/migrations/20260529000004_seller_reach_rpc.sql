@@ -46,9 +46,9 @@ begin
     left join public.event_view_counts vc on vc.event_id = e.id
     left join public.event_save_counts sc on sc.event_id = e.id
     left join (
-      select event_id, sum(click_count)::int as taps
-        from public.event_click_counts
-       group by event_id
+      select ecc.event_id, sum(ecc.click_count)::int as taps
+        from public.event_click_counts ecc
+       group by ecc.event_id
     ) cc on cc.event_id = e.id
    where e.id = any(p_event_ids)
      and e.holder_id = auth.uid();
