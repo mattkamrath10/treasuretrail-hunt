@@ -1,0 +1,77 @@
+We have two regressions that appeared after the Event URL feature was added.
+
+REGRESSION #1 – Event URL CTA is not appearing
+
+Facts:
+
+* The Event URL field now exists in the editor.
+* The Event URL field contains a valid Facebook permalink.
+* The event was saved AFTER the Supabase migration was run.
+* The URL is still present when reopening the editor.
+* On the Event Detail page there is NO "Visit Event Page" button below Directions / Save / Share.
+
+Please do not guess.
+
+Trace the data flow end-to-end:
+
+1. Confirm event_url is being saved to Supabase.
+2. Confirm event_url is included in the fetch query.
+3. Confirm event_url exists in the loaded event object.
+4. Confirm EventDetail is reading the correct property.
+5. Confirm the CTA render condition is evaluating correctly.
+
+Add temporary logging:
+
+console.log('event_url from database:', event?.event_url);
+
+and also log the save/update payload when the event is saved.
+
+Expected result:
+
+If event_url exists, show a full-width CTA directly below the Directions / Save / Share row.
+
+Button text:
+
+Visit Event Page
+
+The button should open the URL in a new tab.
+
+---
+
+REGRESSION #2 – Event images disappeared from Event Detail
+
+Facts:
+
+* Event image exists in the editor.
+* Event image appears correctly on Live Events.
+* Event image previously appeared correctly.
+* Event Detail page now shows the orange fallback image instead of the uploaded image.
+
+Please trace the image data flow end-to-end.
+
+Audit:
+
+* EventDetail image source
+* Hero image mapping
+* Featured image mapping
+* Any recent ImageWithFade / MediaFallback changes
+* Any field name mismatches
+
+Add temporary logging for:
+
+console.log('event image fields', {
+image: event?.image,
+image_url: event?.image_url,
+cover_image: event?.cover_image,
+featured_image: event?.featured_image
+});
+
+Identify which field contains the actual uploaded image and why Event Detail is falling back to the placeholder.
+
+Expected result:
+
+* Uploaded event image displays on Event Detail.
+* Uploaded event image displays consistently everywhere the event is viewed.
+* Event URL CTA appears whenever event_url exists.
+
+Please identify the exact failing step rather than applying a workaround.

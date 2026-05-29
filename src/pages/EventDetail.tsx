@@ -268,6 +268,18 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
     }
   })();
 
+  // TEMP DIAGNOSTIC — remove after the Event URL / image flow is confirmed.
+  console.log('[EVENT_DETAIL_DIAG]', {
+    id: event.id,
+    event_url_raw: event.event_url,
+    safeEventUrl,
+    ctaWillRender: !!safeEventUrl,
+    image: {
+      cover_image_url: event.cover_image_url,
+      cover_thumb_url: event.cover_thumb_url,
+    },
+  });
+
   // Join Live Show — opens external URL in a new tab. If the show
   // window has closed we send users to the seller's storefront instead
   // of the dead livestream URL so they never land on Whatnot's "show
