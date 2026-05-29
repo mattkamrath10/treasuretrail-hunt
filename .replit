@@ -55,3 +55,9 @@ externalPort = 3001
 deploymentTarget = "autoscale"
 build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
+
+[userenv]
+
+[userenv.shared]
+VITE_API_BASE = "https://treasuretrail-hunt.com"
+VITE_PUBLIC_WEB_URL = "https://treasuretrail-hunt.com"

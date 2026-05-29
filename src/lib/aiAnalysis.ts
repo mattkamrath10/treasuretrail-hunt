@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { apiUrl } from './apiBase';
 
 export interface AiAnalysisResult {
   identified: boolean;
@@ -53,7 +54,7 @@ export async function fetchAiScanUsage(): Promise<AiScanUsage | null> {
   try {
     const headers = await authHeader();
     if (!headers.Authorization) return null;
-    const res = await fetch('/api/ai-scan/usage', { headers });
+    const res = await fetch(apiUrl('/api/ai-scan/usage'), { headers });
     if (!res.ok) return null;
     return (await res.json()) as AiScanUsage;
   } catch {
@@ -69,7 +70,7 @@ export async function runAiScan(
   if (!headers.Authorization) {
     throw new AiScanError('Create a free account to use AI Treasure Scan.', 401);
   }
-  const res = await fetch('/api/ai-scan', {
+  const res = await fetch(apiUrl('/api/ai-scan'), {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ image: compressedDataUrl, context: context ?? '' }),
