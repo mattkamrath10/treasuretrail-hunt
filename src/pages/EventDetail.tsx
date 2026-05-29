@@ -254,31 +254,13 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
   const expired = isExpiredLive(event);
   const soon = !live && isStartingSoon(event);
 
-  // Optional external event page. Only render the link for well-formed
-  // http(s) URLs so a malformed/legacy value never produces a dead or
-  // unsafe (javascript:) button.
-  const safeEventUrl = (() => {
-    const raw = event.event_url?.trim();
-    if (!raw) return null;
-    try {
-      const u = new URL(raw);
-      return u.protocol === 'http:' || u.protocol === 'https:' ? raw : null;
-    } catch {
-      return null;
-    }
-  })();
-
-  // TEMP DIAGNOSTIC — remove after the Event URL / image flow is confirmed.
-  console.log('[EVENT_DETAIL_DIAG]', {
-    id: event.id,
-    event_url_raw: event.event_url,
-    safeEventUrl,
-    ctaWillRender: !!safeEventUrl,
-    image: {
-      cover_image_url: event.cover_image_url,
-      cover_thumb_url: event.cover_thumb_url,
-    },
-  });
+  // Optional external event page. Show the button whenever a non-empty
+  // value exists. A value missing its protocol (e.g. "facebook.com/...")
+  // gets "https://" prepended so the link still works.
+  const rawEventUrl = event.event_url?.trim() ?? '';
+  const eventUrlHref = rawEventUrl
+    ? /^https?:\/\//i.test(rawEventUrl) ? rawEventUrl : `https://${rawEventUrl}`
+    : null;
 
   // Join Live Show — opens external URL in a new tab. If the show
   // window has closed we send users to the seller's storefront instead
@@ -441,14 +423,18 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
           )}
         </div>
 
+        {/* TEMP DEBUG — shows the raw event_url value read from the DB.
+            Remove once the Visit Event Page button is confirmed working. */}
+        <div style={{ fontSize: 12, color: '#888', padding: '6px 0' }}>
+          Event URL: {rawEventUrl ? rawEventUrl : 'EMPTY'}
+        </div>
+
         {/* Event URL CTA — sits directly below the Directions / Save / Share
-            row. Rendered only for a valid http(s) event_url (safeEventUrl);
-            empty/invalid URLs show nothing rather than a broken link. Opens
-            any external page (Facebook, Whatnot, HiBid, estate-sale sites…)
-            in a new tab. */}
-        {safeEventUrl && (
+            row. Rendered whenever event_url has a value. Opens the external
+            page (Facebook, Whatnot, HiBid, estate-sale sites…) in a new tab. */}
+        {eventUrlHref && (
           <a
-            href={safeEventUrl}
+            href={eventUrlHref}
             target="_blank"
             rel="noopener noreferrer"
             style={s.eventUrlBtn}
