@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useLiveFeed } from '../hooks/useLiveFeed';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback, type FallbackPlatform } from '../components/ui/MediaFallback';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
@@ -795,7 +796,7 @@ function EventDetailModal({ listing, onClose }: {
           <span style={mo.title}>Event Details</span>
           <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
         </div>
-        <div style={mo.body}>
+        <div data-scroll-lock-allow style={mo.body}>
           {/* Image — always render so missing/broken URLs show branded fallback */}
           <div style={{ width: '100%', height: '180px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 'var(--space-3)', position: 'relative' }}>
             <ImageWithFade
@@ -965,7 +966,7 @@ function FilterDrawer({ dateFilter, setDateFilter, customDate, setCustomDate, so
             <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
           </div>
         </div>
-        <div style={mo.body}>
+        <div data-scroll-lock-allow style={mo.body}>
 
           {/* Date filter */}
           <p style={fd.sectionTitle}>Date</p>
@@ -1040,6 +1041,9 @@ interface PlatformForm {
 }
 
 function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
+  // Lock the page behind the sheet so only the modal body scrolls (iOS Safari
+  // otherwise drags the Live Events feed underneath the open sheet).
+  useScrollLock(true);
   const [form, setForm] = useState<PlatformForm>({
     platform_name: '', website_url: '', description: '', platform_type: 'marketplace',
     shipping_supported: false, logo_url: '',
@@ -1079,7 +1083,7 @@ function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onC
           <span style={mo.title}>Add Marketplace</span>
           <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
         </div>
-        <div style={mo.body}>
+        <div data-scroll-lock-allow style={mo.body}>
           <label style={mo.label}>Platform Name <span style={mo.req}>*</span></label>
           <input style={mo.input} placeholder="e.g. HiBid, MaxSold, OfferUp…" value={form.platform_name} onChange={(e) => set('platform_name', e.target.value)} />
           <label style={mo.label}>Website URL</label>
@@ -1335,7 +1339,7 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
           <span style={mo.title}>Upload Event</span>
           <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
         </div>
-        <div style={mo.body}>
+        <div data-scroll-lock-allow style={mo.body}>
           <label style={mo.label}>Title <span style={mo.req}>*</span></label>
           <input style={mo.input} placeholder="e.g. Estate Sale — Phoenix, AZ" value={form.title} onChange={(e) => set('title', e.target.value)} />
           <div style={mo.row}>
@@ -1546,7 +1550,7 @@ function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => 
           <span style={mo.title}>Boost an Event</span>
           <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
         </div>
-        <div style={mo.body}>
+        <div data-scroll-lock-allow style={mo.body}>
           <ul style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 'var(--space-4)', paddingLeft: 18 }}>
             <li style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)', lineHeight: 1.5 }}>Boost for 72h</li>
             <li style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-700)', lineHeight: 1.5 }}>Appear higher in Discover/Live feeds</li>
@@ -1731,7 +1735,7 @@ const mo: Record<string, React.CSSProperties> = {
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
   title: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
   closeBtn: { width: '32px', height: '32px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-500)' },
-  body: { flex: 1, overflowY: 'auto', padding: 'var(--space-4)' },
+  body: { flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 'var(--space-4)' },
   label: { display: 'flex', alignItems: 'center', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-600)', marginBottom: '5px', marginTop: 'var(--space-3)' },
   req: { color: 'var(--color-error-500)', marginLeft: '2px' },
   input: { width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)', backgroundColor: 'var(--color-neutral-0)', boxSizing: 'border-box' as const },
