@@ -1,0 +1,128 @@
+Let me find the event form, the upsert types, and the EventDetail page.
+
+
+6 actions
+I have the data layer picture. The key risk: inserting event_url before the DB column exists would 42703 and break event creation — so I'll use the project's column-resilient write pattern. Let me read the form, the detail page, and a recent migration for style.
+
+
+3 actions
+Now let me look at EventDetail.tsx to find where to add the Event Website section.
+
+
+Ran grep
+Let me read the relevant EventDetail sections — the description area and the online livestream CTA (around lines 256-270 and 380-433).
+
+
+2 actions
+I have everything I need. Let me check the EventDetail styles I'll reuse, then make all edits.
+
+
+3 actions
+The system surfaced that Phase 1 monetization plan again, but per my notes it was already shipped earlier this session. Let me verify before deciding how to proceed, and continue the Event URL feature I'm mid-implementation on.
+
+
+2 actions
+Confirmed: the Phase 1 monetization plan is already fully shipped (all those files exist) — that paste is stale. The Event URL feature has no code yet, so I'll continue with it. Let me read the exact create/update functions before editing.
+
+
+Opened events.ts
+I have the exact code now. Let me make all edits in parallel — the EventRow type, the upsert type, the resilient write functions, the form, the detail page, and the migration.
+
+First the data layer (src/lib/events.ts):
+
+
+Opened events.ts
+Now I'll make all the edits. Starting with the data layer:
+
+
+3 actions
+Now the form. Adding state, load, validation, payload, and the field UI:
+
+
+6 actions
+I need to add the isValidHttpUrl helper to the form. Let me find where the other helpers live.
+
+
+2 actions
+Now let me add the isValidHttpUrl helper and the EventDetail section:
+
+
+Edited SellerEventForm.tsx
+Now the EventDetail "Event Website" section. I'll add it right after the description, validating the URL before rendering the link:
+
+
+2 actions
+I need to define safeEventUrl and the eventUrlBtn style. Let me add both:
+
+
+Edited EventDetail.tsx
+Now the eventUrlBtn style. Let me add it after the primaryBtn style:
+
+
+Edited EventDetail.tsx
+Now let me write the migration file:
+
+
+Created 20260529000001_event_url.sql
+Now let me verify everything compiles:
+
+
+2 actions
+Typecheck passes. Let me run the production build and check the running app logs.
+
+
+2 actions
+Build and typecheck pass, app runs clean. Now the architect review per my standing instruction.
+
+
+Ran cat
+Now let me run the architect review:
+
+
+3 actions
+Valid catch — Supabase/PostgREST often returns PGRST204 (schema cache) for unknown columns rather than Postgres's 42703. Let me broaden the detection so writes truly can't break pre-migration.
+
+
+3 actions
+Both pass after the fix. Let me restart the workflow so the running preview picks up the changes, then record the durable lesson.
+
+
+2 actions
+The feature is complete and verified. Let me update the relevant memory note with the PGRST204 lesson, since this is a durable refinement to the migration-gated write pattern.
+
+
+Opened migration-gated-fetcher-pattern.md
+Let me add the write-side (insert/update) variant of this pattern, since it carries the PGRST204 lesson the fetcher version doesn't cover.
+
+
+Edited migration-gated-fetcher-pattern.md
+The Event URL feature is complete. Here's what I built and the one thing you need to do.
+
+What changed
+Create & Edit forms — there's now an optional "Event URL" field right under the description, for both local sales and online live shows. It accepts any Facebook event, estate-sale site, HiBid auction, Whatnot stream, etc. If you type something that isn't a valid http(s) link, it tells you before saving.
+
+Event detail page — when an Event URL is set, a dedicated 🔗 Event Website section appears with a "Visit Event Page" button that opens in a new tab. If the field is empty (or somehow invalid), the section is hidden entirely. "About this event" stays for descriptions only.
+
+Existing events keep working untouched — the field is optional with no default.
+
+One action needed from you
+The new column has to be added to your Supabase database, and I can't apply database schema changes for you. Open your Supabase dashboard → SQL Editor, then paste and run the contents of:
+
+supabase/migrations/20260529000001_event_url.sql
+
+Until you do that, saving an Event URL silently won't persist (the rest of the event still saves fine — I made the save path resilient so nothing breaks in the meantime). Once you run it, links save and show up immediately.
+
+Notes
+Validated, typechecked, and built clean; app boots with no errors.
+The links open with noopener noreferrer and only http(s) URLs are ever rendered, so no unsafe links.
+Architect review caught one real edge case — Supabase reports a missing column differently for writes (PGRST204) than raw Postgres (42703) — which I fixed so event creation/editing can't break before you run the migration.
+
+Checkpoint made
+just now
+
+Worked for 5 minutes
+
+Scroll to latest
+
+Task updates
+Waiting for input
