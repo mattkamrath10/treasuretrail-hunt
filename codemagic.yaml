@@ -20,9 +20,6 @@ workflows:
     integrations:
       app_store_connect: TreasureTrail ASC
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.treasuretrail.hunt
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
@@ -42,8 +39,17 @@ workflows:
         script: npm run build
       - name: Capacitor sync iOS
         script: npx cap sync ios
-      - name: Set up code signing
-        script: xcode-project use-profiles
+      - name: Set up code signing (auto-create cert + profile, no Mac/CSR needed)
+        script: |
+          keychain initialize
+          # Creates the Apple Distribution certificate AND the App Store
+          # provisioning profile via the App Store Connect API key. The CSR is
+          # generated internally by Codemagic — do NOT make one in Apple's portal.
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: Set build number from TestFlight
         script: |
           LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo 0)
