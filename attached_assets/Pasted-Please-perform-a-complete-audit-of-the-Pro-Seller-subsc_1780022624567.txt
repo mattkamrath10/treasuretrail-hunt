@@ -1,0 +1,90 @@
+Please perform a complete audit of the Pro Seller subscription system and Stripe integration.
+
+Priority 1: Subscription Enforcement
+
+Determine exactly how a user becomes Pro Seller.
+
+Trace the entire flow from:
+
+* Tap "Upgrade to Pro Seller"
+* Stripe checkout
+* Stripe webhook
+* Supabase/database update
+* Pro Seller activation
+
+Identify every possible way a user can become Pro Seller without a successful payment.
+
+Specifically check:
+
+* Test mode bypasses
+* Development shortcuts
+* Admin overrides
+* Local storage flags
+* Hardcoded subscription values
+* Client-side only checks
+* Missing webhook validation
+
+I was able to activate Pro Seller on my account without paying, so find the exact reason.
+
+Priority 2: Feature Audit
+
+For every feature advertised on the Pro Seller membership page, classify it as:
+
+* Fully implemented and working
+* Partially implemented
+* UI only / placeholder
+* Not implemented
+
+Audit these features:
+
+* Unlimited event boosts
+* Unlimited live-stream boosts
+* Cross-promotion of Whatnot, Poshmark Live, and eBay Live
+* Personal seller storefront
+* Follower feed
+* Go-live notifications
+* Sales and reach analytics
+* Priority placement
+
+For each feature, identify:
+
+* Files involved
+* Database tables involved
+* Current implementation status
+* Any missing backend functionality
+
+Priority 3: Stripe Production Readiness
+
+Verify:
+
+* Stripe account connection
+* Live keys vs test keys
+* Webhook configuration
+* Subscription creation
+* Subscription renewals
+* Failed payment handling
+* Subscription cancellation handling
+* Automatic downgrade when subscription expires
+
+Priority 4: Revenue Leak Audit
+
+Find every way a user can currently receive paid benefits without paying.
+
+Focus on:
+
+* Pro Seller
+* Boosts
+* Featured placement
+* Analytics
+* Notifications
+* Storefront features
+
+Provide a final report with:
+
+1. What is fully working
+2. What is partially working
+3. What is not implemented
+4. What can currently be abused
+5. What must be fixed before accepting real customer payments
+
+Do not make changes yet. Audit first and report findings.
