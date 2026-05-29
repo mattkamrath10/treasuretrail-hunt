@@ -26,10 +26,10 @@ There is **no SMS and no email** involved.
 
 1. Go to <https://console.firebase.google.com> and **create a project** (e.g. `TreasureTrail`).
 2. **Add an iOS app**
-   - iOS bundle ID: **`com.treasuretrail.app`** (must match `capacitor.config.ts` `appId`).
+   - iOS bundle ID: **`com.treasuretrail.hunt`** (must match `capacitor.config.ts` `appId`).
    - Download **`GoogleService-Info.plist`**. You'll add it to the Xcode project (step 3).
 3. **Add an Android app**
-   - Android package name: **`com.treasuretrail.app`**.
+   - Android package name: **`com.treasuretrail.hunt`**.
    - Download **`google-services.json`**. You'll add it to the Android project (step 4).
 4. **Create the server credential (service account)**
    - Firebase Console → ⚙️ **Project settings → Service accounts → Generate new private key**.
@@ -45,7 +45,7 @@ give Firebase an APNs key:
 
 1. Sign in to <https://developer.apple.com/account> (paid Apple Developer Program).
 2. **Certificates, Identifiers & Profiles → Identifiers** → register an App ID with
-   bundle ID **`com.treasuretrail.app`** and enable the **Push Notifications** capability.
+   bundle ID **`com.treasuretrail.hunt`** and enable the **Push Notifications** capability.
 3. **Keys → +** → create a new key, enable **Apple Push Notifications service (APNs)**,
    download the **`.p8`** file, and note the **Key ID** and your **Team ID**.
 4. In **Firebase Console → Project settings → Cloud Messaging → Apple app
@@ -80,7 +80,7 @@ npx cap sync
 - Drag **`GoogleService-Info.plist`** into the Xcode project (into the `App` target).
 - In **Signing & Capabilities**: select your Team, and add the **Push Notifications**
   capability and **Background Modes → Remote notifications**.
-- Set the bundle identifier to **`com.treasuretrail.app`**.
+- Set the bundle identifier to **`com.treasuretrail.hunt`**.
 
 ### Android-specific
 
@@ -139,7 +139,7 @@ and adds `events.go_live_pushed_at`. Until applied, push silently no-ops.
 - **Dependencies**: `@capacitor/core`, `@capacitor/cli`, `@capacitor/ios`,
   `@capacitor/android`, `@capacitor-firebase/messaging`, `firebase` (web peer dep),
   `firebase-admin` (server).
-- **`capacitor.config.ts`** — appId `com.treasuretrail.app`, webDir `dist`.
+- **`capacitor.config.ts`** — appId `com.treasuretrail.hunt`, webDir `dist`.
 - **`src/lib/push.ts`** — native-only token registration/removal (no-op on web), token
   refresh listener, and notification-tap routing to `/event/:id`. Wired into `AppShell`
   (registers when logged in, removes on logout).

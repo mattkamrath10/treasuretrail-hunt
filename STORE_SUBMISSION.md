@@ -5,7 +5,7 @@ Companion to `CAPACITOR_PUSH_SETUP.md` (push/FCM setup). No feature changes —
 this document is an assessment + runbook only.
 
 App identity (from `capacitor.config.ts`):
-- **App ID / Bundle ID:** `com.treasuretrail.app`
+- **App ID / Bundle ID:** `com.treasuretrail.hunt`
 - **App name:** `TreasureTrail`
 - **Web assets dir:** `dist`
 
@@ -106,11 +106,11 @@ Optional convenience scripts to add to `package.json` (`scripts`):
 ```
 
 **Critical native build settings**
-- **iOS:** set the Signing Team, confirm Bundle Identifier `com.treasuretrail.app`,
+- **iOS:** set the Signing Team, confirm Bundle Identifier `com.treasuretrail.hunt`,
   set Version (e.g. `1.0.0`) and Build (`1`). Add the **Push Notifications**
   capability and **Background Modes → Remote notifications** (for FCM). Drop in
   `GoogleService-Info.plist` (see `CAPACITOR_PUSH_SETUP.md`).
-- **Android:** confirm `applicationId` `com.treasuretrail.app`, set
+- **Android:** confirm `applicationId` `com.treasuretrail.hunt`, set
   `versionCode`/`versionName`, target **SDK 34+** (Play requirement), add
   `google-services.json`, and configure **Play App Signing** (upload keystore).
 
@@ -233,7 +233,7 @@ fallback) **and** the `/api/...` routes from one origin. Consequences:
 
 **Accounts & tooling**
 - [ ] Apple Developer Program membership ($99/yr), Mac + Xcode
-- [ ] App record created in App Store Connect with bundle ID `com.treasuretrail.app`
+- [ ] App record created in App Store Connect with bundle ID `com.treasuretrail.hunt`
 
 **Build config**
 - [ ] `HashRouter` fix applied (§4) and `VITE_API_BASE` set (§5)
@@ -263,7 +263,7 @@ fallback) **and** the `/api/...` routes from one origin. Consequences:
 
 **Accounts & tooling**
 - [ ] Google Play Developer account ($25 one-time), Android Studio
-- [ ] App created in Play Console with package `com.treasuretrail.app`
+- [ ] App created in Play Console with package `com.treasuretrail.hunt`
 
 **Build config**
 - [ ] `HashRouter` fix applied (§4) and `VITE_API_BASE` set (§5)
