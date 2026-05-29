@@ -59,7 +59,7 @@ workflows:
             --create \
             --verbose
           echo "=== Add certificate(s) to keychain ==="
-          keychain add-certificates --certificate-key @file:"$CERT_KEY"
+          keychain add-certificates
           echo "=== Provisioning profiles now on the machine: ==="
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
           echo "=== Apply profiles to the Xcode project ==="

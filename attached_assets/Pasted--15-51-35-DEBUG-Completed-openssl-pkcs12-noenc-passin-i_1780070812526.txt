@@ -1,0 +1,49 @@
+[15:51:35] DEBUG > Completed "openssl pkcs12 -noenc -passin ******** -in /var/folders/w2/rrf5p87d1bbfyphxc7jdnyvh0000gn/T/certificate_n5sr_w2d.p12 -out /var/folders/w2/rrf5p87d1bbfyphxc7jdnyvh0000gn/T/certificate_s_nyk2oj.p12" with returncode 0 in 00:00
+[15:51:35] INFO  > Saved Signing Certificate Apple Distribution: Matthew Kamrath (858G42VFV9) to /Users/builder/Library/Developer/Xcode/UserData/Certificates/DISTRIBUTION_858G42VFV9__tu5zz5i.p12
+[15:51:35] INFO  > Saved Profile IOS_APP_STORE TreasureTrail ios_app_store 1780069895 (G6CNA4XJ5G) to '/Users/builder/Library/Developer/Xcode/UserData/Provisioning Profiles/IOS_APP_STORE_G6CNA4XJ5G_92l345pf.mobileprovision'
+=== Add certificate(s) to keychain ===
+usage: keychain [-h] [--log-stream {stderr,stdout}] [--no-color] [--version] [-s] [-v] {add-certificates,create,delete,get-default,initialize,list-certificates,lock,make-default,set-timeout,show-info,unlock,use-login} ...
+keychain: error: unrecognized arguments: --certificate-key @file:/tmp/cert_private_key.pem
+
+
+Build failed :|
+Step 5 script `Set up code signing (auto-create cert + profile, no Mac/CSR needed)` exited with status code 2
+Initialize new keychain to store code signing certificates at /Users/builder/Library/codemagic-cli-tools/keychains/29-05-26_hm8kf0i2.keychain-db
+Create keychain /Users/builder/Library/codemagic-cli-tools/keychains/29-05-26_hm8kf0i2.keychain-db
+Set keychain /Users/builder/Library/codemagic-cli-tools/keychains/29-05-26_hm8kf0i2.keychain-db timeout to "no timeout"
+Set keychain /Users/builder/Library/codemagic-cli-tools/keychains/29-05-26_hm8kf0i2.keychain-db to system default keychain
+Unlock keychain /Users/builder/Library/codemagic-cli-tools/keychains/29-05-26_hm8kf0i2.keychain-db
+=== Fetch/create signing files for com.treasuretrail.hunt ===
+[15:51:33] DEBUG > Load JWT for App Store Connect key 'CZKJU9X8ZW' from disk cache
+[15:51:33] DEBUG > Failed to load App Store Connect JWT from disk cache: Token is not cached
+[15:51:33] DEBUG > Generate new App Store Connect JWT for key 'CZKJU9X8ZW'
+[15:51:33] DEBUG > Cached App Store Connect JWT for key CZKJU9X8ZW
+[15:51:33] INFO  > Found 1 Bundle ID matching specified filters: identifier=com.treasuretrail.hunt, platform=IOS.
+[15:51:33] INFO  > - TreasureTrail com.treasuretrail.hunt (378TC9LTDU)
+
+[15:51:33] INFO  > Did not find any Signing Certificates matching specified filters: certificateType=DISTRIBUTION,IOS_DISTRIBUTION.
+[15:51:33] INFO  > Did not find any Signing Certificates for given private key
+[15:51:33] INFO  > Creating new Signing Certificate: certificate type: DISTRIBUTION
+[15:51:34] INFO  > Created Signing Certificate 858G42VFV9
+
+[15:51:34] INFO  > Get Profiles for Bundle ID 378TC9LTDU
+[15:51:34] INFO  > Did not find any Profiles for Bundle ID 378TC9LTDU matching specified filters: profileState=ACTIVE, profileType=IOS_APP_STORE.
+[15:51:34] INFO  > 
+[15:51:34] INFO  > Did not find any Profiles that contain Signing Certificate Apple Distribution: Matthew Kamrath (858G42VFV9)
+[15:51:34] INFO  > Did not find any Devices matching specified filters: platform=IOS, status=ENABLED.
+[15:51:34] INFO  > Found 1 Signing Certificate matching specified filters: certificateType=DISTRIBUTION,IOS_DISTRIBUTION.
+[15:51:34] INFO  > Get Bundle ID 378TC9LTDU
+[15:51:35] INFO  > Creating new Profile: name: 'TreasureTrail ios_app_store 1780069895', profile type: IOS_APP_STORE, bundle id: 378TC9LTDU, certificates: ['858G42VFV9']
+[15:51:35] INFO  > Created Profile G6CNA4XJ5G
+
+[15:51:35] DEBUG > Execute "openssl pkcs12 -noenc -passin ******** -in /var/folders/w2/rrf5p87d1bbfyphxc7jdnyvh0000gn/T/certificate_n5sr_w2d.p12 -out /var/folders/w2/rrf5p87d1bbfyphxc7jdnyvh0000gn/T/certificate_s_nyk2oj.p12"
+[15:51:35] DEBUG > Completed "openssl pkcs12 -noenc -passin ******** -in /var/folders/w2/rrf5p87d1bbfyphxc7jdnyvh0000gn/T/certificate_n5sr_w2d.p12 -out /var/folders/w2/rrf5p87d1bbfyphxc7jdnyvh0000gn/T/certificate_s_nyk2oj.p12" with returncode 0 in 00:00
+[15:51:35] INFO  > Saved Signing Certificate Apple Distribution: Matthew Kamrath (858G42VFV9) to /Users/builder/Library/Developer/Xcode/UserData/Certificates/DISTRIBUTION_858G42VFV9__tu5zz5i.p12
+[15:51:35] INFO  > Saved Profile IOS_APP_STORE TreasureTrail ios_app_store 1780069895 (G6CNA4XJ5G) to '/Users/builder/Library/Developer/Xcode/UserData/Provisioning Profiles/IOS_APP_STORE_G6CNA4XJ5G_92l345pf.mobileprovision'
+=== Add certificate(s) to keychain ===
+usage: keychain [-h] [--log-stream {stderr,stdout}] [--no-color] [--version] [-s] [-v] {add-certificates,create,delete,get-default,initialize,list-certificates,lock,make-default,set-timeout,show-info,unlock,use-login} ...
+keychain: error: unrecognized arguments: --certificate-key @file:/tmp/cert_private_key.pem
+
+
+Build failed :|
+Step 5 script `Set up code signing (auto-create cert + profile, no Mac/CSR needed)` exited with status code 2
