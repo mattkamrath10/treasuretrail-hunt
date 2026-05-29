@@ -13,11 +13,34 @@ App identity (from `capacitor.config.ts`):
 
 ## 0. TL;DR — Can we package today?
 
-**Not yet.** There is **1 hard blocker** and **3 must-do setup steps** before a
-build will run correctly in a native shell. None are large. See
-[§8 Blockers](#8-blockers). The biggest is that the app uses **`BrowserRouter`**,
-which does not work reliably inside a Capacitor webview — deep navigation and the
-push-notification tap (`/event/:id`) will fail. Switch to `HashRouter` first.
+**Not yet — but the in-code packaging blockers are now fixed.** This pass applied
+the code-level fixes (router, push-tap nav, password-reset URL, platform-aware
+API base). What remains is **environment / infrastructure**, and there is **one
+architectural blocker that must be decided before a native build is useful:**
+
+> 🚨 **The production deployment is `static` (see `.replit`), so the Express
+> server is NOT deployed.** Every `/api/...` call — including the **mandatory
+> account-deletion** endpoint (`/api/account/delete`), push trigger, and AI
+> endpoints — has no production host. The native app therefore has nowhere to
+> point `VITE_API_BASE`, and account deletion is already broken on production
+> web. This requires deploying the server (Autoscale / Reserved VM) — a
+> cost/architecture decision for the project owner. See
+> [§5](#5-authentication-inside-capacitor) and [§8](#8-blockers).
+
+See [§8 Blockers](#8-blockers) for the full status table.
+
+### Fixed in this pass (code)
+- ✅ **Router:** platform-conditional — `HashRouter` on native (Capacitor),
+  `BrowserRouter` on web (web share links unchanged). `src/main.tsx`.
+- ✅ **Push tap:** navigates via the hash (`#/event/:id`) so taps resolve in the
+  native webview instead of 404-ing. `src/lib/push.ts`.
+- ✅ **Password reset:** redirect uses the public https web domain via
+  `publicWebUrl()` instead of `capacitor://localhost`. `src/pages/Login.tsx`.
+- ✅ **API base:** `apiUrl()` is platform-aware (web always relative; native uses
+  `VITE_API_BASE`). New `publicWebUrl()` for browser-opened links.
+  `src/lib/apiBase.ts`.
+- ✅ **Route detection:** cold-load public-share detection now reads the hash on
+  native. `src/App.tsx`.
 
 ---
 
@@ -113,29 +136,35 @@ after changing artwork, then `npx cap sync`.
 
 ---
 
-## 4. Routing inside a Capacitor shell — ❌ BLOCKER
+## 4. Routing inside a Capacitor shell — ✅ FIXED
 
-**Finding:** `src/main.tsx` wraps the app in **`BrowserRouter`** (HTML5 History
-API). In a Capacitor webview the app is served from `capacitor://localhost` (iOS)
-or `http://localhost` (Android). `BrowserRouter` boots fine at `/`, but:
+**Original problem:** `src/main.tsx` used **`BrowserRouter`** (HTML5 History API).
+In a Capacitor webview the app is served from `capacitor://localhost` (iOS) or
+`http://localhost` (Android) with **no server-side SPA fallback**, so any hard
+navigation / reload to a non-root path (e.g. the push-tap handler loading
+`/event/:id`) would request a file that doesn't exist → blank screen. The web SPA
+fallback (`public/_redirects`, `dist/404.html`) is hosting-only and does nothing
+natively.
 
-- Any **hard navigation or reload to a non-root path** (e.g. the push-tap handler
-  in `src/lib/push.ts` calling `window.location.assign('/event/:id')`) asks the
-  native webview to load `capacitor://localhost/event/:id`, which has no
-  corresponding file → **blank screen / load failure**.
-- The web SPA fallback you rely on (`public/_redirects`, `dist/404.html`) is a
-  **hosting-only** mechanism (Netlify-style) and does nothing inside the native
-  shell.
-
-**Fix (recommended):** switch to `HashRouter` so all routes live under `/#/…`,
-which always resolves to the single bundled `index.html`:
+**Fix applied — platform-conditional router** (`src/main.tsx`):
 ```tsx
-// src/main.tsx
-import { HashRouter } from 'react-router-dom';
-// <HashRouter> … </HashRouter>
+const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter;
 ```
-Then change the push-tap handler in `src/lib/push.ts` to route via the hash
-(`window.location.assign('#/event/' + eventId)`) or, better, through the router.
+- **Native →** `HashRouter`: every route is `index.html#/…`, which always resolves
+  inside the webview (bulletproof on cold start, reload, and deep nav).
+- **Web →** `BrowserRouter` (unchanged): clean URLs, and existing share links like
+  `origin/listing/:id` keep resolving via the host SPA fallback. This avoids a
+  regression that a blanket `HashRouter` swap would cause (all `window.location`
+  share-URL generators would have needed `/#/` rewriting).
+
+**Supporting fixes**
+- `src/lib/push.ts` — notification tap now navigates via the hash
+  (`window.location.assign('#/event/:id')`); this handler only runs on native.
+- `src/App.tsx` — `currentRoutePath()` reads the route from the hash on native and
+  `pathname` on web, so cold-load public-share detection works under both routers.
+
+> Note: `vite.config.ts` sets no `base` (defaults to `/`), which is correct for
+> Capacitor — assets resolve against the localhost root. No change needed.
 
 **Routes audited** (all should be verified post-fix): `/`, `/home`, `/flash-finds`,
 `/sell`, `/sell/wanted`, `/wanted`, `/wanted/:id`, `/rare-radar`, `/auctions`,
@@ -162,9 +191,34 @@ Then change the push-tap handler in `src/lib/push.ts` to route via the hash
 | OAuth redirect / deep-link config | ✅ n/a | No social login, so no redirect handling needed |
 | Sign in with Apple required? | ✅ No | Apple Guideline 4.8 only applies if you offer 3rd-party social login |
 | Session persistence | ⚠️ verify | `createClient` uses defaults (webview `localStorage`). Verify the session survives an app cold-start; consider a `@capacitor/preferences` storage adapter for robustness |
-| **Password reset** | ⚠️ **fix** | `Login.tsx` sets `redirectTo: ${window.location.origin}/login`. In native, origin = `capacitor://localhost`, so the reset email link is unopenable. Point it at your **public https domain** (or a universal/app link) instead |
-| **API base URL for `/api`** | ⚠️ **must set** | Native `/api` calls resolve to `capacitor://localhost/api` and fail. `src/lib/apiBase.ts` already reads `VITE_API_BASE` — set it to your deployed `https://…replit.app` URL before building for native (affects push trigger + account deletion) |
-| Server CORS | ✅ | `server/index.ts` uses `cors()` (all origins); auth is Bearer-token, no cookies — compatible with the localhost native origin |
+| **Password reset** | ✅ **fixed** | `Login.tsx` now uses `publicWebUrl('/login')`. Web → real origin (unchanged); native → the configured public web domain instead of `capacitor://localhost`. Requires `VITE_PUBLIC_WEB_URL` (or `VITE_API_BASE`) at native build time |
+| **API base URL for `/api`** | 🔴 **blocked** | Code is ready: `apiUrl()` uses `VITE_API_BASE` on native only. **But there is no deployed server to point it at** — see the deployment blocker below |
+
+### 🚨 Deployment architecture blocker — no API server in production
+
+`.replit` declares `deploymentTarget = "static"` with `build = npm run build`. The
+published app is **only the `dist/` web bundle**; the Express server
+(`server/index.ts`, started by `npm run dev`/`start`) **does not run in
+production**. Consequences:
+
+- **Account deletion is broken in production today.** `deleteAccount()` POSTs to
+  `/api/account/delete`; on a static host that path has no handler, so the delete
+  never executes. This is an **Apple Guideline 5.1.1(v)** rejection risk and a
+  data-correctness bug — the user is signed out but their account remains.
+- **Native has nowhere to point `VITE_API_BASE`.** The static `.replit.app`
+  domain serves the web app but not `/api/...`, so push trigger, AI scan, and
+  account deletion would all fail in the native app.
+
+**Required decision (project owner):** deploy the Express server — either switch
+the deployment to **Autoscale** / **Reserved VM** (serving both web + `/api`), or
+deploy the API separately. Then:
+- Set `VITE_API_BASE` = the server's https URL (serves `/api`).
+- Set `VITE_PUBLIC_WEB_URL` = the web app's https URL (for the reset link); if web
+  and API share a host, `VITE_API_BASE` alone suffices.
+- Rebuild + `npx cap sync` so the values bake into the native bundle.
+
+> CORS is already permissive (`server/index.ts` uses `cors()`, Bearer-token auth,
+> no cookies), so the native localhost origin is compatible once a server exists.
 
 ---
 
@@ -228,18 +282,21 @@ Then change the push-tap handler in `src/lib/push.ts` to route via the hash
 
 ## 8. Blockers (what prevents packaging today)
 
-| # | Severity | Blocker | Fix |
+| # | Severity | Blocker | Status / Fix |
 | --- | --- | --- | --- |
-| 1 | 🔴 High | **`BrowserRouter`** breaks deep routes + push-tap navigation in the native webview | Switch to `HashRouter` in `src/main.tsx`; update `src/lib/push.ts` tap handler (§4) |
-| 2 | 🔴 High | **No native projects** (`ios/`, `android/`) generated | `npx cap add ios && npx cap add android` (§2) |
-| 3 | 🔴 High | **No native app icons / splash** (only web PWA icons exist) | Generate with `@capacitor/assets` from a 1024² icon + 2732² splash (§3) |
-| 4 | 🔴 High | **`VITE_API_BASE` unset** → native `/api` calls fail (push trigger, account deletion) | Set to deployed `https://…replit.app` before native build (§5) |
-| 5 | 🟠 Med | **Password reset link** uses `capacitor://localhost` origin → unopenable in email | Use public https domain in `resetPasswordForEmail` redirect (§5) |
-| 6 | 🟠 Med | **Firebase native files / APNs** not yet added (push won't work natively until done) | Follow `CAPACITOR_PUSH_SETUP.md`; add `GoogleService-Info.plist` + `google-services.json` |
-| 7 | 🟡 Low | Session persistence relies on webview `localStorage` default | Verify cold-start session; optionally add `@capacitor/preferences` storage adapter |
-| 8 | 🟡 Low | Safe-area handling for notch (`viewport-fit=cover`) | Verify on a notched device after first build |
+| 1 | 🔴 High | **No API server in production** (`deploymentTarget = "static"`) → native `/api` has no host; account deletion broken in prod | ⏳ **Owner decision** — deploy server (Autoscale/Reserved VM), then set `VITE_API_BASE` (§5) |
+| 2 | 🔴 High | **`BrowserRouter`** broke deep routes + push-tap nav in the webview | ✅ **Fixed** — platform-conditional router + hash push-tap (§4) |
+| 3 | 🔴 High | **No native projects** (`ios/`, `android/`) generated | ⏳ `npx cap add ios && npx cap add android` (§2) |
+| 4 | 🔴 High | **No native app icons / splash** (only web PWA icons exist) | ⏳ Generate with `@capacitor/assets` from a 1024² icon + 2732² splash (§3) |
+| 5 | 🔴 High | **`VITE_API_BASE`** not set for native | ✅ Code ready (platform-aware); ⏳ value blocked on #1 (§5) |
+| 6 | 🟠 Med | **Password reset link** used `capacitor://localhost` → unopenable in email | ✅ **Fixed** — `publicWebUrl('/login')` (§5); set `VITE_PUBLIC_WEB_URL` at native build |
+| 7 | 🟠 Med | **Firebase native files / APNs** not yet added | ⏳ Follow `CAPACITOR_PUSH_SETUP.md`; add `GoogleService-Info.plist` + `google-services.json` |
+| 8 | 🟡 Low | Session persistence relies on webview `localStorage` default | ⏳ Verify cold-start session; optionally add `@capacitor/preferences` |
+| 9 | 🟡 Low | Safe-area handling for notch (`viewport-fit=cover`) | ⏳ Verify on a notched device after first build |
 
-**Not blockers (already good):** account deletion present (5.1.1(v)); Privacy &
-Terms pages exist at `/privacy` and `/terms`; no OAuth so no Sign-in-with-Apple
-requirement and no deep-link redirect plumbing needed; CORS permits the native
-origin; `webDir` matches the Vite build output.
+**Not blockers (already good):** account-deletion **UI + endpoint exist** (Apple
+5.1.1(v)) — they only need the server deployed (#1); Privacy & Terms pages exist
+at `/privacy` and `/terms`; no OAuth so no Sign-in-with-Apple requirement and no
+deep-link redirect plumbing needed; CORS permits the native origin; `webDir`
+matches the Vite build output; web build verified (`tsc` + `vite build` clean,
+app renders with no regression after the router change).

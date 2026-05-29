@@ -64,9 +64,12 @@ export async function registerPush(): Promise<void> {
         const data = (event?.notification?.data ?? {}) as Record<string, unknown>;
         const eventId = typeof data.eventId === 'string' ? data.eventId : null;
         if (eventId) {
-          // Hash-router-agnostic: let the app pick it up on next navigation.
+          // This handler only runs on native (Capacitor), where the app uses
+          // HashRouter (see src/main.tsx). Navigating via the hash updates the
+          // route in-place (no file request to capacitor://localhost/event/:id,
+          // which would 404) and HashRouter picks it up on hashchange.
           try {
-            window.location.assign(`/event/${eventId}`);
+            window.location.assign(`#/event/${eventId}`);
           } catch {
             /* ignore */
           }

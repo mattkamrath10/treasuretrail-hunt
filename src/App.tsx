@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
@@ -28,6 +29,22 @@ function isPublicSharePath(pathname: string): boolean {
   return PUBLIC_SHARE_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
+// Resolve the active route path regardless of router type. On web
+// (BrowserRouter) the route lives in `pathname`; inside the native shell
+// (HashRouter) it lives in the hash as `#/event/:id`. Reading the wrong one
+// would make cold-load public-share detection miss on native.
+function currentRoutePath(): string {
+  if (typeof window === 'undefined') return '/';
+  // Only the native shell uses HashRouter, so only there does the route live in
+  // the hash. On web, always trust pathname so a stray `/#/...` URL can't trip
+  // the public-share bypass.
+  if (Capacitor.isNativePlatform()) {
+    const hash = window.location.hash;
+    if (hash.startsWith('#/')) return hash.slice(1);
+  }
+  return window.location.pathname;
+}
+
 function AppContent() {
   const { user, loading, hasCompletedSetup, isGuest, enterGuestMode } = useAuth();
   const [hasOnboarded, setHasOnboarded] = useState(() => {
@@ -43,7 +60,7 @@ function AppContent() {
   // Public deep links bypass onboarding + login entirely. Without this,
   // a cold tap on /wanted/:id or /u/:handle from Messages dumps the
   // visitor on the onboarding splash instead of the linked content.
-  const publicShare = typeof window !== 'undefined' && isPublicSharePath(window.location.pathname);
+  const publicShare = isPublicSharePath(currentRoutePath());
   if (publicShare && !loading) {
     return (
       <Routes>

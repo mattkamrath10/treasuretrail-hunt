@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { publicWebUrl } from '../lib/apiBase';
 import { TreasureChestLogo } from '../components/TreasureChestLogo';
 
 interface LoginProps {
@@ -33,7 +34,11 @@ export default function Login({ onSwitchToSignUp, onGuestBrowse }: LoginProps) {
     }
     setResetSending(true);
     const { error: resetErr } = await supabase.auth.resetPasswordForEmail(trimmed, {
-      redirectTo: `${window.location.origin}/login`,
+      // Must be an https URL that opens the web app in a browser. On web this is
+      // the real origin; inside the native shell window.location.origin would be
+      // capacitor://localhost (unopenable from an email), so publicWebUrl swaps
+      // in the configured public web domain.
+      redirectTo: publicWebUrl('/login'),
     });
     setResetSending(false);
     if (resetErr) {
