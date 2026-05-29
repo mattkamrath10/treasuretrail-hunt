@@ -17,3 +17,4 @@
 - [Go-live notification dedupe](go-live-notification-dedupe.md) — fan-out alerts dedupe server-side via atomic claim UPDATE (...notified_at IS NULL...RETURNING) inside a SECURITY DEFINER RPC; client `attempted` set is only a same-session optimization, never the real gate.
 - [Autoscale vs publicDir conflict](autoscale-publicdir-conflict.md) — Static→Autoscale switch leaves `publicDir` in .replit (disables Publish / stays Static); deployConfig wont remove it, user must hand-edit .replit.
 - [Native /api fetch rule](native-api-fetch-rule.md) — relative `fetch('/api')` breaks in Capacitor webview; every /api call must use `apiUrl()`, links use `publicWebUrl()`; VITE_API_BASE is a build-time var.
+- [cap add ios on Linux](capacitor-ios-on-linux.md) — Capacitor 8 CLI needs Node>=22; `cap add ios` scaffolds with SPM (no CocoaPods/Mac) so the ios/ project generates fine on Replit.
