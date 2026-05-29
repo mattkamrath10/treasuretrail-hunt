@@ -21,7 +21,7 @@ import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
 import { GuestOverlay } from '../components/GuestGate';
 import { PageScroll } from '../components/ui/PageScroll';
-import { fetchMyEvents } from '../lib/events';
+import { fetchMyEvents, fetchPublishedEvents } from '../lib/events';
 import type { EventRow } from '../lib/events';
 import { startBoostPurchase } from '../lib/payments';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
@@ -50,6 +50,55 @@ interface ExternalListing {
   ships_available: boolean;
   status: string;
   created_at: string;
+  // 'event' rows are hosted events mapped in from the `events` table (see
+  // eventToListing). They open the in-app /event/:id detail page instead of
+  // the external-link modal. Absent/'external' = a real external_listings row.
+  source?: 'event' | 'external';
+}
+
+/**
+ * Hosted events live in the `events` table and power Discover. Live Events
+ * historically queried only `external_listings`, so hosted estate sales,
+ * yard sales, and auctions never surfaced here — even when boosted. Map each
+ * published event into the shared listing shape so it flows through the same
+ * type filters, date filters, sort, and cards as external listings.
+ *
+ * `listing_type` mirrors the event `category` so the type tabs (Estate Sales,
+ * Auctions, Yard Sales) match. Local events carry no external URL — clicking
+ * routes to the in-app /event/:id page (handled where the card is rendered).
+ */
+// Event platform keys (whatnot/poshmark_live/posh_party/ebay_live/other) don't
+// all match LiveHub's PLATFORM_COLORS / label keys. Normalize to the existing
+// keys so online events get correct branding instead of a gray "Poshmark_live".
+const EVENT_PLATFORM_KEY: Record<string, string> = {
+  whatnot: 'whatnot',
+  poshmark_live: 'poshmark',
+  posh_party: 'poshmark',
+  ebay_live: 'ebay',
+  other: 'other',
+};
+
+function eventToListing(e: EventRow): ExternalListing {
+  return {
+    id: e.id,
+    source: 'event',
+    platform: e.event_kind === 'online'
+      ? (EVENT_PLATFORM_KEY[e.platform ?? 'other'] ?? 'other')
+      : 'local',
+    listing_type: e.category,
+    external_url: e.livestream_url ?? '',
+    title: e.title,
+    price_display: null,
+    category: e.show_category ?? null,
+    // Pass the raw stored thumb straight through — never re-derive via
+    // toThumbUrl (that double-processes already-thumb URLs into 404s).
+    image_url: e.cover_thumb_url ?? e.cover_image_url,
+    start_at: e.starts_at,
+    ends_at: e.ends_at,
+    ships_available: false,
+    status: 'active',
+    created_at: e.created_at,
+  };
 }
 
 type TypeFilter = 'all' | 'auctions' | 'estate' | 'yard' | 'storage';
@@ -104,13 +153,14 @@ function isValidHttpUrl(value: string): boolean {
 const PLATFORM_COLORS: Record<string, string> = {
   whatnot: '#FF5C00', poshmark: '#C13584', ebay: '#E53238',
   hibid: '#1A3668', maxsold: '#007A74', estatesales: '#7B4F2E',
-  facebook: '#1877F2', other: '#6B7280',
+  facebook: '#1877F2', local: '#0F766E', other: '#6B7280',
 };
 
 const LISTING_TYPE_LABELS: Record<string, string> = {
   live_stream: 'Live Stream', auction: 'Auction', estate_sale: 'Estate Sale',
   yard_sale: 'Yard Sale', flea_market: 'Flea Market',
   storage_auction: 'Storage Auction', fixed_price: 'For Sale',
+  pop_up: 'Pop-up', collectibles_show: 'Collectibles Show',
 };
 
 // ─── Filter / sort logic ──────────────────────────────────────────────────────
@@ -275,31 +325,55 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 
   const fetchListings = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
-    // Await the query so callers (notably useLiveFeed's overlap guard)
-    // see a real Promise that doesn't resolve until the request finishes.
-    // SELECT * — tolerates missing optional columns (e.g. start_at before
-    // its migration is applied) instead of failing the whole query.
-    const { data, error } = await supabase
-      .from('external_listings')
-      .select('*')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(100);
+    // Live Events is the union of two datasets:
+    //   1. external_listings — user-added links to off-platform sales/shows.
+    //   2. events — hosted events (estate/yard/auction…) that also power
+    //      Discover. Without these, a hosted (even boosted) estate sale shows
+    //      in Discover but is invisible here. Mapped via eventToListing.
+    // Fetched concurrently. SELECT * tolerates missing optional columns
+    // (e.g. start_at before its migration) instead of failing the query.
+    const [extRes, evRes] = await Promise.allSettled([
+      supabase
+        .from('external_listings')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(100),
+      fetchPublishedEvents({ limit: 100 }),
+    ]);
+
+    // external_listings is the primary feed — a hard failure must propagate
+    // so useLiveFeed's overlap guard / backoff engages on the next tick.
+    if (extRes.status === 'rejected') {
+      setLoading(false);
+      const msg = extRes.reason?.message ?? String(extRes.reason);
+      console.error('[SUPABASE_QUERY_FAIL] table=external_listings source=LiveHub.fetchListings', extRes.reason);
+      throw new Error(`LiveHub.fetchListings failed: ${msg}`);
+    }
+    const { data, error } = extRes.value;
     if (error) {
       console.error('[SUPABASE_QUERY_FAIL] table=external_listings source=LiveHub.fetchListings', error);
       setLoading(false);
       throw new Error(`LiveHub.fetchListings failed: ${error.message}`);
     }
-    if (data) {
-      const rows = data as ExternalListing[];
-      // Preserve any optimistically-prepended rows that haven't shown up
-      // in the refetch yet (read-after-write replica lag, etc.).
-      setListings((prev) => {
-        const serverIds = new Set(rows.map((r) => r.id));
-        const missing = prev.filter((p) => !serverIds.has(p.id));
-        return [...missing, ...rows];
-      });
+
+    // Hosted events are supplementary — if their fetch fails, log it and keep
+    // the external feed visible rather than blanking the whole page.
+    let eventRows: ExternalListing[] = [];
+    if (evRes.status === 'fulfilled') {
+      eventRows = evRes.value.map(eventToListing);
+    } else {
+      console.warn('[LiveHub] published events fetch failed; showing external listings only', evRes.reason);
     }
+
+    const serverRows = [...((data as ExternalListing[]) ?? []), ...eventRows];
+    // Preserve any optimistically-prepended rows that haven't shown up in the
+    // refetch yet (read-after-write replica lag, etc.).
+    setListings((prev) => {
+      const serverIds = new Set(serverRows.map((r) => r.id));
+      const missing = prev.filter((p) => !serverIds.has(p.id));
+      return [...missing, ...serverRows];
+    });
     setLoading(false);
   };
 
@@ -503,7 +577,12 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           <ListingCard
             key={listing.id}
             listing={listing}
-            onClick={() => setSelectedListing(listing)}
+            onClick={() => {
+              // Hosted events have a real in-app detail page; external
+              // listings only have the bottom-sheet modal + outbound link.
+              if (listing.source === 'event') navigate(`/event/${listing.id}`);
+              else setSelectedListing(listing);
+            }}
           />
         ))}
       </div>
