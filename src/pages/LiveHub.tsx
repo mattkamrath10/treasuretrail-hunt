@@ -1523,7 +1523,10 @@ function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => 
     const res = await startBoostPurchase({ targetKind: 'event', targetId: event.id });
     setBusyId(null);
     if (!res.ok) {
-      flashToast(`Boost failed: ${res.error}`, 'error');
+      flashToast(
+        res.comingSoon ? 'Boost checkout is coming soon.' : `Boost failed: ${res.error}`,
+        'info',
+      );
       return;
     }
     flashToast('Boost active for 72 hours.', 'success');

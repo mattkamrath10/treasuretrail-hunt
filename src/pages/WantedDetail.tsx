@@ -425,7 +425,13 @@ function OwnerBoostRow({ item, onApplied }: { item: WantedItemWithRequester; onA
     setBusy(true);
     const res = await startBoostPurchase({ targetKind: 'wanted', targetId: item.id });
     setBusy(false);
-    if (!res.ok) { flashToast(`Boost failed: ${res.error}`, 'error'); return; }
+    if (!res.ok) {
+      flashToast(
+        res.comingSoon ? 'Boost checkout is coming soon.' : `Boost failed: ${res.error}`,
+        'info',
+      );
+      return;
+    }
     flashToast('Boost active for 72 hours.', 'success');
     await onApplied();
   };

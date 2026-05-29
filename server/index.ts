@@ -3,6 +3,14 @@ import cors from 'cors';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'node:crypto';
+import {
+  grantPro,
+  revokePro,
+  applyBoost,
+  removeBoost,
+  hasServiceRole,
+  type BoostTargetKind,
+} from './grants';
 
 const PORT = Number(process.env.AI_SERVER_PORT ?? 3001);
 
@@ -223,6 +231,91 @@ app.post('/api/ai-scan', async (req, res) => {
   } catch (err: any) {
     console.error('[ai-scan] error:', err?.message || err);
     res.status(500).json({ error: 'AI scan failed. Please try again.' });
+  }
+});
+
+// =====================================================================
+// Admin-only grant surface
+// ---------------------------------------------------------------------
+// The ONLY way Pro/boost state is written. Service-role backed (bypasses
+// the escalation triggers). Gated behind an admin-role check so there is
+// no self-serve path — this exists for testing + customer support, and is
+// where the Stripe webhook will plug in next phase.
+// =====================================================================
+
+async function requireAdmin(
+  req: express.Request,
+  res: express.Response,
+): Promise<{ userId: string } | null> {
+  if (!hasServiceRole()) {
+    res.status(503).json({ error: 'Grant service is not configured.' });
+    return null;
+  }
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'unauthenticated' });
+    return null;
+  }
+  const sb = supabaseForUser(auth.slice(7));
+  const { data: userData } = await sb.auth.getUser();
+  if (!userData?.user) {
+    res.status(401).json({ error: 'unauthenticated' });
+    return null;
+  }
+  const { data: profile } = await sb
+    .from('profiles')
+    .select('role')
+    .eq('id', userData.user.id)
+    .maybeSingle();
+  if (profile?.role !== 'admin') {
+    res.status(403).json({ error: 'forbidden' });
+    return null;
+  }
+  return { userId: userData.user.id };
+}
+
+const VALID_TARGET_KINDS: BoostTargetKind[] = ['event', 'wanted', 'find', 'listing'];
+
+app.post('/api/admin/pro', async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    const { userId, action } = req.body as { userId?: string; action?: 'grant' | 'revoke' };
+    if (!userId || typeof userId !== 'string') {
+      return res.status(400).json({ error: 'userId is required.' });
+    }
+    const result = action === 'revoke' ? await revokePro(userId) : await grantPro(userId);
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    return res.json(result.data);
+  } catch (err: any) {
+    console.error('[admin/pro]', err?.message || err);
+    return res.status(500).json({ error: 'Grant failed.' });
+  }
+});
+
+app.post('/api/admin/boost', async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    const { targetKind, targetId, boostType, action } = req.body as {
+      targetKind?: BoostTargetKind;
+      targetId?: string;
+      boostType?: 'paid' | 'pro';
+      action?: 'apply' | 'remove';
+    };
+    if (!targetKind || !VALID_TARGET_KINDS.includes(targetKind)) {
+      return res.status(400).json({ error: 'Valid targetKind is required.' });
+    }
+    if (!targetId || typeof targetId !== 'string') {
+      return res.status(400).json({ error: 'targetId is required.' });
+    }
+    const result =
+      action === 'remove'
+        ? await removeBoost({ targetKind, targetId })
+        : await applyBoost({ targetKind, targetId, boostType });
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    return res.json(result.data);
+  } catch (err: any) {
+    console.error('[admin/boost]', err?.message || err);
+    return res.status(500).json({ error: 'Boost grant failed.' });
   }
 });
 

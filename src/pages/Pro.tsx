@@ -154,7 +154,12 @@ export default function Pro({ onBack }: { onBack: () => void }) {
     const res = await startProUpgrade();
     setBusy(null);
     if (!res.ok) {
-      flashToast(`Could not upgrade: ${res.error}`, 'error');
+      flashToast(
+        res.comingSoon
+          ? "Pro Seller checkout is coming soon — we'll let you know the moment it's live."
+          : `Could not upgrade: ${res.error}`,
+        'info',
+      );
       return;
     }
     await refreshProfile();

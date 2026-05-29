@@ -8,3 +8,4 @@
 - [Build runs strict tsc](build-tsc-noUnusedLocals.md) — `npm run build` = tsc+vite with noUnusedLocals; unused imports/params are HARD build failures invisible to the vite dev server.
 - [Login is a conditional screen, not a route](auth-gate-not-a-route.md) — no /login route; navigate('/login') dumps guests on Discover. To gate: setPendingIntent + exitGuestMode + navigate('/'); resume in AppShell.useResumePendingIntent.
 - [Live Events vs Discover datasets](livehub-discover-dataset-split.md) — hosted events live in `events` (Discover + boost); `/live` historically only read `external_listings`, so boosted hosted events vanished there. LiveHub now merges both via eventToListing.
+- [Escalation-guard privileged columns](escalation-guard-privileged-columns.md) — every paid/trust/role column must be added to the BEFORE INSERT OR UPDATE escalation guard when created; RLS gates the row, the trigger gates the column; grants go through service-role server/grants.ts.
