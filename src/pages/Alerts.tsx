@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, Tag, Radar, Heart, MessageCircle, TrendingUp,
-  UserPlus, Calendar, Bookmark, ShoppingBag, CheckCheck, Trash2,
+  UserPlus, Calendar, Bookmark, ShoppingBag, CheckCheck, Trash2, Radio,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -46,6 +46,7 @@ const iconForType: Record<string, typeof Bell> = {
   listing_saved: Heart,
   listing_shared: TrendingUp,
   price_drop: Tag,
+  go_live: Radio,
   general: Bell,
 };
 
@@ -60,6 +61,7 @@ const colorForType: Record<string, string> = {
   listing_saved: 'var(--color-error-400)',
   listing_shared: 'var(--color-warning-500)',
   price_drop: 'var(--color-success-500)',
+  go_live: 'var(--color-error-500)',
   general: 'var(--color-neutral-500)',
 };
 
@@ -121,6 +123,8 @@ export default function Alerts() {
       setNotifs((cur) => cur.map((x) => x.id === n.id ? { ...x, read_status: true } : x));
     }
     if (n.related_item_type === 'message') navigate('/messages');
+    else if (n.type === 'go_live' && n.related_item_id) navigate(`/event/${n.related_item_id}`);
+    else if (n.related_item_type === 'event' && n.related_item_id) navigate(`/event/${n.related_item_id}`);
     else if (n.related_item_type === 'live_event' || n.related_item_type === 'local_event') navigate('/events');
     else if (n.related_item_type === 'saved_search') navigate('/marketplace');
     else if (n.related_item_type === 'marketplace_listing') navigate('/marketplace');

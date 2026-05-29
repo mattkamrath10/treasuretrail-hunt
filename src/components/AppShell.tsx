@@ -11,6 +11,7 @@ import { getOrCreateConversation } from '../lib/messaging';
 // on first navigation. Vite content-hashes the chunks, so cache busting
 // after a republish is automatic.
 const Discover = lazy(() => import('../pages/Discover'));
+const Following = lazy(() => import('../pages/Following'));
 const Home = lazy(() => import('../pages/Home'));
 const FlashFinds = lazy(() => import('../pages/FlashFinds'));
 const Sell = lazy(() => import('../pages/Sell'));
@@ -77,6 +78,11 @@ function CommunityPage() {
 function EventsPage() {
   const navigate = useNavigate();
   return <Events onBack={() => navigate('/')} />;
+}
+
+function FollowingPage() {
+  const navigate = useNavigate();
+  return <Following onBack={() => navigate('/')} />;
 }
 
 function SellPage() {
@@ -244,6 +250,7 @@ export default function AppShell() {
             <Route path="/safety" element={<SafetyPage />} />
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/events" element={<EventsPage />} />
+            <Route path="/following" element={<FollowingPage />} />
             <Route path="/seller" element={<SellerDashboardPage />} />
             <Route path="/seller/analytics" element={<SellerAnalyticsPage />} />
             <Route path="/seller/new" element={<SellerEventFormPage />} />

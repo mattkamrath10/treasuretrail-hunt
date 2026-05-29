@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search, ChevronRight, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar,
+  Search, ChevronRight, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar, Users,
 } from 'lucide-react';
 import { fetchPublishedEvents, fetchProHolderIds, PLATFORM_META, isLiveNow, isExpiredLive, type EventRow } from '../lib/events';
 import { WhatnotIcon } from '../components/ui/WhatnotIcon';
@@ -14,6 +14,7 @@ import { PageScroll } from '../components/ui/PageScroll';
 import { toThumbUrl } from '../lib/imageCompress';
 import { HostEventCTA } from '../components/HostEventCTA';
 import NotificationBell from '../components/NotificationBell';
+import { maybeNotifyGoLive } from '../lib/notifications';
 import { BoostedBadge, BOOSTED_CARD_GLOW } from '../components/ui/BoostedBadge';
 import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isBoosted } from '../lib/boost';
@@ -41,7 +42,7 @@ export default function Discover() {
     ]).then(async ([e, f, w]) => {
       if (cancelled) return;
       let eventRows: EventRow[] = [];
-      if (e.status === 'fulfilled') { eventRows = e.value; setEvents(e.value); }
+      if (e.status === 'fulfilled') { eventRows = e.value; setEvents(e.value); maybeNotifyGoLive(e.value); }
       else console.warn(LOG, 'events fetch failed', e.reason);
       if (f.status === 'fulfilled') setFinds(f.value);
       else console.warn(LOG, 'finds fetch failed', f.reason);
@@ -84,7 +85,16 @@ export default function Discover() {
       <header style={s.header}>
         <div style={s.brandRow}>
           <span style={s.brandWord}>TreasureTrail</span>
-          <NotificationBell />
+          <div style={s.headerActions}>
+            <button
+              onClick={() => navigate('/following')}
+              aria-label="Following feed"
+              style={s.followingBtn}
+            >
+              <Users size={16} style={{ color: 'var(--color-neutral-700)' }} />
+            </button>
+            <NotificationBell />
+          </div>
         </div>
         <div style={s.searchRow}>
           <Search size={15} style={{ color: 'var(--color-neutral-400)', flexShrink: 0 }} />
@@ -426,6 +436,13 @@ const s: Record<string, CSSProperties> = {
     borderBottom: '1px solid rgba(255,255,255,0.06)',
   },
   brandRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  headerActions: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
+  followingBtn: {
+    position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    minWidth: 44, minHeight: 44, width: 44, height: 44,
+    border: '1px solid var(--color-neutral-100)', backgroundColor: 'var(--color-neutral-0)',
+    borderRadius: 'var(--radius-full)', cursor: 'pointer', padding: 0,
+  },
   brandWord: {
     fontSize: 20, fontWeight: 800, letterSpacing: '-0.01em',
     background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',

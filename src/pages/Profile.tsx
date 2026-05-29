@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight } from 'lucide-react';
+import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, Users, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
@@ -97,6 +97,9 @@ export default function Profile() {
           <button onClick={() => navigate('/achievements')} style={styles.achieveBtn}>
             <Trophy size={14} style={{ color: 'var(--color-primary-600)' }} />
             <span style={styles.achieveBtnText}>Rank</span>
+          </button>
+          <button onClick={() => navigate('/following')} style={styles.iconBtn} aria-label="Following feed">
+            <Users size={18} style={{ color: 'var(--color-neutral-600)' }} />
           </button>
           <button onClick={handleShare} style={styles.iconBtn} aria-label="Share profile">
             <Share2 size={18} style={{ color: 'var(--color-neutral-600)' }} />

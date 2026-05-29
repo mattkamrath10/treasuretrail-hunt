@@ -35,6 +35,7 @@ import {
   eventComparator, type EventSortKey,
 } from '../lib/eventSchedule';
 import { isReminderOn, toggleLocalReminder } from '../lib/localReminders';
+import { maybeNotifyGoLive } from '../lib/notifications';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -368,6 +369,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
     let eventRows: ExternalListing[] = [];
     if (evRes.status === 'fulfilled') {
       eventRows = evRes.value.map(eventToListing);
+      maybeNotifyGoLive(evRes.value);
     } else {
       console.warn('[LiveHub] published events fetch failed; showing external listings only', evRes.reason);
     }

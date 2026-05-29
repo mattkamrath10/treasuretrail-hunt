@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { Notification } from './supabase';
+import { isLiveNow, type EventRow } from './events';
 
 export type NotificationType =
   | 'rare_radar_match'
@@ -14,6 +15,7 @@ export type NotificationType =
   | 'scout_request'
   | 'scout_application'
   | 'reputation_milestone'
+  | 'go_live'
   | 'general';
 
 export type NotificationInput = {
@@ -123,6 +125,67 @@ export async function markAllRead(userId: string): Promise<void> {
 
 export async function clearRead(userId: string): Promise<void> {
   await supabase.from('notifications').delete().eq('user_id', userId).eq('read_status', true);
+}
+
+/* ----------------------------- Go-Live alerts ---------------------------- */
+
+// Per-session guard so each event only triggers one RPC attempt per page
+// load cycle. The RPC itself is idempotent (dedupes server-side via
+// events.go_live_notified_at), so this is purely to avoid redundant network
+// calls when several surfaces render the same live event.
+const goLiveAttempted = new Set<string>();
+
+/**
+ * Fire the server-side go-live notification for an event. The RPC verifies
+ * liveness/eligibility, dedupes, and inserts notifications ONLY for the
+ * seller's followers — so this is safe to call best-effort from any surface
+ * that shows a live event. Returns the number of followers notified (0 if the
+ * event was ineligible or already notified). Degrades quietly when the
+ * migration that adds the RPC / column hasn't been applied yet.
+ */
+export async function notifyFollowersGoLive(
+  eventId: string
+): Promise<{ count: number; error: string | null }> {
+  // The RPC is SECURITY DEFINER and requires auth.uid(); guests can't call it.
+  // getSession() reads from local storage (no network), so this is cheap.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session?.user) return { count: 0, error: null };
+
+  const { data, error } = await supabase.rpc('notify_followers_go_live', {
+    p_event_id: eventId,
+  });
+  if (error) {
+    // 42883 = undefined_function, 42703 = undefined_column. Either means the
+    // go-live migration hasn't been applied yet; degrade silently.
+    if (
+      error.code === '42883' ||
+      error.code === '42703' ||
+      /notify_followers_go_live|go_live_notified_at/i.test(error.message ?? '')
+    ) {
+      console.warn(
+        '[GO_LIVE] notify_followers_go_live unavailable — apply migration 20260529000010_go_live_notifications.sql to enable go-live alerts.'
+      );
+      return { count: 0, error: null };
+    }
+    return { count: 0, error: error.message };
+  }
+  return { count: (data as number) ?? 0, error: null };
+}
+
+/**
+ * Best-effort: scan a list of events and fire go-live notifications for any
+ * online show that is currently live and hasn't been attempted this session.
+ * Fire-and-forget — the RPC is idempotent and followers-only.
+ */
+export function maybeNotifyGoLive(events: EventRow[]): void {
+  const now = Date.now();
+  for (const e of events) {
+    if (e.event_kind !== 'online') continue;
+    if (goLiveAttempted.has(e.id)) continue;
+    if (!isLiveNow(e, now)) continue;
+    goLiveAttempted.add(e.id);
+    void notifyFollowersGoLive(e.id);
+  }
 }
 
 export type NotificationSubscription = { unsubscribe: () => void };
