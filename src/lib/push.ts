@@ -20,6 +20,14 @@ import { supabase } from './supabase';
 let lastToken: string | null = null;
 let listenersBound = false;
 
+// Native push is currently disabled: the @capacitor-firebase/messaging plugin is
+// intentionally NOT installed, so it is never compiled into the native build (it
+// crashes iOS on launch without a GoogleService-Info.plist). Importing via a
+// variable specifier + @vite-ignore keeps the web build from trying to resolve
+// the absent module; on a native device the import simply throws and is caught,
+// making push a clean no-op. Re-add the package to turn push back on.
+const PUSH_PLUGIN = '@capacitor-firebase/messaging';
+
 function platform(): 'ios' | 'android' | 'web' | 'unknown' {
   const p = Capacitor.getPlatform();
   if (p === 'ios' || p === 'android' || p === 'web') return p;
@@ -47,7 +55,7 @@ async function upsertToken(token: string): Promise<void> {
 export async function registerPush(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+    const { FirebaseMessaging } = await import(/* @vite-ignore */ PUSH_PLUGIN);
 
     const perm = await FirebaseMessaging.requestPermissions();
     if (perm.receive !== 'granted') {
@@ -57,10 +65,10 @@ export async function registerPush(): Promise<void> {
 
     if (!listenersBound) {
       listenersBound = true;
-      await FirebaseMessaging.addListener('tokenReceived', (event) => {
+      await FirebaseMessaging.addListener('tokenReceived', (event: { token?: string }) => {
         if (event?.token) void upsertToken(event.token);
       });
-      await FirebaseMessaging.addListener('notificationActionPerformed', (event) => {
+      await FirebaseMessaging.addListener('notificationActionPerformed', (event: { notification?: { data?: Record<string, unknown> } }) => {
         const data = (event?.notification?.data ?? {}) as Record<string, unknown>;
         const eventId = typeof data.eventId === 'string' ? data.eventId : null;
         if (eventId) {
@@ -92,7 +100,7 @@ export async function removePush(): Promise<void> {
     if (token) {
       await supabase.from('device_tokens').delete().eq('token', token);
     }
-    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+    const { FirebaseMessaging } = await import(/* @vite-ignore */ PUSH_PLUGIN);
     await FirebaseMessaging.deleteToken();
     lastToken = null;
   } catch (err) {
