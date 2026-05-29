@@ -73,10 +73,18 @@ export async function sendGoLivePush(eventId: string): Promise<GoLivePushResult>
   const fcm = messagingOrNull();
   if (!fcm) return { sent: 0, claimed: false };
 
-  // Atomic claim — mirrors the in-app RPC's eligibility gate so push only ever
-  // fires for a genuinely-live, fresh, online, published event, exactly once.
+  // Atomic claim — mirrors the in-app RPC's eligibility gate (see
+  // notify_followers_go_live in 20260529000010) EXACTLY so push only ever fires
+  // for a genuinely-live, fresh, online, published event, exactly once:
+  //   status='published' AND event_kind='online'
+  //   AND starts_at <= now()                                  (started)
+  //   AND now() < COALESCE(ends_at, starts_at + 2h)           (still in window)
+  //   AND now() - starts_at <= 3h                             (fresh)
+  // The live-window upper bound is the `.or(...)` below: either ends_at is in
+  // the future, or ends_at is null and start is within the last 2h.
   const nowIso = new Date().toISOString();
   const threeHoursAgo = new Date(Date.now() - 3 * 3_600_000).toISOString();
+  const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
   const { data: claimed, error: claimErr } = await db()
     .from('events')
     .update({ go_live_pushed_at: nowIso })
@@ -86,6 +94,7 @@ export async function sendGoLivePush(eventId: string): Promise<GoLivePushResult>
     .eq('event_kind', 'online')
     .lte('starts_at', nowIso)
     .gte('starts_at', threeHoursAgo)
+    .or(`ends_at.gt.${nowIso},and(ends_at.is.null,starts_at.gt.${twoHoursAgo})`)
     .select('id, title, holder_id')
     .maybeSingle();
 
@@ -133,6 +142,7 @@ export async function sendGoLivePush(eventId: string): Promise<GoLivePushResult>
   for (let i = 0; i < tokens.length; i += 500) chunks.push(tokens.slice(i, i + 500));
 
   let sent = 0;
+  let transientFailure = false;
   const deadTokens: string[] = [];
   for (const chunk of chunks) {
     try {
@@ -155,12 +165,30 @@ export async function sendGoLivePush(eventId: string): Promise<GoLivePushResult>
         }
       });
     } catch (err: any) {
+      // A thrown multicast is a transient FCM/network failure (the per-token
+      // failures above are NOT thrown — they come back in `responses`).
+      transientFailure = true;
       console.error('[push] multicast failed:', err?.message || err);
     }
   }
 
   if (deadTokens.length > 0) {
     await db().from('device_tokens').delete().in('token', deadTokens);
+  }
+
+  // If we delivered nothing AND that was due to a transient failure (not simply
+  // because every target token was dead), release the claim so a later trigger
+  // for the SAME event can retry. Without this, one FCM blip would set
+  // go_live_pushed_at and permanently suppress the push. Resetting to null is
+  // safe: no notification was delivered, and the next caller re-races the same
+  // atomic claim. We only release our own still-held claim.
+  if (sent === 0 && transientFailure) {
+    await db()
+      .from('events')
+      .update({ go_live_pushed_at: null })
+      .eq('id', claimed.id)
+      .eq('go_live_pushed_at', nowIso);
+    return { sent: 0, claimed: false };
   }
 
   return { sent, claimed: true };
