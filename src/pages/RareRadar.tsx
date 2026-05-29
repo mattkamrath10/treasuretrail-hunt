@@ -37,7 +37,6 @@ interface SearchRequest {
   image: string;
   username: string;
   timePosted: string;
-  scouts: number;
   urgency: 'low' | 'medium' | 'high';
 }
 
@@ -101,7 +100,6 @@ export default function RareRadar() {
           image: p.image_url || '',
           username: p.profiles?.username || 'hunter',
           timePosted: formatRelative(p.created_at),
-          scouts: 0,
           urgency: 'medium',
         }));
         setHunts((prev) => {
@@ -134,7 +132,6 @@ export default function RareRadar() {
       image: d.imageUrl ?? '',
       username: 'you',
       timePosted: formatRelative(d.createdAt),
-      scouts: 0,
       urgency: 'medium',
     }));
     setHunts((prev) => {
@@ -465,7 +462,7 @@ function FeedView({
                 </div>
                 <button
                   onClick={() => navigate('/messages')}
-                  style={styles.scoutBtn}
+                  style={styles.haveItBtn}
                   aria-label={`Message about ${item.title}`}
                 >
                   <span>I Have This</span>
@@ -596,7 +593,6 @@ function CreateRequest({
       image: photoUrl || PLACEHOLDER_IMG,
       username,
       timePosted: 'just now',
-      scouts: 0,
       urgency: 'medium',
     };
     onPosted(hunt);
@@ -775,7 +771,7 @@ function CreateRequest({
           </div>
 
           <div style={styles.field}>
-            <label style={styles.fieldLabel}>Notes for Scouts (optional)</label>
+            <label style={styles.fieldLabel}>Additional Notes (optional)</label>
             <textarea
               placeholder="Any specific details, markings, or variations you prefer..."
               value={form.notes}
@@ -818,7 +814,7 @@ function SuccessView({
         </div>
         <h2 style={styles.successTitle}>Your hunt has been posted!</h2>
         <p style={styles.successSubtitle}>
-          Scouts in your area will be notified. You'll get alerts when matches are found.
+          Sellers in your area will be notified. You'll get alerts when matches are found.
         </p>
         <div style={styles.successCard}>
           {hunt.image && hunt.image !== PLACEHOLDER_IMG && (
@@ -1183,7 +1179,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-xs)',
     color: 'var(--color-neutral-400)',
   },
-  scoutBtn: {
+  haveItBtn: {
     padding: 'var(--space-2) var(--space-3)',
     borderRadius: 'var(--radius-md)',
     background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))',

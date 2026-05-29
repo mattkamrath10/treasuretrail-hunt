@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Shield, TriangleAlert as AlertTriangle, Flag, CircleCheck as CheckCircle, Clock, Eye, Users, ChevronRight, Star, Lock, MessageCircle, MapPin, Package, Zap } from 'lucide-react';
+import { ArrowLeft, Shield, TriangleAlert as AlertTriangle, Flag, CircleCheck as CheckCircle, Clock, Eye, ChevronRight, Star, Lock, MessageCircle, MapPin, Package, Zap } from 'lucide-react';
 
 type SafetyView = 'hub' | 'report' | 'trust' | 'disputes' | 'admin' | 'education';
 

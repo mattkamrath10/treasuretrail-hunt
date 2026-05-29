@@ -1473,7 +1473,7 @@ function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => 
                         {ev.title || 'Untitled event'}
                       </p>
                       <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: 2 }}>
-                        {ev.city || ev.location || 'Location TBD'}
+                        {ev.city || ev.region || 'Location TBD'}
                       </p>
                     </div>
                     {active ? (

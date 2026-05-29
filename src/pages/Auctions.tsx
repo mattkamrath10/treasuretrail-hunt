@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   ArrowLeft, ExternalLink, Radio, Gavel, Tag, MapPin,
-  Users, Package, Truck, Plus, X, Clock, ChevronDown,
+  Package, Truck, Plus, X, Clock, ChevronDown,
   Loader, Home, Calendar, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 import {
@@ -113,7 +113,6 @@ export default function Auctions({ onBack }: { onBack: () => void }) {
       <ListingDetail
         listing={selected}
         onBack={() => setView('feed')}
-        onListingUpdate={(updated) => setSelected(updated)}
       />
     );
   }
@@ -422,11 +421,9 @@ function ExternalListingCard({
 function ListingDetail({
   listing,
   onBack,
-  onListingUpdate,
 }: {
   listing: ExternalListing;
   onBack: () => void;
-  onListingUpdate: (l: ExternalListing) => void;
 }) {
   const plat = getPlatform(listing.platform);
   const displayLabel = listing.platform === 'other' && listing.platform_label

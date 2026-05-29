@@ -1126,7 +1126,7 @@ export default function Home() {
       {/* [LISTING_NAV] The inline MarketplaceDetailModal was removed
           in PHASE 8. Marketplace cards now navigate to `/listing/:id`
           for a shareable, deep-linkable detail page with messaging,
-          scout, save, and follow actions. */}
+          save, and follow actions. */}
     </div>
   );
 }

@@ -7,7 +7,6 @@ import {
   ChartBar as BarChart3,
   Share2,
   Bookmark,
-  Send,
   Eye,
   Zap,
   CircleCheck as CheckCircle,

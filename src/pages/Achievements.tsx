@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ArrowLeft, Trophy, Star, Zap, Shield, Clock, TrendingUp,
-  Eye, Users, MapPin, Flame,
+  Eye, MapPin, Flame,
 } from 'lucide-react';
 
 type AchievementsTab = 'badges' | 'showcase' | 'challenges';
