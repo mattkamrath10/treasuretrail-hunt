@@ -43,24 +43,29 @@ workflows:
         script: |
           set -e
           keychain initialize
-          # Creates the Apple Distribution certificate AND the App Store
-          # provisioning profile via the App Store Connect API key. The CSR is
-          # generated internally by Codemagic — do NOT make one in Apple's portal.
+          # Apple needs a private key to ISSUE an Apple Distribution certificate.
+          # Normally that key comes from a CSR you'd make on a Mac. We generate it
+          # here instead, so the certificate is created with NO Mac and NO CSR.
+          # NOTE: a fresh key here means a new distribution certificate per run.
+          # Apple caps distribution certs (max 2-3). If a future build fails with
+          # a cert-limit error, save this key as a Codemagic env var named
+          # CERTIFICATE_PRIVATE_KEY and reuse it instead of regenerating.
+          CERT_KEY=/tmp/cert_private_key.pem
+          openssl genrsa -out "$CERT_KEY" 2048
           echo "=== Fetch/create signing files for $BUNDLE_ID ==="
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key @file:"$CERT_KEY" \
             --create \
             --verbose
           echo "=== Add certificate(s) to keychain ==="
-          keychain add-certificates
+          keychain add-certificates --certificate-key @file:"$CERT_KEY"
           echo "=== Provisioning profiles now on the machine: ==="
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
           echo "=== Apply profiles to the Xcode project ==="
           xcode-project use-profiles \
             --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
             --verbose
-          echo "=== Code-signing build settings written by use-profiles: ==="
-          xcode-project detect-bundle-id --project "$CM_BUILD_DIR/$XCODE_PROJECT" || true
       - name: Set build number from TestFlight
         script: |
           LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo 0)
