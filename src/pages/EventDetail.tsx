@@ -429,6 +429,22 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
           )}
         </div>
 
+        {/* Event URL CTA — sits directly below the Directions / Save / Share
+            row. Rendered only for a valid http(s) event_url (safeEventUrl);
+            empty/invalid URLs show nothing rather than a broken link. Opens
+            any external page (Facebook, Whatnot, HiBid, estate-sale sites…)
+            in a new tab. */}
+        {safeEventUrl && (
+          <a
+            href={safeEventUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={s.eventUrlBtn}
+          >
+            <ExternalLink size={14} /> Visit Event Page
+          </a>
+        )}
+
         {/* Owner-only Boost CTA. We render either the live status (if a
             boost is already active) or a single primary CTA that runs the
             mocked $3/72h purchase flow. After a successful boost we
@@ -444,23 +460,6 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
         <section style={s.section}>
           <h3 style={s.sectionTitle}>About this event</h3>
           <p style={s.description}>{event.description}</p>
-        </section>
-      )}
-
-      {/* Event Website — optional external link (Facebook event, estate-sale
-          site, HiBid auction, etc). Hidden entirely when empty or invalid so
-          the section never renders a dead button. Opens in a new tab. */}
-      {safeEventUrl && (
-        <section style={s.section}>
-          <h3 style={s.sectionTitle}>🔗 Event Website</h3>
-          <a
-            href={safeEventUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={s.eventUrlBtn}
-          >
-            <ExternalLink size={14} /> Visit Event Page
-          </a>
         </section>
       )}
 
@@ -753,8 +752,9 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 12, fontWeight: 700,
   },
   eventUrlBtn: {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '10px 16px', borderRadius: 'var(--radius-md)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    width: '100%', marginTop: 'var(--space-3)',
+    padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-md)',
     border: 'none', cursor: 'pointer', textDecoration: 'none',
     background: 'var(--color-primary-600, #d97706)',
     color: '#fff',
