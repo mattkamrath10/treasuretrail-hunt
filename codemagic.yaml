@@ -24,8 +24,7 @@ workflows:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.treasuretrail.hunt"
-        # TODO: paste the numeric Apple ID of the App Store Connect app here.
-        APP_STORE_APP_ID: 0000000000
+        APP_STORE_APP_ID: 6774603659
         # Baked into the web bundle that ships inside the native app.
         VITE_API_BASE: "https://treasuretrail-hunt.com"
         VITE_PUBLIC_WEB_URL: "https://treasuretrail-hunt.com"
