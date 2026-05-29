@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, Users, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight } from 'lucide-react';
+import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, Users, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ import { isProUser } from '../lib/entitlements';
 import UserFindsGrid from '../components/UserFindsGrid';
 import { BecomeHostCard } from '../components/BecomeHostCard';
 import { shareWithImage } from '../lib/shareWithImage';
+import { deleteAccount } from '../lib/account';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity';
 
@@ -636,11 +637,13 @@ function ActivityTab() {
 
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { profile, updateProfile } = useAuth();
+  const navigate = useNavigate();
   const [username, setUsername] = useState(profile?.username || '');
   const [bio, setBio] = useState(profile?.bio || '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [showDelete, setShowDelete] = useState(false);
 
   const handleSave = async () => {
     if (!username.trim()) { setError('Username is required.'); return; }
@@ -651,6 +654,11 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
     if (err) { setError(err); return; }
     setSaved(true);
     setTimeout(() => { setSaved(false); onClose(); }, 1000);
+  };
+
+  const goLegal = (path: string) => {
+    onClose();
+    navigate(path);
   };
 
   return (
@@ -699,7 +707,97 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
             </span>
           </button>
 
+          <div style={settingsStyles.linkGroup}>
+            <button onClick={() => goLegal('/privacy')} style={settingsStyles.linkRow}>
+              <FileText size={16} style={{ color: 'var(--color-neutral-500)' }} />
+              <span style={settingsStyles.linkText}>Privacy Policy</span>
+              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+            </button>
+            <button onClick={() => goLegal('/terms')} style={settingsStyles.linkRow}>
+              <FileText size={16} style={{ color: 'var(--color-neutral-500)' }} />
+              <span style={settingsStyles.linkText}>Terms of Service</span>
+              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+            </button>
+          </div>
+
+          <button onClick={() => setShowDelete(true)} style={settingsStyles.deleteRow}>
+            <Trash2 size={16} style={{ color: 'var(--color-error-600)' }} />
+            <span style={settingsStyles.deleteText}>Delete Account</span>
+          </button>
         </div>
+      </div>
+
+      {showDelete && <DeleteAccountConfirm onCancel={() => setShowDelete(false)} />}
+    </div>
+  );
+}
+
+function DeleteAccountConfirm({ onCancel }: { onCancel: () => void }) {
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
+  const canDelete = confirmText.trim().toUpperCase() === 'DELETE';
+
+  const handleDelete = async () => {
+    if (!canDelete) return;
+    setDeleting(true);
+    setError('');
+    const result = await deleteAccount();
+    if (!result.ok) {
+      setDeleting(false);
+      setError(result.error);
+      return;
+    }
+    // Account + session are gone; reload to the signed-out state.
+    if (typeof window !== 'undefined') window.location.assign('/');
+  };
+
+  return (
+    <div style={settingsStyles.overlay}>
+      <div style={settingsStyles.confirmModal}>
+        <div style={settingsStyles.confirmIconWrap}>
+          <AlertTriangle size={24} style={{ color: 'var(--color-error-600)' }} />
+        </div>
+        <h2 style={settingsStyles.confirmTitle}>Delete your account?</h2>
+        <p style={settingsStyles.confirmDesc}>
+          This permanently deletes your account and all associated data — your profile, listings,
+          finds, wanted posts, messages, and photos. This cannot be undone.
+        </p>
+
+        <label style={settingsStyles.confirmLabel}>Type DELETE to confirm</label>
+        <input
+          type="text"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          placeholder="DELETE"
+          autoCapitalize="characters"
+          style={settingsStyles.input}
+        />
+
+        {error && <p style={settingsStyles.errorText}>{error}</p>}
+
+        <button
+          onClick={handleDelete}
+          disabled={!canDelete || deleting}
+          style={{
+            ...settingsStyles.confirmDeleteBtn,
+            opacity: !canDelete || deleting ? 0.5 : 1,
+            cursor: !canDelete || deleting ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {deleting ? (
+            <Loader size={16} style={{ color: 'var(--color-neutral-0)', animation: 'spin 0.8s linear infinite' }} />
+          ) : (
+            <Trash2 size={16} style={{ color: 'var(--color-neutral-0)' }} />
+          )}
+          <span style={settingsStyles.saveBtnText}>
+            {deleting ? 'Deleting…' : 'Permanently Delete'}
+          </span>
+        </button>
+
+        <button onClick={onCancel} disabled={deleting} style={settingsStyles.confirmCancelBtn}>
+          <span style={settingsStyles.confirmCancelText}>Cancel</span>
+        </button>
       </div>
     </div>
   );
@@ -864,6 +962,111 @@ const settingsStyles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-0)',
+  },
+  linkGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    borderTop: '1px solid var(--color-neutral-100)',
+    paddingTop: 'var(--space-2)',
+  },
+  linkRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--space-3)',
+    padding: 'var(--space-3)',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'left',
+  },
+  linkText: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-medium)',
+    color: 'var(--color-neutral-800)',
+  },
+  deleteRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-error-200)',
+    backgroundColor: 'var(--color-error-50)',
+    cursor: 'pointer',
+    marginTop: 'var(--space-1)',
+  },
+  deleteText: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-error-600)',
+  },
+  confirmModal: {
+    backgroundColor: 'var(--color-neutral-0)',
+    borderRadius: 'var(--radius-xl)',
+    width: 'calc(100% - 32px)',
+    maxWidth: '400px',
+    margin: 'auto',
+    padding: 'var(--space-5)',
+    boxShadow: 'var(--shadow-xl)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-3)',
+  },
+  confirmIconWrap: {
+    width: '48px',
+    height: '48px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-error-50)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+  },
+  confirmTitle: {
+    fontSize: 'var(--font-size-base)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
+    textAlign: 'center',
+  },
+  confirmDesc: {
+    fontSize: 'var(--font-size-sm)',
+    lineHeight: 1.5,
+    color: 'var(--color-neutral-600)',
+    textAlign: 'center',
+  },
+  confirmLabel: {
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-700)',
+    marginTop: 'var(--space-1)',
+  },
+  confirmDeleteBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: 'none',
+    backgroundColor: 'var(--color-error-600)',
+    marginTop: 'var(--space-1)',
+  },
+  confirmCancelBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+  },
+  confirmCancelText: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    color: 'var(--color-neutral-600)',
   },
 };
 

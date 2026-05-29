@@ -38,6 +38,8 @@ const EventDetail = lazy(() => import('../pages/EventDetail'));
 const FindDetail = lazy(() => import('../pages/FindDetail'));
 const ListingDetail = lazy(() => import('../pages/ListingDetail'));
 const PublicProfile = lazy(() => import('../pages/PublicProfile'));
+const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('../pages/TermsOfService'));
 
 function AuctionsPage() {
   const navigate = useNavigate();
@@ -69,6 +71,16 @@ function ProPage() {
 function SafetyPage() {
   const navigate = useNavigate();
   return <Safety onBack={() => navigate('/profile')} />;
+}
+
+function PrivacyPolicyPage() {
+  const navigate = useNavigate();
+  return <PrivacyPolicy onBack={() => navigate(-1)} />;
+}
+
+function TermsOfServicePage() {
+  const navigate = useNavigate();
+  return <TermsOfService onBack={() => navigate(-1)} />;
 }
 
 function CommunityPage() {
@@ -270,6 +282,8 @@ export default function AppShell() {
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/pro" element={<ProPage />} />
             <Route path="/safety" element={<SafetyPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms" element={<TermsOfServicePage />} />
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/following" element={<FollowingPage />} />

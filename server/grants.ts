@@ -104,6 +104,19 @@ export async function applyBoost(args: {
   return { ok: true, data: { targetId } };
 }
 
+/**
+ * Permanently delete a user account and all associated data.
+ *
+ * Uses the service-role admin API to delete the auth user. Every app table
+ * that references `auth.users(id) ON DELETE CASCADE` is wiped automatically by
+ * the database, so this single call removes the account and its data together.
+ */
+export async function deleteUserAccount(userId: string): Promise<GrantResult<{ userId: string }>> {
+  const { error } = await admin().auth.admin.deleteUser(userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: { userId } };
+}
+
 export async function removeBoost(args: {
   targetKind: BoostTargetKind;
   targetId: string;

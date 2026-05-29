@@ -8,6 +8,7 @@ import {
   revokePro,
   applyBoost,
   removeBoost,
+  deleteUserAccount,
   hasServiceRole,
   type BoostTargetKind,
 } from './grants';
@@ -347,6 +348,39 @@ app.post('/api/push/go-live', async (req, res) => {
   } catch (err: any) {
     console.error('[push/go-live]', err?.message || err);
     return res.status(500).json({ error: 'push failed' });
+  }
+});
+
+// =====================================================================
+// Permanent account deletion (Apple Guideline 5.1.1(v))
+// ---------------------------------------------------------------------
+// A signed-in user deletes their OWN account. We verify the caller's JWT,
+// then use the service-role admin API to delete the auth user. Every app
+// table referencing auth.users(id) ON DELETE CASCADE is wiped by the DB,
+// so the account and its associated data are removed together. There is no
+// way to delete another user's account here — the id always comes from the
+// verified token, never the request body.
+// =====================================================================
+app.post('/api/account/delete', async (req, res) => {
+  try {
+    if (!hasServiceRole()) {
+      return res.status(503).json({ error: 'Account deletion is not configured.' });
+    }
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const result = await deleteUserAccount(userData.user.id);
+    if (!result.ok) {
+      console.error('[account/delete] failed:', result.error);
+      return res.status(500).json({ error: 'Account deletion failed. Please try again.' });
+    }
+    return res.json({ deleted: true });
+  } catch (err: any) {
+    console.error('[account/delete]', err?.message || err);
+    return res.status(500).json({ error: 'Account deletion failed. Please try again.' });
   }
 });
 

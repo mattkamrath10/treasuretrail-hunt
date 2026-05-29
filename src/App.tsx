@@ -19,6 +19,10 @@ const PUBLIC_SHARE_PREFIXES = [
   '/wanted/',
   '/find/',
   '/listing/',
+  // Legal pages must be reachable without an account so the App Store /
+  // Play Store listing URLs and in-review reviewers can open them directly.
+  '/privacy',
+  '/terms',
 ];
 function isPublicSharePath(pathname: string): boolean {
   return PUBLIC_SHARE_PREFIXES.some((p) => pathname.startsWith(p));
