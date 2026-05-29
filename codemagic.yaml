@@ -41,15 +41,26 @@ workflows:
         script: npx cap sync ios
       - name: Set up code signing (auto-create cert + profile, no Mac/CSR needed)
         script: |
+          set -e
           keychain initialize
           # Creates the Apple Distribution certificate AND the App Store
           # provisioning profile via the App Store Connect API key. The CSR is
           # generated internally by Codemagic — do NOT make one in Apple's portal.
+          echo "=== Fetch/create signing files for $BUNDLE_ID ==="
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --create
+            --create \
+            --verbose
+          echo "=== Add certificate(s) to keychain ==="
           keychain add-certificates
-          xcode-project use-profiles
+          echo "=== Provisioning profiles now on the machine: ==="
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
+          echo "=== Apply profiles to the Xcode project ==="
+          xcode-project use-profiles \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --verbose
+          echo "=== Code-signing build settings written by use-profiles: ==="
+          xcode-project detect-bundle-id --project "$CM_BUILD_DIR/$XCODE_PROJECT" || true
       - name: Set build number from TestFlight
         script: |
           LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo 0)
