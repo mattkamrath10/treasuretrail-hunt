@@ -202,6 +202,10 @@ function useResumePendingIntent() {
           replace: true,
           state: intent.prefill ? { prefill: intent.prefill } : undefined,
         });
+      } else if (intent.kind === 'boost_event') {
+        // Reopen Live Events with the boost picker auto-shown. LiveHub reads
+        // `location.state.openBoost` on mount to pop the BoostPickerModal.
+        navigate('/live', { replace: true, state: { openBoost: true } });
       }
     })();
   }, [user, navigate]);

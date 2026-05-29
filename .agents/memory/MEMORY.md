@@ -6,3 +6,4 @@
 - [Migration-gated fetcher pattern](migration-gated-fetcher-pattern.md) — when a public fetcher gains a column-dependent filter, ship a `build(withFilter)` closure + 42703-retry scoped to the column name; agent cannot apply Supabase DDL, user applies migrations manually via SQL editor.
 - [Branded image-fallback rule](branded-image-fallbacks.md) — every optional `<img>` must go through `<ImageWithFade fallback={<MediaFallback/AvatarFallback/>}/>`; raw img + gray placeholder = regression. Pass kind/platform/seed.
 - [Build runs strict tsc](build-tsc-noUnusedLocals.md) — `npm run build` = tsc+vite with noUnusedLocals; unused imports/params are HARD build failures invisible to the vite dev server.
+- [Login is a conditional screen, not a route](auth-gate-not-a-route.md) — no /login route; navigate('/login') dumps guests on Discover. To gate: setPendingIntent + exitGuestMode + navigate('/'); resume in AppShell.useResumePendingIntent.

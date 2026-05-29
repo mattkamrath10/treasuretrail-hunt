@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Gavel, X, Clock, ExternalLink,
   Upload, ToggleLeft, ToggleRight, ChevronDown,
@@ -26,6 +26,7 @@ import type { EventRow } from '../lib/events';
 import { startBoostPurchase } from '../lib/payments';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { flashToast } from '../lib/toast';
+import { setPendingIntent } from '../lib/pendingIntent';
 import {
   effectiveStartMs, deriveStatus, statusBadges, formatScheduleRange,
   formatStartCountdown, formatEndCountdown, durationMs, formatDuration,
@@ -232,8 +233,9 @@ function applyAll(
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LiveHub({ onBack }: { onBack: () => void }) {
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, exitGuestMode } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [listings, setListings] = useState<ExternalListing[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -258,6 +260,18 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
     const t = setTimeout(() => setUploadBanner(false), 3000);
     return () => clearTimeout(t);
   }, [uploadBanner]);
+
+  // Resume a post-auth "Boost Event" intent: AppShell routes here with
+  // state.openBoost=true after a logged-out/guest user signs in. Open the
+  // picker once, then scrub the flag from history so a back/refresh doesn't
+  // re-trigger it.
+  useEffect(() => {
+    const state = location.state as { openBoost?: boolean } | null;
+    if (state?.openBoost && user) {
+      setShowBoost(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state, location.pathname, user, navigate]);
 
   const fetchListings = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -405,7 +419,19 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           </button>
           <button
             onClick={() => {
-              if (!user) { navigate('/login'); return; }
+              if (!user) {
+                // `/login` is not a route — it's a conditional screen in
+                // App.tsx gated on `!user && !isGuest`. A guest is still
+                // "logged out" but isGuest=true keeps AppShell mounted, so
+                // navigate('/login') would just fall through to Discover.
+                // Stash the intent, drop guest mode, and bounce to '/' so
+                // App re-evaluates and renders Login. AppShell's resume hook
+                // reopens this boost flow once the user signs in.
+                setPendingIntent({ kind: 'boost_event' });
+                if (isGuest) exitGuestMode();
+                navigate('/');
+                return;
+              }
               setShowBoost(true);
             }}
             style={st.actionBtnBoost}

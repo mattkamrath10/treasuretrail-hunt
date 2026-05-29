@@ -19,6 +19,11 @@ export type PendingIntent =
       wantedId: string;
       requesterId: string;
       prefill?: string;
+    }
+  | {
+      // Logged-out / guest user tapped "Boost Event" on Live Events. After
+      // auth we reopen Live Events with the boost picker already showing.
+      kind: 'boost_event';
     };
 
 export function setPendingIntent(intent: PendingIntent): void {
