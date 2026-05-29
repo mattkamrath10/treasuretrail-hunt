@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon } from 'lucide-react';
+import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
@@ -127,6 +127,36 @@ export default function Profile() {
             onUpgrade={() => navigate('/pro')}
             style={{ marginTop: 'var(--space-4)' }}
           />
+        )}
+
+        {profile && isProUser(profile) && profile.account_type === 'holder' && (
+          <button
+            onClick={() => navigate('/seller/analytics')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+              textAlign: 'left', marginTop: 'var(--space-4)',
+              padding: '14px 16px', borderRadius: 16,
+              border: '1px solid var(--color-neutral-200)',
+              background: 'var(--color-neutral-0)', cursor: 'pointer',
+            }}
+          >
+            <span style={{
+              display: 'inline-flex', width: 36, height: 36, borderRadius: 10,
+              alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(251, 191, 36, 0.16)', flexShrink: 0,
+            }}>
+              <BarChart3 size={18} style={{ color: 'var(--color-primary-600, #d97706)' }} />
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontWeight: 700, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)' }}>
+                Reach Analytics
+              </span>
+              <span style={{ display: 'block', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
+                Views, saves & taps across your events
+              </span>
+            </span>
+            <ChevronRight size={18} style={{ color: 'var(--color-neutral-400)', flexShrink: 0 }} />
+          </button>
         )}
 
         <div style={styles.tabs}>

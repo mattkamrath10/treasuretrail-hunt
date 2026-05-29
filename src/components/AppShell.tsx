@@ -31,6 +31,7 @@ const Events = lazy(() => import('../pages/Events'));
 const LiveHub = lazy(() => import('../pages/LiveHub'));
 const SellerDashboard = lazy(() => import('../pages/SellerDashboard'));
 const SellerEventForm = lazy(() => import('../pages/SellerEventForm'));
+const SellerAnalytics = lazy(() => import('../pages/SellerAnalytics'));
 const EventDetail = lazy(() => import('../pages/EventDetail'));
 const FindDetail = lazy(() => import('../pages/FindDetail'));
 const ListingDetail = lazy(() => import('../pages/ListingDetail'));
@@ -106,6 +107,11 @@ function SellerDashboardPage() {
 function SellerEventFormPage() {
   const navigate = useNavigate();
   return <SellerEventForm onBack={() => navigate('/seller')} />;
+}
+
+function SellerAnalyticsPage() {
+  const navigate = useNavigate();
+  return <SellerAnalytics onBack={() => navigate('/seller')} />;
 }
 
 function EventDetailPage() {
@@ -239,6 +245,7 @@ export default function AppShell() {
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/seller" element={<SellerDashboardPage />} />
+            <Route path="/seller/analytics" element={<SellerAnalyticsPage />} />
             <Route path="/seller/new" element={<SellerEventFormPage />} />
             <Route path="/seller/event/:id" element={<SellerEventFormPage />} />
             <Route path="/event/:id" element={<EventDetailPage />} />

@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Calendar, MapPin, Eye, Pencil, Trash2,
-  Store, Save, X, Loader2, Radio, ExternalLink,
+  Store, Save, X, Loader2, Radio, ExternalLink, BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchMyEvents, deleteEvent, PLATFORM_META,
   type EventRow, type EventStatus,
 } from '../lib/events';
+import { isProUser } from '../lib/entitlements';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
@@ -32,6 +33,7 @@ export default function SellerDashboard({ onBack }: { onBack: () => void }) {
   const [editingProfile, setEditingProfile] = useState(false);
 
   const isHolder = profile?.account_type === 'holder';
+  const isPro = isProUser(profile);
 
   useEffect(() => {
     if (!user || !isHolder) return;
@@ -140,9 +142,16 @@ export default function SellerDashboard({ onBack }: { onBack: () => void }) {
       <section style={s.section}>
         <div style={s.sectionHeader}>
           <h3 style={s.sectionTitle}>My events</h3>
-          <button onClick={() => navigate('/seller/new')} style={s.primaryBtn}>
-            <Plus size={14} /> New event
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {isPro && (
+              <button onClick={() => navigate('/seller/analytics')} style={s.ghostBtn}>
+                <BarChart3 size={13} /> Analytics
+              </button>
+            )}
+            <button onClick={() => navigate('/seller/new')} style={s.primaryBtn}>
+              <Plus size={14} /> New event
+            </button>
+          </div>
         </div>
 
         {loadError && <div style={s.errorBanner}>{loadError}</div>}

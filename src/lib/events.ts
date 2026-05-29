@@ -248,6 +248,54 @@ export async function fetchPublishedEvents(opts?: { city?: string | null; limit?
   return (data ?? []) as EventRow[];
 }
 
+/**
+ * Count a holder's *active local* events — used to enforce the free-tier
+ * cap (1 active local event for free, unlimited for Pro). "Active" means
+ * not cancelled; online live shows do not count against the local cap.
+ * `excludeId` lets the edit form ignore the row being saved.
+ *
+ * The DB trigger in `20260529000003_free_tier_event_cap.sql` is the real
+ * backstop; this client count drives the friendly pre-save UX so the user
+ * sees an upgrade prompt instead of a raw Postgres error.
+ */
+export async function countActiveLocalEvents(holderId: string, excludeId?: string): Promise<number> {
+  let q = supabase
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('holder_id', holderId)
+    .eq('event_kind', 'local')
+    .neq('status', 'cancelled');
+  if (excludeId) q = q.neq('id', excludeId);
+  const { count, error } = await q;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/**
+ * Resolve which of the given holder ids are Pro members. Used by Discover
+ * to give Pro sellers priority placement. Best-effort: any error returns
+ * an empty set so the feed still renders (Pro just loses its boost that
+ * load) rather than blanking out.
+ */
+export async function fetchProHolderIds(holderIds: string[]): Promise<Set<string>> {
+  const ids = [...new Set(holderIds)].filter(Boolean);
+  if (ids.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, membership_tier, pro_member')
+    .in('id', ids);
+  if (error) {
+    console.warn('[FETCH_PRO_HOLDERS] failed — Pro priority placement skipped this load:', error.message);
+    return new Set();
+  }
+  const set = new Set<string>();
+  for (const p of data ?? []) {
+    const row = p as { id: string; membership_tier?: string | null; pro_member?: boolean | null };
+    if (row.membership_tier === 'pro' || row.pro_member) set.add(row.id);
+  }
+  return set;
+}
+
 /** All events owned by a holder (any status). */
 export async function fetchMyEvents(holderId: string) {
   const { data, error } = await supabase

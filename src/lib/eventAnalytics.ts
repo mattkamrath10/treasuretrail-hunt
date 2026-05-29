@@ -51,7 +51,13 @@ const ZERO_CLICKS: EventEngagement['click_counts'] = {
   livestream: 0,
 };
 
-/** One-shot engagement fetch for a single event (used by the holder dashboard). */
+/**
+ * One-shot engagement fetch for a single event. NOTE: currently unused. The
+ * count views it reads have their direct SELECT grant revoked by
+ * `20260529000004_seller_reach_rpc.sql` (reach is Pro-gated at the data layer),
+ * so if a per-event card is reintroduced this must be reimplemented as a
+ * SECURITY DEFINER RPC that checks ownership (and tier, if it should be Pro).
+ */
 export async function fetchEventEngagement(eventId: string): Promise<EventEngagement> {
   const [viewsRes, savesRes, clicksRes] = await Promise.all([
     supabase.from('event_view_counts').select('view_count').eq('event_id', eventId).maybeSingle(),
@@ -68,4 +74,89 @@ export async function fetchEventEngagement(eventId: string): Promise<EventEngage
     save_count: (savesRes.data?.save_count as number | undefined) ?? 0,
     click_counts,
   };
+}
+
+export interface SellerReachRow { views: number; saves: number; taps: number }
+export interface SellerReach {
+  totals: SellerReachRow;
+  /** Per-event reach, keyed by event id. Missing ids → no activity. */
+  perEvent: Record<string, SellerReachRow>;
+}
+
+/**
+ * Aggregate reach (views, saves, CTA taps) across many of a seller's events
+ * for the Pro Reach Analytics dashboard.
+ *
+ * Pro is enforced at the DATA layer, not just the UI: the preferred path is
+ * the SECURITY DEFINER RPC `fetch_seller_reach`, which checks the caller is
+ * Pro AND owns each event before returning anything. The React gate is then
+ * just UX — a free holder who hand-crafts an API call still gets nothing.
+ *
+ * Until that migration (`20260529000004_seller_reach_rpc.sql`) is applied,
+ * we fall back to the owner-readable count views so the feature still works
+ * for Pro users today. The fallback triggers ONLY when the function is
+ * missing — a real PRO_REQUIRED/permission error propagates. This mirrors
+ * the migration-gated fetcher pattern used elsewhere in the app.
+ */
+export async function fetchSellerReach(eventIds: string[]): Promise<SellerReach> {
+  const ids = [...new Set(eventIds)].filter(Boolean);
+  if (ids.length === 0) return { totals: { views: 0, saves: 0, taps: 0 }, perEvent: {} };
+
+  const { data, error } = await supabase.rpc('fetch_seller_reach', { p_event_ids: ids });
+  if (!error) return aggregateReachRows(data ?? []);
+
+  const missing =
+    error.code === 'PGRST202' ||
+    /does not exist|find the function|schema cache/i.test(error.message ?? '');
+  if (!missing) {
+    // Real failure (incl. PRO_REQUIRED from the RPC, or a transport error) —
+    // surface it instead of silently reporting zero reach.
+    throw new Error(error.message || 'Failed to load reach analytics');
+  }
+  console.warn(
+    '[SELLER_REACH] RPC unavailable — using owner-readable fallback. Apply migration 20260529000004_seller_reach_rpc.sql to enforce Pro at the data layer:',
+    error.message,
+  );
+  return fetchSellerReachDirect(ids);
+}
+
+function aggregateReachRows(rows: any[]): SellerReach {
+  const perEvent: Record<string, SellerReachRow> = {};
+  let views = 0, saves = 0, taps = 0;
+  for (const r of rows) {
+    const row: SellerReachRow = { views: r.views ?? 0, saves: r.saves ?? 0, taps: r.taps ?? 0 };
+    perEvent[r.event_id] = row;
+    views += row.views; saves += row.saves; taps += row.taps;
+  }
+  return { totals: { views, saves, taps }, perEvent };
+}
+
+/**
+ * Fallback aggregation over the owner-readable count views (three batched
+ * queries). Fails fast on any query error so a partial load can't masquerade
+ * as "0 reach".
+ */
+async function fetchSellerReachDirect(ids: string[]): Promise<SellerReach> {
+  const [viewsRes, savesRes, clicksRes] = await Promise.all([
+    supabase.from('event_view_counts').select('event_id, view_count').in('event_id', ids),
+    supabase.from('event_save_counts').select('event_id, save_count').in('event_id', ids),
+    supabase.from('event_click_counts').select('event_id, click_count').in('event_id', ids),
+  ]);
+  if (viewsRes.error) throw new Error(viewsRes.error.message);
+  if (savesRes.error) throw new Error(savesRes.error.message);
+  if (clicksRes.error) throw new Error(clicksRes.error.message);
+
+  const perEvent: Record<string, SellerReachRow> = {};
+  const ensure = (id: string): SellerReachRow => (perEvent[id] ??= { views: 0, saves: 0, taps: 0 });
+
+  for (const r of viewsRes.data ?? []) ensure((r as any).event_id).views = (r as any).view_count ?? 0;
+  for (const r of savesRes.data ?? []) ensure((r as any).event_id).saves = (r as any).save_count ?? 0;
+  for (const r of clicksRes.data ?? []) ensure((r as any).event_id).taps += (r as any).click_count ?? 0;
+
+  let views = 0, saves = 0, taps = 0;
+  for (const id of Object.keys(perEvent)) {
+    const e = perEvent[id];
+    views += e.views; saves += e.saves; taps += e.taps;
+  }
+  return { totals: { views, saves, taps }, perEvent };
 }

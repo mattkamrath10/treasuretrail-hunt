@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
-  fetchMyEvent, createEvent, updateEvent,
+  fetchMyEvent, createEvent, updateEvent, countActiveLocalEvents,
   fetchEventFeaturedItems, addEventFeaturedItem, deleteEventFeaturedItem,
   PLATFORM_META, SHOW_CATEGORY_LABELS,
   type EventCategory, type EventStatus, type EventUpsert, type EventFeaturedItem,
@@ -17,6 +17,8 @@ import { toThumbUrl } from '../lib/imageCompress';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PageScroll } from '../components/ui/PageScroll';
+import { UpgradeProCard } from '../components/ui/UpgradeProCard';
+import { isProUser, FREE_TIER_EVENT_LIMIT } from '../lib/entitlements';
 import { flashToast } from '../lib/toast';
 
 const LOG = '[SELLER_FORM]';
@@ -59,6 +61,9 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   const [loading, setLoading]   = useState(isEdit);
   const [saving,  setSaving]    = useState(false);
   const [err,     setErr]       = useState<string | null>(null);
+  // Free-tier cap: when a free user tries to publish a 2nd active local
+  // event we surface an inline upgrade prompt instead of a raw error.
+  const [capBlocked, setCapBlocked] = useState(false);
 
   const [title,        setTitle]       = useState('');
   const [description,  setDescription] = useState('');
@@ -204,6 +209,33 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       seller_handle:  isOnline ? (sellerHandle.trim() || null) : null,
       show_category:  isOnline ? (showCategory || null) : null,
     };
+
+    // Free-tier cap: a free user may keep only FREE_TIER_EVENT_LIMIT active
+    // local events. Online live shows don't count, and cancelled events are
+    // free. We only check when this save would *result in* an active local
+    // event — drafts/cancelled and online events are always allowed. The DB
+    // trigger is the real backstop; this is the friendly pre-save guard.
+    const willBeActiveLocal = !isOnline && payload.status !== 'cancelled';
+    if (willBeActiveLocal && !isProUser(profile)) {
+      try {
+        const active = await countActiveLocalEvents(user.id, isEdit ? id : undefined);
+        if (active >= FREE_TIER_EVENT_LIMIT) {
+          setCapBlocked(true);
+          setErr(
+            `Free accounts can have ${FREE_TIER_EVENT_LIMIT} active local event at a time. ` +
+            `Cancel or delete your existing event, or upgrade to Pro for unlimited events.`,
+          );
+          flashToast('Free plan limit reached — upgrade to Pro for unlimited events', 'error', 4000);
+          return;
+        }
+      } catch (e: any) {
+        // If the count query fails we don't hard-block on the client — the
+        // DB trigger still enforces the cap, so let the save attempt proceed
+        // and surface any trigger error normally.
+        console.warn(LOG, 'cap:check:failed', e?.message);
+      }
+    }
+    setCapBlocked(false);
 
     setSaving(true);
     try {
@@ -554,6 +586,11 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
 
           {/* Sticky save bar */}
           {err && <div style={s.errorBanner}>{err}</div>}
+          {capBlocked && (
+            <div style={{ margin: '0 0 var(--space-3)' }}>
+              <UpgradeProCard onUpgrade={() => navigate('/pro')} />
+            </div>
+          )}
 
           <div style={s.saveBar}>
             <button onClick={onBack} style={s.ghostBtnLg}>Cancel</button>

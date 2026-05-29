@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, ChevronRight, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar,
 } from 'lucide-react';
-import { fetchPublishedEvents, PLATFORM_META, isLiveNow, isExpiredLive, type EventRow } from '../lib/events';
+import { fetchPublishedEvents, fetchProHolderIds, PLATFORM_META, isLiveNow, isExpiredLive, type EventRow } from '../lib/events';
 import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { fetchCommunityPosts } from '../lib/database';
 import { fetchOpenWantedItemsWithRequesters, WANTED_CATEGORY_LABEL, type WantedItemWithRequester } from '../lib/wanted';
@@ -29,6 +29,7 @@ export default function Discover() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [finds, setFinds] = useState<CommunityPost[]>([]);
   const [wanted, setWanted] = useState<WantedItemWithRequester[]>([]);
+  const [proHolders, setProHolders] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -37,29 +38,42 @@ export default function Discover() {
       fetchPublishedEvents({ limit: 40 }),
       fetchCommunityPosts(24),
       fetchOpenWantedItemsWithRequesters({ limit: 24 }),
-    ]).then(([e, f, w]) => {
+    ]).then(async ([e, f, w]) => {
       if (cancelled) return;
-      if (e.status === 'fulfilled') setEvents(e.value);
+      let eventRows: EventRow[] = [];
+      if (e.status === 'fulfilled') { eventRows = e.value; setEvents(e.value); }
       else console.warn(LOG, 'events fetch failed', e.reason);
       if (f.status === 'fulfilled') setFinds(f.value);
       else console.warn(LOG, 'finds fetch failed', f.reason);
       if (w.status === 'fulfilled') setWanted(w.value);
       else console.warn(LOG, 'wanted fetch failed', w.reason);
+
+      // Resolve which sellers are Pro so they get priority placement.
+      // Best-effort — fetchProHolderIds swallows errors and returns an
+      // empty set, so a failure just means no Pro boost this load.
+      if (eventRows.length) {
+        const pros = await fetchProHolderIds(eventRows.map((ev) => ev.holder_id));
+        if (!cancelled) setProHolders(pros);
+      }
     });
     return () => { cancelled = true; };
   }, []);
 
-  // "Live Now" surface: rank by Phase-1 priority — live+boosted first,
-  // then live, then boosted, then newest, with expired pushed to the
+  // Pro sellers get priority placement (a real Pro benefit) — ranked above
+  // ordinary content but still below paid boosts and live shows.
+  const isProSeller = (e: EventRow) => proHolders.has(e.holder_id);
+
+  // "Live Now" surface: rank by priority — live+boosted first, then live,
+  // then boosted, then Pro sellers, then newest, with expired pushed to the
   // bottom. `rankDiscoverFeed` is the single source of truth for ordering.
   const liveAndOnline = rankDiscoverFeed(
     events.filter((e) => e.event_kind === 'online' || isLiveNow(e)),
-    { isLive: isLiveNow, isExpired: isExpiredLive, createdAt: (e) => e.starts_at },
+    { isLive: isLiveNow, isExpired: isExpiredLive, createdAt: (e) => e.starts_at, isPro: isProSeller },
   );
-  // Local events: no "live" concept, but boosted should still float up.
+  // Local events: no "live" concept, but boosted + Pro should still float up.
   const localEvents = rankDiscoverFeed(
     events.filter((e) => e.event_kind === 'local'),
-    { ...STATIC_PROBES, createdAt: (e) => e.starts_at },
+    { ...STATIC_PROBES, createdAt: (e) => e.starts_at, isPro: isProSeller },
   );
 
   const q = query.trim().toLowerCase();

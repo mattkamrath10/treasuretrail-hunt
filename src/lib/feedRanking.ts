@@ -5,12 +5,14 @@
  *   1. Active live (boosted)
  *   2. Active live (not boosted)
  *   3. Boosted local events / wanted (anything boosted that isn't live)
- *   4. Newest non-boosted content (created_at desc)
- *   5. Expired live shows (kept visible but pushed to the bottom)
+ *   4. Pro sellers' content (priority placement — a real Pro benefit,
+ *      no paid boost required)
+ *   5. Newest non-boosted, non-Pro content (created_at desc)
+ *   6. Expired live shows (kept visible but pushed to the bottom)
  *
  * The helper works on any heterogenous list whose items can be probed
- * for liveness/expiry/boost. Callers supply small probe functions so
- * we don't have to import every row type here.
+ * for liveness/expiry/boost/Pro-ownership. Callers supply small probe
+ * functions so we don't have to import every row type here.
  */
 
 import { isBoosted, type BoostableRow } from './boost';
@@ -19,6 +21,11 @@ export interface RankProbes<T> {
   isLive: (item: T) => boolean;
   isExpired: (item: T) => boolean;
   createdAt: (item: T) => string | null | undefined;
+  // Optional: does this item belong to a Pro seller? When provided, Pro
+  // content floats above ordinary content (but still below paid boosts
+  // and live shows). This is what makes "priority placement" a genuine
+  // Pro entitlement rather than just a side effect of buying a boost.
+  isPro?: (item: T) => boolean;
 }
 
 // Lower bucket = higher in the feed.
@@ -26,8 +33,9 @@ const BUCKET = {
   LIVE_BOOSTED:   0,
   LIVE:           1,
   BOOSTED:        2,
-  NORMAL:         3,
-  EXPIRED:        4,
+  PRO:            3,
+  NORMAL:         4,
+  EXPIRED:        5,
 } as const;
 
 function bucket<T extends BoostableRow>(item: T, p: RankProbes<T>): number {
@@ -41,6 +49,9 @@ function bucket<T extends BoostableRow>(item: T, p: RankProbes<T>): number {
   if (live && boosted) return BUCKET.LIVE_BOOSTED;
   if (live)            return BUCKET.LIVE;
   if (boosted)         return BUCKET.BOOSTED;
+  // Pro ownership gives priority placement, ranking above ordinary
+  // (free, non-boosted) content. A paid boost still outranks Pro.
+  if (p.isPro?.(item)) return BUCKET.PRO;
   return BUCKET.NORMAL;
 }
 

@@ -111,12 +111,10 @@ const PLANS: Plan[] = [
     cadence: '/ per month',
     tagline: 'Whatnot · Poshmark Live · eBay Live',
     features: [
+      'Priority placement in Discover — every time',
+      'Reach analytics: views, saves & buyer taps',
       'Unlimited event & live-stream boosts',
-      'Cross-promote Whatnot, Poshmark & eBay Live shows',
-      'Personal seller storefront & follower feed',
-      'Go-live notifications to your local audience',
-      'Sales & reach analytics',
-      'Priority placement, every time',
+      'Pro badge on your profile',
     ],
     cta: 'Start Growing Now',
     ctaFootnote: 'More viewers • More bids • More customers',
@@ -132,11 +130,13 @@ export default function Pro({ onBack }: { onBack: () => void }) {
 
   const alreadyPro = isProUser(profile);
 
-  // Phase 1 — payments are MOCKED in src/lib/payments.ts. The Pro plan
-  // flips the user's tier directly on click; Boost requires picking a
-  // specific event/post (we send the user to their seller dashboard to
-  // pick one). When Stripe lands in Phase 2 the only change is the
-  // implementation of startProUpgrade — this UI stays put.
+  // Payments are intentionally disabled until Stripe lands (see
+  // src/lib/payments.ts). startProUpgrade() grants nothing — it returns a
+  // "coming soon" result so Pro is never handed out for free. Boost is
+  // per-content, so we route the user to their seller dashboard to pick an
+  // item; the actual purchase is likewise gated until Stripe. When Stripe
+  // lands the only change is the implementation of startProUpgrade — this
+  // UI stays put.
   const handlePlan = async (id: PlanId) => {
     console.log('[PRO_PRICING] click', { plan: id });
     if (id === 'free') { navigate('/seller/new'); return; }
