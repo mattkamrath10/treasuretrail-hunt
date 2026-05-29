@@ -13,23 +13,29 @@ App identity (from `capacitor.config.ts`):
 
 ## 0. TL;DR — Can we package today?
 
-**Not yet — but the in-code packaging blockers are now fixed.** This pass applied
-the code-level fixes (router, push-tap nav, password-reset URL, platform-aware
-API base). What remains is **environment / infrastructure**, and there is **one
-architectural blocker that must be decided before a native build is useful:**
+**Closer — the backend deployment blocker is now resolved in config.** Earlier
+passes fixed the code-level packaging issues (router, push-tap nav, password-reset
+URL, platform-aware API base). This pass made the Express server deployment-ready
+and switched the deployment from `static` to **single-domain Autoscale**:
 
-> 🚨 **The production deployment is `static` (see `.replit`), so the Express
-> server is NOT deployed.** Every `/api/...` call — including the **mandatory
-> account-deletion** endpoint (`/api/account/delete`), push trigger, and AI
-> endpoints — has no production host. The native app therefore has nowhere to
-> point `VITE_API_BASE`, and account deletion is already broken on production
-> web. This requires deploying the server (Autoscale / Reserved VM) — a
-> cost/architecture decision for the project owner. See
-> [§5](#5-authentication-inside-capacitor) and [§8](#8-blockers).
+> ✅ **The Express server now serves both the web app and `/api/...` from one
+> origin.** It binds `0.0.0.0` on the deployment's `PORT`, serves the built `dist/`
+> SPA (with deep-link fallback), and `.replit` is set to `deploymentTarget =
+> "autoscale"` (build `npm run build`, run `npm run start`). Once the owner clicks
+> **Publish**, account deletion (`/api/account/delete`), push trigger, and the AI
+> endpoints become live, and `VITE_API_BASE` can point at the single `.replit.app`
+> domain. See [§5](#5-authentication-inside-capacitor) and [§8](#8-blockers).
 
-See [§8 Blockers](#8-blockers) for the full status table.
+**Remaining hard work is native build packaging** (generate `ios/`+`android/`
+projects, app icons/splash) — see [§8 Blockers](#8-blockers).
 
-### Fixed in this pass (code)
+### Fixed in this pass (deployment)
+- ✅ **Server deployment-ready:** binds `0.0.0.0` on `process.env.PORT`, serves
+  `dist/` + SPA fallback for non-API GETs. `server/index.ts`.
+- ✅ **Single-domain Autoscale:** `.replit` `deploymentTarget = "autoscale"`,
+  `build = npm run build`, `run = npm run start`. One origin for web + API.
+
+### Fixed in earlier passes (code)
 - ✅ **Router:** platform-conditional — `HashRouter` on native (Capacitor),
   `BrowserRouter` on web (web share links unchanged). `src/main.tsx`.
 - ✅ **Push tap:** navigates via the hash (`#/event/:id`) so taps resolve in the
@@ -192,33 +198,34 @@ const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter;
 | Sign in with Apple required? | ✅ No | Apple Guideline 4.8 only applies if you offer 3rd-party social login |
 | Session persistence | ⚠️ verify | `createClient` uses defaults (webview `localStorage`). Verify the session survives an app cold-start; consider a `@capacitor/preferences` storage adapter for robustness |
 | **Password reset** | ✅ **fixed** | `Login.tsx` now uses `publicWebUrl('/login')`. Web → real origin (unchanged); native → the configured public web domain instead of `capacitor://localhost`. Requires `VITE_PUBLIC_WEB_URL` (or `VITE_API_BASE`) at native build time |
-| **API base URL for `/api`** | 🔴 **blocked** | Code is ready: `apiUrl()` uses `VITE_API_BASE` on native only. **But there is no deployed server to point it at** — see the deployment blocker below |
+| **API base URL for `/api`** | ✅ **ready** | `apiUrl()` uses `VITE_API_BASE` on native only. The server is now deployed-ready and the deployment is Autoscale; set `VITE_API_BASE` to the published `.replit.app` domain after the first publish |
 
-### 🚨 Deployment architecture blocker — no API server in production
+### ✅ Deployment architecture — resolved (single-domain Autoscale)
 
-`.replit` declares `deploymentTarget = "static"` with `build = npm run build`. The
-published app is **only the `dist/` web bundle**; the Express server
-(`server/index.ts`, started by `npm run dev`/`start`) **does not run in
-production**. Consequences:
+`.replit` is now `deploymentTarget = "autoscale"` (build `npm run build`, run `npm
+run start`). The Express server (`server/index.ts`) binds `0.0.0.0` on the
+deployment's `PORT` and serves **both** the `dist/` web bundle (with SPA deep-link
+fallback) **and** the `/api/...` routes from one origin. Consequences:
 
-- **Account deletion is broken in production today.** `deleteAccount()` POSTs to
-  `/api/account/delete`; on a static host that path has no handler, so the delete
-  never executes. This is an **Apple Guideline 5.1.1(v)** rejection risk and a
-  data-correctness bug — the user is signed out but their account remains.
-- **Native has nowhere to point `VITE_API_BASE`.** The static `.replit.app`
-  domain serves the web app but not `/api/...`, so push trigger, AI scan, and
-  account deletion would all fail in the native app.
+- **Account deletion works in production once published.** `deleteAccount()` POSTs
+  to `/api/account/delete`, which is now a live handler backed by the
+  service-role key (present as a repl secret, inherited by the deployment).
+  Satisfies **Apple Guideline 5.1.1(v)**.
+- **Native has a single host for `VITE_API_BASE`.** The published `.replit.app`
+  domain serves both the web app and `/api/...`, so push trigger, AI scan, and
+  account deletion all resolve in the native app against one URL.
 
-**Required decision (project owner):** deploy the Express server — either switch
-the deployment to **Autoscale** / **Reserved VM** (serving both web + `/api`), or
-deploy the API separately. Then:
-- Set `VITE_API_BASE` = the server's https URL (serves `/api`).
-- Set `VITE_PUBLIC_WEB_URL` = the web app's https URL (for the reset link); if web
-  and API share a host, `VITE_API_BASE` alone suffices.
-- Rebuild + `npx cap sync` so the values bake into the native bundle.
+**Remaining owner steps (after clicking Publish):**
+- Set `VITE_API_BASE` = the published https URL (serves both web + `/api`).
+- `VITE_PUBLIC_WEB_URL` is optional now — since web and API share the host,
+  `VITE_API_BASE` alone covers the reset link.
+- Rebuild + `npx cap sync` so the value bakes into the native bundle.
 
-> CORS is already permissive (`server/index.ts` uses `cors()`, Bearer-token auth,
-> no cookies), so the native localhost origin is compatible once a server exists.
+> CORS is permissive (`server/index.ts` uses `cors()`, Bearer-token auth, no
+> cookies), so the native localhost origin is compatible. Locally verified:
+> `npm run start` serves the SPA, the deep-link fallback, and `/api/health`,
+> `/api/account/delete` (401 unauth), `/api/ai-scan` (401 unauth), `/api/push/go-live`
+> from one port.
 
 ---
 
@@ -284,11 +291,11 @@ deploy the API separately. Then:
 
 | # | Severity | Blocker | Status / Fix |
 | --- | --- | --- | --- |
-| 1 | 🔴 High | **No API server in production** (`deploymentTarget = "static"`) → native `/api` has no host; account deletion broken in prod | ⏳ **Owner decision** — deploy server (Autoscale/Reserved VM), then set `VITE_API_BASE` (§5) |
+| 1 | 🔴 High | **No API server in production** (`deploymentTarget = "static"`) → native `/api` has no host; account deletion broken in prod | ✅ **Resolved** — server is deployment-ready (binds `0.0.0.0`/`PORT`, serves `dist/` + `/api`); `.replit` switched to single-domain **Autoscale**. Owner just clicks **Publish** (§5) |
 | 2 | 🔴 High | **`BrowserRouter`** broke deep routes + push-tap nav in the webview | ✅ **Fixed** — platform-conditional router + hash push-tap (§4) |
 | 3 | 🔴 High | **No native projects** (`ios/`, `android/`) generated | ⏳ `npx cap add ios && npx cap add android` (§2) |
 | 4 | 🔴 High | **No native app icons / splash** (only web PWA icons exist) | ⏳ Generate with `@capacitor/assets` from a 1024² icon + 2732² splash (§3) |
-| 5 | 🔴 High | **`VITE_API_BASE`** not set for native | ✅ Code ready (platform-aware); ⏳ value blocked on #1 (§5) |
+| 5 | 🟠 Med | **`VITE_API_BASE`** not set for native | ✅ Code ready (platform-aware) + server now deployed-ready; ⏳ set value to the published domain after first Publish (§5) |
 | 6 | 🟠 Med | **Password reset link** used `capacitor://localhost` → unopenable in email | ✅ **Fixed** — `publicWebUrl('/login')` (§5); set `VITE_PUBLIC_WEB_URL` at native build |
 | 7 | 🟠 Med | **Firebase native files / APNs** not yet added | ⏳ Follow `CAPACITOR_PUSH_SETUP.md`; add `GoogleService-Info.plist` + `google-services.json` |
 | 8 | 🟡 Low | Session persistence relies on webview `localStorage` default | ⏳ Verify cold-start session; optionally add `@capacitor/preferences` |

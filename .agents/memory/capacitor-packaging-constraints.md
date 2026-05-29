@@ -5,20 +5,28 @@ description: Native (Capacitor) packaging gotchas for this app — router choice
 
 # Capacitor packaging constraints
 
-## Production has NO API server (static deployment)
-`.replit` uses `deploymentTarget = "static"` — only the `dist/` web bundle is
-published. The Express server (`server/index.ts`, run by `npm run dev`/`start`)
-**does not run in production**.
+## Production = single-domain Autoscale (one server serves dist + /api)
+`.replit` is `deploymentTarget = "autoscale"` (build `npm run build`, run `npm run
+start`). The Express server (`server/index.ts`) serves BOTH the `dist/` SPA and
+the `/api/...` routes from one origin. It binds `0.0.0.0` on
+`process.env.PORT ?? AI_SERVER_PORT ?? 3001` — Autoscale injects `PORT`; dev has
+neither set so it falls to `3001`, which is exactly what the Vite `/api` proxy
+targets, so the dev concurrently(web:5000 + api:3001) setup is unaffected.
 
-**Why it matters:** every `/api/...` call has no production host. Concretely,
-account deletion (`/api/account/delete`, an Apple 5.1.1(v) requirement) silently
-fails in prod, and the native app has nowhere valid to point `VITE_API_BASE`.
+**Why it matters:** prod was previously `static`, so `/api` had no host and
+account deletion (`/api/account/delete`, Apple 5.1.1(v)) was broken in prod. Now
+one deployment + one bill, no CORS, and native points `VITE_API_BASE` at the
+single published `.replit.app` domain.
 
-**How to apply:** before shipping native (or relying on any `/api` feature in
-prod), the server must be deployed (Autoscale / Reserved VM, or separately).
-Then set `VITE_API_BASE` (server https) and `VITE_PUBLIC_WEB_URL` (web app https)
-and rebuild + `npx cap sync`. Don't assume `/api` works in prod just because it
-works in dev (dev runs web+api together via `concurrently`).
+**How to apply (gotchas):**
+- Static-serve block is guarded by `fs.existsSync(distDir)` and lives AFTER all
+  `/api` routes; SPA fallback only fires for non-API GET/HEAD (`req.path === '/api'
+  || startsWith('/api/')` is excluded) so API 404s stay JSON.
+- After first Publish, set `VITE_API_BASE` to the published https URL, then
+  rebuild + `npx cap sync`. `VITE_PUBLIC_WEB_URL` is optional (same host).
+- Deployment inherits repl secrets (SUPABASE_SERVICE_ROLE_KEY etc.), so account
+  deletion + admin grants work in prod automatically. Push still no-ops until
+  `FIREBASE_SERVICE_ACCOUNT` is set (separate optional feature).
 
 ## Router must be platform-conditional, not blanket HashRouter
 Native webview serves bundled files from `capacitor://localhost` with no

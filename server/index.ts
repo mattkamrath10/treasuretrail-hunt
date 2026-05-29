@@ -3,6 +3,8 @@ import cors from 'cors';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'node:crypto';
+import path from 'node:path';
+import fs from 'node:fs';
 import {
   grantPro,
   revokePro,
@@ -14,7 +16,9 @@ import {
 } from './grants';
 import { sendGoLivePush, hasPush } from './push';
 
-const PORT = Number(process.env.AI_SERVER_PORT ?? 3001);
+// Deployment (Autoscale/VM) injects PORT; bind it in production. In dev the
+// server keeps using AI_SERVER_PORT (3001) so the Vite /api proxy resolves.
+const PORT = Number(process.env.PORT ?? process.env.AI_SERVER_PORT ?? 3001);
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
@@ -386,6 +390,28 @@ app.post('/api/account/delete', async (req, res) => {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`[ai-server] listening on http://127.0.0.1:${PORT}`);
+// =====================================================================
+// Static frontend (single-domain deployment)
+// ---------------------------------------------------------------------
+// In production this same Express server serves the built SPA from dist/
+// alongside the /api routes above, so the web app and the API share one
+// origin (no CORS, one deployment, one bill). Native points VITE_API_BASE at
+// this same domain. In dev this block is dormant: Vite serves the web app on
+// its own port and only proxies /api here, so the browser never reaches these
+// handlers. Guarded on dist/ existing so a missing build can't crash dev.
+// =====================================================================
+const distDir = path.resolve(process.cwd(), 'dist');
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+  // SPA fallback: any non-API GET returns index.html so client-side routes
+  // (BrowserRouter on web) resolve on hard refresh / deep link.
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (req.path === '/api' || req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+}
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[ai-server] listening on 0.0.0.0:${PORT}`);
 });
