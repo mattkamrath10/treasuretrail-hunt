@@ -20,3 +20,4 @@
 - [Autoscale vs publicDir conflict](autoscale-publicdir-conflict.md) — Static→Autoscale switch leaves `publicDir` in .replit (disables Publish / stays Static); deployConfig wont remove it, user must hand-edit .replit.
 - [Native /api fetch rule](native-api-fetch-rule.md) — relative `fetch('/api')` breaks in Capacitor webview; every /api call must use `apiUrl()`, links use `publicWebUrl()`; VITE_API_BASE is a build-time var.
 - [cap add ios on Linux](capacitor-ios-on-linux.md) — Capacitor 8 CLI needs Node>=22; `cap add ios` scaffolds with SPM (no CocoaPods/Mac) so the ios/ project generates fine on Replit.
+- [Native build missing VITE_ env](native-build-missing-vite-env.md) — Codemagic build doesn't inherit Replit secrets; any missing client VITE_ var (esp. SUPABASE_URL/ANON) = blank-screen launch since supabase.ts createClient throws at import before ErrorBoundary.

@@ -20,6 +20,13 @@ workflows:
     integrations:
       app_store_connect: TreasureTrail ASC
     environment:
+      # Supabase URL + anon key are read by `npm run build` (Vite) and baked into
+      # the bundled web app. Without them the app throws on launch (blank screen),
+      # because src/lib/supabase.ts calls createClient() at startup.
+      # Define BOTH of these in the Codemagic UI under an env-var group named
+      # "supabase":  VITE_SUPABASE_URL  and  VITE_SUPABASE_ANON_KEY.
+      groups:
+        - supabase
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
