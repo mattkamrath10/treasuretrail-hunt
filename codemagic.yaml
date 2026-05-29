@@ -1,0 +1,63 @@
+# Codemagic CI/CD — builds the iOS app on a cloud Mac and ships it to TestFlight.
+# You do NOT need a Mac. Everything below runs on Codemagic's macOS instance.
+#
+# ONE-TIME SETUP IN THE CODEMAGIC WEB UI (cannot be done from code):
+#   1. Sign in at https://codemagic.io with your GitHub account and add the
+#      repository  mattkamrath10/treasuretrail-hunt.
+#   2. Teams/Integrations -> App Store Connect -> add an API key
+#      (App Store Connect -> Users and Access -> Integrations -> create key,
+#       role: App Manager). Name the integration EXACTLY:  TreasureTrail ASC
+#       (or change the name on the `app_store_connect:` line below to match).
+#   3. App Store Connect -> your app "TreasureTrail Marketplace" -> App Information
+#      -> copy the numeric "Apple ID" and paste it into APP_STORE_APP_ID below.
+# Then push this file and press "Start new build" in Codemagic.
+
+workflows:
+  ios-testflight:
+    name: iOS TestFlight (TreasureTrail)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: TreasureTrail ASC
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.treasuretrail.hunt
+      vars:
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
+        BUNDLE_ID: "com.treasuretrail.hunt"
+        # TODO: paste the numeric Apple ID of the App Store Connect app here.
+        APP_STORE_APP_ID: 0000000000
+        # Baked into the web bundle that ships inside the native app.
+        VITE_API_BASE: "https://treasuretrail-hunt.com"
+        VITE_PUBLIC_WEB_URL: "https://treasuretrail-hunt.com"
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Build web assets (Vite)
+        script: npm run build
+      - name: Capacitor sync iOS
+        script: npx cap sync ios
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Set build number from TestFlight
+        script: |
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo 0)
+          cd "$CM_BUILD_DIR/ios/App"
+          agvtool new-version -all $(($LATEST + 1))
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
