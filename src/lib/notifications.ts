@@ -1,6 +1,28 @@
 import { supabase } from './supabase';
 import type { Notification } from './supabase';
 import { isLiveNow, type EventRow } from './events';
+import { apiUrl } from './apiBase';
+
+/**
+ * Fire-and-forget: ask the server to fan out a native push for this go-live
+ * event. Tied to the SAME event as the in-app notification. The server claims
+ * + dedupes atomically and no-ops when push isn't configured, so this is safe
+ * to call best-effort right after the in-app RPC.
+ */
+async function triggerGoLivePush(eventId: string): Promise<void> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    await fetch(apiUrl('/api/push/go-live'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ eventId }),
+    });
+  } catch {
+    /* push is best-effort; in-app notification already delivered */
+  }
+}
 
 export type NotificationType =
   | 'rare_radar_match'
@@ -169,6 +191,10 @@ export async function notifyFollowersGoLive(
     }
     return { count: 0, error: error.message };
   }
+  // In-app notification delivered (or already claimed). Fan out the native
+  // push for the SAME event — the server claims/dedupes independently, so this
+  // is safe to call even when the in-app RPC found the event already notified.
+  void triggerGoLivePush(eventId);
   return { count: (data as number) ?? 0, error: null };
 }
 

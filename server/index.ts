@@ -11,6 +11,7 @@ import {
   hasServiceRole,
   type BoostTargetKind,
 } from './grants';
+import { sendGoLivePush, hasPush } from './push';
 
 const PORT = Number(process.env.AI_SERVER_PORT ?? 3001);
 
@@ -316,6 +317,36 @@ app.post('/api/admin/boost', async (req, res) => {
   } catch (err: any) {
     console.error('[admin/boost]', err?.message || err);
     return res.status(500).json({ error: 'Boost grant failed.' });
+  }
+});
+
+// =====================================================================
+// Go-live push fan-out
+// ---------------------------------------------------------------------
+// Fired by viewer surfaces right after the in-app `notify_followers_go_live`
+// RPC, so native push is tied to the SAME go-live event. Any authenticated
+// user may call it; the DB-side atomic claim + eligibility gate in
+// sendGoLivePush() is the real authority (truthful, once-only, followers-only),
+// exactly like the in-app RPC. No-ops quietly when push isn't configured.
+// =====================================================================
+app.post('/api/push/go-live', async (req, res) => {
+  try {
+    if (!hasPush()) return res.json({ sent: 0, claimed: false, configured: false });
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const { eventId } = req.body as { eventId?: string };
+    if (!eventId || typeof eventId !== 'string') {
+      return res.status(400).json({ error: 'eventId is required.' });
+    }
+    const result = await sendGoLivePush(eventId);
+    return res.json({ ...result, configured: true });
+  } catch (err: any) {
+    console.error('[push/go-live]', err?.message || err);
+    return res.status(500).json({ error: 'push failed' });
   }
 });
 

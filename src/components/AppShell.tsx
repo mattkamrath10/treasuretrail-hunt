@@ -5,6 +5,7 @@ import OfflineBanner from './OfflineBanner';
 import { useAuth } from '../context/AuthContext';
 import { readPendingIntent, clearPendingIntent } from '../lib/pendingIntent';
 import { getOrCreateConversation } from '../lib/messaging';
+import { registerPush, removePush } from '../lib/push';
 
 // Route-level code splitting — each page becomes its own chunk so the
 // initial bundle only includes Home + the shell. Other pages stream in
@@ -223,8 +224,29 @@ function useResumePendingIntent() {
   }, [user, navigate]);
 }
 
+/**
+ * Register for native push when the user is authenticated, and remove this
+ * device's token on logout. No-op on web (see src/lib/push.ts).
+ */
+function usePushRegistration() {
+  const { user } = useAuth();
+  const registeredFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      if (registeredFor.current === user.id) return;
+      registeredFor.current = user.id;
+      void registerPush();
+    } else if (registeredFor.current) {
+      registeredFor.current = null;
+      void removePush();
+    }
+  }, [user]);
+}
+
 export default function AppShell() {
   useResumePendingIntent();
+  usePushRegistration();
   return (
     <div style={styles.container}>
       <OfflineBanner />
