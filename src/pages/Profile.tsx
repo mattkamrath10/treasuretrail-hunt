@@ -12,6 +12,7 @@ import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
 import { compressImage } from '../lib/imageCompress';
 import { Badge } from '../components/ui/Badge';
 import { ProBadge } from '../components/ui/ProBadge';
+import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isProUser } from '../lib/entitlements';
 import UserFindsGrid from '../components/UserFindsGrid';
 import { BecomeHostCard } from '../components/BecomeHostCard';
@@ -120,6 +121,13 @@ export default function Profile() {
 
       <div style={styles.content}>
         <ProfileHeader profile={profile} />
+
+        {!isProUser(profile) && (
+          <UpgradeProCard
+            onUpgrade={() => navigate('/pro')}
+            style={{ marginTop: 'var(--space-4)' }}
+          />
+        )}
 
         <div style={styles.tabs}>
           {(['overview', 'reputation', 'activity'] as ProfileTab[]).map((t) => (

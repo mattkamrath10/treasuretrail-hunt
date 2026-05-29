@@ -25,6 +25,7 @@ import { fetchMyEvents, fetchPublishedEvents } from '../lib/events';
 import type { EventRow } from '../lib/events';
 import { startBoostPurchase } from '../lib/payments';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
+import { BoostedBadge } from '../components/ui/BoostedBadge';
 import { flashToast } from '../lib/toast';
 import { setPendingIntent } from '../lib/pendingIntent';
 import {
@@ -50,6 +51,9 @@ interface ExternalListing {
   ships_available: boolean;
   status: string;
   created_at: string;
+  /** True iff the source row carries an active boost. Only 'event' rows
+   * set this today; external/other sources leave it undefined. */
+  boosted?: boolean;
   // 'event' rows are hosted events mapped in from the `events` table (see
   // eventToListing). They open the in-app /event/:id detail page instead of
   // the external-link modal. Absent/'external' = a real external_listings row.
@@ -98,6 +102,7 @@ function eventToListing(e: EventRow): ExternalListing {
     ships_available: false,
     status: 'active',
     created_at: e.created_at,
+    boosted: isBoosted(e),
   };
 }
 
@@ -686,6 +691,9 @@ function ListingCard({ listing, onClick }: { listing: ExternalListing; onClick: 
         />
         {liveBadge && (
           <span style={st.liveBadge}><span style={st.liveBadgeDot} />LIVE</span>
+        )}
+        {listing.boosted && (
+          <BoostedBadge style={{ position: 'absolute', top: 8, right: 8 }} />
         )}
       </div>
       <div style={st.cardBody}>

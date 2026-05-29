@@ -15,13 +15,17 @@ import { toThumbUrl } from '../lib/imageCompress';
 import { HostEventCTA } from '../components/HostEventCTA';
 import NotificationBell from '../components/NotificationBell';
 import { BoostedBadge, BOOSTED_CARD_GLOW } from '../components/ui/BoostedBadge';
+import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isBoosted } from '../lib/boost';
 import { rankDiscoverFeed, STATIC_PROBES } from '../lib/feedRanking';
+import { isProUser } from '../lib/entitlements';
+import { useAuth } from '../context/AuthContext';
 
 const LOG = '[DISCOVER]';
 
 export default function Discover() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [finds, setFinds] = useState<CommunityPost[]>([]);
   const [wanted, setWanted] = useState<WantedItemWithRequester[]>([]);
@@ -82,6 +86,12 @@ export default function Discover() {
       </header>
 
       <HostEventCTA variant="home" />
+
+      {!isProUser(profile) && (
+        <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-2)' }}>
+          <UpgradeProCard onUpgrade={() => navigate('/pro')} />
+        </div>
+      )}
 
       <Section
         title="Live Now"
