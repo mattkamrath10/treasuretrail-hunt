@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Settings, Star, Camera, Heart, Upload, Award, LogOut, Shield, User, Users, CircleCheck as CheckCircle, Trophy, X, Save, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
+import { Star, Camera, Heart, Upload, Award, LogOut, Shield, User, Users, CircleCheck as CheckCircle, Trophy, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
@@ -42,7 +42,7 @@ function getTrustIndicators(profile: any): TrustIndicator[] {
 export default function Profile() {
   const { profile, signOut, isGuest } = useAuth();
   const [tab, setTab] = useState<ProfileTab>('overview');
-  const [showSettings, setShowSettings] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const navigate = useNavigate();
 
@@ -114,12 +114,9 @@ export default function Profile() {
           <button onClick={signOut} style={styles.iconBtn} aria-label="Sign out">
             <LogOut size={18} style={{ color: 'var(--color-neutral-600)' }} />
           </button>
-          <button onClick={() => setShowSettings(true)} style={styles.iconBtn}>
-            <Settings size={20} style={{ color: 'var(--color-neutral-600)' }} />
-          </button>
         </div>
       </header>
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showDelete && <DeleteAccountConfirm onCancel={() => setShowDelete(false)} />}
       {shareCopied && (
         <div style={styles.shareToast}>
           Link copied to clipboard!
@@ -209,6 +206,26 @@ export default function Profile() {
           <LogOut size={18} />
           {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
         </button>
+
+        <div style={settingsStyles.accountSection}>
+          <h3 style={settingsStyles.accountHeading}>Account</h3>
+          <div style={settingsStyles.linkGroup}>
+            <button onClick={() => navigate('/privacy')} style={settingsStyles.linkRow}>
+              <FileText size={16} style={{ color: 'var(--color-neutral-500)' }} />
+              <span style={settingsStyles.linkText}>Privacy Policy</span>
+              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+            </button>
+            <button onClick={() => navigate('/terms')} style={settingsStyles.linkRow}>
+              <FileText size={16} style={{ color: 'var(--color-neutral-500)' }} />
+              <span style={settingsStyles.linkText}>Terms of Service</span>
+              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+            </button>
+          </div>
+          <button onClick={() => setShowDelete(true)} style={settingsStyles.deleteRow}>
+            <Trash2 size={16} style={{ color: 'var(--color-error-600)' }} />
+            <span style={settingsStyles.deleteText}>Delete Account</span>
+          </button>
+        </div>
       </div>
     </PageScroll>
   );
@@ -693,104 +710,6 @@ function ActivityTab() {
   );
 }
 
-function SettingsModal({ onClose }: { onClose: () => void }) {
-  const { profile, updateProfile } = useAuth();
-  const navigate = useNavigate();
-  const [username, setUsername] = useState(profile?.username || '');
-  const [bio, setBio] = useState(profile?.bio || '');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
-  const [showDelete, setShowDelete] = useState(false);
-  useScrollLock(true);
-
-  const handleSave = async () => {
-    if (!username.trim()) { setError('Username is required.'); return; }
-    setSaving(true);
-    setError('');
-    const { error: err } = await updateProfile({ username: username.trim(), bio: bio.trim() });
-    setSaving(false);
-    if (err) { setError(err); return; }
-    setSaved(true);
-    setTimeout(() => { setSaved(false); onClose(); }, 1000);
-  };
-
-  const goLegal = (path: string) => {
-    onClose();
-    navigate(path);
-  };
-
-  return (
-    <div className="tt-modal-overlay" style={settingsStyles.overlay}>
-      <div className="tt-sheet" style={settingsStyles.modal}>
-        <div style={settingsStyles.modalHeader}>
-          <h2 style={settingsStyles.modalTitle}>Profile Settings</h2>
-          <button onClick={onClose} style={settingsStyles.closeBtn}>
-            <X size={20} style={{ color: 'var(--color-neutral-600)' }} />
-          </button>
-        </div>
-
-        <div style={settingsStyles.body} data-scroll-lock-allow>
-          <div style={settingsStyles.field}>
-            <label style={settingsStyles.label}>Username</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="your_username"
-              style={settingsStyles.input}
-            />
-          </div>
-
-          <div style={settingsStyles.field}>
-            <label style={settingsStyles.label}>Bio</label>
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Tell the community about yourself..."
-              rows={3}
-              style={{ ...settingsStyles.input, resize: 'vertical', minHeight: '72px' }}
-            />
-          </div>
-
-          {error && <p style={settingsStyles.errorText}>{error}</p>}
-
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{ ...settingsStyles.saveBtn, opacity: saving ? 0.6 : 1 }}
-          >
-            <Save size={16} style={{ color: 'var(--color-neutral-0)' }} />
-            <span style={settingsStyles.saveBtnText}>
-              {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Changes'}
-            </span>
-          </button>
-
-          <div style={settingsStyles.linkGroup}>
-            <button onClick={() => goLegal('/privacy')} style={settingsStyles.linkRow}>
-              <FileText size={16} style={{ color: 'var(--color-neutral-500)' }} />
-              <span style={settingsStyles.linkText}>Privacy Policy</span>
-              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
-            </button>
-            <button onClick={() => goLegal('/terms')} style={settingsStyles.linkRow}>
-              <FileText size={16} style={{ color: 'var(--color-neutral-500)' }} />
-              <span style={settingsStyles.linkText}>Terms of Service</span>
-              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
-            </button>
-          </div>
-
-          <button onClick={() => setShowDelete(true)} style={settingsStyles.deleteRow}>
-            <Trash2 size={16} style={{ color: 'var(--color-error-600)' }} />
-            <span style={settingsStyles.deleteText}>Delete Account</span>
-          </button>
-        </div>
-      </div>
-
-      {showDelete && <DeleteAccountConfirm onCancel={() => setShowDelete(false)} />}
-    </div>
-  );
-}
-
 function DeleteAccountConfirm({ onCancel }: { onCancel: () => void }) {
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -1032,11 +951,25 @@ const settingsStyles: Record<string, React.CSSProperties> = {
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-0)',
   },
+  accountSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-2)',
+    marginBottom: 'calc(var(--space-8) + env(safe-area-inset-bottom))',
+  },
+  accountHeading: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-500)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  },
   linkGroup: {
     display: 'flex',
     flexDirection: 'column',
-    borderTop: '1px solid var(--color-neutral-100)',
-    paddingTop: 'var(--space-2)',
+    border: '1px solid var(--color-neutral-200)',
+    borderRadius: 'var(--radius-lg)',
+    overflow: 'hidden',
   },
   linkRow: {
     display: 'flex',
