@@ -721,8 +721,8 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div style={settingsStyles.overlay}>
-      <div style={settingsStyles.modal}>
+    <div className="tt-modal-overlay" style={settingsStyles.overlay}>
+      <div className="tt-sheet" style={settingsStyles.modal}>
         <div style={settingsStyles.modalHeader}>
           <h2 style={settingsStyles.modalTitle}>Profile Settings</h2>
           <button onClick={onClose} style={settingsStyles.closeBtn}>
@@ -813,8 +813,8 @@ function DeleteAccountConfirm({ onCancel }: { onCancel: () => void }) {
   };
 
   return (
-    <div style={settingsStyles.overlay}>
-      <div style={settingsStyles.confirmModal} data-scroll-lock-allow>
+    <div className="tt-modal-overlay" style={settingsStyles.overlay}>
+      <div className="tt-sheet" style={settingsStyles.confirmModal} data-scroll-lock-allow>
         <div style={settingsStyles.confirmIconWrap}>
           <AlertTriangle size={24} style={{ color: 'var(--color-error-600)' }} />
         </div>
@@ -941,7 +941,9 @@ const proStyles: Record<string, React.CSSProperties> = {
 const settingsStyles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed',
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
     backgroundColor: 'rgba(0,0,0,0.45)',
     zIndex: 200,
     display: 'flex',
@@ -953,7 +955,6 @@ const settingsStyles: Record<string, React.CSSProperties> = {
     borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
     width: '100%',
     maxWidth: '480px',
-    maxHeight: '90vh',
     display: 'flex',
     flexDirection: 'column',
     boxShadow: 'var(--shadow-xl)',
@@ -1081,7 +1082,6 @@ const settingsStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 'var(--space-3)',
-    maxHeight: '90vh',
     overflowY: 'auto',
     overscrollBehavior: 'contain',
     WebkitOverflowScrolling: 'touch',
