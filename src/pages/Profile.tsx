@@ -18,6 +18,7 @@ import UserFindsGrid from '../components/UserFindsGrid';
 import { BecomeHostCard } from '../components/BecomeHostCard';
 import { shareWithImage } from '../lib/shareWithImage';
 import { deleteAccount } from '../lib/account';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { fetchSavedFinds, type SavedFindCard } from '../lib/savedListings';
 import { MediaFallback, type FallbackKind } from '../components/ui/MediaFallback';
 
@@ -708,6 +709,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [showDelete, setShowDelete] = useState(false);
+  useScrollLock(true);
 
   const handleSave = async () => {
     if (!username.trim()) { setError('Username is required.'); return; }
@@ -735,7 +737,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div style={settingsStyles.body}>
+        <div style={settingsStyles.body} data-scroll-lock-allow>
           <div style={settingsStyles.field}>
             <label style={settingsStyles.label}>Username</label>
             <input
@@ -801,6 +803,7 @@ function DeleteAccountConfirm({ onCancel }: { onCancel: () => void }) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const canDelete = confirmText.trim().toUpperCase() === 'DELETE';
+  useScrollLock(true);
 
   const handleDelete = async () => {
     if (!canDelete) return;
@@ -818,7 +821,7 @@ function DeleteAccountConfirm({ onCancel }: { onCancel: () => void }) {
 
   return (
     <div style={settingsStyles.overlay}>
-      <div style={settingsStyles.confirmModal}>
+      <div style={settingsStyles.confirmModal} data-scroll-lock-allow>
         <div style={settingsStyles.confirmIconWrap}>
           <AlertTriangle size={24} style={{ color: 'var(--color-error-600)' }} />
         </div>
@@ -957,8 +960,10 @@ const settingsStyles: Record<string, React.CSSProperties> = {
     borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
     width: '100%',
     maxWidth: '480px',
+    maxHeight: '90vh',
+    display: 'flex',
+    flexDirection: 'column',
     boxShadow: 'var(--shadow-xl)',
-    paddingBottom: 'var(--space-6)',
   },
   modalHeader: {
     display: 'flex',
@@ -982,9 +987,15 @@ const settingsStyles: Record<string, React.CSSProperties> = {
   },
   body: {
     padding: 'var(--space-4)',
+    paddingBottom: 'calc(var(--space-6) + env(safe-area-inset-bottom))',
     display: 'flex',
     flexDirection: 'column',
     gap: 'var(--space-4)',
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+    WebkitOverflowScrolling: 'touch',
+    flex: 1,
+    minHeight: 0,
   },
   field: {
     display: 'flex',
@@ -1077,6 +1088,10 @@ const settingsStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 'var(--space-3)',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+    WebkitOverflowScrolling: 'touch',
   },
   confirmIconWrap: {
     width: '48px',
