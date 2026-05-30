@@ -3,7 +3,18 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// When a build is missing these (most commonly a native/Codemagic build that
+// didn't receive VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY), calling
+// createClient() with `undefined` throws DURING module import — before React
+// mounts — which the ErrorBoundary cannot catch and which renders as a blank
+// white screen on launch. Flag the condition and fall back to harmless dummy
+// values so import never throws; main.tsx shows a readable message instead.
+export const supabaseConfigMissing = !supabaseUrl || !supabaseAnonKey;
+
+export const supabase = createClient(
+  supabaseUrl ?? 'https://config-missing.invalid',
+  supabaseAnonKey ?? 'config-missing',
+);
 
 export type Profile = {
   id: string;
