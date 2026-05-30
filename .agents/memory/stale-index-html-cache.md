@@ -1,6 +1,6 @@
 ---
 name: Stale index.html cache masks deploys
-description: "Recurring 'edits not saving'/'fix didn't work' on the published app can be a cached entry point, not a code/DB bug.
+description: "Recurring 'edits not saving'/'fix didn't work' on the published app can be a cached entry point, not a code/DB bug."
 ---
 
 When a feature works in code + DB but a user (esp. mobile Safari) keeps reporting

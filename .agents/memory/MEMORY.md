@@ -25,3 +25,4 @@
 - [Native build missing VITE_ env](native-build-missing-vite-env.md) — Codemagic build doesn't inherit Replit secrets; any missing client VITE_ var (esp. SUPABASE_URL/ANON) = blank-screen launch since supabase.ts createClient throws at import before ErrorBoundary.
 - [Stale index.html cache masks deploys](stale-index-html-cache.md) — "still broken after 4 fixes" can be a cached SPA entry point on mobile Safari, not a code/DB bug; serve index.html no-cache, /assets immutable.
 - [iOS bottom-sheet dvh](ios-bottom-sheet-dvh.md) — bottom-anchored sheets sized with vh hide their lowest control (Delete Account) behind the mobile Safari toolbar; size overlay+sheet with dvh (vh fallback) via .tt-modal-overlay/.tt-sheet classes.
+- [Events location search](events-location-search.md) — Events search is a LOCATION filter (ZIP->zippopotam, City,State->nominatim, both keyless/CORS/absolute-URL for webview); haversine <=100mi, null lat/lng hidden, no DB migration.

@@ -10,6 +10,9 @@ import {
   type EventRow, type EventCategory,
 } from '../lib/events';
 import { isEventSaved, saveEvent, unsaveEvent } from '../lib/eventSaves';
+import {
+  geocodeLocation, haversineMiles, LOCAL_RADIUS_MILES, type GeoPoint,
+} from '../lib/geocode';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
@@ -54,6 +57,10 @@ export default function Events({ onBack }: { onBack: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
+  // Location search: geocode the typed ZIP / "City, State" to a center point,
+  // then keep only events within LOCAL_RADIUS_MILES of it.
+  const [center, setCenter] = useState<GeoPoint | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'searching' | 'ok' | 'not_found' | 'error'>('idle');
   // Tick once a minute so Live Now / Starting Soon flips state on its own
   // without a refresh.
   const [, setTick] = useState(0);
@@ -61,6 +68,27 @@ export default function Events({ onBack }: { onBack: () => void }) {
     const t = setInterval(() => setTick((n) => n + 1), 60_000);
     return () => clearInterval(t);
   }, []);
+
+  // Debounced geocoding of the location search box. Empty input clears the
+  // filter (show all); a valid location sets the center; anything else records
+  // why the lookup failed so the feed can explain it.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) { setCenter(null); setGeoStatus('idle'); return; }
+    const ctrl = new AbortController();
+    setGeoStatus('searching');
+    const t = setTimeout(() => {
+      geocodeLocation(q, ctrl.signal)
+        .then((r) => {
+          if (r.ok) { setCenter(r.point); setGeoStatus('ok'); }
+          else { setCenter(null); setGeoStatus(r.reason); }
+        })
+        .catch((e: any) => {
+          if (e?.name !== 'AbortError') { setCenter(null); setGeoStatus('error'); }
+        });
+    }, 600);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [query]);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,17 +100,18 @@ export default function Events({ onBack }: { onBack: () => void }) {
   }, []);
 
   const now = Date.now();
+  const locating = query.trim().length > 0;
   const filtered = (events ?? []).filter((e) => {
     if (filter === 'local'  && e.event_kind !== 'local')  return false;
     if (filter === 'online' && e.event_kind !== 'online') return false;
     if (filter === 'live'   && !isLiveNow(e, now))        return false;
     if (filter === 'soon'   && !isStartingSoon(e, now))   return false;
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      if (!(e.title.toLowerCase().includes(q)
-            || (e.city ?? '').toLowerCase().includes(q)
-            || (e.address ?? '').toLowerCase().includes(q)
-            || (e.seller_handle ?? '').toLowerCase().includes(q))) return false;
+    if (locating) {
+      // Only show events within the radius of the searched location. Events
+      // without coordinates (e.g. online shows) can't be measured, so hide them.
+      if (!center) return false;
+      if (e.lat == null || e.lng == null) return false;
+      if (haversineMiles(center, { lat: e.lat, lng: e.lng }) > LOCAL_RADIUS_MILES) return false;
     }
     return true;
   });
@@ -112,7 +141,7 @@ export default function Events({ onBack }: { onBack: () => void }) {
         <Search size={16} style={{ color: 'var(--color-neutral-400)' }} />
         <input
           type="search"
-          placeholder="Search by title or city"
+          placeholder="Enter ZIP Code or City, State to find local events"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={s.searchInput}
@@ -138,28 +167,45 @@ export default function Events({ onBack }: { onBack: () => void }) {
         <div style={s.errorBanner}>{loadError}</div>
       )}
 
+      {locating && (geoStatus === 'not_found' || geoStatus === 'error') && (
+        <div style={s.errorBanner}>
+          {geoStatus === 'not_found'
+            ? 'We couldn\u2019t find that location. Enter a 5-digit ZIP code or \u201CCity, State\u201D.'
+            : 'Couldn\u2019t look up that location. Check your connection and try again.'}
+        </div>
+      )}
+
       <div style={s.feed}>
-        {events === null ? (
+        {events === null || (locating && geoStatus === 'searching') ? (
           <SkeletonList count={3} />
-        ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={Calendar}
-            title={events.length === 0 ? 'No events yet' : 'No events match'}
-            body={
-              events.length === 0
-                ? (isHolder
-                    ? 'Be the first to publish a local event.'
-                    : 'Check back soon — hosts are adding events all the time.')
-                : 'Try a different filter or search term.'
-            }
-            action={
-              isHolder ? (
-                <button onClick={() => navigate('/seller')} style={s.fab as any}>
-                  Create event
-                </button>
-              ) : undefined
-            }
-          />
+        ) : locating && geoStatus !== 'ok' ? null
+        : filtered.length === 0 ? (
+          locating ? (
+            <EmptyState
+              icon={MapPin}
+              title="No local events nearby"
+              body="No local events found within 100 miles."
+            />
+          ) : (
+            <EmptyState
+              icon={Calendar}
+              title={events.length === 0 ? 'No events yet' : 'No events match'}
+              body={
+                events.length === 0
+                  ? (isHolder
+                      ? 'Be the first to publish a local event.'
+                      : 'Check back soon — hosts are adding events all the time.')
+                  : 'Try a different filter or search term.'
+              }
+              action={
+                isHolder ? (
+                  <button onClick={() => navigate('/seller')} style={s.fab as any}>
+                    Create event
+                  </button>
+                ) : undefined
+              }
+            />
+          )
         ) : (
           filtered.map((e) => <EventCard key={e.id} event={e} />)
         )}
