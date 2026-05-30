@@ -24,6 +24,13 @@ import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
 
+// [BETA_GATE] Marketplace listing creation ("Add Marketplace") is hidden from
+// the UI for the beta / App Store review while its workflow and moderation
+// process are finalized. All underlying code (CreateListing view, the
+// createMarketplaceListing call, the DB table) is left intact so the feature
+// can be re-enabled later by flipping this single flag back to true.
+const MARKETPLACE_CREATE_ENABLED = false;
+
 type MarketView = 'home' | 'detail' | 'create' | 'offer' | 'checkout' | 'dashboard' | 'confirmation';
 
 interface Listing {
@@ -281,7 +288,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                 <ChevronRight size={16} style={{ color: 'var(--color-neutral-400)' }} />
               </div>
               {featured.length === 0 ? (
-                <EmptyState label="No featured listings yet. Be the first to post!" />
+                <EmptyState label="No featured listings yet. Check back soon!" />
               ) : (
                 <div style={s.featuredScroll}>
                   {featured.map((item) => (
@@ -348,7 +355,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
                 <h2 style={s.sectionTitle}>Recently Posted</h2>
               </div>
               {recent.length === 0 ? (
-                <EmptyState label="No listings yet. Create one to get started!" />
+                <EmptyState label="No listings yet. Check back soon!" />
               ) : (
                 recent.map((item) => (
                   <button key={item.id} onClick={() => onItemClick(item)} style={s.listingRow}>
@@ -385,10 +392,12 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
         )}
       </div>
 
-      {/* Create listing FAB */}
-      <button onClick={() => requireAuth(onCreateListing)} style={s.fab}>
-        <Package size={20} style={{ color: 'var(--color-neutral-0)' }} />
-      </button>
+      {/* Create listing FAB — hidden during beta (see MARKETPLACE_CREATE_ENABLED) */}
+      {MARKETPLACE_CREATE_ENABLED && (
+        <button onClick={() => requireAuth(onCreateListing)} style={s.fab}>
+          <Package size={20} style={{ color: 'var(--color-neutral-0)' }} />
+        </button>
+      )}
 
       <SavedSearchesPanel
         open={showSavedSearches}
