@@ -232,27 +232,20 @@ function ProfileHeader({ profile }: { profile: any }) {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const [postsRes, savedListingsRes] = await Promise.all([
-        supabase
-          .from('community_posts')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id),
-        supabase
-          .from('saved_listings')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id),
-      ]);
+      const postsRes = await supabase
+        .from('community_posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id);
       if (cancelled) return;
       setFindsCount(postsRes.count ?? 0);
-      let localSaved = 0;
-      try {
-        const raw = localStorage.getItem('tt_saved_posts');
-        if (raw) {
-          const arr = JSON.parse(raw);
-          if (Array.isArray(arr)) localSaved = arr.length;
-        }
-      } catch { /* ignore */ }
-      setSavedCount((savedListingsRes.count ?? 0) + localSaved);
+      // Saved count must equal the deduped union of localStorage + server
+      // saves the user actually sees in "Saved Finds". fetchSavedFinds is
+      // the single source of truth (it merges both stores and de-dupes by
+      // kind:id), so the stat can never drift from the list again — and we
+      // avoid double-counting a post saved in BOTH stores.
+      const finds = await fetchSavedFinds(user.id);
+      if (cancelled) return;
+      setSavedCount(finds.length);
     })();
     return () => { cancelled = true; };
   }, [user]);

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ensureUiKeyframes } from './keyframes';
 
 export function ImageWithFade({
@@ -27,6 +27,7 @@ export function ImageWithFade({
   const [loaded, setLoaded] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string | null | undefined>(src);
   const [errored, setErrored] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   // Reset state whenever the parent passes a new src. Without this the
   // component would keep showing the previous image (or stay stuck at
@@ -37,6 +38,17 @@ export function ImageWithFade({
     setLoaded(false);
     setErrored(false);
   }, [src]);
+
+  // Cached-image race: when the browser serves the image straight from
+  // cache, the <img> can finish loading BEFORE React attaches onLoad, so
+  // the handler never fires and the image stays stuck at opacity 0 (the
+  // fallback gradient shows instead of the real photo). After each render
+  // for the current src, check whether the element is already complete and
+  // mark it loaded so it fades in.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) setLoaded(true);
+  }, [currentSrc]);
 
   const handleError = () => {
     // Log once per failed URL so prod issues are diagnosable from the
@@ -80,6 +92,7 @@ export function ImageWithFade({
       </div>
       {hasImage && (
         <img
+          ref={imgRef}
           src={currentSrc as string}
           alt={alt}
           loading={eager ? 'eager' : 'lazy'}
