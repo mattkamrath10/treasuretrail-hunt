@@ -402,12 +402,31 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 // =====================================================================
 const distDir = path.resolve(process.cwd(), 'dist');
 if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir));
+  // Content-hashed assets (the JS/CSS/images Vite emits under /assets) are
+  // immutable — their filename changes whenever their content does — so cache
+  // them aggressively. index.html, by contrast, MUST never be cached: it is the
+  // entry point that references the current hashed bundle, and if a browser
+  // (mobile Safari especially) holds a stale copy it keeps loading old code and
+  // never sees new deploys. That stale-entry-point trap is why prior fixes
+  // appeared not to take effect on the published app.
+  app.use(
+    express.static(distDir, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    })
+  );
   // SPA fallback: any non-API GET returns index.html so client-side routes
-  // (BrowserRouter on web) resolve on hard refresh / deep link.
+  // (BrowserRouter on web) resolve on hard refresh / deep link. Always served
+  // with no-cache so the freshest entry point (and bundle) reaches the client.
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     if (req.path === '/api' || req.path.startsWith('/api/')) return next();
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(distDir, 'index.html'));
   });
 }
