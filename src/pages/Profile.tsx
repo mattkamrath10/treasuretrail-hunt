@@ -18,6 +18,8 @@ import UserFindsGrid from '../components/UserFindsGrid';
 import { BecomeHostCard } from '../components/BecomeHostCard';
 import { shareWithImage } from '../lib/shareWithImage';
 import { deleteAccount } from '../lib/account';
+import { fetchSavedFinds, type SavedFindCard } from '../lib/savedListings';
+import { MediaFallback, type FallbackKind } from '../components/ui/MediaFallback';
 
 type ProfileTab = 'overview' | 'reputation' | 'activity';
 
@@ -483,6 +485,34 @@ function AiScanUsageCard() {
 
 function OverviewTab({ profile }: { profile: any }) {
   const repScore = profile?.reputation_score ?? 0;
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  // null = still loading; [] = loaded and genuinely empty.
+  const [savedFinds, setSavedFinds] = useState<SavedFindCard[] | null>(null);
+
+  useEffect(() => {
+    if (!user) { setSavedFinds([]); return; }
+    let cancelled = false;
+    (async () => {
+      const finds = await fetchSavedFinds(user.id);
+      if (!cancelled) setSavedFinds(finds);
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const openSavedFind = (item: SavedFindCard) => {
+    if (item.externalUrl) {
+      try {
+        const u = new URL(item.externalUrl);
+        if (u.protocol === 'http:' || u.protocol === 'https:') {
+          window.open(u.toString(), '_blank', 'noopener,noreferrer');
+        }
+      } catch { /* ignore malformed url */ }
+      return;
+    }
+    if (item.to) navigate(item.to);
+  };
+
   return (
     <>
       <BecomeHostCard surface="profile" />
@@ -558,11 +588,45 @@ function OverviewTab({ profile }: { profile: any }) {
           <Heart size={16} style={{ color: 'var(--color-error-400)' }} />
           <h3 style={styles.sectionTitle}>Saved Finds</h3>
         </div>
-        <div style={styles.emptyTabState}>
-          <Heart size={24} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
-          <p style={styles.emptyTabTitle}>No saved finds yet</p>
-          <p style={styles.emptyTabSub}>Items you save will appear here.</p>
-        </div>
+        {savedFinds === null ? (
+          <div style={styles.emptyTabState}>
+            <Loader size={24} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
+            <p style={styles.emptyTabSub}>Loading your saved finds…</p>
+          </div>
+        ) : savedFinds.length === 0 ? (
+          <div style={styles.emptyTabState}>
+            <Heart size={24} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
+            <p style={styles.emptyTabTitle}>No saved finds yet</p>
+            <p style={styles.emptyTabSub}>Items you save will appear here.</p>
+          </div>
+        ) : (
+          <div style={styles.savedGrid}>
+            {savedFinds.map((item) => {
+              const fbKind: FallbackKind =
+                item.kind === 'community_post' ? 'find'
+                  : item.kind === 'external_listing' ? 'listing'
+                    : 'listing';
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  style={styles.savedCard}
+                  onClick={() => openSavedFind(item)}
+                  title={item.title}
+                >
+                  <div style={styles.savedThumb}>
+                    <ImageWithFade
+                      src={item.imageUrl}
+                      alt={item.title}
+                      fallback={<MediaFallback kind={fbKind} seed={item.id} compact />}
+                    />
+                  </div>
+                  <span style={styles.savedTitle}>{item.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );
@@ -1623,6 +1687,42 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-400)',
     maxWidth: '260px',
     lineHeight: 'var(--line-height-normal)',
+  },
+
+  savedGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: 'var(--space-3)',
+  },
+  savedCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-2)',
+    padding: 0,
+    border: '1px solid var(--color-neutral-100)',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-neutral-0)',
+    overflow: 'hidden',
+    cursor: 'pointer',
+    textAlign: 'left',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+  },
+  savedThumb: {
+    width: '100%',
+    aspectRatio: '1 / 1',
+    backgroundColor: 'var(--color-neutral-100)',
+  },
+  savedTitle: {
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-medium)',
+    color: 'var(--color-neutral-700)',
+    lineHeight: 'var(--line-height-tight)',
+    padding: '0 var(--space-2) var(--space-2)',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
   },
 
 };
