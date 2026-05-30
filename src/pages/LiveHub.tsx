@@ -5,12 +5,11 @@ import {
   Upload, ToggleLeft, ToggleRight, ChevronDown,
   Search, SlidersHorizontal, MapPin, Calendar,
   Truck, Package, ChevronRight,
-  Store, Zap, Bell, BellOff, Loader2,
+  Zap, Bell, BellOff, Loader2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useLiveFeed } from '../hooks/useLiveFeed';
-import { useScrollLock } from '../hooks/useScrollLock';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback, type FallbackPlatform } from '../components/ui/MediaFallback';
 import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
@@ -307,7 +306,6 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 
   // UI state
   const [showFilters,      setShowFilters]      = useState(false);
-  const [showAddPlatform,  setShowAddPlatform]  = useState(false);
   const [showUploadEvent,  setShowUploadEvent]  = useState(false);
   const [showBoost,        setShowBoost]        = useState(false);
   const [selectedListing,  setSelectedListing]  = useState<ExternalListing | null>(null);
@@ -496,10 +494,6 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           <span style={st.actionBtnLabel}>Upload Event</span>
         </button>
         <div style={st.actionRow}>
-          <button onClick={() => setShowAddPlatform(true)} style={st.actionBtnSecondaryFlex}>
-            <Store size={14} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={st.actionBtnLabel2}>Add Marketplace</span>
-          </button>
           <button
             onClick={() => {
               if (!user) {
@@ -611,13 +605,6 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           locationQuery={locationQuery} setLocationQuery={setLocationQuery}
           onClose={() => setShowFilters(false)}
           onReset={() => { setDateFilter('all'); setCustomDate(''); setSortBy('live_now'); setLocationQuery(''); }}
-        />
-      )}
-      {showAddPlatform && (
-        <AddPlatformModal
-          userId={user?.id}
-          onClose={() => setShowAddPlatform(false)}
-          onSuccess={() => setShowAddPlatform(false)}
         />
       )}
       {showUploadEvent && (
@@ -1026,96 +1013,6 @@ function FilterDrawer({ dateFilter, setDateFilter, customDate, setCustomDate, so
 
           <button onClick={onClose} style={{ ...mo.submitBtn, marginTop: 'var(--space-5)' }}>
             Apply Filters
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Add Platform modal ───────────────────────────────────────────────────────
-
-interface PlatformForm {
-  platform_name: string; website_url: string; description: string;
-  platform_type: string; shipping_supported: boolean; logo_url: string;
-}
-
-function AddPlatformModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: () => void }) {
-  // Lock the page behind the sheet so only the modal body scrolls (iOS Safari
-  // otherwise drags the Live Events feed underneath the open sheet).
-  useScrollLock(true);
-  const [form, setForm] = useState<PlatformForm>({
-    platform_name: '', website_url: '', description: '', platform_type: 'marketplace',
-    shipping_supported: false, logo_url: '',
-  });
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState('');
-  const [success, setSuccess] = useState('');
-  const set = (k: keyof PlatformForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
-
-  const handleSubmit = async () => {
-    setError(''); setSuccess('');
-    if (!form.platform_name.trim()) { setError('Platform name is required.'); return; }
-    if (form.website_url.trim() && !isValidHttpUrl(form.website_url.trim())) {
-      setError('Please enter a valid http or https website URL.'); return;
-    }
-    if (form.logo_url.trim() && !isValidHttpUrl(form.logo_url.trim())) {
-      setError('Logo URL must be a valid http or https link.'); return;
-    }
-    setSaving(true);
-    const { error: err } = await supabase.from('platform_submissions').insert({
-      platform_name: form.platform_name.trim(), website_url: form.website_url.trim() || null,
-      description: form.description.trim() || null, platform_type: form.platform_type,
-      shipping_supported: form.shipping_supported,
-      logo_url: form.logo_url.trim() || null, submitted_by: userId ?? null,
-    });
-    setSaving(false);
-    if (err) { setError(err.message || 'Failed to submit. Please try again.'); return; }
-    setSuccess('Marketplace submitted successfully.');
-    setTimeout(() => onSuccess(), 1100);
-  };
-
-  return (
-    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={mo.sheet}>
-        <div style={mo.handle} />
-        <div style={mo.header}>
-          <span style={mo.title}>Add Marketplace</span>
-          <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
-        </div>
-        <div data-scroll-lock-allow style={mo.body}>
-          <label style={mo.label}>Platform Name <span style={mo.req}>*</span></label>
-          <input style={mo.input} placeholder="e.g. HiBid, MaxSold, OfferUp…" value={form.platform_name} onChange={(e) => set('platform_name', e.target.value)} />
-          <label style={mo.label}>Website URL</label>
-          <input style={mo.input} placeholder="https://…" type="url" value={form.website_url} onChange={(e) => set('website_url', e.target.value)} />
-          <label style={mo.label}>Description</label>
-          <textarea style={{ ...mo.input, height: '68px', resize: 'none' } as React.CSSProperties} placeholder="What kind of listings does this platform have?" value={form.description} onChange={(e) => set('description', e.target.value)} />
-          <label style={mo.label}>Platform Type</label>
-          <div style={mo.selectWrap}>
-            <select style={mo.select} value={form.platform_type} onChange={(e) => set('platform_type', e.target.value)}>
-              <option value="marketplace">Marketplace</option>
-              <option value="auction">Auction</option>
-              <option value="live_selling">Live Selling</option>
-              <option value="estate_sales">Estate Sales</option>
-              <option value="storage_auctions">Storage Auctions</option>
-              <option value="local_classifieds">Local Classifieds</option>
-            </select>
-            <ChevronDown size={13} style={mo.selectIcon} />
-          </div>
-          <label style={mo.label}>Logo / Image URL (optional)</label>
-          <input style={mo.input} placeholder="https://…" value={form.logo_url} onChange={(e) => set('logo_url', e.target.value)} />
-          <div style={mo.toggleRow}>
-            <div style={mo.toggleItem}>
-              <span style={mo.toggleLabel}>Shipping Supported</span>
-              <button onClick={() => set('shipping_supported', !form.shipping_supported)} style={mo.toggleBtn}>
-                {form.shipping_supported ? <ToggleRight size={28} style={{ color: 'var(--color-success-500)' }} /> : <ToggleLeft size={28} style={{ color: 'var(--color-neutral-300)' }} />}
-              </button>
-            </div>
-          </div>
-          {error && <p style={mo.errorText}>{error}</p>}
-          {success && <p style={mo.successText}>{success}</p>}
-          <button onClick={handleSubmit} disabled={saving || !!success} style={{ ...mo.submitBtn, opacity: saving || success ? 0.7 : 1 }}>
-            {success ? 'Submitted' : saving ? 'Submitting…' : 'Submit Marketplace'}
           </button>
         </div>
       </div>
@@ -1678,8 +1575,6 @@ const st: Record<string, React.CSSProperties> = {
   actionBtnPrimary: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', minHeight: 48, padding: '13px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))', cursor: 'pointer', boxShadow: '0 2px 8px rgba(255, 107, 53, 0.25)' },
   actionBtnLabel: { fontSize: 'var(--font-size-base)', fontWeight: 700, color: '#fff', letterSpacing: '0.01em' },
   actionRow: { display: 'flex', gap: 'var(--space-2)' },
-  actionBtnSecondaryFlex: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', minHeight: 44, padding: '10px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-200)', cursor: 'pointer' },
-  actionBtnLabel2: { fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary-700)' },
   actionBtnBoost: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', minHeight: 44, padding: '10px 12px', borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, #fbbf24, #f59e0b 55%, #d97706)', border: '1.5px solid rgba(251,191,36,0.55)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(251, 191, 36, 0.25)' },
   actionBtnBoostLabel: { fontSize: 'var(--font-size-xs)', fontWeight: 800, color: '#1a1208' },
 
