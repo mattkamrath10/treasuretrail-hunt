@@ -1,7 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 
 const EFFECTIVE_DATE = 'May 29, 2026';
-const CONTACT_EMAIL = 'support@treasuretrail.app';
+const CONTACT_EMAIL = 'mkkamrarath@gmail.com';
 
 export default function TermsOfService({ onBack }: { onBack: () => void }) {
   return (
