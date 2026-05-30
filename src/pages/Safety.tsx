@@ -77,20 +77,24 @@ function SafetyHub({ onBack, onNavigate }: { onBack: () => void; onNavigate: (v:
         {/* Platform stats */}
         <div style={st.statsGrid}>
           <div style={st.statCard}>
-            <span style={st.statVal}>99.2%</span>
+            <span style={st.statVal}>Beta</span>
             <span style={st.statLbl}>Safe Transactions</span>
+            <span style={st.statDesc}>Community safety metrics will appear as activity grows.</span>
           </div>
           <div style={st.statCard}>
-            <span style={st.statVal}>&lt;2h</span>
+            <span style={st.statVal}>Coming Soon</span>
             <span style={st.statLbl}>Dispute Resolution</span>
+            <span style={st.statDesc}>Resolution tracking will be available after launch.</span>
           </div>
           <div style={st.statCard}>
-            <span style={st.statVal}>847</span>
-            <span style={st.statLbl}>Scams Prevented</span>
+            <span style={st.statVal}>Beta</span>
+            <span style={st.statLbl}>Scam Prevention</span>
+            <span style={st.statDesc}>Protection systems are active. Statistics will appear as data becomes available.</span>
           </div>
           <div style={st.statCard}>
-            <span style={st.statVal}>4.9</span>
+            <span style={st.statVal}>Building</span>
             <span style={st.statLbl}>Trust Score</span>
+            <span style={st.statDesc}>Trust metrics will become available as users participate in the marketplace.</span>
           </div>
         </div>
 
@@ -668,7 +672,8 @@ const st: Record<string, React.CSSProperties> = {
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' },
   statCard: { padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)', textAlign: 'center' },
   statVal: { display: 'block', fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
-  statLbl: { fontSize: '10px', color: 'var(--color-neutral-500)' },
+  statLbl: { display: 'block', fontSize: '10px', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-700)' },
+  statDesc: { display: 'block', marginTop: 'var(--space-1)', fontSize: '10px', lineHeight: 1.35, color: 'var(--color-neutral-500)' },
 
   // Section
   section: { marginBottom: 'var(--space-5)' },
