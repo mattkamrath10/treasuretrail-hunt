@@ -52,12 +52,22 @@ workflows:
           # Apple needs a private key to ISSUE an Apple Distribution certificate.
           # Normally that key comes from a CSR you'd make on a Mac. We generate it
           # here instead, so the certificate is created with NO Mac and NO CSR.
-          # NOTE: a fresh key here means a new distribution certificate per run.
-          # Apple caps distribution certs (max 2-3). If a future build fails with
-          # a cert-limit error, save this key as a Codemagic env var named
-          # CERTIFICATE_PRIVATE_KEY and reuse it instead of regenerating.
+          #
+          # Apple caps distribution certs (max 2). Generating a FRESH key every
+          # build makes a NEW cert every build, which hits that cap and fails with
+          # a 409 "you already have a current Distribution certificate". To avoid
+          # that forever: save ONE private key in the Codemagic UI as an env var
+          # named CERTIFICATE_PRIVATE_KEY (in the "supabase" group, which is
+          # already loaded). When present we REUSE it, so the same single cert is
+          # reused on every build and no new cert is ever created.
           CERT_KEY=/tmp/cert_private_key.pem
-          openssl genrsa -out "$CERT_KEY" 2048
+          if [ -n "$CERTIFICATE_PRIVATE_KEY" ]; then
+            echo "Reusing persisted distribution key from CERTIFICATE_PRIVATE_KEY (no new cert will be created)"
+            printf '%s' "$CERTIFICATE_PRIVATE_KEY" > "$CERT_KEY"
+          else
+            echo "No CERTIFICATE_PRIVATE_KEY set -- generating a fresh key (this creates a NEW distribution cert and can hit Apple's 2-cert cap)"
+            openssl genrsa -out "$CERT_KEY" 2048
+          fi
           echo "=== Fetch/create signing files for $BUNDLE_ID ==="
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \

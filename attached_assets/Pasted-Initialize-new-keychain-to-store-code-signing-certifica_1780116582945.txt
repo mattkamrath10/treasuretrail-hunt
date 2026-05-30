@@ -1,0 +1,52 @@
+Initialize new keychain to store code signing certificates at /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db
+Create keychain /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db
+Set keychain /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db timeout to "no timeout"
+Set keychain /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db to system default keychain
+Unlock keychain /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db
+=== Fetch/create signing files for com.treasuretrail.hunt ===
+[04:49:07] DEBUG > Load JWT for App Store Connect key 'CZKJU9X8ZW' from disk cache
+[04:49:07] DEBUG > Failed to load App Store Connect JWT from disk cache: Token is not cached
+[04:49:07] DEBUG > Generate new App Store Connect JWT for key 'CZKJU9X8ZW'
+[04:49:07] DEBUG > Cached App Store Connect JWT for key CZKJU9X8ZW
+[04:49:07] INFO  > Found 1 Bundle ID matching specified filters: identifier=com.treasuretrail.hunt, platform=IOS.
+[04:49:07] INFO  > - TreasureTrail com.treasuretrail.hunt (378TC9LTDU)
+
+[04:49:07] INFO  > Found 2 Signing Certificates matching specified filters: certificateType=DISTRIBUTION,IOS_DISTRIBUTION.
+[04:49:07] INFO  > Did not find any Signing Certificates for given private key
+[04:49:07] INFO  > Creating new Signing Certificate: certificate type: DISTRIBUTION
+[04:49:08] ERROR > POST https://api.appstoreconnect.apple.com/v1/certificates returned 409: There is a problem with the request entity - You already have a current Distribution certificate or a pending certificate request.
+
+
+Build failed :|
+Step 5 script `Set up code signing (auto-create cert + profile, no Mac/CSR needed)` exited with status code 1
+Initialize new keychain to store code signing certificates at /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db
+Create keychain /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db
+Set keychain /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db timeout to "no timeout"
+Set keychain /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db to system default keychain
+Unlock keychain /Users/builder/Library/codemagic-cli-tools/keychains/30-05-26_w7byxibd.keychain-db
+=== Fetch/create signing files for com.treasuretrail.hunt ===
+[04:49:07] DEBUG > Load JWT for App Store Connect key 'CZKJU9X8ZW' from disk cache
+[04:49:07] DEBUG > Failed to load App Store Connect JWT from disk cache: Token is not cached
+[04:49:07] DEBUG > Generate new App Store Connect JWT for key 'CZKJU9X8ZW'
+[04:49:07] DEBUG > Cached App Store Connect JWT for key CZKJU9X8ZW
+[04:49:07] INFO  > Found 1 Bundle ID matching specified filters: identifier=com.treasuretrail.hunt, platform=IOS.
+[04:49:07] INFO  > - TreasureTrail com.treasuretrail.hunt (378TC9LTDU)
+
+[04:49:07] INFO  > Found 2 Signing Certificates matching specified filters: certificateType=DISTRIBUTION,IOS_DISTRIBUTION.
+[04:49:07] INFO  > Did not find any Signing Certificates for given private key
+[04:49:07] INFO  > Creating new Signing Certificate: certificate type: DISTRIBUTION
+[04:49:08] ERROR > POST https://api.appstoreconnect.apple.com/v1/certificates returned 409: There is a problem with the request entity - You already have a current Distribution certificate or a pending certificate request.
+
+
+Build failed :|
+Step 5 script `Set up code signing (auto-create cert + profile, no Mac/CSR needed)` exited with status code 1
+
+Set build number from TestFlight
+< 1s
+Build IPA
+< 1s
+Publishing
+< 1s
+Cleaning up
+< 1s
+Step 5 script `Set up code signing (auto-create cert + profile, 

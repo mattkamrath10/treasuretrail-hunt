@@ -40,10 +40,21 @@ final blocker after everything else already worked.
 - "keychain: unrecognized arguments: --certificate-key" → remove that flag from
   `keychain add-certificates` (see recipe).
 
-## Caveat to revisit
+## Recurring 409 cert-limit (will keep coming back until key is persisted)
 Generating a fresh private key every run creates a NEW Apple Distribution cert per
-build. Apple caps distribution certs (~2-3). For repeated builds, persist the key as
-Codemagic env var `CERTIFICATE_PRIVATE_KEY` and reuse it instead of regenerating.
+build. Apple caps distribution certs at 2, so after ~2 builds every build dies at the
+signing step with: `POST .../v1/certificates returned 409: You already have a current
+Distribution certificate or a pending certificate request.`
+- **Quick unblock:** revoke a Distribution cert at developer.apple.com → Certificates,
+  then re-run the build. Works, but RECURS every couple of builds.
+- **Permanent fix:** set ONE private key as Codemagic env var `CERTIFICATE_PRIVATE_KEY`
+  (put it in the already-loaded `supabase` group, or any group referenced under
+  `environment.groups`). The signing step now reuses it when present (`if [ -n
+  "$CERTIFICATE_PRIVATE_KEY" ]`) so the same single cert is reused forever and no new
+  cert is created. Still must revoke existing certs ONCE to clear the cap before the
+  first persisted-key build.
+- **Why:** `fetch-signing-files --create` only creates a cert when none matches the
+  given key; same key in = same cert reused = no 409.
 
 ## Likely next manual step after first upload
 TestFlight may show "Missing Compliance" (export encryption). Either answer the
