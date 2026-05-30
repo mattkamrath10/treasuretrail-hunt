@@ -59,16 +59,21 @@ export default function Wanted({ onBack }: { onBack: () => void }) {
         )}
       </header>
 
-      <div style={s.searchRow}>
+      <form
+        style={s.searchRow}
+        onSubmit={(e) => { e.preventDefault(); (e.currentTarget.querySelector('input') as HTMLInputElement | null)?.blur(); }}
+      >
         <Search size={15} style={{ color: 'var(--color-neutral-400)' }} />
         <input
           type="search"
+          inputMode="search"
+          enterKeyHint="search"
           placeholder="Search by item, category, city…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={s.searchInput}
         />
-      </div>
+      </form>
 
       {err && <p style={s.err}>{err}</p>}
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye, Trash2, Shield } from 'lucide-react';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
+import { saveListing, unsaveListing } from '../lib/savedListings';
 import NotificationBell from '../components/NotificationBell';
 import { checkLocalReminders } from '../lib/localReminders';
 import { deriveStatus, statusPriority } from '../lib/eventSchedule';
@@ -306,12 +307,17 @@ export default function Home() {
     requireAuth(() => {
       setSavedIds((prev) => {
         const next = new Set(prev);
-        if (next.has(id)) next.delete(id); else next.add(id);
+        const willSave = !next.has(id);
+        if (willSave) next.add(id); else next.delete(id);
         try { localStorage.setItem('tt_saved_posts', JSON.stringify([...next])); } catch {}
+        if (user) {
+          if (willSave) saveListing(user.id, id, 'community_post').catch(() => {});
+          else unsaveListing(user.id, id, 'community_post').catch(() => {});
+        }
         return next;
       });
     });
-  }, [requireAuth]);
+  }, [requireAuth, user]);
 
   const handleSaveMarketplace = useCallback((id: string) => {
     requireAuth(() => {

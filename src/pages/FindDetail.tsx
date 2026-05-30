@@ -17,6 +17,7 @@ import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/mode
 import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 import { shareWithImage } from '../lib/shareWithImage';
 import { attachProfiles } from '../lib/database';
+import { saveListing, unsaveListing } from '../lib/savedListings';
 
 type FullPost = CommunityPost & {
   general_location?: string | null;
@@ -147,10 +148,12 @@ export default function FindDetail() {
         next.delete(id);
         setSaved(false);
         showToast('Removed from saved');
+        unsaveListing(user.id, id, 'community_post').catch(() => {});
       } else {
         next.add(id);
         setSaved(true);
         showToast('Saved to your list');
+        saveListing(user.id, id, 'community_post').catch(() => {});
       }
       localStorage.setItem('tt_saved_posts', JSON.stringify([...next]));
     } catch {

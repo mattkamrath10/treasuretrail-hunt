@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { fetchCommunityPosts, createCommunityPost, togglePostLike, fetchUserLikes } from '../lib/database';
+import { saveListing, unsaveListing } from '../lib/savedListings';
 import type { CommunityPost } from '../lib/supabase';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback, AvatarFallback } from '../components/ui/MediaFallback';
@@ -79,8 +80,13 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
     requireAuth(() => {
       setSavedIds((prev) => {
         const next = new Set(prev);
-        if (next.has(id)) next.delete(id); else next.add(id);
+        const willSave = !next.has(id);
+        if (willSave) next.add(id); else next.delete(id);
         try { localStorage.setItem('tt_saved_posts', JSON.stringify([...next])); } catch {}
+        if (user) {
+          if (willSave) saveListing(user.id, id, 'community_post').catch(() => {});
+          else unsaveListing(user.id, id, 'community_post').catch(() => {});
+        }
         return next;
       });
     });
