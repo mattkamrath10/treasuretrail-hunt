@@ -18,6 +18,16 @@ null lat/lng (online shows have no coords, so they vanish under a location searc
 
 **Why these providers:** both are free, need no API key, send permissive CORS,
 and are called with ABSOLUTE URLs so they work unchanged in the Capacitor webview
-(only relative `/api` calls need apiUrl()). Events already carry lat/lng/city/
-region, so this needs NO DB migration. Distance can only be measured for events
-the host geocoded — un-geocoded local events won't appear in radius results.
+(only relative `/api` calls need apiUrl()). The `events` table already HAS lat/lng
+columns (confirmed live; no DB migration needed).
+
+**The trap (and the fix):** for a long time `SellerEventForm` saved address/city/
+region but NEVER populated lat/lng, so EVERY local event had null coords and was
+silently hidden from radius search ("No local events nearby" even when searching
+the host's own ZIP). Fix: the form now calls `geocodeEventLocation()` (specific→
+coarse: "addr, city, region" → "city, region" → city → region → address) on save
+and writes payload.lat/lng (online events nulled; geocode is best-effort — warns
+AFTER a successful save, preserves existing coords on edit if it misses). A
+one-time data backfill lived at `scripts/backfill-event-coords.mjs` (service-role
+PATCH, geocodes rows where lat OR lng is null). **Rule:** any new path that writes
+a local event MUST geocode it, or it disappears from location search.

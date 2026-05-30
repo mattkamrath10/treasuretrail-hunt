@@ -12,6 +12,7 @@ import {
   type EventCategory, type EventStatus, type EventUpsert, type EventFeaturedItem,
   type EventKind, type EventPlatform, type ShowCategory,
 } from '../lib/events';
+import { geocodeEventLocation } from '../lib/geocode';
 import { uploadCompressedImage } from '../lib/uploadImage';
 import { toThumbUrl } from '../lib/imageCompress';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -210,6 +211,41 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       show_category:  isOnline ? (showCategory || null) : null,
     };
 
+    // Geocode local events to a coordinate so they show up in the Local
+    // Events location search (which filters on lat/lng within a radius).
+    // Online shows have no physical location, so their coordinates are
+    // always cleared. Geocoding is best-effort: if the provider can't
+    // resolve the address we keep the existing coordinates on edit (and
+    // leave them null on create) and warn, rather than failing the save.
+    // Tracks whether a local event couldn't be geocoded so we can warn the
+    // user — but only AFTER the save actually succeeds (warning before the
+    // DB write would falsely claim "Saved" if the cap check blocks it or the
+    // write fails).
+    let geocodeMissed = false;
+    if (isOnline) {
+      payload.lat = null;
+      payload.lng = null;
+    } else {
+      try {
+        const point = await geocodeEventLocation({
+          address: address.trim(),
+          city: city.trim(),
+          region: region.trim(),
+        });
+        if (point) {
+          payload.lat = point.lat;
+          payload.lng = point.lng;
+        } else {
+          if (!isEdit) { payload.lat = null; payload.lng = null; }
+          geocodeMissed = true;
+        }
+      } catch (e: any) {
+        console.warn(LOG, 'geocode:failed', e?.message);
+        if (!isEdit) { payload.lat = null; payload.lng = null; }
+        geocodeMissed = true;
+      }
+    }
+
     // Free-tier cap: a free user may keep only FREE_TIER_EVENT_LIMIT active
     // local events. Online live shows don't count, and cancelled events are
     // free. We only check when this save would *result in* an active local
@@ -259,11 +295,25 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
         } else {
           flashToast('Changes saved', 'success');
         }
+        if (geocodeMissed) {
+          flashToast(
+            "Saved, but we couldn't pin this address on the map — add a city and state so it shows up in location search.",
+            'error',
+            4500,
+          );
+        }
       } else {
         console.log(LOG, 'save:create');
         const row = await createEvent(user.id, payload);
         console.log(LOG, 'save:create:ok', { id: row.id });
         flashToast('Event created', 'success');
+        if (geocodeMissed) {
+          flashToast(
+            "Created, but we couldn't pin this address on the map — add a city and state so it shows up in location search.",
+            'error',
+            4500,
+          );
+        }
         // On create, hop straight to edit URL so user can add featured items
         navigate(`/seller/event/${row.id}`, { replace: true });
       }

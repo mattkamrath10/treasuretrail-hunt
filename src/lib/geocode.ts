@@ -88,3 +88,40 @@ export async function geocodeLocation(
     return { ok: false, reason: 'error' };
   }
 }
+
+/**
+ * Geocode a local event's stored address parts to a coordinate so the event
+ * can be matched by the Local Events location search (which filters on
+ * lat/lng within a radius). We try the most specific string first and fall
+ * back to coarser ones, so a precise street address that the provider can't
+ * resolve still lands on the right city.
+ *
+ * Returns `null` when nothing resolves; callers should treat that as
+ * "couldn't pin this location" and leave coordinates unset rather than
+ * failing the save.
+ */
+export async function geocodeEventLocation(
+  parts: { address?: string | null; city?: string | null; region?: string | null },
+  signal?: AbortSignal,
+): Promise<GeoPoint | null> {
+  const address = (parts.address ?? '').trim();
+  const city = (parts.city ?? '').trim();
+  const region = (parts.region ?? '').trim();
+
+  const candidates: string[] = [];
+  if (address && (city || region)) candidates.push([address, city, region].filter(Boolean).join(', '));
+  if (city && region) candidates.push(`${city}, ${region}`);
+  if (city) candidates.push(city);
+  if (region) candidates.push(region);
+  if (address) candidates.push(address);
+
+  const seen = new Set<string>();
+  for (const q of candidates) {
+    const key = q.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const r = await geocodeLocation(q, signal);
+    if (r.ok) return r.point;
+  }
+  return null;
+}
