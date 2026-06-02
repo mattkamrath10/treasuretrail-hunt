@@ -18,3 +18,15 @@ id = "KzrCxd-MsJiUgxP2Q30C-"
 uri = "file://TreasureTrail-android.zip"
 type = "unspecified"
 title = "TreasureTrail-android.zip (Android project)"
+
+[[outputs]]
+id = "Y0E0YzNp0e9f-CeIgsat2"
+uri = "file://TreasureTrail-FullSource-AppleAudit.zip"
+type = "unspecified"
+title = "TreasureTrail-FullSource-AppleAudit.zip (full source + audit)"
+
+[[outputs]]
+id = "DuZ8wSEQSaOfyeJoHvQz2"
+uri = "file://APPLE_COMPLIANCE_REPORT.md"
+type = "text"
+title = "APPLE_COMPLIANCE_REPORT.md (audit report)"

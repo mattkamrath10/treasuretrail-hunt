@@ -1,0 +1,133 @@
+TREASURETRAIL APPLE APP STORE COMPLIANCE AUDIT REQUEST
+
+I need a full source-code audit of TreasureTrail focused on resolving Apple App Store review issues and generating a complete source package for independent review.
+
+IMPORTANT:
+Do NOT only export the Android build files.
+I need a ZIP containing the FULL project source code, including frontend, backend, database schemas, configuration files, payment systems, moderation systems, user account systems, Terms of Service implementation, reporting systems, blocking systems, and any Apple-specific code paths.
+
+Please perform the following audit and provide a detailed report.
+
+ISSUE #1 — APPLE GUIDELINE 3.1.1
+ IN-APP PURCHASE COMPLIANCE
+Search the entire codebase for:
+
+stripe
+checkout
+subscription
+membership
+pro
+premium
+upgrade
+billing
+payment
+paypal
+square
+purchase
+buy
+pricing
+plan
+plans
+
+Determine:
+
+Can a user purchase Pro Membership, Premium Membership, Boosts, Digital Features, AI Scans, Analytics, or any digital functionality through:
+
+Stripe
+PayPal
+External browser checkout
+Web checkout
+Direct payment links
+Identify every payment flow in the application.
+Identify every Membership or Pro upgrade button.
+Identify every route that can initiate a payment.
+Determine whether any digital feature requires payment.
+Determine whether Apple In-App Purchase has been implemented.
+Determine whether Apple could reject the app again under Guideline 3.1.1.
+Provide exact file names and code locations.
+
+ISSUE #2 — APPLE GUIDELINE 1.2
+ USER GENERATED CONTENT
+Search the entire project for:
+
+report
+flag
+moderation
+block
+blocked
+suspend
+ban
+abuse
+content review
+terms
+tos
+eula
+community guidelines
+
+Determine whether the app includes:
+
+User reporting system.
+User blocking system.
+Content removal system.
+Admin moderation system.
+Content filtering system.
+User suspension system.
+Terms of Service acceptance.
+Community Guidelines.
+Account deletion.
+Ability to remove objectionable content.
+For each item:
+
+State whether it exists.
+Provide file names.
+Provide code locations.
+Explain how it works.
+ISSUE #3 — TERMS OF SERVICE
+Determine:
+
+Is Terms of Service presented before registration?
+Is Terms of Service acceptance required?
+Is acceptance stored in database?
+Is Privacy Policy accessible?
+Is Community Guidelines page present?
+Provide file names and implementation details.
+
+ISSUE #4 — APPLE REVIEW EVIDENCE
+Generate a document named:
+
+APPLE_COMPLIANCE_REPORT.md
+
+that includes:
+
+All findings
+All file locations
+Remaining Apple risks
+Recommended fixes
+Compliance status for each guideline
+ISSUE #5 — EXPORT PACKAGE
+Generate a ZIP file containing:
+
+Entire source code
+Frontend source
+Backend source
+Database schemas
+Payment code
+Moderation code
+Terms of Service code
+Community Guidelines code
+User reporting code
+User blocking code
+Apple compliance report
+Name the ZIP:
+
+TreasureTrail-FullSource-AppleAudit.zip
+
+Do NOT provide only Android build files.
+
+The goal is to allow an independent audit of Apple Guideline 3.1.1 and Apple Guideline 1.2 compliance.
+
+At the end, provide:
+
+Summary of unresolved Apple risks.
+Summary of resolved Apple issues.
+Download link for TreasureTrail-FullSource-AppleAudit.zip.
