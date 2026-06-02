@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TreasureTrail</string>
+    <string name="title_activity_main">TreasureTrail</string>
+    <string name="package_name">com.treasuretrail.hunt</string>
+    <string name="custom_url_scheme">com.treasuretrail.hunt</string>
+</resources>
