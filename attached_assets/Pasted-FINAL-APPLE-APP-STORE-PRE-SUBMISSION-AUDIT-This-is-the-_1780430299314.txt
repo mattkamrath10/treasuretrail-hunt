@@ -1,0 +1,139 @@
+FINAL APPLE APP STORE PRE-SUBMISSION AUDIT
+
+This is the final Apple compliance verification before resubmission.
+
+Do NOT perform a broad audit.
+
+Only answer the questions below with definitive findings and file locations.
+
+QUESTION 1
+ SUPABASE MIGRATION
+Verify whether the following migration has been applied to the production Supabase database:
+
+20260602000010_apple_ugc_compliance.sql
+
+Answer:
+
+Applied to production: YES or NO
+Applied to staging: YES or NO
+If NO, provide exact steps required.
+Verify all Apple moderation tables exist and are operational.
+
+QUESTION 2
+ IOS PAYMENT COMPLIANCE
+Search entire codebase for:
+
+membership
+pro
+premium
+upgrade
+boost
+subscription
+pricing
+payment
+checkout
+purchase
+stripe
+paypal
+
+For every occurrence:
+
+Provide:
+
+File name
+Route
+Whether visible on iOS
+Whether hidden on iOS
+Whether reachable on iOS
+Answer:
+
+Can an Apple reviewer reach ANY screen that:
+
+Displays pricing
+Displays a subscription
+Displays a membership purchase
+Displays a boost purchase
+Displays a payment button
+Opens an external checkout
+YES or NO
+
+If YES:
+
+List every path.
+
+If NO:
+
+Explain exactly why.
+
+QUESTION 3
+ APPLE REVIEWER WALKTHROUGH
+Provide exact navigation steps Apple reviewer should follow to verify:
+
+Report Listing
+Report Event
+Report User
+Block User
+Community Guidelines
+Terms of Service
+Privacy Policy
+Delete Account
+Review Mode
+Example:
+
+Home → Profile → Account → Review Mode
+
+Provide exact paths for every feature.
+
+QUESTION 4
+ USER GENERATED CONTENT
+Verify all of the following are functional:
+
+Report content
+Block user
+Moderation queue
+Content removal
+Terms acceptance
+Community Guidelines
+Privacy Policy
+Delete Account
+For each item answer:
+
+WORKING = YES or NO
+
+and provide source file.
+
+QUESTION 5
+ APPLE REJECTION RISK
+Provide a direct assessment.
+
+Assume Apple reviewer installs the current build today.
+
+Answer:
+
+Issue #1 App Icon:
+PASS or FAIL
+
+Issue #2 App Preview Video:
+PASS or FAIL
+
+Issue #3 User Generated Content:
+PASS or FAIL
+
+Issue #4 In-App Purchase:
+PASS or FAIL
+
+For any FAIL:
+
+Provide exact reason.
+
+QUESTION 6
+ FINAL CERTIFICATION
+Provide one final statement:
+
+“Based on current source code and configuration, TreasureTrail is/is not ready for Apple resubmission.”
+
+Provide confidence percentage.
+
+No assumptions.
+No estimates.
+Only findings from current codebase and configuration.
