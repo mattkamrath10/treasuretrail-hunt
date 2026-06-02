@@ -1,0 +1,60 @@
+PS C:\Users\matth\Documents\TT for Android\android> .\gradlew :app:assembleDebug
+ 
+ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH. 
+ 
+Please set the JAVA_HOME variable in your environment to match the 
+location of your Java installation. 
+PS C:\Users\matth\Documents\TT for Android\android> $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+PS C:\Users\matth\Documents\TT for Android\android> & "$env:JAVA_HOME\bin\java" -version
+openjdk version "21.0.10" 2026-01-20
+OpenJDK Runtime Environment (build 21.0.10+-14961533-b1163.108)
+OpenJDK 64-Bit Server VM (build 21.0.10+-14961533-b1163.108, mixed mode)
+PS C:\Users\matth\Documents\TT for Android\android> .\gradlew :app:assembleDebug
+
+Welcome to Gradle 8.14.3!
+
+Here are the highlights of this release:
+ - Java 24 support
+ - GraalVM Native Image toolchain selection
+ - Enhancements to test reporting
+ - Build Authoring improvements
+
+For more details see https://docs.gradle.org/8.14.3/release-notes.html
+
+
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+[Incubating] Problems report is available at: file:///C:/Users/matth/Documents/TT%20for%20Android/android/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Could not determine the dependencies of task ':app:compileDebugJavaWithJavac'.
+> Could not resolve all dependencies for configuration ':app:debugCompileClasspath'.
+   > Could not resolve project :capacitor-android.
+     Required by:
+         project :app
+      > No matching variant of project :capacitor-android was found. The consumer was configured to find a library for use during compile-time, preferably optimized for Android, as well as attribute 'com.android.build.api.attributes.AgpVersionAttr' with value '8.13.0', attribute 'com.android.build.api.attributes.BuildTypeAttr' with value 'debug', attribute 'org.jetbrains.kotlin.platform.type' with value 'androidJvm' but:
+          - No variants exist.
+
+* Try:
+> Creating consumable variants is explained in more detail at https://docs.gradle.org/8.14.3/userguide/declaring_dependencies.html#sec:resolvable-consumable-configs.
+> Review the variant matching algorithm at https://docs.gradle.org/8.14.3/userguide/variant_attributes.html#sec:abm_algorithm.
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 1s
+PS C:\Users\matth\Documents\TT for Android\android> 
+
