@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
 
 export type ListingKind = 'marketplace' | 'community_post' | 'external_listing';
 
@@ -63,6 +64,7 @@ export async function sendMessage(input: {
 }): Promise<{ message: ChatMessage | null; error: string | null }> {
   const body = input.content.trim();
   if (!body) return { message: null, error: 'Message cannot be empty' };
+  if (assertClean(body).blocked) return { message: null, error: GUIDELINE_MESSAGE };
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { message: null, error: 'Not signed in' };
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, MapPin, Share2, Bookmark, BookmarkCheck,
-  Navigation, Loader2, Store, Pencil, X, ExternalLink, Radio,
+  Navigation, Loader2, Store, Pencil, X, ExternalLink, Radio, Flag,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -28,6 +28,9 @@ import { shareWithImage } from '../lib/shareWithImage';
 import { Zap } from 'lucide-react';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { startBoostPurchase } from '../lib/payments';
+import { iosPaymentsBlocked } from '../lib/platform';
+import ReportButton from '../components/moderation/ReportButton';
+import BlockUserButton from '../components/moderation/BlockUserButton';
 
 const LOG = '[EVENT_DETAIL]';
 
@@ -422,12 +425,16 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
               <Pencil size={14} /> Edit
             </button>
           )}
-        </div>
-
-        {/* TEMP DEBUG — shows the raw event_url value read from the DB.
-            Remove once the Visit Event Page button is confirmed working. */}
-        <div style={{ fontSize: 12, color: '#888', padding: '6px 0' }}>
-          Event URL: {rawEventUrl ? rawEventUrl : 'EMPTY'}
+          {!isOwner && (
+            <ReportButton contentType="event" contentId={event.id} reportedUserId={event.holder_id}>
+              <button style={s.ghostBtnLg} type="button" aria-label="Report event">
+                <Flag size={14} /> Report
+              </button>
+            </ReportButton>
+          )}
+          {!isOwner && event.holder_id && (
+            <BlockUserButton targetUserId={event.holder_id} targetName="host" variant="pill" />
+          )}
         </div>
 
         {/* Event URL CTA — sits directly below the Directions / Save / Share
@@ -870,6 +877,10 @@ function OwnerBoostRow({ event, onApplied }: { event: EventRow; onApplied: () =>
   const [busy, setBusy] = useState(false);
   const active = isBoosted(event);
   const remaining = boostExpiresInLabel(event);
+
+  // Apple 3.1.1: no purchasable digital goods on iOS. Hide the boost CTA
+  // entirely on iOS, but still show the "Boosted" status pill if already active.
+  if (iosPaymentsBlocked() && !active) return null;
 
   const onBoost = async () => {
     setBusy(true);

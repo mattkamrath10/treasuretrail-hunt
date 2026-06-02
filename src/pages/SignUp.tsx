@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Camera, Eye, EyeOff, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Camera, Eye, EyeOff, ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { TreasureChestLogo } from '../components/TreasureChestLogo';
 
 interface SignUpProps {
@@ -18,6 +19,7 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -40,14 +42,35 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
       setError('Passwords do not match');
       return;
     }
+    if (!acceptedTerms) {
+      setError('You must accept the Terms of Service and Community Guidelines to create an account');
+      return;
+    }
 
     setIsLoading(true);
     const { error: signUpError } = await signUp(form.email, form.password);
-    setIsLoading(false);
 
     if (signUpError) {
+      setIsLoading(false);
       setError(signUpError);
+      return;
     }
+
+    // Best-effort: record Terms acceptance timestamp. If the project requires
+    // email confirmation there is no session yet, so this silently no-ops —
+    // the hard gate above is what guarantees the user accepted before signup.
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('profiles')
+          .update({ tos_accepted_at: new Date().toISOString() })
+          .eq('id', user.id);
+      }
+    } catch {
+      /* non-fatal */
+    }
+    setIsLoading(false);
   };
 
   return (
@@ -126,6 +149,23 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
             </button>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setAcceptedTerms((v) => !v)}
+          style={styles.termsRow}
+          aria-pressed={acceptedTerms}
+        >
+          <span style={{ ...styles.checkbox, ...(acceptedTerms ? styles.checkboxOn : {}) }}>
+            {acceptedTerms && <Check size={14} style={{ color: 'var(--color-neutral-0)' }} />}
+          </span>
+          <span style={styles.termsText}>
+            I am 17+ and agree to the TreasureTrail{' '}
+            <strong>Terms of Service</strong> and{' '}
+            <strong>Community Guidelines</strong>, including a zero-tolerance
+            policy for objectionable content and abusive users.
+          </span>
+        </button>
 
         {error && <p style={styles.error}>{error}</p>}
 
@@ -274,6 +314,35 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 'var(--space-2) var(--space-3)',
     backgroundColor: 'var(--color-error-50)',
     borderRadius: 'var(--radius-sm)',
+  },
+  termsRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 'var(--space-2)',
+    textAlign: 'left',
+    padding: 'var(--space-2) 0',
+    cursor: 'pointer',
+  },
+  checkbox: {
+    flexShrink: 0,
+    width: '22px',
+    height: '22px',
+    borderRadius: 'var(--radius-sm)',
+    border: '2px solid var(--color-neutral-300)',
+    backgroundColor: 'var(--color-neutral-0)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: '1px',
+  },
+  checkboxOn: {
+    backgroundColor: 'var(--color-primary-600)',
+    borderColor: 'var(--color-primary-600)',
+  },
+  termsText: {
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-neutral-600)',
+    lineHeight: 'var(--line-height-snug)',
   },
   submitBtn: {
     display: 'flex',

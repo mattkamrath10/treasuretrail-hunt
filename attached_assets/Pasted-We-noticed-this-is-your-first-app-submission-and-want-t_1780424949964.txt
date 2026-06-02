@@ -1,0 +1,122 @@
+We noticed this is your first app submission and want to congratulate you on joining the Apple Developer Program.
+
+We look forward to working together on your submissions.
+
+When App Review identifies an issue with a submission, we'll contact you with a message in App Store Connect with details about what we found and how to resolve the issue. Learn more about App Review and tips for a smooth review experience.
+
+See below for additional information about the issues that require your attention for this submission. If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+
+Submission ID: f8f968c8-9dad-4fce-b099-2145866bd5f2
+
+Review date: June 02, 2026
+
+Review Device: iPad Pro 11-inch (M4) and iPhone 17 Pro Max
+
+Version reviewed: 1.0 (
+
+Guideline 2.3.8 - Performance -
+
+Accurate Metadata
+
+Issue Description
+
+The app or its metadata does not appear to include final content. Specifically, the app icons appear to be placeholder icons.
+
+Next Steps
+
+To resolve this issue, please ensure all the app icons are finalized and similar enough to each other to avoid creating confusion.
+
+When users search for the app on their devices, they should be able to recognize it.
+
+Resources
+
+﻿﻿Learn more about adding icons.
+﻿﻿Learn more about accurate metadata requirements in guideline 2.3.8.
+Guideline 2.3.4 - Performance -
+
+Accurate Metadata
+
+Issue Description
+
+The app preview includes content that does not sufficiently show the app in use.
+
+Specifically, the app preview:
+
+- Includes a self-promotional ad.
+
+10:39
+
+•ll 5G
+
+9
+
+<
+
+Messages
+
+previe
+
+does not sufficiently show the app in use.
+
+Specifically, the app preview:
+
+﻿﻿Includes a self-promotional ad.
+﻿﻿Displays a narrator.
+﻿﻿Displays real hands.
+﻿﻿Shows footage other than the app in use.
+App previews should allow users to see what the app does and how it will appear on their device when the preview is played in full screen.
+
+Next Steps
+
+To resolve this issue, revise the app preview to only use video screen captures of the app that may include narration and video or textual overlays for added clarity.
+
+Note some app previews may only be viewed and updated by selecting "View All Sizes in Media Manager" in the Previews and Screenshots section of App
+
+Store Connect.
+
+Resources
+
+﻿﻿Learn more about creating great app previews.
+﻿﻿Discover best practices for making the most of the app's App Store Product Pade.
+10:40
+•ll 5G
+9
+Messages
+Page.
+Guideline 3.1.1 - Business - Payments - In-App Purchase
+Issue Description
+We noticed that the app includes or accesses paid digital content, services, or functionality by means other than In-App Purchase, which is not appropriate for the App Store. Specifically:
+- The membership can be purchased in the app using payment mechanisms other than In-App Purchase.
+Apps on the United States storefront may link out to the default browser, using buttons, external links, or other calls to action, for payment mechanisms other than in-app purchase. To learn more, see the News post on Apple Developer. For storefronts where there are not alternative options for qualifying apps, the app must use in-app purchase.
+Next Steps
+The paid digital content, services, or subscriptions included in or accessed by the app must be available for purchase in the app using In-App Purchase.
+Apps that offer paid digital services and
+10:40
+•ll 5G
+Messages
+Apps that offer paid digital services and content across multiple platforms may allow customers to access the content they acquired outside the app as long as it is also available for purchase using In-App Purchase. See guideline 3.1.3(b) for more information.
+If you have any additional information to provide regarding the digital content and services in the app and how the guidelines apply to them, please reply to this message in App Store Connect and let us know. If there is information you'd like us to consider in our review of future submissions, please feel free to include it in the App Review Information section of App Store Connect.
+Resources
+﻿﻿See how to implement In-App Purchase with the StoreKit framework.
+﻿﻿Review step-by-step instructions for creating In-App Purchases in App Store
+Connect.
+﻿﻿Learn more about business requirements in guideline 3.1.1.
+﻿﻿Learn more about submitting In-App Purchases and subscriptions to App Review.
+Guideline 1.2 - Safety - User-Generated Content
+10:40
+•ll 5G
+8
+Messages
+Issue Description
+We found in our review that the app includes user-generated content but does not have all the required precautions.
+Apps with user-generated content must take specitic steps to moderate content and prevent abusive behavior.
+Next Steps
+To resolve this issue, revise the app to implement the following precautions:
+﻿﻿A method for filtering objectionable content
+﻿﻿A mechanism for users to flag objectionable content
+﻿﻿A mechanism for users to block abusive users. Blocking should also notify the developer of the inappropriate content and should remove it from the user's feed instantly.
+﻿﻿The developer must act on
+objectionable content reports within 24 hours by removing the content and ejecting the user who provided the offending content
+Once the required precautions have been implemented, or if they are already in place, reply to this message with a screen recording captured on a physical device

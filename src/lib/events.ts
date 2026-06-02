@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
 
 export type EventCategory =
   | 'estate_sale'
@@ -354,8 +355,9 @@ const isMissingEventUrl = (
 };
 
 export async function createEvent(holderId: string, input: EventUpsert) {
-  // TEMP DIAGNOSTIC — remove after Event URL flow confirmed.
-  console.log('[CREATE_EVENT_DIAG] event_url in payload:', input.event_url);
+  if (assertClean(input.title, input.description).blocked) {
+    throw new Error(GUIDELINE_MESSAGE);
+  }
   const build = (withUrl: boolean) => {
     const payload: Record<string, unknown> = { ...input, holder_id: holderId };
     if (!withUrl) delete payload.event_url;

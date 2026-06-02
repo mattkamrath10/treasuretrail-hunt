@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { CommunityPost, MarketplaceListing, Notification, Profile } from './supabase';
+import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
 
 type ProfileEmbed = Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
 
@@ -105,6 +106,10 @@ export async function createCommunityPost(post: {
   const normCategory = trim(post.category) || undefined;
   const normImage = trim(post.image_url) || undefined;
 
+  if (assertClean(post.caption, post.category).blocked) {
+    return { data: null, error: GUIDELINE_MESSAGE };
+  }
+
   const payload = {
     ...post,
     caption: normCaption,
@@ -200,6 +205,9 @@ export async function createMarketplaceListing(listing: {
   meetup_notes?: string;
   marketplace_found?: string;
 }): Promise<{ data: MarketplaceListing | null; error: string | null }> {
+  if (assertClean(listing.title, listing.description).blocked) {
+    return { data: null, error: GUIDELINE_MESSAGE };
+  }
   const { data, error } = await supabase
     .from('marketplace_listings')
     .insert(listing)

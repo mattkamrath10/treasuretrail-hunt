@@ -40,6 +40,9 @@ const ListingDetail = lazy(() => import('../pages/ListingDetail'));
 const PublicProfile = lazy(() => import('../pages/PublicProfile'));
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('../pages/TermsOfService'));
+const CommunityGuidelines = lazy(() => import('../pages/CommunityGuidelines'));
+const ReviewMode = lazy(() => import('../pages/ReviewMode'));
+const AdminModeration = lazy(() => import('../pages/AdminModeration'));
 
 function AuctionsPage() {
   const navigate = useNavigate();
@@ -81,6 +84,21 @@ function PrivacyPolicyPage() {
 function TermsOfServicePage() {
   const navigate = useNavigate();
   return <TermsOfService onBack={() => navigate(-1)} />;
+}
+
+function CommunityGuidelinesPage() {
+  const navigate = useNavigate();
+  return <CommunityGuidelines onBack={() => navigate(-1)} />;
+}
+
+function ReviewModePage() {
+  const navigate = useNavigate();
+  return <ReviewMode onBack={() => navigate('/profile')} />;
+}
+
+function AdminModerationPage() {
+  const navigate = useNavigate();
+  return <AdminModeration onBack={() => navigate('/profile')} />;
 }
 
 function CommunityPage() {
@@ -284,6 +302,9 @@ export default function AppShell() {
             <Route path="/safety" element={<SafetyPage />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsOfServicePage />} />
+            <Route path="/guidelines" element={<CommunityGuidelinesPage />} />
+            <Route path="/review-mode" element={<ReviewModePage />} />
+            <Route path="/admin/moderation" element={<AdminModerationPage />} />
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/following" element={<FollowingPage />} />

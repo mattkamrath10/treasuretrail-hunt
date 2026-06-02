@@ -17,6 +17,7 @@ import { setPendingIntent } from '../lib/pendingIntent';
 import { Zap } from 'lucide-react';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { startBoostPurchase } from '../lib/payments';
+import { iosPaymentsBlocked } from '../lib/platform';
 import { flashToast } from '../lib/toast';
 import { trackAnalyticsEvent } from '../lib/analytics';
 
@@ -420,6 +421,10 @@ function OwnerBoostRow({ item, onApplied }: { item: WantedItemWithRequester; onA
   const [busy, setBusy] = useState(false);
   const active = isBoosted(item);
   const remaining = boostExpiresInLabel(item);
+
+  // Apple 3.1.1: no purchasable digital goods on iOS. Hide the boost CTA
+  // entirely on iOS, but still show the "Boosted" status pill if already active.
+  if (iosPaymentsBlocked() && !active) return null;
 
   const onBoost = async () => {
     setBusy(true);

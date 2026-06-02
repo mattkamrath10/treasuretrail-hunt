@@ -40,7 +40,7 @@ function getTrustIndicators(profile: any): TrustIndicator[] {
 }
 
 export default function Profile() {
-  const { profile, signOut, isGuest } = useAuth();
+  const { profile, signOut, isGuest, isAdmin } = useAuth();
   const [tab, setTab] = useState<ProfileTab>('overview');
   const [showDelete, setShowDelete] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
@@ -220,6 +220,23 @@ export default function Profile() {
               <span style={settingsStyles.linkText}>Terms of Service</span>
               <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
             </button>
+            <button onClick={() => navigate('/guidelines')} style={settingsStyles.linkRow}>
+              <Shield size={16} style={{ color: 'var(--color-neutral-500)' }} />
+              <span style={settingsStyles.linkText}>Community Guidelines</span>
+              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+            </button>
+            <button onClick={() => navigate('/review-mode')} style={settingsStyles.linkRow}>
+              <CheckCircle size={16} style={{ color: 'var(--color-neutral-500)' }} />
+              <span style={settingsStyles.linkText}>Review Mode</span>
+              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+            </button>
+            {isAdmin && (
+              <button onClick={() => navigate('/admin/moderation')} style={settingsStyles.linkRow}>
+                <AlertTriangle size={16} style={{ color: 'var(--color-neutral-500)' }} />
+                <span style={settingsStyles.linkText}>Moderation Queue</span>
+                <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+              </button>
+            )}
           </div>
           <button onClick={() => setShowDelete(true)} style={settingsStyles.deleteRow}>
             <Trash2 size={16} style={{ color: 'var(--color-error-600)' }} />

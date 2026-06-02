@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader, MessageCircle } from 'lucide-react';
+import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader, MessageCircle, Flag } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
@@ -10,6 +10,7 @@ import { notifyUser } from '../lib/notifications';
 import { accountAge, reputationTier, normalizeReputation } from '../lib/reputation';
 import { getOrCreateConversation } from '../lib/messaging';
 import { blockUser, isUserBlocked } from '../lib/blocks';
+import ReportButton from '../components/moderation/ReportButton';
 import UserFindsGrid from '../components/UserFindsGrid';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
@@ -294,6 +295,14 @@ export default function PublicProfile() {
             <Shield size={14} />
             <span>{blocked ? 'Blocked' : (blockBusy ? 'Blocking…' : 'Block User')}</span>
           </button>
+        )}
+        {!isSelf && user && (
+          <ReportButton contentType="profile" contentId={profile.id} reportedUserId={profile.id}>
+            <button style={s.blockBtn} type="button" aria-label="Report this user">
+              <Flag size={14} />
+              <span>Report User</span>
+            </button>
+          </ReportButton>
         )}
 
         {toast && (

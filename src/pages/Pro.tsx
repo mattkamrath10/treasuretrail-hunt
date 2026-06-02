@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Crown, Loader2, Sparkles } from 'lucide-react';
 import { PageScroll } from '../components/ui/PageScroll';
 import { useAuth } from '../context/AuthContext';
 import { startProUpgrade } from '../lib/payments';
+import { iosPaymentsBlocked } from '../lib/platform';
 import { isProUser } from '../lib/entitlements';
 import { flashToast } from '../lib/toast';
 
@@ -129,6 +130,9 @@ export default function Pro({ onBack }: { onBack: () => void }) {
   useEffect(ensureKeyframes, []);
 
   const alreadyPro = isProUser(profile);
+  // Apple 3.1.1: the iOS build may not present any purchasable digital goods.
+  // Hide all prices and purchase CTAs on iOS — the page stays informational.
+  const blockPurchases = iosPaymentsBlocked();
 
   // Payments are intentionally disabled until Stripe lands (see
   // src/lib/payments.ts). startProUpgrade() grants nothing — it returns a
@@ -195,6 +199,13 @@ export default function Pro({ onBack }: { onBack: () => void }) {
         </div>
       </section>
 
+      {blockPurchases && (
+        <p style={s.iosNote}>
+          Memberships and event boosts aren't available for purchase in the app
+          yet. The features below are included with your free account where noted.
+        </p>
+      )}
+
       <section className="tt-pro-plans-grid" style={s.plansWrap}>
         {PLANS.map((p) => (
           <PlanCard
@@ -202,6 +213,7 @@ export default function Pro({ onBack }: { onBack: () => void }) {
             plan={p}
             disabled={p.id === 'pro' && alreadyPro}
             busy={busy === p.id}
+            hidePurchase={blockPurchases && p.id !== 'free'}
             onPick={() => handlePlan(p.id)}
           />
         ))}
@@ -210,18 +222,21 @@ export default function Pro({ onBack }: { onBack: () => void }) {
       <p style={s.trustLine}>
         Designed for real sellers, real events, and real-time discovery.
       </p>
-      <p style={s.footnote}>
-        Cancel or pause anytime. Boosts charged per promoted event. Pro Seller billed monthly.
-      </p>
+      {!blockPurchases && (
+        <p style={s.footnote}>
+          Cancel or pause anytime. Boosts charged per promoted event. Pro Seller billed monthly.
+        </p>
+      )}
     </PageScroll>
   );
 }
 
-function PlanCard({ plan, onPick, busy = false, disabled = false }: {
+function PlanCard({ plan, onPick, busy = false, disabled = false, hidePurchase = false }: {
   plan: Plan;
   onPick: () => void;
   busy?: boolean;
   disabled?: boolean;
+  hidePurchase?: boolean;
 }) {
   const highlight = !!plan.highlight;
   return (
@@ -254,10 +269,12 @@ function PlanCard({ plan, onPick, busy = false, disabled = false }: {
 
       <p style={s.cardTagline}>{plan.tagline}</p>
 
-      <div style={s.priceRow}>
-        <span style={s.price}>{plan.price}</span>
-        <span style={s.cadence}>{plan.cadence}</span>
-      </div>
+      {!hidePurchase && (
+        <div style={s.priceRow}>
+          <span style={s.price}>{plan.price}</span>
+          <span style={s.cadence}>{plan.cadence}</span>
+        </div>
+      )}
 
       <ul style={s.featList}>
         {plan.features.map((f) => (
@@ -270,30 +287,32 @@ function PlanCard({ plan, onPick, busy = false, disabled = false }: {
         ))}
       </ul>
 
-      {plan.footnote && (
+      {!hidePurchase && plan.footnote && (
         <p style={s.planFootnote}>{plan.footnote}</p>
       )}
 
-      <button
-        type="button"
-        onClick={onPick}
-        disabled={busy || disabled}
-        className={`tt-pro-cta ${highlight && !disabled ? 'tt-pro-pulse' : ''}`}
-        style={{
-          ...s.cta,
-          ...(highlight ? s.ctaPro : {}),
-          opacity: disabled ? 0.6 : 1,
-          cursor: busy || disabled ? 'default' : 'pointer',
-        }}
-      >
-        {highlight && !disabled && <span className="tt-pro-shimmer" style={s.ctaShimmer} aria-hidden="true" />}
-        <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          {busy && <Loader2 size={14} className="spin" />}
-          {disabled ? 'Active' : plan.cta}
-        </span>
-      </button>
+      {!hidePurchase && (
+        <button
+          type="button"
+          onClick={onPick}
+          disabled={busy || disabled}
+          className={`tt-pro-cta ${highlight && !disabled ? 'tt-pro-pulse' : ''}`}
+          style={{
+            ...s.cta,
+            ...(highlight ? s.ctaPro : {}),
+            opacity: disabled ? 0.6 : 1,
+            cursor: busy || disabled ? 'default' : 'pointer',
+          }}
+        >
+          {highlight && !disabled && <span className="tt-pro-shimmer" style={s.ctaShimmer} aria-hidden="true" />}
+          <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {busy && <Loader2 size={14} className="spin" />}
+            {disabled ? 'Active' : plan.cta}
+          </span>
+        </button>
+      )}
 
-      {plan.ctaFootnote && (
+      {!hidePurchase && plan.ctaFootnote && (
         <p style={s.ctaFootnote}>{plan.ctaFootnote}</p>
       )}
     </article>
@@ -541,5 +560,18 @@ const s: Record<string, CSSProperties> = {
     textAlign: 'center',
     fontSize: 11,
     color: 'rgba(245,245,247,0.45)',
+  },
+  iosNote: {
+    margin: '0 auto 4px',
+    maxWidth: 560,
+    padding: '12px 16px',
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: 'rgba(245,245,247,0.8)',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    borderRadius: 12,
+    width: 'calc(100% - 32px)',
   },
 };

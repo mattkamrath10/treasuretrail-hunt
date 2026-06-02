@@ -18,6 +18,7 @@ import { getOrCreateConversation } from '../lib/messaging';
 import { saveListing, unsaveListing, isListingSaved } from '../lib/savedListings';
 import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 import { blockUser, isUserBlocked } from '../lib/blocks';
+import ReportButton from '../components/moderation/ReportButton';
 import { shareWithImage } from '../lib/shareWithImage';
 import { notifyUser } from '../lib/notifications';
 
@@ -443,7 +444,9 @@ export default function ListingDetail() {
                   disabled={blocked || blocking || !user || !listing.seller_id || listing.seller_id === user?.id}
                   onClick={handleBlock}
                 />
-                <ActionButton icon={Flag} label="Report" disabled hint="Coming Soon" onClick={() => {}} />
+                <ReportButton contentType="listing" contentId={listing.id} reportedUserId={listing.seller_id}>
+                  <ActionButton icon={Flag} label="Report" onClick={() => {}} />
+                </ReportButton>
               </>
             )}
           </section>

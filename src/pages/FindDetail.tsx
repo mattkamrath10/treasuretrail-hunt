@@ -18,6 +18,8 @@ import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 import { shareWithImage } from '../lib/shareWithImage';
 import { attachProfiles } from '../lib/database';
 import { saveListing, unsaveListing } from '../lib/savedListings';
+import ReportButton from '../components/moderation/ReportButton';
+import BlockUserButton from '../components/moderation/BlockUserButton';
 
 type FullPost = CommunityPost & {
   general_location?: string | null;
@@ -422,13 +424,12 @@ export default function FindDetail() {
               label="Share"
               onClick={handleShare}
             />
-            <ActionButton
-              icon={Flag}
-              label="Report"
-              disabled
-              hint="Coming Soon"
-              onClick={() => {}}
-            />
+            <ReportButton contentType="find" contentId={post.id} reportedUserId={post.user_id}>
+              <ActionButton icon={Flag} label="Report" onClick={() => {}} />
+            </ReportButton>
+            {!isOwner && post.user_id && (
+              <BlockUserButton targetUserId={post.user_id} targetName={post.profiles?.username || 'uploader'} variant="row" />
+            )}
           </section>
 
           {/* delete (owner / admin) */}

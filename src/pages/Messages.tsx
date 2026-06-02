@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
-  ArrowLeft, Send, MessageCircle, Loader, Tag,
+  ArrowLeft, Send, MessageCircle, Loader, Tag, Flag,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PageScroll } from '../components/ui/PageScroll';
@@ -13,6 +13,8 @@ import {
 import { supabase } from '../lib/supabase';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { toThumbUrl } from '../lib/imageCompress';
+import ReportButton from '../components/moderation/ReportButton';
+import BlockUserButton from '../components/moderation/BlockUserButton';
 
 /**
  * Messages.tsx — real direct-message inbox.
@@ -362,6 +364,16 @@ function ConversationView({ conversationId, onBack }: { conversationId: string; 
           )}
           <span style={styles.chatHeaderName}>@{conv?.other_username || '…'}</span>
         </button>
+        {conv?.other_user_id && (
+          <BlockUserButton targetUserId={conv.other_user_id} targetName={conv.other_username} variant="pill" />
+        )}
+        {conv?.other_user_id && (
+          <ReportButton contentType="message" contentId={conv.id} reportedUserId={conv.other_user_id}>
+            <button style={styles.iconBtn} type="button" aria-label="Report conversation">
+              <Flag size={18} />
+            </button>
+          </ReportButton>
+        )}
         {conv?.listing_id && (
           <button
             onClick={() => conv.listing_id && navigate(

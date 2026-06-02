@@ -1,0 +1,143 @@
+TREASURETRAIL APPLE APP STORE COMPLIANCE UPDATE
+
+Apple rejected the app under:
+
+Guideline 1.2 - User Generated Content
+Guideline 3.1.1 - In-App Purchase
+Please make the following changes throughout the codebase.
+
+PART 1 - USER GENERATED CONTENT COMPLIANCE
+Implement all required Apple moderation safeguards.
+
+A. REPORT CONTENT
+
+Add a Report option to:
+
+Listings
+Events
+Live Events
+User Profiles
+Comments
+Messages (if applicable)
+When a user taps Report:
+
+Show categories:
+
+Spam
+Scam/Fraud
+Harassment
+Hate Speech
+Sexual Content
+Violence
+Copyright Violation
+Other
+Store reports in Firebase/Supabase with:
+
+Reporter ID
+Reported Content ID
+Content Type
+Reason
+Timestamp
+Create an Admin Moderation Queue screen.
+
+B. BLOCK USER
+
+Add a Block User button to every public profile.
+
+When blocked:
+
+Blocked user disappears from search.
+Blocked user listings disappear.
+Blocked user events disappear.
+Messages are disabled.
+Follow relationships are removed.
+Store blocked relationships in database.
+
+C. TERMS OF SERVICE
+
+Require acceptance before account creation.
+
+Display:
+
+“I agree to the Terms of Service and Community Guidelines.”
+
+Checkbox must be required.
+
+Store acceptance timestamp.
+
+Create links for:
+
+Terms of Service
+Privacy Policy
+Community Guidelines
+D. CONTENT FILTERING
+
+Add automatic filtering for:
+
+Profanity
+Hate speech
+Threats
+Explicit sexual language
+Prevent publishing when content violates filters.
+
+Show:
+
+“This content violates TreasureTrail Community Guidelines.”
+
+E. MODERATION TOOLS
+
+Create admin tools for:
+
+Review Reports
+Remove Listings
+Remove Events
+Suspend Accounts
+Ban Accounts
+Add moderation audit logs.
+
+PART 2 - APPLE IN-APP PURCHASE COMPLIANCE
+Apple rejected the app because memberships and digital upgrades appear available without Apple In-App Purchase.
+
+For iOS builds only:
+
+Disable all direct payment systems.
+
+Disable:
+
+Pro Membership purchases
+Subscription purchases
+Boost Event purchases
+Boost Listing purchases
+Hide all external payment links.
+
+Replace buttons with:
+
+“Coming Soon on iOS”
+
+OR
+
+Integrate StoreKit In-App Purchase if already partially implemented.
+
+Until StoreKit is fully functional:
+
+Do not allow any purchase flow.
+Do not open Stripe checkout.
+Do not open external payment pages.
+Do not display external payment buttons.
+Android behavior may remain unchanged.
+
+PART 3 - APPLE REVIEW PREPARATION
+Create a hidden Review Mode screen accessible from Settings.
+
+Include quick links to:
+
+Report Listing
+Report Event
+Report User
+Block User
+Terms of Service
+Community Guidelines
+This allows Apple reviewers to easily verify compliance.
+
+Provide a summary of every file changed and every feature added.
+
