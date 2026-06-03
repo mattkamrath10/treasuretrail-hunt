@@ -30,3 +30,9 @@ id = "DuZ8wSEQSaOfyeJoHvQz2"
 uri = "file://APPLE_COMPLIANCE_REPORT.md"
 type = "text"
 title = "APPLE_COMPLIANCE_REPORT.md (audit report)"
+
+[[outputs]]
+id = "d6qL6YTyTXGjBwSrnlUxb"
+uri = "file://treasuretrail.zip"
+type = "unspecified"
+title = "TreasureTrail project (source + assets)"
