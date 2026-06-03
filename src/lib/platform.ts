@@ -39,10 +39,15 @@ export function iosPaymentsBlocked(): boolean {
  * (which only hides prices/buy buttons): when this returns true, the
  * monetization screens themselves are removed from navigation.
  *
- * Reversible: to bring monetization back on iOS, return `false` here. No
- * monetization code was deleted — every feature is gated behind this flag.
- * Web and Android are unaffected.
+ * Currently hidden on ALL platforms (web, iOS, Android) at the user's
+ * request so no monetization UI is visible anywhere while the app is under
+ * App Store review. No monetization code was deleted — every feature is
+ * gated behind this flag.
+ *
+ * Reversible:
+ *   - to restore monetization everywhere, return `false`;
+ *   - to restore it on web/Android only (hide on iOS), return `isIOS()`.
  */
 export function monetizationHidden(): boolean {
-  return isIOS();
+  return true;
 }
