@@ -14,7 +14,7 @@ import { Badge } from '../components/ui/Badge';
 import { ProBadge } from '../components/ui/ProBadge';
 import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isProUser } from '../lib/entitlements';
-import UserFindsGrid from '../components/UserFindsGrid';
+import UserShowcase from '../components/UserShowcase';
 import { BecomeHostCard } from '../components/BecomeHostCard';
 import { shareWithImage } from '../lib/shareWithImage';
 import { deleteAccount } from '../lib/account';
@@ -726,8 +726,8 @@ function ActivityTab() {
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-      <h3 style={{ ...styles.sectionTitle, margin: 0 }}>Your Finds</h3>
-      <UserFindsGrid userId={user.id} emptyLabel="You haven't posted any finds yet" />
+      <h3 style={{ ...styles.sectionTitle, margin: 0 }}>Your Showcase</h3>
+      <UserShowcase userId={user.id} isSelf />
     </div>
   );
 }

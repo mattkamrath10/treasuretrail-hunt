@@ -11,7 +11,7 @@ import { accountAge, reputationTier, normalizeReputation } from '../lib/reputati
 import { getOrCreateConversation } from '../lib/messaging';
 import { blockUser, isUserBlocked } from '../lib/blocks';
 import ReportButton from '../components/moderation/ReportButton';
-import UserFindsGrid from '../components/UserFindsGrid';
+import UserShowcase from '../components/UserShowcase';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
@@ -324,11 +324,8 @@ export default function PublicProfile() {
         </div>
 
         <div style={s.section}>
-          <h2 style={s.sectionTitle}>{isSelf ? 'Your Finds' : `@${profile.username}'s Finds`}</h2>
-          <UserFindsGrid
-            userId={profile.id}
-            emptyLabel={isSelf ? "You haven't posted any finds yet" : 'No finds posted yet'}
-          />
+          <h2 style={s.sectionTitle}>{isSelf ? 'Your Showcase' : `@${profile.username}'s Showcase`}</h2>
+          <UserShowcase userId={profile.id} isSelf={isSelf} />
         </div>
 
         {profile.favorite_categories && profile.favorite_categories.length > 0 && (
