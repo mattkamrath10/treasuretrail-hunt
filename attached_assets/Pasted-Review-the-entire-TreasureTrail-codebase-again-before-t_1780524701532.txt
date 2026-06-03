@@ -1,0 +1,85 @@
+Review the entire TreasureTrail codebase again before the next iOS build.
+
+A Profile screen screenshot from the latest iOS build still shows a "Pro Member" trust signal with a crown icon.
+
+Apple previously rejected the app under App Store Guideline 3.1.1 (In-App Purchases), so I need a final compliance sweep.
+
+Tasks:
+
+1. Search the entire project for all occurrences of:
+
+pro
+premium
+membership
+member
+subscription
+subscribe
+upgrade
+seller plan
+seller plans
+boost
+boosted
+pricing
+paid
+paywall
+pro member
+premium member
+go pro
+unlock
+analytics
+
+2. Identify every user-visible label, badge, banner, chip, pill, icon, card, CTA, menu item, trust signal, profile attribute, modal, tooltip, route, screen, component, toast, dialog, empty state, or navigation path containing any of the above concepts.
+
+3. For iOS builds only:
+
+   * Remove or hide every monetization-related UI element.
+   * Remove or hide every "Pro Member" indicator.
+   * Remove or hide every crown icon associated with Pro status.
+   * Remove or hide every Premium badge.
+   * Remove or hide every Boosted badge.
+   * Remove or hide every Membership trust signal.
+   * Remove or hide every Seller Plan reference.
+   * Remove or hide every Upgrade CTA.
+   * Remove or hide every Subscription reference.
+   * Remove or hide every Analytics upgrade reference.
+
+4. If any feature currently checks:
+
+   * membership_tier
+   * pro_member
+   * premium
+   * subscription
+   * boost status
+
+ensure the UI does not display those values anywhere in the iOS build.
+
+5. Verify all hidden monetization components:
+
+   * cannot be navigated to
+   * cannot be opened through deep links
+   * cannot be opened from menus
+   * cannot be opened from profile screens
+   * cannot be opened from event screens
+   * cannot be opened from seller dashboards
+
+6. Generate a report containing:
+
+A. Every file containing monetization-related code.
+
+B. Every file modified.
+
+C. Every visible monetization element removed.
+
+D. Any remaining monetization code still present in the codebase.
+
+E. Any remaining user-visible references Apple reviewers could still encounter.
+
+F. A final YES/NO assessment:
+
+"Can an Apple reviewer still see any monetization, membership, Pro, Premium, Boost, Seller Plan, Upgrade, Pricing, Subscription, or paid-tier UI in the iOS build?"
+
+Do not implement Apple In-App Purchases.
+
+Do not delete monetization code permanently.
+
+Only hide or disable all monetization-related UI and navigation paths so the app can pass App Store review.

@@ -1,11 +1,16 @@
 import type { CSSProperties } from 'react';
 import { Crown } from 'lucide-react';
+import { monetizationHidden } from '../../lib/platform';
 
 /**
  * ProBadge — small crown pill rendered next to a Pro member's handle
  * (Profile header, leaderboard rows, message inbox rows). Uses the
  * same gold gradient family as BoostedBadge but in an outlined chip
  * variant so the two don't compete visually when they appear together.
+ *
+ * Self-gates on iOS: while monetizationHidden() is true the badge (and
+ * its crown icon) renders nothing, so no Pro-tier signal can leak from
+ * any call site during App Store review. Reversible via the flag.
  */
 export function ProBadge({
   size = 'sm',
@@ -14,6 +19,7 @@ export function ProBadge({
   size?: 'sm' | 'md';
   style?: CSSProperties;
 }) {
+  if (monetizationHidden()) return null;
   const isMd = size === 'md';
   return (
     <span
