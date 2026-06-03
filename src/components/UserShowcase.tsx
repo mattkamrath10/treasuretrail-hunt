@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Calendar, MapPin, Search, Sparkles, Package } from 'lucide-react';
+import { ChevronRight, Calendar, MapPin, Search, Sparkles, Package, Flag } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { CommunityPost, MarketplaceListing } from '../lib/supabase';
 import { fetchMyEvents, type EventRow } from '../lib/events';
@@ -8,6 +8,9 @@ import { fetchMyWantedItems, WANTED_CATEGORY_LABEL, type WantedItemRow } from '.
 import { ImageWithFade } from './ui/ImageWithFade';
 import { MediaFallback } from './ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
+import ReportButton from './moderation/ReportButton';
+import type { ReportContentType } from '../lib/reports';
+import { useAuth } from '../context/AuthContext';
 
 const LOG = '[USER_SHOWCASE]';
 
@@ -35,6 +38,10 @@ type FindItem = {
 
 export default function UserShowcase({ userId, isSelf }: { userId: string; isSelf?: boolean }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Reporting is only meaningful for content you don't own and only when
+  // signed in (the report sheet requires an authenticated reporter).
+  const canReport = !isSelf && !!user;
   const [finds, setFinds] = useState<FindItem[] | null>(null);
   const [events, setEvents] = useState<EventRow[] | null>(null);
   const [wanted, setWanted] = useState<WantedItemRow[] | null>(null);
@@ -146,7 +153,13 @@ export default function UserShowcase({ userId, isSelf }: { userId: string; isSel
       {finds!.length > 0 && (
         <Rail title="Finds" subtitle="Treasures & listings" accent="#8b5cf6">
           {finds!.map((f) => (
-            <FindCard key={f.key} item={f} onClick={() => navigate(f.kind === 'find' ? `/find/${f.id}` : `/listing/${f.id}`)} />
+            <FindCard
+              key={f.key}
+              item={f}
+              onClick={() => navigate(f.kind === 'find' ? `/find/${f.id}` : `/listing/${f.id}`)}
+              canReport={canReport}
+              ownerId={userId}
+            />
           ))}
         </Rail>
       )}
@@ -154,7 +167,13 @@ export default function UserShowcase({ userId, isSelf }: { userId: string; isSel
       {events!.length > 0 && (
         <Rail title="Events" subtitle="Hosted shows & sales" accent="#f59e0b">
           {events!.map((e) => (
-            <EventCard key={e.id} event={e} onClick={() => navigate(`/event/${e.id}`)} />
+            <EventCard
+              key={e.id}
+              event={e}
+              onClick={() => navigate(`/event/${e.id}`)}
+              canReport={canReport}
+              ownerId={userId}
+            />
           ))}
         </Rail>
       )}
@@ -213,7 +232,7 @@ function Rail({ title, subtitle, accent, children }: {
 
 /* ---------- Cards (Discover dark-card visual language) ---------- */
 
-function FindCard({ item, onClick }: { item: FindItem; onClick: () => void }) {
+function FindCard({ item, onClick, canReport, ownerId }: { item: FindItem; onClick: () => void; canReport?: boolean; ownerId: string }) {
   return (
     <article style={s.cardMd} onClick={onClick} role="button" tabIndex={0} aria-label={`Open ${item.title}`}>
       <div style={s.cardImgMd}>
@@ -225,6 +244,13 @@ function FindCard({ item, onClick }: { item: FindItem; onClick: () => void }) {
           fallback={<MediaFallback kind="find" seed={item.id} label={item.title} />}
         />
         <div style={s.cardOverlay} />
+        {canReport && (
+          <CardReportButton
+            contentType={item.kind === 'listing' ? 'listing' : 'find'}
+            contentId={item.id}
+            ownerId={ownerId}
+          />
+        )}
         <div style={s.cardBadgeRow}>
           {item.kind === 'listing' ? (
             item.price != null && (
@@ -248,7 +274,7 @@ function FindCard({ item, onClick }: { item: FindItem; onClick: () => void }) {
   );
 }
 
-function EventCard({ event, onClick }: { event: EventRow; onClick: () => void }) {
+function EventCard({ event, onClick, canReport, ownerId }: { event: EventRow; onClick: () => void; canReport?: boolean; ownerId: string }) {
   const where = [event.city, event.region].filter(Boolean).join(', ') || event.address || 'Event';
   return (
     <article style={s.cardLg} onClick={onClick} role="button" tabIndex={0} aria-label={`Open ${event.title}`}>
@@ -261,6 +287,9 @@ function EventCard({ event, onClick }: { event: EventRow; onClick: () => void })
           fallback={<MediaFallback kind="event" seed={event.id} label={event.title} />}
         />
         <div style={s.cardOverlay} />
+        {canReport && (
+          <CardReportButton contentType="event" contentId={event.id} ownerId={ownerId} />
+        )}
         <div style={s.cardBadgeRow}>
           <span style={{ ...s.badge, background: 'rgba(245, 158, 11, 0.95)' }}>
             <Calendar size={10} /> {formatShort(event.starts_at)}
@@ -310,6 +339,33 @@ function WantedCard({ item, onClick }: { item: WantedItemRow; onClick: () => voi
         )}
       </div>
     </article>
+  );
+}
+
+/**
+ * Small flag affordance overlaid on a card image so users can report
+ * inappropriate content straight from the profile without opening the
+ * detail page. The wrapper stops click propagation so neither the trigger
+ * nor the report sheet's clicks bubble up and trigger card navigation.
+ */
+function CardReportButton({ contentType, contentId, ownerId }: {
+  contentType: ReportContentType;
+  contentId: string;
+  ownerId: string;
+}) {
+  return (
+    <div
+      style={s.reportWrap}
+      role="presentation"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <ReportButton contentType={contentType} contentId={contentId} reportedUserId={ownerId}>
+        <button type="button" style={s.reportBtn} aria-label="Report this content">
+          <Flag size={12} />
+        </button>
+      </ReportButton>
+    </div>
   );
 }
 
@@ -383,6 +439,16 @@ const s: Record<string, CSSProperties> = {
     padding: '3px 7px', borderRadius: 999,
     fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: '0.04em',
     boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+  },
+  reportWrap: { position: 'absolute', top: 8, right: 8, zIndex: 3 },
+  reportBtn: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 28, height: 28, padding: 0,
+    borderRadius: '50%',
+    background: 'rgba(0,0,0,0.55)',
+    border: '1px solid rgba(255,255,255,0.18)',
+    color: '#fff', cursor: 'pointer',
+    backdropFilter: 'blur(2px)',
   },
   cardBody: { padding: '10px 12px 12px' },
   cardTitle: {
