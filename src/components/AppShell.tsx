@@ -43,6 +43,7 @@ const TermsOfService = lazy(() => import('../pages/TermsOfService'));
 const CommunityGuidelines = lazy(() => import('../pages/CommunityGuidelines'));
 const ReviewMode = lazy(() => import('../pages/ReviewMode'));
 const AdminModeration = lazy(() => import('../pages/AdminModeration'));
+const BlockedUsers = lazy(() => import('../pages/BlockedUsers'));
 
 function AuctionsPage() {
   const navigate = useNavigate();
@@ -74,6 +75,11 @@ function ProPage() {
 function SafetyPage() {
   const navigate = useNavigate();
   return <Safety onBack={() => navigate('/profile')} />;
+}
+
+function BlockedUsersPage() {
+  const navigate = useNavigate();
+  return <BlockedUsers onBack={() => navigate('/profile')} />;
 }
 
 function PrivacyPolicyPage() {
@@ -300,6 +306,7 @@ export default function AppShell() {
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/pro" element={<ProPage />} />
             <Route path="/safety" element={<SafetyPage />} />
+            <Route path="/blocked" element={<BlockedUsersPage />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsOfServicePage />} />
             <Route path="/guidelines" element={<CommunityGuidelinesPage />} />

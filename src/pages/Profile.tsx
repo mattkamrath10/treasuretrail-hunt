@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Star, Camera, Heart, Upload, Award, LogOut, Shield, User, Users, CircleCheck as CheckCircle, Trophy, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
+import { Star, Camera, Heart, Upload, Award, LogOut, Shield, ShieldOff, User, Users, CircleCheck as CheckCircle, Trophy, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
@@ -223,6 +223,11 @@ export default function Profile() {
             <button onClick={() => navigate('/guidelines')} style={settingsStyles.linkRow}>
               <Shield size={16} style={{ color: 'var(--color-neutral-500)' }} />
               <span style={settingsStyles.linkText}>Community Guidelines</span>
+              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+            </button>
+            <button onClick={() => navigate('/blocked')} style={settingsStyles.linkRow}>
+              <ShieldOff size={16} style={{ color: 'var(--color-neutral-500)' }} />
+              <span style={settingsStyles.linkText}>Blocked Users</span>
               <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
             </button>
             <button onClick={() => navigate('/review-mode')} style={settingsStyles.linkRow}>

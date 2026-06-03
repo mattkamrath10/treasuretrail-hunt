@@ -55,6 +55,48 @@ export async function fetchBlockedIds(blockerId: string): Promise<Set<string>> {
   return new Set(data.map((r) => r.blocked_id as string));
 }
 
+export interface BlockedUser {
+  id: string;
+  username: string | null;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+/**
+ * Returns the users the caller has blocked, with enough profile info to show
+ * them in a management list (the Profile → Account → Blocked Users screen).
+ * Because blocked users' content is hidden everywhere else in the app, this
+ * list is the only place a user can find and undo a block.
+ */
+export async function fetchBlockedUsers(blockerId: string): Promise<BlockedUser[]> {
+  const { data: rows, error } = await supabase
+    .from('user_blocks')
+    .select('blocked_id, created_at')
+    .eq('blocker_id', blockerId)
+    .order('created_at', { ascending: false });
+  if (error || !rows || rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.blocked_id as string);
+  const { data: profs } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_url')
+    .in('id', ids);
+
+  const byId = new Map(
+    (profs ?? []).map((p) => [p.id as string, p as { id: string; username: string | null; avatar_url: string | null }]),
+  );
+
+  return rows.map((r) => {
+    const prof = byId.get(r.blocked_id as string);
+    return {
+      id: r.blocked_id as string,
+      username: prof?.username ?? null,
+      avatar_url: prof?.avatar_url ?? null,
+      created_at: r.created_at as string,
+    };
+  });
+}
+
 export async function isUserBlocked(
   blockerId: string,
   blockedId: string,
