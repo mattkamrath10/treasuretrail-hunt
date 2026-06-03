@@ -1,0 +1,102 @@
+Perform a final App Store Compliance Audit for TreasureTrail.
+
+Goal:
+Ensure that Apple reviewers cannot see any monetization-related UI anywhere in the app.
+
+Search the entire codebase for:
+
+pro
+premium
+membership
+member
+subscription
+subscribe
+upgrade
+boost
+boosted
+seller plan
+seller plans
+pricing
+paid
+paywall
+analytics
+unlock
+go pro
+premium seller
+seller membership
+
+Tasks:
+
+1. Locate every remaining button, badge, banner, card, chip, pill, label, trust signal, menu item, route, modal, tooltip, popup, CTA, icon, screen, dialog, toast, notification, or navigation path containing these concepts.
+
+2. Remove or hide ALL of the following from every platform:
+
+   * Boost Event buttons
+   * Boosted badges
+   * Pro Member badges
+   * Premium Member badges
+   * Membership trust signals
+   * Crown icons
+   * Seller Membership references
+   * Seller Plan references
+   * Upgrade buttons
+   * Subscribe buttons
+   * Pricing screens
+   * Analytics upgrade paths
+   * Premium Seller references
+   * Any text implying a paid tier
+
+3. Verify that:
+
+   * No monetization screen is reachable.
+   * No monetization modal can open.
+   * No monetization route can be navigated to.
+   * No monetization deep link works.
+   * No hidden banner still renders.
+   * No "Boost Event" button appears on Live Events.
+   * No "Pro Member" label appears on Profile.
+   * No "Boosted" badge appears on listings or events.
+   * No "Upgrade" CTA appears anywhere.
+
+4. Produce a final report showing:
+
+A. Every monetization-related file still in the codebase.
+
+B. Every monetization-related component still compiled.
+
+C. Every monetization-related UI element now hidden.
+
+D. Every remaining visible occurrence of:
+
+* Pro
+* Premium
+* Membership
+* Member
+* Boost
+* Boosted
+* Upgrade
+* Subscribe
+* Pricing
+* Seller Plan
+* Analytics
+
+E. Final YES or NO:
+
+"Can an Apple reviewer see any monetization-related UI in the current build?"
+
+Do not permanently delete monetization code.
+
+Hide and disable only.
+
+The app should retain:
+
+* Discover
+* Listings
+* Events
+* Wanted
+* Profiles
+* Messaging
+* Search
+* Maps
+
+while exposing zero monetization UI to the reviewer.

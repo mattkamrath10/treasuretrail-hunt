@@ -1,4 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
+import { monetizationHidden } from '../lib/platform';
 
 const EFFECTIVE_DATE = 'May 29, 2026';
 const CONTACT_EMAIL = 'mkkamrarath@gmail.com';
@@ -64,10 +65,14 @@ export default function TermsOfService({ onBack }: { onBack: () => void }) {
           be inaccurate. Do not rely on them as the sole basis for any purchase or sale decision.</P>
         </Section>
 
-        <Section title="7. Paid Features">
-          <P>Certain features may be offered as part of a paid membership or as paid promotions. Pricing
-          and terms for any paid features will be presented to you before purchase. Paid features are
-          not required to use the core Service.</P>
+        <Section title="7. Features">
+          {monetizationHidden() ? (
+            <P>All current features of the Service are available to use at no cost.</P>
+          ) : (
+            <P>Certain features may be offered as part of a paid membership or as paid promotions. Pricing
+            and terms for any paid features will be presented to you before purchase. Paid features are
+            not required to use the core Service.</P>
+          )}
         </Section>
 
         <Section title="8. Termination and Account Deletion">
