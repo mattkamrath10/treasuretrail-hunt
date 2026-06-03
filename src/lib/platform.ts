@@ -28,3 +28,21 @@ export function isAndroid(): boolean {
 export function iosPaymentsBlocked(): boolean {
   return isIOS();
 }
+
+/**
+ * TEMPORARY App Store compliance switch.
+ *
+ * For the iOS resubmission to Apple, the build must not expose ANY
+ * monetization surface at all — not just purchase buttons, but the whole
+ * Pro/membership pages, event-boost flows, pricing, "Upgrade" CTAs and
+ * Pro-only reach analytics. This is broader than `iosPaymentsBlocked()`
+ * (which only hides prices/buy buttons): when this returns true, the
+ * monetization screens themselves are removed from navigation.
+ *
+ * Reversible: to bring monetization back on iOS, return `false` here. No
+ * monetization code was deleted — every feature is gated behind this flag.
+ * Web and Android are unaffected.
+ */
+export function monetizationHidden(): boolean {
+  return isIOS();
+}

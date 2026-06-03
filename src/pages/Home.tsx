@@ -8,6 +8,7 @@ import { checkLocalReminders } from '../lib/localReminders';
 import { deriveStatus, statusPriority } from '../lib/eventSchedule';
 import { TreasureChestBrand } from '../components/TreasureChestLogo';
 import { HostEventCTA } from '../components/HostEventCTA';
+import { monetizationHidden } from '../lib/platform';
 import { fetchCommunityPosts, togglePostLike, fetchUserLikes } from '../lib/database';
 import { validateFeedItem } from '../lib/flashFindPayload';
 import { useLiveFeed } from '../hooks/useLiveFeed';
@@ -641,10 +642,13 @@ export default function Home() {
           <TooltipBtn onClick={() => setShowInfo(true)} btnStyle={styles.infoBtn} label="How It Works" desc="Learn what TreasureTrail does">
             <HelpCircle size={15} style={{ color: 'var(--color-neutral-500)' }} />
           </TooltipBtn>
-          <button onClick={() => navigate('/pro')} style={styles.proBtn} title="Premium Membership — Unlock all tools">
-            <Crown size={12} style={{ color: 'var(--color-primary-700)' }} />
-            <span style={styles.proBtnText}>Pro</span>
-          </button>
+          {/* Premium Membership entry point — temporarily hidden for App Store review. */}
+          {!monetizationHidden() && (
+            <button onClick={() => navigate('/pro')} style={styles.proBtn} title="Premium Membership — Unlock all tools">
+              <Crown size={12} style={{ color: 'var(--color-primary-700)' }} />
+              <span style={styles.proBtnText}>Pro</span>
+            </button>
+          )}
           <TooltipBtn onClick={() => navigate('/live')} btnStyle={styles.liveBtn} label="Live Hub" desc="Active missions and live events">
             <Zap size={14} style={{ color: 'var(--color-error-500)' }} />
           </TooltipBtn>

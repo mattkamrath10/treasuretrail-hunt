@@ -27,6 +27,7 @@ import { startBoostPurchase } from '../lib/payments';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { isProUser } from '../lib/entitlements';
 import { BoostedBadge } from '../components/ui/BoostedBadge';
+import { monetizationHidden } from '../lib/platform';
 import { flashToast } from '../lib/toast';
 import { setPendingIntent } from '../lib/pendingIntent';
 import {
@@ -322,6 +323,9 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
   // picker once, then scrub the flag from history so a back/refresh doesn't
   // re-trigger it.
   useEffect(() => {
+    // Event boosts are temporarily hidden for App Store review — never
+    // auto-open the boost picker, even if a stale intent points here.
+    if (monetizationHidden()) return;
     const state = location.state as { openBoost?: boolean } | null;
     if (state?.openBoost && user) {
       setShowBoost(true);
@@ -493,30 +497,34 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           <Upload size={16} style={{ color: '#fff' }} />
           <span style={st.actionBtnLabel}>Upload Event</span>
         </button>
-        <div style={st.actionRow}>
-          <button
-            onClick={() => {
-              if (!user) {
-                // `/login` is not a route — it's a conditional screen in
-                // App.tsx gated on `!user && !isGuest`. A guest is still
-                // "logged out" but isGuest=true keeps AppShell mounted, so
-                // navigate('/login') would just fall through to Discover.
-                // Stash the intent, drop guest mode, and bounce to '/' so
-                // App re-evaluates and renders Login. AppShell's resume hook
-                // reopens this boost flow once the user signs in.
-                setPendingIntent({ kind: 'boost_event' });
-                if (isGuest) exitGuestMode();
-                navigate('/');
-                return;
-              }
-              setShowBoost(true);
-            }}
-            style={st.actionBtnBoost}
-          >
-            <Zap size={14} style={{ color: '#1a1208' }} />
-            <span style={st.actionBtnBoostLabel}>Boost Event</span>
-          </button>
-        </div>
+        {/* Event boosts (a paid promotion) are temporarily removed from the
+            iOS build for App Store review. */}
+        {!monetizationHidden() && (
+          <div style={st.actionRow}>
+            <button
+              onClick={() => {
+                if (!user) {
+                  // `/login` is not a route — it's a conditional screen in
+                  // App.tsx gated on `!user && !isGuest`. A guest is still
+                  // "logged out" but isGuest=true keeps AppShell mounted, so
+                  // navigate('/login') would just fall through to Discover.
+                  // Stash the intent, drop guest mode, and bounce to '/' so
+                  // App re-evaluates and renders Login. AppShell's resume hook
+                  // reopens this boost flow once the user signs in.
+                  setPendingIntent({ kind: 'boost_event' });
+                  if (isGuest) exitGuestMode();
+                  navigate('/');
+                  return;
+                }
+                setShowBoost(true);
+              }}
+              style={st.actionBtnBoost}
+            >
+              <Zap size={14} style={{ color: '#1a1208' }} />
+              <span style={st.actionBtnBoostLabel}>Boost Event</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Success banner after upload ── */}

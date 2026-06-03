@@ -20,6 +20,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { PageScroll } from '../components/ui/PageScroll';
 import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isProUser, FREE_TIER_EVENT_LIMIT } from '../lib/entitlements';
+import { monetizationHidden } from '../lib/platform';
 import { flashToast } from '../lib/toast';
 
 const LOG = '[SELLER_FORM]';
@@ -258,10 +259,19 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
         if (active >= FREE_TIER_EVENT_LIMIT) {
           setCapBlocked(true);
           setErr(
-            `Free accounts can have ${FREE_TIER_EVENT_LIMIT} active local event at a time. ` +
-            `Cancel or delete your existing event, or upgrade to Pro for unlimited events.`,
+            monetizationHidden()
+              ? `You can have ${FREE_TIER_EVENT_LIMIT} active local event at a time. ` +
+                `Cancel or delete your existing event to create a new one.`
+              : `Free accounts can have ${FREE_TIER_EVENT_LIMIT} active local event at a time. ` +
+                `Cancel or delete your existing event, or upgrade to Pro for unlimited events.`,
           );
-          flashToast('Free plan limit reached — upgrade to Pro for unlimited events', 'error', 4000);
+          flashToast(
+            monetizationHidden()
+              ? 'Event limit reached — cancel or delete an existing event first'
+              : 'Free plan limit reached — upgrade to Pro for unlimited events',
+            'error',
+            4000,
+          );
           return;
         }
       } catch (e: any) {

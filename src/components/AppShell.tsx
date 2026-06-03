@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { readPendingIntent, clearPendingIntent } from '../lib/pendingIntent';
 import { getOrCreateConversation } from '../lib/messaging';
 import { registerPush, removePush } from '../lib/push';
+import { monetizationHidden } from '../lib/platform';
 
 // Route-level code splitting — each page becomes its own chunk so the
 // initial bundle only includes Home + the shell. Other pages stream in
@@ -252,6 +253,12 @@ function useResumePendingIntent() {
           state: intent.prefill ? { prefill: intent.prefill } : undefined,
         });
       } else if (intent.kind === 'boost_event') {
+        // Event boosts are temporarily hidden for App Store review — if the
+        // flag is on, never reopen the boost picker; just land on Live Events.
+        if (monetizationHidden()) {
+          navigate('/live', { replace: true });
+          return;
+        }
         // Reopen Live Events with the boost picker auto-shown. LiveHub reads
         // `location.state.openBoost` on mount to pop the BoostPickerModal.
         navigate('/live', { replace: true, state: { openBoost: true } });
@@ -304,7 +311,9 @@ export default function AppShell() {
             <Route path="/messages/:id" element={<MessagesPage />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/marketplace" element={<MarketplacePage />} />
-            <Route path="/pro" element={<ProPage />} />
+            {/* Pro/membership/pricing screen is temporarily removed from the
+                iOS build for App Store review — redirect to Discover. */}
+            <Route path="/pro" element={monetizationHidden() ? <Navigate to="/" replace /> : <ProPage />} />
             <Route path="/safety" element={<SafetyPage />} />
             <Route path="/blocked" element={<BlockedUsersPage />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
@@ -316,7 +325,9 @@ export default function AppShell() {
             <Route path="/events" element={<EventsPage />} />
             <Route path="/following" element={<FollowingPage />} />
             <Route path="/seller" element={<SellerDashboardPage />} />
-            <Route path="/seller/analytics" element={<SellerAnalyticsPage />} />
+            {/* Pro-only Reach Analytics is temporarily removed for App Store
+                review — redirect to the seller dashboard. */}
+            <Route path="/seller/analytics" element={monetizationHidden() ? <Navigate to="/seller" replace /> : <SellerAnalyticsPage />} />
             <Route path="/seller/new" element={<SellerEventFormPage />} />
             <Route path="/seller/event/:id" element={<SellerEventFormPage />} />
             <Route path="/event/:id" element={<EventDetailPage />} />

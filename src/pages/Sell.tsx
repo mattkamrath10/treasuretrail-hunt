@@ -2,6 +2,7 @@ import { type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Radio, Sparkles, Search, ChevronRight } from 'lucide-react';
 import { PageScroll } from '../components/ui/PageScroll';
+import { monetizationHidden } from '../lib/platform';
 
 type Tile = {
   id: string;
@@ -86,7 +87,11 @@ export default function Sell({ onBack }: { onBack: () => void }) {
         })}
       </div>
 
-      <p style={s.footnote}>All posts are free. Boost any event or livestream from <a onClick={() => navigate('/pro')} style={s.link}>Membership</a>.</p>
+      {monetizationHidden() ? (
+        <p style={s.footnote}>All posts are free.</p>
+      ) : (
+        <p style={s.footnote}>All posts are free. Boost any event or livestream from <a onClick={() => navigate('/pro')} style={s.link}>Membership</a>.</p>
+      )}
     </PageScroll>
   );
 }

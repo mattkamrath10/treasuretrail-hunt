@@ -28,7 +28,7 @@ import { shareWithImage } from '../lib/shareWithImage';
 import { Zap } from 'lucide-react';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { startBoostPurchase } from '../lib/payments';
-import { iosPaymentsBlocked } from '../lib/platform';
+import { monetizationHidden } from '../lib/platform';
 import ReportButton from '../components/moderation/ReportButton';
 import BlockUserButton from '../components/moderation/BlockUserButton';
 
@@ -878,9 +878,9 @@ function OwnerBoostRow({ event, onApplied }: { event: EventRow; onApplied: () =>
   const active = isBoosted(event);
   const remaining = boostExpiresInLabel(event);
 
-  // Apple 3.1.1: no purchasable digital goods on iOS. Hide the boost CTA
-  // entirely on iOS, but still show the "Boosted" status pill if already active.
-  if (iosPaymentsBlocked() && !active) return null;
+  // Temporarily hidden for App Store review — remove the entire boost row
+  // (CTA and the "Boosted" status pill) from the iOS build.
+  if (monetizationHidden()) return null;
 
   const onBoost = async () => {
     setBusy(true);

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { Zap } from 'lucide-react';
+import { monetizationHidden } from '../../lib/platform';
 
 /**
  * BoostedBadge — small gold pill applied to any boosted card. Designed
@@ -14,6 +15,8 @@ export function BoostedBadge({
   style?: CSSProperties;
 }) {
   const isMd = size === 'md';
+  // Temporarily hidden for App Store review — no boost-related labels in iOS.
+  if (monetizationHidden()) return null;
   return (
     <span
       aria-label="Boosted"

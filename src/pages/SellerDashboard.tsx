@@ -10,6 +10,7 @@ import {
   type EventRow, type EventStatus,
 } from '../lib/events';
 import { isProUser } from '../lib/entitlements';
+import { monetizationHidden } from '../lib/platform';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
@@ -143,7 +144,8 @@ export default function SellerDashboard({ onBack }: { onBack: () => void }) {
         <div style={s.sectionHeader}>
           <h3 style={s.sectionTitle}>My events</h3>
           <div style={{ display: 'flex', gap: 6 }}>
-            {isPro && (
+            {/* Pro-only Reach Analytics is temporarily hidden for App Store review. */}
+            {isPro && !monetizationHidden() && (
               <button onClick={() => navigate('/seller/analytics')} style={s.ghostBtn}>
                 <BarChart3 size={13} /> Analytics
               </button>

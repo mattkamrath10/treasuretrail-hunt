@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Crown, ChevronRight } from 'lucide-react';
 import { PRO_PRODUCT } from '../../lib/entitlements';
-import { iosPaymentsBlocked } from '../../lib/platform';
+import { monetizationHidden } from '../../lib/platform';
 
 /**
  * UpgradeProCard — the single "Upgrade to Pro" CTA tile surfaced to
@@ -17,8 +17,9 @@ export function UpgradeProCard({
   onUpgrade: () => void;
   style?: CSSProperties;
 }) {
-  // Apple 3.1.1: no purchase entry points on iOS.
-  if (iosPaymentsBlocked()) return null;
+  // Temporarily hidden for App Store review — no Upgrade/Pro entry points
+  // anywhere in the iOS build.
+  if (monetizationHidden()) return null;
   return (
     <button
       onClick={onUpgrade}

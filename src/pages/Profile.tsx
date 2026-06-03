@@ -14,6 +14,7 @@ import { Badge } from '../components/ui/Badge';
 import { ProBadge } from '../components/ui/ProBadge';
 import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isProUser } from '../lib/entitlements';
+import { monetizationHidden } from '../lib/platform';
 import UserShowcase from '../components/UserShowcase';
 import { BecomeHostCard } from '../components/BecomeHostCard';
 import { shareWithImage } from '../lib/shareWithImage';
@@ -35,7 +36,7 @@ function getTrustIndicators(profile: any): TrustIndicator[] {
     { label: 'Profile photo added', icon: ImageIcon, earned: !!profile?.avatar_url },
     { label: 'Bio completed', icon: User, earned: !!(profile?.bio && profile.bio.trim().length > 0) },
     { label: 'Categories chosen', icon: Tag, earned: !!(profile?.favorite_categories && profile.favorite_categories.length > 0) },
-    ...(isPro ? [{ label: 'Pro Member', icon: Crown, earned: true }] : []),
+    ...(isPro && !monetizationHidden() ? [{ label: 'Pro Member', icon: Crown, earned: true }] : []),
   ];
 }
 
@@ -133,7 +134,7 @@ export default function Profile() {
           />
         )}
 
-        {profile && isProUser(profile) && profile.account_type === 'holder' && (
+        {!monetizationHidden() && profile && isProUser(profile) && profile.account_type === 'holder' && (
           <button
             onClick={() => navigate('/seller/analytics')}
             style={{
@@ -413,7 +414,7 @@ function ProfileHeader({ profile }: { profile: any }) {
 
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
         <h2 style={styles.username}>@{profile?.username || 'treasure_hunter'}</h2>
-        {isProUser(profile) && <ProBadge size="md" />}
+        {!monetizationHidden() && isProUser(profile) && <ProBadge size="md" />}
       </div>
       {profile?.bio && <p style={styles.bio}>{profile.bio}</p>}
       <div style={styles.rankRow}>
@@ -483,7 +484,7 @@ function AiScanUsageCard() {
       <div style={proStyles.usageHeader}>
         <Sparkles size={16} style={{ color: 'var(--color-primary-500)' }} />
         <span style={proStyles.usageTitle}>AI Treasure Scans</span>
-        {isPro && (
+        {isPro && !monetizationHidden() && (
           <span style={proStyles.proPill}>
             <Crown size={10} style={{ color: 'var(--color-neutral-0)' }} />
             PRO
@@ -508,7 +509,9 @@ function AiScanUsageCard() {
           <span style={proStyles.usageSub}>
             {usage.remaining > 0
               ? 'Resets 24 hours after each scan.'
-              : 'Come back tomorrow or upgrade to Pro for unlimited scans.'}
+              : monetizationHidden()
+                ? 'Come back tomorrow for more scans.'
+                : 'Come back tomorrow or upgrade to Pro for unlimited scans.'}
           </span>
         </>
       )}
