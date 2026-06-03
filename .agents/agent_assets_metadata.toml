@@ -36,3 +36,9 @@ id = "d6qL6YTyTXGjBwSrnlUxb"
 uri = "file://treasuretrail.zip"
 type = "unspecified"
 title = "TreasureTrail project (source + assets)"
+
+[[outputs]]
+id = "GjKL4KhkdxHWpBX_x-U8k"
+uri = "file://treasuretrail-project.zip"
+type = "unspecified"
+title = "TreasureTrail Project (source + assets)"
