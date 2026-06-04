@@ -72,3 +72,9 @@ id = "uKlM16SUL4rK9Ufl8O18Y"
 uri = "file://.local/android-keystore/upload_certificate_pem.tar.gz"
 type = "unspecified"
 title = "Upload Certificate (.pem inside) — for Google Play 'Request upload key reset'"
+
+[[outputs]]
+id = "K-YbAXs20GYohGhzZ3P9C"
+uri = "file://.local/fix/build_gradle_v2.tar.gz"
+type = "unspecified"
+title = "Corrected build.gradle (version bumped to 2) — replace your existing one"
