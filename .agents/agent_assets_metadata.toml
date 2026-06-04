@@ -48,3 +48,9 @@ id = "7X4fBp5prWA2crc8dHf1X"
 uri = "file://.local/android-keystore/treasuretrail-keystore.tar.gz"
 type = "unspecified"
 title = "TreasureTrail Android Upload Keystore + Credentials (download, then extract for the .jks)"
+
+[[outputs]]
+id = "8sdi32qYeceGIwPY4orwg"
+uri = "file://.local/android-keystore/treasuretrail-keystore-credentials.csv"
+type = "table"
+title = "TreasureTrail Keystore Credentials (CSV)"
