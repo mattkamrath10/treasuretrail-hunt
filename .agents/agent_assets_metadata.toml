@@ -54,3 +54,9 @@ id = "8sdi32qYeceGIwPY4orwg"
 uri = "file://.local/android-keystore/treasuretrail-keystore-credentials.csv"
 type = "table"
 title = "TreasureTrail Keystore Credentials (CSV)"
+
+[[outputs]]
+id = "wXCYBGlHTP57DX3q6icFu"
+uri = "file://.local/android-keystore/treasuretrail-keystore-google-import.csv"
+type = "table"
+title = "TreasureTrail Keystore — Google Password Manager Import (CSV)"
