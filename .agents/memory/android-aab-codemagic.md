@@ -20,8 +20,13 @@ honest answer is the binary is produced in CI, not in this environment.
   present. Codemagic injects them when an Android keystore is attached via
   `android_signing: [treasuretrail_keystore]` (added in the Codemagic UI under
   Code signing identities -> Android keystores).
-- `applicationId` / `namespace` / Capacitor `appId` / iOS bundle id must all be
-  `com.treasuretrail.hunt` (an earlier typo had `com.treasuretrailhunt`).
+- **Google Play registered the Android app as `com.treasuretrailhunt` (NO dot).**
+  This is the source of truth (Play Console upload error states it explicitly), so
+  `android/app/build.gradle` `applicationId` MUST be `com.treasuretrailhunt`. Do NOT
+  "fix" it to the dotted form — Play rejects any other package name. The `namespace`
+  (code package where MainActivity lives) is the dotted `com.treasuretrail.hunt` and
+  legitimately differs from applicationId; that mismatch is fine and is how the
+  accepted June-2 build was structured. iOS bundle id is a separate matter.
 - `versionCode` must be bumped for every Play upload (first upload can be 1).
 - Web env vars (VITE_SUPABASE_URL/ANON_KEY) come from the Codemagic `supabase`
   group; missing client VITE_ vars = blank-screen launch.

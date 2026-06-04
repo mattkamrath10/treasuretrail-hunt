@@ -77,4 +77,4 @@ title = "Upload Certificate (.pem inside) — for Google Play 'Request upload ke
 id = "K-YbAXs20GYohGhzZ3P9C"
 uri = "file://.local/fix/build_gradle_v2.tar.gz"
 type = "unspecified"
-title = "Corrected build.gradle (version bumped to 2) — replace your existing one"
+title = "Corrected build.gradle (package com.treasuretrailhunt, version 2) — replace your existing one"
