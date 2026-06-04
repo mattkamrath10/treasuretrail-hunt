@@ -47,19 +47,19 @@ title = "TreasureTrail Project — iOS compliance build (source + assets)"
 id = "7X4fBp5prWA2crc8dHf1X"
 uri = "file://.local/android-keystore/treasuretrail-keystore.tar.gz"
 type = "unspecified"
-title = "TreasureTrail Android Upload Keystore + Credentials (download, then extract for the .jks)"
+title = "Keystore + credentials (extract to get treasuretrail-upload.jks)"
 
 [[outputs]]
 id = "8sdi32qYeceGIwPY4orwg"
 uri = "file://.local/android-keystore/treasuretrail-keystore-credentials.csv"
 type = "table"
-title = "TreasureTrail Keystore Credentials (CSV)"
+title = "Keystore credentials (CSV)"
 
 [[outputs]]
 id = "wXCYBGlHTP57DX3q6icFu"
 uri = "file://.local/android-keystore/treasuretrail-keystore-google-import.csv"
 type = "table"
-title = "TreasureTrail Keystore — Google Password Manager Import (CSV)"
+title = "Keystore credentials — Google Password Manager import (CSV)"
 
 [[outputs]]
 id = "Vv6wDVlQl665P162KpJNb"
