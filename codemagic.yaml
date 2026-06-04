@@ -99,3 +99,48 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+
+  # ---------------------------------------------------------------------------
+  # Android App Bundle (.aab) for Google Play Console.
+  #
+  # ONE-TIME SETUP IN THE CODEMAGIC WEB UI (cannot be done from code):
+  #   1. Codemagic -> Teams/your app -> Code signing identities -> Android
+  #      keystores -> "Add key". Upload (or generate) an upload keystore and
+  #      give it the reference name EXACTLY:  treasuretrail_keystore
+  #      (must match the `android_signing:` line below). Enter the keystore
+  #      password, key alias, and key password there.
+  #   2. The "supabase" env-var group must already contain VITE_SUPABASE_URL
+  #      and VITE_SUPABASE_ANON_KEY (same group the iOS build uses).
+  # Then push this file and press "Start new build" on this workflow.
+  #
+  # The signed .aab artifact appears under the build's "Artifacts" tab; download
+  # it and upload it to Google Play Console.
+  # ---------------------------------------------------------------------------
+  android-aab:
+    name: Android AAB (TreasureTrail)
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      groups:
+        - supabase
+      android_signing:
+        - treasuretrail_keystore
+      vars:
+        # Baked into the web bundle that ships inside the native app.
+        VITE_API_BASE: "https://treasuretrail-hunt.com"
+        VITE_PUBLIC_WEB_URL: "https://treasuretrail-hunt.com"
+      node: 22
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Build web assets (Vite)
+        script: npm run build
+      - name: Capacitor sync Android
+        script: npx cap sync android
+      - name: Build signed release AAB
+        script: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.aab

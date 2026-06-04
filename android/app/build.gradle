@@ -4,7 +4,7 @@ android {
     namespace = "com.treasuretrail.hunt"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.treasuretrailhunt"
+        applicationId "com.treasuretrail.hunt"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -16,8 +16,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            // Populated on Codemagic when an Android keystore is attached via
+            // `android_signing` in codemagic.yaml — Codemagic injects these env
+            // vars automatically. Absent locally (no keystore), so the release
+            // build is only signed in CI.
+            if (System.getenv("CM_KEYSTORE_PATH")) {
+                storeFile file(System.getenv("CM_KEYSTORE_PATH"))
+                storePassword System.getenv("CM_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("CM_KEY_ALIAS")
+                keyPassword System.getenv("CM_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("CM_KEYSTORE_PATH")) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
