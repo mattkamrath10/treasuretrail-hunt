@@ -116,7 +116,8 @@ echo.
 echo       %CD%\android
 echo.
 echo   Then: Build  ^>  Generate Signed Bundle / APK  ^>  Android App Bundle,
-echo   select your treasuretrail-upload.jks keystore, build variant "release".
+echo   select your ORIGINAL keystore ^(the one signed "CN=Matthew Kamrath",
+echo   the same key your existing Google Play app uses^), build variant "release".
 echo   The signed bundle will be written to:
 echo.
 echo       %CD%\android\app\release\app-release.aab

@@ -65,7 +65,7 @@ title = "Keystore credentials — Google Password Manager import (CSV)"
 id = "Vv6wDVlQl665P162KpJNb"
 uri = "file://.local/TreasureTrail-source.zip"
 type = "unspecified"
-title = "TreasureTrail — Clean Source Export (Android + Capacitor + build-android.bat + monetization-hidden)"
+title = "TreasureTrail - latest source code (for building a fresh app bundle)"
 
 [[outputs]]
 id = "uKlM16SUL4rK9Ufl8O18Y"
