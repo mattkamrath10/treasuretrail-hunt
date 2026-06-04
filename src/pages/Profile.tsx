@@ -1,48 +1,29 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Star, Camera, Heart, Upload, Award, LogOut, Shield, ShieldOff, User, Users, CircleCheck as CheckCircle, Trophy, Loader, Share2, Sparkles, Crown, Calendar, Tag, ImageIcon, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
+import { Camera, Heart, Upload, LogOut, Shield, ShieldOff, Users, CircleCheck as CheckCircle, Trophy, Loader, Share2, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import { PageScroll } from '../components/ui/PageScroll';
 import { supabase } from '../lib/supabase';
-import { fetchAiScanUsage, type AiScanUsage } from '../lib/aiAnalysis';
 import { compressImage } from '../lib/imageCompress';
-import { Badge } from '../components/ui/Badge';
 import { ProBadge } from '../components/ui/ProBadge';
 import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isProUser } from '../lib/entitlements';
 import { monetizationHidden } from '../lib/platform';
 import UserShowcase from '../components/UserShowcase';
-import { BecomeHostCard } from '../components/BecomeHostCard';
 import { shareWithImage } from '../lib/shareWithImage';
 import { deleteAccount } from '../lib/account';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { fetchSavedFinds, type SavedFindCard } from '../lib/savedListings';
+import { fetchMyEvents, type EventRow } from '../lib/events';
+import { fetchMyWantedItems, type WantedItemRow } from '../lib/wanted';
 import { MediaFallback, type FallbackKind } from '../components/ui/MediaFallback';
-
-type ProfileTab = 'overview' | 'reputation' | 'activity';
-
-type TrustIndicator = { label: string; icon: typeof Shield; earned: boolean };
-
-function getTrustIndicators(profile: any): TrustIndicator[] {
-  // Use the canonical entitlement helper so any tier-resolution change
-  // (e.g. trials, grace periods) ripples through every UI surface.
-  const isPro = isProUser(profile);
-  return [
-    { label: 'Member since ' + (profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'), icon: Calendar, earned: !!profile?.created_at },
-    { label: 'Profile photo added', icon: ImageIcon, earned: !!profile?.avatar_url },
-    { label: 'Bio completed', icon: User, earned: !!(profile?.bio && profile.bio.trim().length > 0) },
-    { label: 'Categories chosen', icon: Tag, earned: !!(profile?.favorite_categories && profile.favorite_categories.length > 0) },
-    ...(isPro && !monetizationHidden() ? [{ label: 'Pro Member', icon: Crown, earned: true }] : []),
-  ];
-}
 
 export default function Profile() {
   const { profile, signOut, isGuest, isAdmin } = useAuth();
-  const [tab, setTab] = useState<ProfileTab>('overview');
   const [showDelete, setShowDelete] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const navigate = useNavigate();
@@ -164,21 +145,7 @@ export default function Profile() {
           </button>
         )}
 
-        <div style={styles.tabs}>
-          {(['overview', 'reputation', 'activity'] as ProfileTab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{ ...styles.tab, ...(tab === t ? styles.tabActive : {}) }}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'overview' && <OverviewTab profile={profile} />}
-        {tab === 'reputation' && <ReputationTab profile={profile} />}
-        {tab === 'activity' && <ActivityTab />}
+        <ActivitySection />
 
         {/* Prominent, clearly-labeled Sign Out CTA at the bottom of the
             Profile page. The header has an icon-only sign-out button as
@@ -261,6 +228,8 @@ function ProfileHeader({ profile }: { profile: any }) {
   const [uploadError, setUploadError] = useState('');
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [findsCount, setFindsCount] = useState<number>(0);
+  const [eventsCount, setEventsCount] = useState<number>(0);
+  const [wantedCount, setWantedCount] = useState<number>(0);
   const [savedCount, setSavedCount] = useState<number>(0);
 
   // Pull real counters so the stat row stops showing hardcoded zeros.
@@ -272,19 +241,23 @@ function ProfileHeader({ profile }: { profile: any }) {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const postsRes = await supabase
-        .from('community_posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+      // Stats mirror the Activity carousels exactly:
+      //  - Finds  = community_posts + marketplace_listings (UserShowcase
+      //    merges both, so the header must sum both or it under-counts).
+      //  - Events = my published, non-hidden events.
+      //  - Wanted = my open, non-hidden wanted items.
+      //  - Saved  = fetchSavedFinds (deduped union of local + server saves).
+      const [postsRes, listingsRes, evs, wants, finds] = await Promise.all([
+        supabase.from('community_posts').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('marketplace_listings').select('id', { count: 'exact', head: true }).eq('seller_id', user.id),
+        fetchMyEvents(user.id).catch(() => [] as EventRow[]),
+        fetchMyWantedItems(user.id).catch(() => [] as WantedItemRow[]),
+        fetchSavedFinds(user.id),
+      ]);
       if (cancelled) return;
-      setFindsCount(postsRes.count ?? 0);
-      // Saved count must equal the deduped union of localStorage + server
-      // saves the user actually sees in "Saved Finds". fetchSavedFinds is
-      // the single source of truth (it merges both stores and de-dupes by
-      // kind:id), so the stat can never drift from the list again — and we
-      // avoid double-counting a post saved in BOTH stores.
-      const finds = await fetchSavedFinds(user.id);
-      if (cancelled) return;
+      setFindsCount((postsRes.count ?? 0) + (listingsRes.count ?? 0));
+      setEventsCount(evs.filter((e) => e.status === 'published' && !e.is_hidden).length);
+      setWantedCount(wants.filter((w) => w.status === 'open' && !w.is_hidden).length);
       setSavedCount(finds.length);
     })();
     return () => { cancelled = true; };
@@ -426,18 +399,18 @@ function ProfileHeader({ profile }: { profile: any }) {
 
       <div style={styles.stats}>
         <div style={styles.stat}>
-          <span style={styles.statNumber}>{profile?.follower_count || 0}</span>
-          <span style={styles.statLabel}>Followers</span>
-        </div>
-        <div style={styles.statDivider} />
-        <div style={styles.stat}>
-          <span style={styles.statNumber}>{profile?.following_count || 0}</span>
-          <span style={styles.statLabel}>Following</span>
-        </div>
-        <div style={styles.statDivider} />
-        <div style={styles.stat}>
           <span style={styles.statNumber}>{findsCount}</span>
           <span style={styles.statLabel}>Finds</span>
+        </div>
+        <div style={styles.statDivider} />
+        <div style={styles.stat}>
+          <span style={styles.statNumber}>{eventsCount}</span>
+          <span style={styles.statLabel}>Events</span>
+        </div>
+        <div style={styles.statDivider} />
+        <div style={styles.stat}>
+          <span style={styles.statNumber}>{wantedCount}</span>
+          <span style={styles.statLabel}>Wanted</span>
         </div>
         <div style={styles.statDivider} />
         <div style={styles.stat} title="Items you've bookmarked to revisit later">
@@ -449,78 +422,7 @@ function ProfileHeader({ profile }: { profile: any }) {
   );
 }
 
-function AiScanUsageCard() {
-  const [usage, setUsage] = useState<AiScanUsage | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchAiScanUsage().then((u) => {
-      if (cancelled) return;
-      setUsage(u);
-      setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  if (loading) {
-    return (
-      <div style={proStyles.usageCard}>
-        <div style={proStyles.usageHeader}>
-          <Sparkles size={16} style={{ color: 'var(--color-primary-500)' }} />
-          <span style={proStyles.usageTitle}>AI Treasure Scans</span>
-        </div>
-        <span style={proStyles.usageSub}>Loading…</span>
-      </div>
-    );
-  }
-  if (!usage) return null;
-
-  const isPro = usage.tier === 'pro';
-  const pct = isPro ? 0 : Math.min(100, (usage.used / usage.limit) * 100);
-
-  return (
-    <div style={proStyles.usageCard}>
-      <div style={proStyles.usageHeader}>
-        <Sparkles size={16} style={{ color: 'var(--color-primary-500)' }} />
-        <span style={proStyles.usageTitle}>AI Treasure Scans</span>
-        {isPro && !monetizationHidden() && (
-          <span style={proStyles.proPill}>
-            <Crown size={10} style={{ color: 'var(--color-neutral-0)' }} />
-            PRO
-          </span>
-        )}
-      </div>
-      {isPro ? (
-        <>
-          <span style={proStyles.usageBig}>Unlimited</span>
-          <span style={proStyles.usageSub}>
-            {usage.used} used today (safety cap {usage.limit})
-          </span>
-        </>
-      ) : (
-        <>
-          <span style={proStyles.usageBig}>
-            {usage.remaining} <span style={proStyles.usageBigSuffix}>of {usage.limit} left today</span>
-          </span>
-          <div style={proStyles.usageBar}>
-            <div style={{ ...proStyles.usageFill, width: `${pct}%` }} />
-          </div>
-          <span style={proStyles.usageSub}>
-            {usage.remaining > 0
-              ? 'Resets 24 hours after each scan.'
-              : monetizationHidden()
-                ? 'Come back tomorrow for more scans.'
-                : 'Come back tomorrow or upgrade to Pro for unlimited scans.'}
-          </span>
-        </>
-      )}
-    </div>
-  );
-}
-
-function OverviewTab({ profile }: { profile: any }) {
-  const repScore = profile?.reputation_score ?? 0;
+function ActivitySection() {
   const { user } = useAuth();
   const navigate = useNavigate();
   // null = still loading; [] = loaded and genuinely empty.
@@ -549,75 +451,23 @@ function OverviewTab({ profile }: { profile: any }) {
     if (item.to) navigate(item.to);
   };
 
+  if (!user) {
+    return (
+      <div style={styles.emptyTabState}>
+        <Upload size={28} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
+        <p style={styles.emptyTabTitle}>Sign in to see your activity</p>
+      </div>
+    );
+  }
+
   return (
     <>
-      <BecomeHostCard surface="profile" />
-      <AiScanUsageCard />
-      <div style={styles.reputationCard}>
-        <div style={styles.repLeft}>
-          <Award size={20} style={{ color: 'var(--color-primary-500)' }} />
-          <div>
-            <h3 style={styles.repTitle}>Reputation Score</h3>
-            <p style={styles.repSubtitle}>{repScore > 0 ? 'Based on your activity' : 'No ratings yet'}</p>
-          </div>
-        </div>
-        <div style={styles.repScore}>
-          <span style={styles.scoreNumber}>{repScore}</span>
-          <Star size={14} style={{ color: 'var(--color-primary-500)', fill: 'var(--color-primary-500)' }} />
-        </div>
+      <h2 style={{ margin: '0 0 var(--space-3)', fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
+        Activity
+      </h2>
+      <div style={{ marginBottom: 'var(--space-5)' }}>
+        <UserShowcase userId={user.id} isSelf />
       </div>
-
-      <div style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <Shield size={16} style={{ color: 'var(--color-secondary-500)' }} />
-          <h3 style={styles.sectionTitle}>Profile Trust</h3>
-        </div>
-        <div style={styles.badgesGrid}>
-          {getTrustIndicators(profile).map((ind) => (
-            <div
-              key={ind.label}
-              style={{
-                ...styles.badgeItem,
-                ...(ind.earned ? {} : styles.badgeItemLocked),
-              }}
-            >
-              <ind.icon
-                size={18}
-                style={{
-                  color: ind.earned ? 'var(--color-primary-500)' : 'var(--color-neutral-300)',
-                }}
-              />
-              <span
-                style={{
-                  ...styles.badgeLabel,
-                  color: ind.earned ? 'var(--color-neutral-700)' : 'var(--color-neutral-400)',
-                }}
-              >
-                {ind.label}
-              </span>
-              {ind.earned && (
-                <CheckCircle size={14} style={{ color: 'var(--color-success-500)' }} aria-label="Completed" />
-              )}
-            </div>
-          ))}
-        </div>
-        <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', marginTop: 'var(--space-2)', lineHeight: 1.4 }}>
-          Trust signals reflect your real profile completeness — no fake ratings.
-        </p>
-      </div>
-
-      {profile?.favorite_categories && profile.favorite_categories.length > 0 && (
-        <div style={styles.section}>
-          <div style={styles.sectionHeader}>
-            <h3 style={styles.sectionTitle}>Favorite Categories</h3>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {profile.favorite_categories.map((cat: string) => (
-              <Badge key={cat} variant="category">{cat}</Badge>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div style={styles.section}>
         <div style={styles.sectionHeader}>
@@ -665,73 +515,6 @@ function OverviewTab({ profile }: { profile: any }) {
         )}
       </div>
     </>
-  );
-}
-
-function ReputationTab({ profile }: { profile: any }) {
-  const score = profile?.reputation_score ?? 0;
-  const scorePercent = Math.min((score / 5) * 100, 100);
-  return (
-    <>
-      <div style={styles.repPanel}>
-        <div style={styles.repPanelHeader}>
-          <div style={styles.trustedBadge}>
-            <Shield size={20} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={styles.trustedText}>Building Reputation</span>
-          </div>
-          <div style={styles.repScoreLarge}>
-            <span style={styles.repScoreNum}>{score.toFixed(1)}</span>
-            <span style={styles.repScoreMax}>/5.0</span>
-          </div>
-        </div>
-
-        <div style={styles.repMetrics}>
-          <div style={styles.repMetric}>
-            <div style={styles.repMetricIcon}>
-              <Star size={14} style={{ color: 'var(--color-primary-500)' }} />
-            </div>
-            <div style={styles.repMetricInfo}>
-              <span style={styles.repMetricLabel}>Reputation Score</span>
-              <span style={styles.repMetricValue}>{score.toFixed(1)} / 5.0</span>
-            </div>
-            <div style={styles.repMetricBar}>
-              <div style={{ ...styles.repMetricFill, width: `${scorePercent}%` }} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {profile?.favorite_categories && profile.favorite_categories.length > 0 && (
-        <div style={styles.section}>
-          <div style={styles.sectionHeader}>
-            <h3 style={styles.sectionTitle}>Specialty Categories</h3>
-          </div>
-          <div style={styles.categoriesList}>
-            {profile.favorite_categories.map((cat: string) => (
-              <span key={cat} style={styles.categoryTag}>{cat}</span>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function ActivityTab() {
-  const { user } = useAuth();
-  if (!user) {
-    return (
-      <div style={styles.emptyTabState}>
-        <Upload size={28} style={{ color: 'var(--color-neutral-300)', marginBottom: 8 }} />
-        <p style={styles.emptyTabTitle}>Sign in to see your activity</p>
-      </div>
-    );
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-      <h3 style={{ ...styles.sectionTitle, margin: 0 }}>Your Showcase</h3>
-      <UserShowcase userId={user.id} isSelf />
-    </div>
   );
 }
 
@@ -806,81 +589,6 @@ function DeleteAccountConfirm({ onCancel }: { onCancel: () => void }) {
     </div>
   );
 }
-
-const proStyles: Record<string, React.CSSProperties> = {
-  proBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '3px',
-    padding: '2px 8px',
-    borderRadius: 'var(--radius-full)',
-    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700))',
-    color: 'var(--color-neutral-0)',
-    fontSize: '10px',
-    fontWeight: 'var(--font-weight-bold)',
-    letterSpacing: '0.5px',
-  },
-  proPill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '2px',
-    marginLeft: 'auto',
-    padding: '1px 6px',
-    borderRadius: 'var(--radius-full)',
-    background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700))',
-    color: 'var(--color-neutral-0)',
-    fontSize: '9px',
-    fontWeight: 'var(--font-weight-bold)',
-    letterSpacing: '0.5px',
-  },
-  usageCard: {
-    padding: 'var(--space-4)',
-    backgroundColor: 'var(--color-neutral-0)',
-    borderRadius: 'var(--radius-lg)',
-    marginBottom: 'var(--space-4)',
-    border: '1px solid var(--color-primary-100)',
-    boxShadow: 'var(--shadow-sm)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
-  },
-  usageHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-  },
-  usageTitle: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
-  },
-  usageBig: {
-    fontSize: 'var(--font-size-xl)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-primary-700)',
-  },
-  usageBigSuffix: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-medium)',
-    color: 'var(--color-neutral-500)',
-  },
-  usageBar: {
-    height: '6px',
-    width: '100%',
-    backgroundColor: 'var(--color-neutral-100)',
-    borderRadius: 'var(--radius-full)',
-    overflow: 'hidden',
-  },
-  usageFill: {
-    height: '100%',
-    background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-600))',
-    borderRadius: 'var(--radius-full)',
-  },
-  usageSub: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-  },
-};
 
 const settingsStyles: Record<string, React.CSSProperties> = {
   overlay: {
@@ -1321,92 +1029,6 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'var(--color-neutral-200)',
   },
 
-  // Tabs
-  tabs: {
-    display: 'flex',
-    gap: 'var(--space-1)',
-    marginBottom: 'var(--space-4)',
-    padding: 'var(--space-1)',
-    backgroundColor: 'var(--color-neutral-100)',
-    borderRadius: 'var(--radius-md)',
-  },
-  tab: {
-    flex: 1,
-    padding: 'var(--space-2) var(--space-2)',
-    borderRadius: 'var(--radius-sm)',
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-medium)',
-    color: 'var(--color-neutral-500)',
-    textAlign: 'center',
-    transition: 'all var(--transition-fast)',
-  },
-  tabActive: {
-    backgroundColor: 'var(--color-neutral-0)',
-    color: 'var(--color-neutral-900)',
-    fontWeight: 'var(--font-weight-semibold)',
-    boxShadow: 'var(--shadow-sm)',
-  },
-
-  // Reputation card
-  reputationCard: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 'var(--space-4)',
-    backgroundColor: 'var(--color-primary-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-primary-100)',
-    marginBottom: 'var(--space-5)',
-  },
-  repLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-  },
-  repTitle: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-800)',
-  },
-  repSubtitle: {
-    fontSize: 'var(--font-size-xs)',
-    color: 'var(--color-neutral-500)',
-  },
-  repScore: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-  },
-  scoreNumber: {
-    fontSize: 'var(--font-size-xl)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-primary-700)',
-  },
-
-  // Badges
-  badgesGrid: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-2)',
-  },
-  badgeItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    padding: 'var(--space-3) var(--space-4)',
-    backgroundColor: 'var(--color-neutral-50)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-100)',
-  },
-  badgeItemLocked: {
-    opacity: 0.5,
-  },
-  badgeLabel: {
-    flex: 1,
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-medium)',
-  },
-
   // Sections
   section: {
     marginBottom: 'var(--space-5)',
@@ -1421,20 +1043,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-sm)',
     fontWeight: 'var(--font-weight-semibold)',
     color: 'var(--color-neutral-800)',
-  },
-  categoriesList: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 'var(--space-2)',
-  },
-  categoryTag: {
-    padding: 'var(--space-1) var(--space-3)',
-    borderRadius: 'var(--radius-full)',
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-medium)',
-    backgroundColor: 'var(--color-secondary-50)',
-    color: 'var(--color-secondary-700)',
-    border: '1px solid var(--color-secondary-100)',
   },
   grid: {
     display: 'grid',
@@ -1464,100 +1072,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-0)',
     fontSize: 'var(--font-size-xs)',
     fontWeight: 'var(--font-weight-bold)',
-  },
-
-  // Reputation panel
-  repPanel: {
-    padding: 'var(--space-4)',
-    backgroundColor: 'var(--color-neutral-0)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-neutral-100)',
-    marginBottom: 'var(--space-5)',
-  },
-  repPanelHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 'var(--space-4)',
-    paddingBottom: 'var(--space-3)',
-    borderBottom: '1px solid var(--color-neutral-100)',
-  },
-  trustedBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-2)',
-    padding: 'var(--space-2) var(--space-3)',
-    backgroundColor: 'var(--color-primary-50)',
-    borderRadius: 'var(--radius-full)',
-    border: '1px solid var(--color-primary-200)',
-  },
-  trustedText: {
-    fontSize: 'var(--font-size-xs)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-primary-700)',
-  },
-  repScoreLarge: {
-    display: 'flex',
-    alignItems: 'baseline',
-  },
-  repScoreNum: {
-    fontSize: 'var(--font-size-2xl)',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-neutral-900)',
-  },
-  repScoreMax: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-400)',
-  },
-  repMetrics: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--space-4)',
-  },
-  repMetric: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    flexWrap: 'wrap',
-  },
-  repMetricIcon: {
-    width: '28px',
-    height: '28px',
-    borderRadius: 'var(--radius-sm)',
-    backgroundColor: 'var(--color-neutral-50)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  repMetricInfo: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minWidth: 0,
-  },
-  repMetricLabel: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--color-neutral-700)',
-  },
-  repMetricValue: {
-    fontSize: 'var(--font-size-sm)',
-    fontWeight: 'var(--font-weight-semibold)',
-    color: 'var(--color-neutral-900)',
-  },
-  repMetricBar: {
-    width: '100%',
-    height: '4px',
-    backgroundColor: 'var(--color-neutral-100)',
-    borderRadius: 'var(--radius-full)',
-    marginTop: 'var(--space-1)',
-  },
-  repMetricFill: {
-    height: '100%',
-    backgroundColor: 'var(--color-primary-500)',
-    borderRadius: 'var(--radius-full)',
-    transition: 'width 0.6s ease',
   },
 
   // Regional coverage
