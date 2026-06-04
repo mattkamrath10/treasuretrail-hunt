@@ -60,3 +60,9 @@ id = "wXCYBGlHTP57DX3q6icFu"
 uri = "file://.local/android-keystore/treasuretrail-keystore-google-import.csv"
 type = "table"
 title = "TreasureTrail Keystore — Google Password Manager Import (CSV)"
+
+[[outputs]]
+id = "Vv6wDVlQl665P162KpJNb"
+uri = "file://.local/TreasureTrail-source.zip"
+type = "unspecified"
+title = "TreasureTrail — Clean Source Export (Android + Capacitor + build-android.bat + monetization-hidden)"
