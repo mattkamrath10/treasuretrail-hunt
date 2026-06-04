@@ -1,0 +1,76 @@
+BUG REPORT: Guest User Clicking "Create Event" Causes Blank Screen
+
+Issue:
+When a user enters TreasureTrail Marketplace in Guest Mode and taps the "Create Event" button, the app navigates to a blank screen with a loading spinner and becomes stuck indefinitely.
+
+Expected Behavior:
+Guest users should not be allowed to create events. Instead of navigating to the event creation page, the app should display an Account Required screen or modal.
+
+Required Fix:
+
+1. Locate the Create Event button action.
+
+2. Before navigating to the Create Event page, check whether the current user is authenticated.
+
+Example Logic:
+
+IF user is authenticated:
+Navigate to Create Event page
+ELSE:
+Show Account Required screen
+
+3. Create an Account Required modal or page containing:
+
+Title:
+"Account Required"
+
+Message:
+"You must create a free TreasureTrail Marketplace account to create events, post listings, save favorites, send messages, and access seller features."
+
+Buttons:
+
+* Sign Up
+* Log In
+* Continue Browsing
+
+4. Prevent navigation to the Create Event page when the user is in Guest Mode.
+
+5. Search the entire application for other account-required actions and apply the same authentication guard, including:
+
+* Create Event
+* Create Listing
+* Save Favorites
+* Contact Seller
+* Send Messages
+* Boost Event
+* Seller Dashboard
+* Profile Management
+
+6. Ensure no Guest Mode action can result in:
+
+* Blank pages
+* Infinite loading spinners
+* Navigation errors
+* Unhandled exceptions
+
+7. Verify that Guest Mode can still:
+
+* Browse events
+* Search listings
+* View event details
+* View listings
+
+8. Test all Guest Mode restricted actions and confirm they properly redirect to the Account Required screen.
+
+Success Criteria:
+
+Authenticated User:
+Create Event opens normally.
+
+Guest User:
+Create Event displays the Account Required screen immediately.
+
+No blank screens.
+No infinite loading spinners.
+No console errors.
+No navigation failures.

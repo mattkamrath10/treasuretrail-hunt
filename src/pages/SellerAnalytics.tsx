@@ -9,6 +9,7 @@ import { fetchSellerReach, type SellerReach } from '../lib/eventAnalytics';
 import { isProUser } from '../lib/entitlements';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { AccountRequired } from '../components/AccountRequired';
 import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 
 /**
@@ -60,6 +61,9 @@ export default function SellerAnalytics({ onBack }: { onBack: () => void }) {
     });
   }, [events, reach]);
 
+  if (!user) {
+    return <AccountRequired message="Create a free account to view your reach analytics." />;
+  }
   if (!profile) {
     return (
       <div style={s.container}>

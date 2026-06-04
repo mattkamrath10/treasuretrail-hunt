@@ -17,6 +17,7 @@ import { uploadCompressedImage } from '../lib/uploadImage';
 import { toThumbUrl } from '../lib/imageCompress';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { EmptyState } from '../components/ui/EmptyState';
+import { AccountRequired } from '../components/AccountRequired';
 import { PageScroll } from '../components/ui/PageScroll';
 import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isProUser, FREE_TIER_EVENT_LIMIT } from '../lib/entitlements';
@@ -393,6 +394,13 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
 
   /* --------------- render --------------- */
 
+  // A guest (no signed-in user) reaching the event form gets the Account
+  // Required screen instead of a never-ending spinner — guests have no
+  // profile, so the old `if (!profile)` spinner hung forever (the blank
+  // pink screen bug).
+  if (!user) {
+    return <AccountRequired message="Create a free account to host events on TreasureTrail Marketplace." />;
+  }
   if (!profile) {
     return (
       <PageScroll style={s.container}>

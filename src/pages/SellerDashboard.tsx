@@ -13,6 +13,7 @@ import { isProUser } from '../lib/entitlements';
 import { monetizationHidden } from '../lib/platform';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { AccountRequired } from '../components/AccountRequired';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
@@ -68,8 +69,12 @@ export default function SellerDashboard({ onBack }: { onBack: () => void }) {
     }
   };
 
-  // Gate: signed-in seekers get redirected back to /events where they can
-  // upgrade. Loading state is short-circuited by AuthProvider before mount.
+  // Gate: a guest (no signed-in user) gets the Account Required screen
+  // instead of an infinite spinner — a guest never receives a profile.
+  if (!user) {
+    return <AccountRequired message="Create a free account to manage your host dashboard and publish events." />;
+  }
+  // Signed in but profile still loading: short spinner.
   if (!profile) {
     return (
       <div style={s.container}>

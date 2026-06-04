@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -52,6 +52,21 @@ function AppContent() {
   });
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
 
+  // When a guest taps an account-gated action (e.g. Create Event), the
+  // AccountRequired screen stashes which auth view it wants ('signup' vs
+  // 'login') and calls exitGuestMode(). Pick that up here so "Sign Up"
+  // lands on SignUp instead of always defaulting to Login.
+  useEffect(() => {
+    if (user || isGuest) return;
+    try {
+      const v = sessionStorage.getItem('tt_auth_view');
+      if (v === 'signup' || v === 'login') {
+        setAuthView(v);
+        sessionStorage.removeItem('tt_auth_view');
+      }
+    } catch {}
+  }, [user, isGuest]);
+
   const completeOnboarding = () => {
     localStorage.setItem('tt_onboarded', 'true');
     setHasOnboarded(true);
@@ -93,7 +108,16 @@ function AppContent() {
   }
 
   if (!user) {
-    if (authView === 'login') {
+    // Honor a one-shot auth view stashed by AccountRequired (guest tapped
+    // "Sign Up"/"Log In"). Read it synchronously here so SignUp shows on
+    // the first frame — no Login flash. The effect above clears the key
+    // and syncs state so later in-screen toggles still work.
+    let view = authView;
+    try {
+      const stashed = sessionStorage.getItem('tt_auth_view');
+      if (stashed === 'signup' || stashed === 'login') view = stashed;
+    } catch {}
+    if (view === 'login') {
       return <Login onSwitchToSignUp={() => setAuthView('signup')} onGuestBrowse={enterGuestMode} />;
     }
     return <SignUp onSwitchToLogin={() => setAuthView('login')} onGuestBrowse={enterGuestMode} />;
