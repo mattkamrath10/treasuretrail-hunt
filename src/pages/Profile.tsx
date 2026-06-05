@@ -108,7 +108,7 @@ export default function Profile() {
       <div style={styles.content}>
         <ProfileHeader profile={profile} />
 
-        {!isProUser(profile) && (
+        {!monetizationHidden() && !isProUser(profile) && (
           <UpgradeProCard
             onUpgrade={() => navigate('/pro')}
             style={{ marginTop: 'var(--space-4)' }}

@@ -1,0 +1,141 @@
+1. src/pages/Sell.tsx ← Highest concern
+
+This is the one I would check first.
+
+I saw language that appeared to reference:
+
+Membership
+Boosting events
+Boosting livestreams
+
+Something along the lines of:
+
+"All posts are free. Boost any event or livestream from Membership."
+
+If that text is still rendering, Apple could absolutely conclude that a membership or paid boost system exists.
+
+Ask Replit to search Sell.tsx for:
+
+Membership
+Boost
+Pro
+Premium
+Upgrade
+
+and verify nothing user-visible remains.
+
+2. src/components/ui/UpgradeProCard.tsx
+
+This component exists specifically to advertise Pro.
+
+Contains references to:
+
+Upgrade to Pro
+Unlimited boosts
+Analytics
+Priority placement
+
+Questions for Replit:
+
+Is this component still imported anywhere?
+Is it still rendered anywhere?
+Is it conditionally hidden or completely removed?
+3. src/pages/Pro.tsx
+
+Dedicated Pro page.
+
+Contains references to:
+
+Pro Seller
+Pro Badge
+Event Boosts
+Livestream Boosts
+Analytics
+Membership features
+
+Even if hidden, I'd want confirmation that:
+
+No route reaches this page.
+No menu links to this page.
+No button opens this page.
+4. src/pages/Discover.tsx
+
+This file concerned me because I saw references such as:
+
+BoostedBadge
+UpgradeProCard
+isBoosted
+isProUser
+
+Even if the buttons are hidden, there may still be:
+
+Boost labels
+Pro indicators
+Upgrade prompts
+
+visible somewhere.
+
+5. src/pages/LiveHub.tsx
+
+I found references to:
+
+startBoostPurchase
+boost dialogs
+boost state
+
+This doesn't prove the UI is visible.
+
+But it does tell me this page was previously wired into boost functionality.
+
+I'd verify:
+
+No boost buttons
+No promote buttons
+No upgrade prompts
+6. src/pages/Profile.tsx
+
+Lower concern than the others, but still worth checking.
+
+Look for:
+
+ProBadge
+UpgradeProCard
+Membership
+Premium
+Upgrade
+7. Global Search Terms
+
+If I were Replit, I'd run a full project search for:
+
+Pro
+Premium
+Membership
+Subscription
+Upgrade
+Boost
+Boosted
+ProBadge
+UpgradeProCard
+startBoostPurchase
+startProUpgrade
+
+Anything that appears in a user-facing page should be reviewed.
+
+My ranking of risk
+
+Most likely to still expose monetization:
+
+src/pages/Sell.tsx
+src/components/ui/UpgradeProCard.tsx
+src/pages/Pro.tsx
+
+Moderate risk:
+
+src/pages/Discover.tsx
+src/pages/LiveHub.tsx
+
+Lower risk but still check:
+
+src/pages/Profile.tsx
+
+If I were preparing the next App Store build, those first three locations are where I'd start before resubmitting. They are the places most likely to leave Apple with the impression that a subscription or paid boost system still exists.

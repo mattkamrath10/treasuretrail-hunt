@@ -654,7 +654,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
 
           {/* Sticky save bar */}
           {err && <div style={s.errorBanner}>{err}</div>}
-          {capBlocked && (
+          {!monetizationHidden() && capBlocked && (
             <div style={{ margin: '0 0 var(--space-3)' }}>
               <UpgradeProCard onUpgrade={() => navigate('/pro')} />
             </div>

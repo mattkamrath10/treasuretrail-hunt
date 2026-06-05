@@ -20,6 +20,7 @@ import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isBoosted } from '../lib/boost';
 import { rankDiscoverFeed, STATIC_PROBES } from '../lib/feedRanking';
 import { isProUser } from '../lib/entitlements';
+import { monetizationHidden } from '../lib/platform';
 import { useAuth } from '../context/AuthContext';
 
 const LOG = '[DISCOVER]';
@@ -111,7 +112,7 @@ export default function Discover() {
 
       <HostEventCTA variant="home" />
 
-      {!isProUser(profile) && (
+      {!monetizationHidden() && !isProUser(profile) && (
         <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-2)' }}>
           <UpgradeProCard onUpgrade={() => navigate('/pro')} />
         </div>
