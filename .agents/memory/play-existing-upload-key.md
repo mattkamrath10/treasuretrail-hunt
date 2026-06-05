@@ -3,7 +3,14 @@ name: Play already has a registered upload key
 description: TreasureTrail's Android app was already enrolled on Google Play with an existing upload key; generating a new keystore won't work without a reset.
 ---
 
-`com.treasuretrail.hunt` was uploaded to Google Play at least once before, with an
+The Google Play app is registered under package name **`com.treasuretrailhunt`**
+(NO dot before "hunt") — confirmed by the Play Console "temporary app name
+'com.treasuretrailhunt (unreviewed)'" banner and a successful internal-testing
+upload of version 1 (1.0.0) on 2026-06-02. NOTE: `android/app/build.gradle`
+`namespace` is `com.treasuretrail.hunt` and `capacitor.config.ts` appId is
+`com.treasuretrail.hunt`, but the `applicationId` (the only one Play checks) MUST
+stay `com.treasuretrailhunt`. Do not "fix" the applicationId to add the dot —
+that mismatch is intentional and was proven to upload. It was uploaded with an
 upload key whose certificate SHA1 is `76:E3:EC:DC:3A:2C:2A:78:E8:6B:12:A6:28:0E:AA:04:BC:28:C7:B1`.
 That keystore was created **outside this Replit project** — it is NOT in the repo,
 git history, or attached_assets.

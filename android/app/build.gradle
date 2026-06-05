@@ -4,7 +4,7 @@ android {
     namespace = "com.treasuretrail.hunt"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.treasuretrail.hunt"
+        applicationId "com.treasuretrailhunt"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 4

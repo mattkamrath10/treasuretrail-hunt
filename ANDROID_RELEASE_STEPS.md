@@ -11,7 +11,9 @@ file on Codemagic, (C) upload it to Google Play.
 
 ## Before you start — two things that must be true
 
-1. **Package name:** `com.treasuretrail.hunt` (already set — do not change it).
+1. **Package name:** `com.treasuretrailhunt` (NO dot before "hunt") — this is
+   exactly how your app is registered in Google Play. Do **not** change it to
+   `com.treasuretrail.hunt`, or Google will reject the upload.
 2. **Version number:** Google rejects any upload that reuses an old number.
    The current build is **versionCode 4 / version 1.0.3**. Next time you
    publish, that number must go up again (5, 6, 7…). See "Bumping the
@@ -91,7 +93,7 @@ Change those two lines, push the code, then rebuild on Codemagic (Part B).
 
 | Thing                | Value                          |
 |----------------------|--------------------------------|
-| Package name         | `com.treasuretrail.hunt`       |
+| Package name         | `com.treasuretrailhunt`        |
 | Codemagic workflow   | Android AAB (TreasureTrail)    |
 | Keystore name        | `treasuretrail_keystore`       |
 | Current version      | 1.0.3 (versionCode 4)          |
