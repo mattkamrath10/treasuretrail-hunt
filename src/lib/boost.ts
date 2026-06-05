@@ -9,6 +9,7 @@
  */
 
 import { BOOST_PRODUCT } from './entitlements';
+import { monetizationHidden } from './platform';
 
 export type BoostType = 'paid' | 'pro';
 
@@ -23,8 +24,14 @@ export interface BoostableRow {
 
 export const BOOST_DURATION_HOURS = BOOST_PRODUCT.durationHours;
 
-/** True iff the row currently has an active boost (expiry in the future). */
+/** True iff the row currently has an active boost (expiry in the future).
+ *
+ * While `monetizationHidden()` is true (App Store review) this always returns
+ * false so NO boost-derived UI can leak anywhere — the boosted badge, the
+ * card glow, the "Xh left" pills, and the boost-priority feed ranking all
+ * read through this one helper. Reversible via the flag. */
 export function isBoosted(row: BoostableRow | null | undefined, now: number = Date.now()): boolean {
+  if (monetizationHidden()) return false;
   if (!row?.boost_expires_at) return false;
   return new Date(row.boost_expires_at).getTime() > now;
 }
