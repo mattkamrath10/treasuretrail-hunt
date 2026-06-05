@@ -96,3 +96,9 @@ id = "XYqHedQ7GfNF7xWE0_dAa"
 uri = "file://ANDROID_RELEASE_STEPS.md"
 type = "text"
 title = "Publish a New Version to Google Play (corrected steps)"
+
+[[outputs]]
+id = "L0LbkTygJgz0RSINys6q3"
+uri = "file://TreasureTrail-AndroidReady-20260605.zip"
+type = "unspecified"
+title = "TreasureTrail Android project — ready to build (v1.0.3, versionCode 4)"
