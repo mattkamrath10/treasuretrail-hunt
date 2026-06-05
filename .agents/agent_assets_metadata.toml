@@ -90,3 +90,9 @@ id = "TeKadyFiYjS2UHgUUKVMh"
 uri = "file://TreasureTrail-FullSource-20260605.zip"
 type = "unspecified"
 title = "TreasureTrail full source (with Apple fixes) — June 5, 2026"
+
+[[outputs]]
+id = "XYqHedQ7GfNF7xWE0_dAa"
+uri = "file://ANDROID_RELEASE_STEPS.md"
+type = "text"
+title = "How to Publish a New Version to Google Play"
