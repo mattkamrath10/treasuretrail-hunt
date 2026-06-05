@@ -1,11 +1,11 @@
 # How to Publish a New Version of TreasureTrail to Google Play
 
-Plain-English steps. You do **not** need Android Studio — your app is built
-in the cloud by **Codemagic**, and then you upload the result to the
-**Google Play Console**.
+Plain-English steps. You build the Android app file (`.aab`) yourself in
+**Android Studio** on your PC, then upload it to the **Google Play Console**.
+(We do **not** use Codemagic for Android.)
 
-There are three parts: (A) get your latest code ready, (B) build the app
-file on Codemagic, (C) upload it to Google Play.
+There are three parts: (A) make sure your project has the latest code,
+(B) generate the signed app file in Android Studio, (C) upload it to Google Play.
 
 ---
 
@@ -21,40 +21,49 @@ file on Codemagic, (C) upload it to Google Play.
 
 ---
 
-## Part A — Make sure your latest changes are in the build source
+## Part A — Make sure your project has the latest code
 
-Codemagic builds from your connected code repository, **not** from this
-editor directly. So before building, make sure your most recent changes are
-pushed/synced to that repository.
+You have two project copies on your PC (`TreasureTrail-source` and
+`TT for Android`). Build from the one you've been keeping up to date — and make
+sure it has your newest changes before you build, or the app will come out
+"old."
 
-- If you use the Git panel here, commit and push your latest changes.
-- If you're unsure whether it's connected/pushed, ask for help with this one
-  step — it's the most common reason a build comes out "old."
+- If you update the app code in Replit, download the **newest** source from
+  Replit and use that project in Android Studio.
+- If web changes were made, the web part has to be refreshed into the Android
+  project first (the `npm run build` + `npx cap sync android` step). If you're
+  not sure this was done, ask for help with this one step.
 
 ---
 
-## Part B — Build the app file (.aab) on Codemagic
+## Part B — Generate the signed app file (.aab) in Android Studio
 
-1. Go to **https://codemagic.io** and sign in.
-2. Open your **TreasureTrail** app.
-3. Find the workflow named **"Android AAB (TreasureTrail)"**.
-4. Make sure it's set to build from the correct branch (usually `main`).
-5. Click **"Start new build."**
-6. Wait ~10–15 minutes. When it finishes (green check), open the build and
-   go to the **Artifacts** tab.
-7. **Download the `.aab` file.** This is your app. Save it somewhere you can
-   find it.
+1. Open the project in **Android Studio** and let it finish loading (Gradle
+   sync) at the bottom.
+2. Top menu: **Build → Generate Signed App Bundle / APK…**
+3. Choose **Android App Bundle** → **Next**.
+4. Select your **keystore** (your signing key — see the warning below), then
+   enter the keystore password, the key alias, and the key password → **Next**.
+5. Choose the **release** build variant → **Finish**.
+6. Wait for it to build. When it's done, a small popup appears in the
+   bottom-right: **"App bundle generated successfully"** with a **locate** link.
+   Click **locate** to jump straight to the file.
 
-### One-time setup (only if a build fails for "signing")
-Codemagic needs your **upload keystore** (your app's signing key) stored
-under the exact name **`treasuretrail_keystore`**:
-Codemagic → Code signing identities → Android keystores → Add key.
+**Where the file is saved** (in case you miss the popup):
 
-⚠️ **VERY IMPORTANT:** It must be the **original** signing key you used the
-first time you published TreasureTrail. If you upload a brand-new key, Google
-will reject the build with an error like *"not signed with the correct key."*
-If you've lost the original key, you'll need to request an **upload key reset**
-from Google Play support — don't just make a new one.
+```
+...\<your project>\app\build\outputs\bundle\release\app-release.aab
+```
+
+That `app-release.aab` is the file you upload. (Ignore `intermediary-bundle.aab`
+— that's not the one.)
+
+### ⚠️ About the keystore (very important)
+You must sign with the **original** upload key you used the first time. If you
+sign with a brand-new key, Google rejects it with *"not signed with the correct
+key."* If the original key is lost, request an **upload key reset** in Play
+Console (Test and release → App integrity → App signing) — don't just make a
+new one.
 
 ---
 
@@ -62,40 +71,39 @@ from Google Play support — don't just make a new one.
 
 1. Go to **https://play.google.com/console** and sign in.
 2. Select your **TreasureTrail** app.
-3. (Recommended first time) In the left menu: **Testing → Internal testing**,
-   so you can try it yourself before the public sees it. To go straight live,
-   use **Release → Production** instead.
+3. (Recommended) In the left menu: **Testing → Internal testing**, so you can
+   try it yourself first. To go straight live, use **Production** instead.
 4. Click **"Create new release."**
-5. Under "App bundles," **upload the `.aab` file** you downloaded from Codemagic.
+5. Under "App bundles," **upload the `app-release.aab`** you just generated.
 6. Fill in **"Release notes"** (a short "What's new in this version").
 7. Click **Next / Save**, review any warnings, then
-   **"Start rollout to Production"** (or to your testing track) and confirm.
-8. Google reviews it — this can take anywhere from a few hours to a couple of
-   days. You'll get an email when it's live.
+   **"Start rollout"** and confirm.
+8. Google reviews it — anywhere from a few hours to a couple of days. You'll
+   get an email when it's live.
 
 ---
 
 ## Bumping the version (for next time)
 
-Every new upload needs a higher **versionCode**. This lives in
-`android/app/build.gradle`:
+Every new upload needs a higher **versionCode**. In Android Studio, open
+**Gradle Scripts → build.gradle (Module :app)** and change these two lines:
 
 ```
 versionCode 4        <- increase this by 1 every upload (5, 6, 7…)
 versionName "1.0.3"  <- the version people see; bump however you like (1.0.4, 1.1.0…)
 ```
 
-Change those two lines, push the code, then rebuild on Codemagic (Part B).
+Save, let Gradle sync, then rebuild (Part B).
 
 ---
 
 ## Quick reference
 
-| Thing                | Value                          |
-|----------------------|--------------------------------|
-| Package name         | `com.treasuretrailhunt`        |
-| Codemagic workflow   | Android AAB (TreasureTrail)    |
-| Keystore name        | `treasuretrail_keystore`       |
-| Current version      | 1.0.3 (versionCode 4)          |
-| File you upload      | the `.aab` from Codemagic      |
-| Where you upload     | Google Play Console            |
+| Thing                | Value                                            |
+|----------------------|--------------------------------------------------|
+| Package name         | `com.treasuretrailhunt`                          |
+| Where you build      | Android Studio → Build → Generate Signed App Bundle |
+| File you upload      | `app-release.aab`                                |
+| File location        | `app\build\outputs\bundle\release\`              |
+| Current version      | 1.0.3 (versionCode 4)                            |
+| Where you upload     | Google Play Console                              |
