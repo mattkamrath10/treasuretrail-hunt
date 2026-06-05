@@ -84,3 +84,9 @@ id = "wKVPc_9K56l4Ce6Mce4Eo"
 uri = "file://.local/fix/treasuretrail-env-fix.zip"
 type = "unspecified"
 title = "Env + version fix (.env.production + build.gradle v3) — extract into your project folder"
+
+[[outputs]]
+id = "TeKadyFiYjS2UHgUUKVMh"
+uri = "file://TreasureTrail-FullSource-20260605.zip"
+type = "unspecified"
+title = "TreasureTrail full source (with Apple fixes) — June 5, 2026"
