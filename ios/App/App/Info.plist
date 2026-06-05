@@ -24,6 +24,14 @@
         <string>$(CURRENT_PROJECT_VERSION)</string>
         <key>ITSAppUsesNonExemptEncryption</key>
         <false/>
+        <key>NSCameraUsageDescription</key>
+        <string>TreasureTrail uses your camera so you can take photos of your finds, events, and profile picture to share with the community.</string>
+        <key>NSPhotoLibraryUsageDescription</key>
+        <string>TreasureTrail needs access to your photo library so you can choose pictures of your finds, events, and profile to upload.</string>
+        <key>NSPhotoLibraryAddUsageDescription</key>
+        <string>TreasureTrail saves photos to your library when you choose to download images from the app.</string>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>TreasureTrail may use your microphone when you record video to share with the community.</string>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>UILaunchStoryboardName</key>

@@ -22,6 +22,7 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [confirmSent, setConfirmSent] = useState(false);
 
   const handleSubmit = async () => {
     setError('');
@@ -48,17 +49,25 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
     }
 
     setIsLoading(true);
-    const { error: signUpError } = await signUp(form.email, form.password);
+    const { error: signUpError, needsConfirmation } = await signUp(form.email, form.password);
 
     if (signUpError) {
       setIsLoading(false);
-      setError(signUpError);
+      setError(friendlySignupError(signUpError));
       return;
     }
 
-    // Best-effort: record Terms acceptance timestamp. If the project requires
-    // email confirmation there is no session yet, so this silently no-ops —
-    // the hard gate above is what guarantees the user accepted before signup.
+    // Email confirmation is required: there is no session yet. Show a clear
+    // "check your email" screen instead of silently doing nothing, which would
+    // otherwise leave the user confused and prone to re-submitting.
+    if (needsConfirmation) {
+      setIsLoading(false);
+      setConfirmSent(true);
+      return;
+    }
+
+    // Best-effort: record Terms acceptance timestamp. Only reachable when a
+    // session was established immediately (email confirmation disabled).
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -72,6 +81,28 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
     }
     setIsLoading(false);
   };
+
+  if (confirmSent) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-2)' }}>
+            <TreasureChestLogo size={40} glow />
+          </div>
+          <h1 style={styles.logo}>TreasureTrail</h1>
+          <h2 style={styles.title}>Check your email</h2>
+          <p style={styles.subtitle}>
+            We sent a confirmation link to <strong>{form.email}</strong>. Tap the link
+            in that email to activate your account, then come back and log in.
+          </p>
+        </div>
+        <button onClick={onSwitchToLogin} style={styles.submitBtn}>
+          <span style={styles.submitText}>Back to Log In</span>
+          <ArrowRight size={18} style={{ color: 'var(--color-neutral-0)' }} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
@@ -195,6 +226,27 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
       </div>
     </div>
   );
+}
+
+/** Map raw Supabase auth errors to clear, user-friendly messages. */
+function friendlySignupError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('already registered') || m.includes('already exists')) {
+    return 'An account with this email already exists. Please log in instead.';
+  }
+  if (m.includes('valid email') || m.includes('invalid email')) {
+    return 'Please enter a valid email address.';
+  }
+  if (m.includes('password')) {
+    return 'Password must be at least 6 characters.';
+  }
+  if (m.includes('rate limit') || m.includes('too many')) {
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+  if (m.includes('network') || m.includes('fetch')) {
+    return 'Network error. Please check your connection and try again.';
+  }
+  return message;
 }
 
 const styles: Record<string, React.CSSProperties> = {

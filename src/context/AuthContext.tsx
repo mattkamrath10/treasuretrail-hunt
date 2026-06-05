@@ -10,7 +10,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   isGuest: boolean;
-  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   enterGuestMode: () => void;
@@ -84,9 +84,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signUp(email: string, password: string) {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error: error.message };
-    return { error: null };
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { error: error.message, needsConfirmation: false };
+
+    // Supabase quirk: when "Confirm email" is enabled and the email is ALREADY
+    // registered, signUp returns no error but a user with an empty `identities`
+    // array. Surface this as a friendly error so a confused reviewer who taps
+    // "Create Account" twice doesn't hit a raw error prompt.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      return {
+        error: 'An account with this email already exists. Please log in instead.',
+        needsConfirmation: false,
+      };
+    }
+
+    // No session means email confirmation is required. Tell the caller so it can
+    // show a "check your email" message instead of silently doing nothing.
+    const needsConfirmation = !data.session;
+    return { error: null, needsConfirmation };
   }
 
   async function signIn(email: string, password: string) {

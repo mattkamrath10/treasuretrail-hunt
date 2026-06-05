@@ -1,0 +1,108 @@
+Hello,
+
+Thank you for your resubmission. Upon further review, we identified additional issues that need your attention. See below for more information.
+
+If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know. 
+
+Review Environment
+Submission ID: 68073a28-89db-47ac-a40b-15e214140f2c
+Review date: June 04, 2026
+Review Device: iPad Air 11-inch (M3)
+Version reviewed: 1.0 (10)
+
+Guideline 2.1(a) - Performance
+Issue Description
+
+The app crashed during review. Apps that crash negatively impact users. 
+
+Steps leading to crash:
+
+1. Launch app
+2. Login
+3. Tap on Profile
+4. Tap on the camera icon
+5. Tap on Take Photo
+6. App crashes
+
+Review device details:
+
+- Device type: iPad Air 11-inch (M3) 
+- OS version: iPadOS 26.5
+
+Next Steps
+
+Test the app on supported devices to identify crashes and stability issues before resubmitting for review. Crash logs have been attached to help resolve this issue:
+
+1. Fully symbolicate the crash report. See Adding Identifiable Symbol Names to a Crash Report.
+2. Match the crash report to a common pattern. Based on the pattern, take specific actions to further investigate the crash. See Identifying the Cause of Common Crashes.
+3. Once the root causes of the crash have been identified, make the appropriate changes to the binary to resolve the issue.
+4. Test the app on a device to ensure that it runs as expected.
+
+Note that users expect apps they download to function on all the devices where they are available. For example, apps that may be downloaded onto iPad devices should function as expected for iPad users.
+
+Resources
+
+- For more information on crash reports, see Diagnosing Issues Using Crash Reports and Device Logs.
+- For information about testing apps and preparing them for review, see Testing a Release Build.
+- To learn about troubleshooting networking issues, see Networking Overview.
+Guideline 2.1(a) - Performance - App Completeness
+Issue Description
+
+The app exhibited one or more bugs that would negatively impact users.
+
+Bug description: an error prompt appeared when we tried to create an account.
+
+Review device details:
+
+- Device type: iPad Air 11-inch (M3) 
+- OS version: iPadOS 26.5
+- Internet Connection: Active
+
+Next Steps
+
+Test the app on supported devices to identify and resolve bugs and stability issues before submitting for review.
+
+If the bug cannot be reproduced, try the following:
+
+- For new apps, uninstall all previous versions of the app from a device, then install and follow the steps to reproduce.
+- For app updates, install the new version as an update to the previous version, then follow the steps to reproduce.
+
+Note that users expect apps they download to function on all the devices where they are available. For example, apps that may be downloaded onto iPad devices should function as expected for iPad users. 
+
+Resources
+
+- For information about testing apps and preparing them for review, see Testing a Release Build.
+- To learn about troubleshooting networking issues, see Networking Overview.
+
+
+Guideline 2.1 - Information Needed
+
+We are not able to continue our review because we need access to a demo account with an expired subscription to review the entire purchase flow.
+
+Specifically, we are currently not able to access the membership purchase flow.
+
+Next Steps
+
+To resolve this issue, provide a user name and password for a demo account with expired subscriptions in the App Review Information section of App Store Connect.
+
+Resources
+
+- Watch a video with tips for preventing common rejections. 
+- To learn more about providing information to App Review in App Store Connect, see App Store Connect Help.
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Request an App Review Appointment at Meet with Apple to discuss your app's review. Appointments subject to availability during your local business hours on Tuesdays and Thursdays.
+- Provide feedback on this message and your review experience by completing a short survey.
+
+Reply to App Review
+
+Date Submitted
+Jun 3, 2026 at 3:45 PM
+Submission ID
+68073a28-89db-47ac-a40b-15e214140f2c
+Submitted By
+Matthew Kamrath
+Last Updated By
+Apple
+Cancel Submission
