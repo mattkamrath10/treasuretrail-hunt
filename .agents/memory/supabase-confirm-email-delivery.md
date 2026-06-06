@@ -37,3 +37,28 @@ live site, not localhost.
 
 **How to apply:** when a "no confirmation email" / 2.1a rejection appears, don't
 patch signup code — check Supabase Auth email config first.
+
+## RESOLUTION (chosen: Path B — Resend custom SMTP, tested working)
+- Fixed by wiring **Resend** as Supabase custom SMTP: host `smtp.resend.com`,
+  port 465, username `resend`, password = a Resend API key (`re_…`), sender
+  `no-reply@treasuretrail-hunt.com`. Test signup with a fresh inbox delivered +
+  confirm link worked.
+- Resend domain-verify records added to the domain's DNS: DKIM `TXT
+  resend._domainkey`, SPF `TXT send v=spf1 include:amazonses.com ~all`, and `MX
+  send feedback-smtp.<region>.amazonses.com` priority 10. In a host's DNS UI the
+  Hostname field takes the **prefix only** (`send`, `resend._domainkey`) — the UI
+  appends the apex; entering the full FQDN double-stacks it.
+- **Site URL** set to `https://treasuretrail-hunt.com` (signup has no
+  emailRedirectTo so the confirm link rides Site URL); also added redirect URL
+  `https://treasuretrail-hunt.com/**` so password-reset links (`/login`) resolve.
+
+## Two non-obvious gotchas worth remembering
+- **The apex domain already carries a strict DMARC `p=reject` record.** Any new
+  sender MUST have aligned SPF+DKIM or receivers *reject* (not spam) the mail —
+  one mistyped record reproduces the exact "email never arrives" failure.
+- **`treasuretrail-hunt.com` is registered THROUGH Replit** (Publishing → Domains
+  shows *Registered With: Replit*, Verified). DNS is therefore edited **inside
+  Replit** (Publishing → Domains → Manage → Add DNS record), NOT at Name.com —
+  even though the nameservers are `name.com` (Replit's backend registrar, WHOIS
+  privacy on). The Name.com account isn't the user's to log into; don't send them
+  there to edit DNS.
