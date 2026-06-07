@@ -1,0 +1,94 @@
+Reference Name?
+Pro Seller Monthly
+46
+
+Status
+
+Missing Metadata
+
+Apple ID?
+
+6777564699
+
+Product ID?
+
+com.treasuretrail.hunt.pro.monthly
+
+Subscription Duration?
+
+1 monthEdit
+Group Reference Name
+
+TreasureTrail Pro
+
+Family Sharing?
+
+This subscription can be shared by everyone in a family group.
+
+Availability
+All countries or regions selectedEdit
+
+Remove from Sale
+
+Subscription Prices
+All Prices and Currencies
+
+Below is a summary of your current pricing and any upcoming changes.
+
+
+Current Pricing for New Subscribers
+View all Subscription Pricing
+
+Localization
+
+The localized display name and description for your subscription will appear on the App Store.
+
+Localizations
+Display Name
+Subscription Description
+Status
+?
+English (U.S.)
+TreasureTrail Pro Seller
+Boost visibility and unlock Pro seller tools.
+Prepare for Submission
+
+Image (Optional)
+Add a 1024 x 1024 pixel image that best represents this subscription. It will be used for any win-back offers or offer code redemptions for this subscription. If you enable App Store Promotion for this subscription, this image will also appear on your app's product page. Learn More
+
+No file chosen
+SOURCE
+
+TreasureTrail Pro Seller
+
+Boost visibility and unlock Pro seller tools.
+
+Prepare for Submission
+
+App Store Promotion
+You can promote up to 20 in-app purchases or subscriptions and have them appear on your app’s product page. They may also appear in search results or be featured by our editorial team. Users can tap an in-app purchase or subscription to open your app, where they can buy it. Your app must support the required StoreKit APIs. Learn More
+
+This promotion will be displayed to all App Store users, even those who don't have your app installed.
+
+App Store Display Order: 1 out of 1
+
+Edit App Store Promotion Details
+
+Tax Category?Edit
+You’re responsible for selecting and maintaining accurate tax categories and all applicable attributes. This subscription will use the app’s tax category unless you choose a different one. Changing the tax category for this subscription won’t affect the tax category for your app or any other in-app purchase or subscription. Any changes will only affect future sales. Learn More
+
+Category
+Match to parent app
+
+Review Information
+Screenshot?
+No file chosen
+SOURCE
+
+Review Notes (Optional)?
+TreasureTrail Pro Seller Monthly is a subscription designed for professional sellers, estate sale companies, auction houses, flea market vendors, and live-selling businesses.
+
+The subscription provides enhanced visibility and seller tools within the TreasureTrail Marketplace app, including priority placement in Discover, seller analytics, unlimited event and live-stream boosts, and a Pro Seller profile badge.
+
+This subscription does not provide physical goods. It unlocks premium digital features and promotional tools within the app.
+

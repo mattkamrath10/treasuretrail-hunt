@@ -20,34 +20,36 @@ export function isAndroid(): boolean {
 
 /**
  * Apple Guideline 3.1.1: digital goods (Pro membership, boosts) may only be
- * sold through In-App Purchase. Until StoreKit is wired, the iOS build must not
- * present ANY purchase surface — no prices, no buy buttons, no external payment
- * links. This flag gates every purchase CTA on iOS only; web and Android are
- * unaffected.
+ * sold through In-App Purchase.
+ *
+ * Real Apple IAP is now wired on iOS via RevenueCat (see src/lib/iap.ts), so
+ * the iOS build SHOWS prices and purchase CTAs and completes purchases through
+ * StoreKit. This flag therefore returns false. It is kept as a single, named
+ * kill-switch: return `isIOS()` again to instantly hide every iOS price/buy
+ * button if a compliance issue ever arises.
  */
 export function iosPaymentsBlocked(): boolean {
-  return isIOS();
+  return false;
 }
 
 /**
- * TEMPORARY App Store compliance switch.
+ * Master monetization visibility switch.
  *
- * For the iOS resubmission to Apple, the build must not expose ANY
- * monetization surface at all — not just purchase buttons, but the whole
- * Pro/membership pages, event-boost flows, pricing, "Upgrade" CTAs and
- * Pro-only reach analytics. This is broader than `iosPaymentsBlocked()`
- * (which only hides prices/buy buttons): when this returns true, the
- * monetization screens themselves are removed from navigation.
+ * When true, the whole monetization surface is removed — Pro/membership pages,
+ * event-boost flows, pricing, "Upgrade" CTAs, Pro badges and Pro-only reach
+ * analytics. No monetization code is deleted; every feature is gated behind
+ * this flag so it can be toggled in one place.
  *
- * Currently hidden on ALL platforms (web, iOS, Android) at the user's
- * request so no monetization UI is visible anywhere while the app is under
- * App Store review. No monetization code was deleted — every feature is
- * gated behind this flag.
+ * Now returns false: the membership screen is the production Apple IAP
+ * subscription screen. Purchases are real on iOS (RevenueCat → StoreKit); on
+ * web/Android the same screen is shown but the purchase initiators surface a
+ * clear "available in the TreasureTrail iOS app" message until those platforms
+ * get their own payment path (see src/lib/payments.ts).
  *
  * Reversible:
- *   - to restore monetization everywhere, return `false`;
- *   - to restore it on web/Android only (hide on iOS), return `isIOS()`.
+ *   - to hide monetization everywhere again, return `true`;
+ *   - to show on web/Android only (hide on iOS), return `isIOS()`.
  */
 export function monetizationHidden(): boolean {
-  return true;
+  return false;
 }
