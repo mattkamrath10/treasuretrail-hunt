@@ -75,20 +75,35 @@ export type GrantResult<T = unknown> =
   | { ok: false; error: string };
 
 export async function grantPro(userId: string): Promise<GrantResult<{ tier: 'pro' }>> {
-  const { error } = await admin()
+  const { data, error } = await admin()
     .from('profiles')
     .update({ membership_tier: 'pro', pro_member: true })
-    .eq('id', userId);
+    .eq('id', userId)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  // PostgREST treats an UPDATE matching 0 rows as success; without this check a
+  // mismatched/unknown app_user_id would silently "succeed" and never grant Pro
+  // (the buyer paid but stays free). Surface it so the webhook/sync 500s + retries.
+  if (!data || data.length === 0) {
+    return { ok: false, error: `No profile matched id ${userId} for Pro grant.` };
+  }
   return { ok: true, data: { tier: 'pro' } };
 }
 
 export async function revokePro(userId: string): Promise<GrantResult<{ tier: 'free' }>> {
-  const { error } = await admin()
+  const { data, error } = await admin()
     .from('profiles')
     .update({ membership_tier: 'free', pro_member: false })
-    .eq('id', userId);
+    .eq('id', userId)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  // 0 rows on a revoke means the app_user_id mapped to no profile — e.g. an
+  // id mismatch where the user is still Pro under a DIFFERENT id. Failing here
+  // (rather than silently "succeeding") surfaces the mismatch instead of
+  // letting someone keep Pro for free after their subscription expired.
+  if (!data || data.length === 0) {
+    return { ok: false, error: `No profile matched id ${userId} for Pro revoke.` };
+  }
   return { ok: true, data: { tier: 'free' } };
 }
 

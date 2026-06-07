@@ -71,7 +71,9 @@ const REVOKE_TYPES = new Set(['EXPIRATION']);
  */
 export function classifyWebhookEvent(event: RevenueCatEvent): ClassifiedEvent {
   const eventType = event.type ?? null;
-  const appUserId = event.app_user_id ?? null;
+  // Fall back to original_app_user_id for transfer/alias cases where
+  // app_user_id may be absent or an alias; our profile id is the original.
+  const appUserId = event.app_user_id ?? event.original_app_user_id ?? null;
   const eventId = event.id ?? null;
   const productId = event.product_id ?? null;
 
