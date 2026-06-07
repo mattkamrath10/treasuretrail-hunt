@@ -36,3 +36,4 @@
 - [iOS camera/photo crash](ios-camera-plist-crash.md) — webview file inputs (Take Photo / library) HARD-crash on iOS without NS*UsageDescription keys in ios/App/App/Info.plist; adding the input isn't enough.
 - [Play already has a registered upload key](play-existing-upload-key.md) — com.treasuretrailhunt (no dot) already published once with an upload key (SHA1 76:E3:EC...) created OUTSIDE this repl; never assume "first upload, any new keystore works." A freshly-generated keystore is rejected; recover original or do Play upload-key reset.
 - [Guest gate keys on !user not !profile](guest-gate-not-profile.md) — auth-only pages must show AccountRequired for guests first; `!profile` spinner hangs forever since guests never get a profile.
+- [Service-role boost/grant ownership](service-role-boost-ownership.md) — service-role bypasses RLS, so server must re-check target ownership AND treat 0-row PostgREST updates as failure before consuming a paid claim.

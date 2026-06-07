@@ -12,8 +12,22 @@ import {
   removeBoost,
   deleteUserAccount,
   hasServiceRole,
+  verifyBoostOwnership,
+  webhookEventSeen,
+  recordWebhookEvent,
+  claimBoostTransaction,
+  releaseBoostTransaction,
   type BoostTargetKind,
 } from './grants';
+import {
+  verifyWebhookAuth,
+  classifyWebhookEvent,
+  fetchSubscriber,
+  isProActive,
+  boostTransactionIds,
+  hasRevenueCatRest,
+  type RevenueCatEvent,
+} from './revenuecat';
 import { sendGoLivePush, hasPush } from './push';
 
 // Deployment (Autoscale/VM) injects PORT; bind it in production. In dev the
@@ -385,6 +399,163 @@ app.post('/api/account/delete', async (req, res) => {
   } catch (err: any) {
     console.error('[account/delete]', err?.message || err);
     return res.status(500).json({ error: 'Account deletion failed. Please try again.' });
+  }
+});
+
+// =====================================================================
+// Apple In-App Purchase (RevenueCat)
+// ---------------------------------------------------------------------
+// Three surfaces, all of which make paid state authoritative server-side via
+// the same trusted grant module — the client never writes paid columns:
+//   * POST /api/iap/webhook       RevenueCat -> grant/revoke Pro (source of
+//                                 truth for renewals & expirations).
+//   * POST /api/iap/sync          signed-in user reconciles their own Pro
+//                                 entitlement with RevenueCat (post-purchase /
+//                                 restore / self-heal).
+//   * POST /api/iap/boost/confirm signed-in user redeems a purchased boost; the
+//                                 server verifies the transaction with
+//                                 RevenueCat and claims it exactly once.
+// =====================================================================
+
+// Webhook: authenticated by the shared secret configured in the RevenueCat
+// dashboard. Pro grants are idempotent, so duplicate deliveries are harmless;
+// we also dedupe by event id. A failed grant returns 500 so RevenueCat retries.
+app.post('/api/iap/webhook', async (req, res) => {
+  try {
+    if (!hasServiceRole()) {
+      return res.status(503).json({ error: 'Grant service is not configured.' });
+    }
+    if (!verifyWebhookAuth(req.headers.authorization)) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const event = (req.body?.event ?? {}) as RevenueCatEvent;
+    const c = classifyWebhookEvent(event);
+    if (c.action === 'ignore' || !c.appUserId) {
+      return res.json({ ok: true, ignored: true });
+    }
+    if (c.eventId && (await webhookEventSeen(c.eventId))) {
+      return res.json({ ok: true, duplicate: true });
+    }
+    const result =
+      c.action === 'grant' ? await grantPro(c.appUserId) : await revokePro(c.appUserId);
+    if (!result.ok) {
+      console.error('[iap/webhook] grant failed:', result.error);
+      return res.status(500).json({ error: 'grant failed' });
+    }
+    if (c.eventId) {
+      await recordWebhookEvent(c.eventId, {
+        userId: c.appUserId,
+        productId: c.productId,
+        eventType: c.eventType,
+      });
+    }
+    return res.json({ ok: true, action: c.action });
+  } catch (err: any) {
+    console.error('[iap/webhook]', err?.message || err);
+    return res.status(500).json({ error: 'webhook failed' });
+  }
+});
+
+// Sync: the caller's own JWT identifies the user; we read their RevenueCat
+// subscriber record and grant/revoke Pro to match. Never trusts request body.
+app.post('/api/iap/sync', async (req, res) => {
+  try {
+    if (!hasServiceRole() || !hasRevenueCatRest()) {
+      return res.status(503).json({ error: 'IAP is not configured.' });
+    }
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+    const userId = userData.user.id;
+
+    const subscriber = await fetchSubscriber(userId);
+    if (!subscriber) return res.json({ pro: false, synced: false });
+
+    const pro = isProActive(subscriber);
+    const result = pro ? await grantPro(userId) : await revokePro(userId);
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    return res.json({ pro, synced: true });
+  } catch (err: any) {
+    console.error('[iap/sync]', err?.message || err);
+    return res.status(500).json({ error: 'sync failed' });
+  }
+});
+
+// Boost confirm: redeems a purchased Event Boost against a specific item. The
+// server fetches the buyer's verified boost transactions from RevenueCat and
+// claims one atomically (UNIQUE rc_transaction_id) so a single purchase is
+// applied exactly once. If applyBoost fails the claim is released for retry.
+app.post('/api/iap/boost/confirm', async (req, res) => {
+  try {
+    if (!hasServiceRole() || !hasRevenueCatRest()) {
+      return res.status(503).json({ error: 'IAP is not configured.' });
+    }
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+    const userId = userData.user.id;
+
+    const { targetKind, targetId } = req.body as {
+      targetKind?: BoostTargetKind;
+      targetId?: string;
+    };
+    if (!targetKind || !VALID_TARGET_KINDS.includes(targetKind)) {
+      return res.status(400).json({ error: 'Valid targetKind is required.' });
+    }
+    if (!targetId || typeof targetId !== 'string') {
+      return res.status(400).json({ error: 'targetId is required.' });
+    }
+
+    // Ownership gate FIRST — service-role writes bypass RLS, so a buyer must
+    // not be able to boost someone else's content (and we avoid burning a
+    // purchase against a missing/foreign target).
+    const own = await verifyBoostOwnership({ userId, targetKind, targetId });
+    if (!own.ok) return res.status(500).json({ error: own.error ?? 'Ownership check failed.' });
+    if (!own.found) return res.status(404).json({ error: 'That item no longer exists.' });
+    if (!own.owned) {
+      return res.status(403).json({ error: 'You can only boost your own items.' });
+    }
+
+    const subscriber = await fetchSubscriber(userId);
+    const txnIds = subscriber ? boostTransactionIds(subscriber) : [];
+    if (!txnIds.length) {
+      return res
+        .status(409)
+        .json({ error: 'No boost purchase found yet. Please try again in a moment.' });
+    }
+
+    let claimedTxn: string | null = null;
+    for (const txnId of txnIds) {
+      const claim = await claimBoostTransaction({ userId, txnId, targetKind, targetId });
+      // A DB error is operational, not "already redeemed" — surface it as 500
+      // rather than masking it as a used boost.
+      if (claim.error) {
+        return res.status(500).json({ error: 'Could not record your boost. Please try again.' });
+      }
+      if (claim.claimed) {
+        claimedTxn = txnId;
+        break;
+      }
+    }
+    if (!claimedTxn) {
+      return res
+        .status(409)
+        .json({ error: 'This boost has already been used on another item.' });
+    }
+
+    const result = await applyBoost({ targetKind, targetId, boostType: 'paid' });
+    if (!result.ok) {
+      await releaseBoostTransaction(claimedTxn);
+      return res.status(500).json({ error: result.error });
+    }
+    return res.json({ ok: true, targetId });
+  } catch (err: any) {
+    console.error('[iap/boost/confirm]', err?.message || err);
+    return res.status(500).json({ error: 'Boost could not be applied.' });
   }
 });
 

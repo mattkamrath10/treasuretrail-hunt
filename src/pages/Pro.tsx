@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Crown, Loader2, Sparkles } from 'lucide-react';
 import { PageScroll } from '../components/ui/PageScroll';
 import { useAuth } from '../context/AuthContext';
-import { startProUpgrade } from '../lib/payments';
+import { startProUpgrade, restorePurchases, syncProEntitlement } from '../lib/payments';
 import { iosPaymentsBlocked } from '../lib/platform';
+import { iapAvailable, getProPrice, getBoostPrice } from '../lib/iap';
 import { isProUser } from '../lib/entitlements';
 import { flashToast } from '../lib/toast';
 
@@ -93,7 +94,7 @@ const PLANS: Plan[] = [
   {
     id: 'boost',
     name: 'Local Event Boost',
-    price: '$3',
+    price: '$2.99',
     cadence: '/ per promoted event',
     tagline: 'Estate sales · Flea markets · Auction houses',
     features: [
@@ -108,7 +109,7 @@ const PLANS: Plan[] = [
   {
     id: 'pro',
     name: 'Pro Seller',
-    price: '$9',
+    price: '$9.99',
     cadence: '/ per month',
     tagline: 'Whatnot · Poshmark Live · eBay Live',
     features: [
@@ -127,8 +128,33 @@ export default function Pro({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
   const { profile, user, refreshProfile } = useAuth();
   const [busy, setBusy] = useState<PlanId | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [livePrices, setLivePrices] = useState<{ pro?: string; boost?: string }>({});
   useEffect(ensureKeyframes, []);
 
+  // On iOS, load live App Store prices and reconcile the Pro entitlement with
+  // RevenueCat so the screen shows the real localized price and an up-to-date
+  // membership state (self-heals if a webhook was ever missed).
+  useEffect(() => {
+    if (!iapAvailable()) return;
+    let cancelled = false;
+    (async () => {
+      const [pro, boost] = await Promise.all([getProPrice(), getBoostPrice()]);
+      if (!cancelled) {
+        setLivePrices({ pro: pro ?? undefined, boost: boost ?? undefined });
+      }
+      if (user) {
+        const isPro = await syncProEntitlement();
+        if (!cancelled && isPro) await refreshProfile();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const showRestore = iapAvailable();
   const alreadyPro = isProUser(profile);
   // Apple 3.1.1: the iOS build may not present any purchasable digital goods.
   // Hide all prices and purchase CTAs on iOS — the page stays informational.
@@ -158,9 +184,10 @@ export default function Pro({ onBack }: { onBack: () => void }) {
     const res = await startProUpgrade();
     setBusy(null);
     if (!res.ok) {
+      if (res.cancelled) return; // user backed out of the Apple sheet
       flashToast(
         res.comingSoon
-          ? "Pro Seller checkout is coming soon — we'll let you know the moment it's live."
+          ? 'Pro Seller is available to purchase in the TreasureTrail iOS app.'
           : `Could not upgrade: ${res.error}`,
         'info',
       );
@@ -168,6 +195,23 @@ export default function Pro({ onBack }: { onBack: () => void }) {
     }
     await refreshProfile();
     flashToast('Welcome to Pro! Priority placement is now active.', 'success');
+  };
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    const res = await restorePurchases();
+    setRestoring(false);
+    if (!res.ok) {
+      flashToast(res.error, 'info');
+      return;
+    }
+    await refreshProfile();
+    flashToast(
+      res.data.pro
+        ? 'Purchases restored — Pro is active.'
+        : 'No previous purchases found to restore.',
+      res.data.pro ? 'success' : 'info',
+    );
   };
 
   return (
@@ -207,16 +251,21 @@ export default function Pro({ onBack }: { onBack: () => void }) {
       )}
 
       <section className="tt-pro-plans-grid" style={s.plansWrap}>
-        {PLANS.map((p) => (
-          <PlanCard
-            key={p.id}
-            plan={p}
-            disabled={p.id === 'pro' && alreadyPro}
-            busy={busy === p.id}
-            hidePurchase={blockPurchases && p.id !== 'free'}
-            onPick={() => handlePlan(p.id)}
-          />
-        ))}
+        {PLANS.map((p) => {
+          const live =
+            p.id === 'pro' ? livePrices.pro : p.id === 'boost' ? livePrices.boost : undefined;
+          const plan = live ? { ...p, price: live } : p;
+          return (
+            <PlanCard
+              key={p.id}
+              plan={plan}
+              disabled={p.id === 'pro' && alreadyPro}
+              busy={busy === p.id}
+              hidePurchase={blockPurchases && p.id !== 'free'}
+              onPick={() => handlePlan(p.id)}
+            />
+          );
+        })}
       </section>
 
       <p style={s.trustLine}>
@@ -227,6 +276,36 @@ export default function Pro({ onBack }: { onBack: () => void }) {
           Cancel or pause anytime. Boosts charged per promoted event. Pro Seller billed monthly.
         </p>
       )}
+
+      {showRestore && (
+        <div style={s.iapFooter}>
+          <button
+            type="button"
+            onClick={handleRestore}
+            disabled={restoring}
+            style={{ ...s.restoreBtn, opacity: restoring ? 0.6 : 1 }}
+          >
+            {restoring ? 'Restoring…' : 'Restore Purchases'}
+          </button>
+          <p style={s.legalText}>
+            Pro Seller is a {livePrices.pro ?? '$9.99'}/month auto-renewable
+            subscription. Your Apple ID is charged at confirmation of purchase. It
+            renews automatically unless canceled at least 24 hours before the end
+            of the current period. Manage or cancel anytime in your App Store
+            account settings.
+          </p>
+        </div>
+      )}
+
+      <p style={s.legalLinks}>
+        <button type="button" onClick={() => navigate('/terms')} style={s.linkBtn}>
+          Terms of Use
+        </button>
+        <span style={s.legalDot}>·</span>
+        <button type="button" onClick={() => navigate('/privacy')} style={s.linkBtn}>
+          Privacy Policy
+        </button>
+      </p>
     </PageScroll>
   );
 }
@@ -560,6 +639,56 @@ const s: Record<string, CSSProperties> = {
     textAlign: 'center',
     fontSize: 11,
     color: 'rgba(245,245,247,0.45)',
+  },
+  iapFooter: {
+    margin: '20px auto 0',
+    maxWidth: 560,
+    padding: '0 20px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 10,
+  },
+  restoreBtn: {
+    appearance: 'none',
+    background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.18)',
+    borderRadius: 999,
+    color: '#f5f5f7',
+    fontSize: 13,
+    fontWeight: 700,
+    padding: '10px 20px',
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  legalText: {
+    margin: 0,
+    textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 1.5,
+    color: 'rgba(245,245,247,0.5)',
+  },
+  legalLinks: {
+    margin: '14px auto 0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  linkBtn: {
+    appearance: 'none',
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(251, 191, 36, 0.9)',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: 0,
+    textDecoration: 'underline',
+  },
+  legalDot: {
+    color: 'rgba(245,245,247,0.4)',
+    fontSize: 12,
   },
   iosNote: {
     margin: '0 auto 4px',

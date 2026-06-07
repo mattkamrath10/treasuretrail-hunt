@@ -48,6 +48,16 @@ const TARGET_TABLE: Record<BoostTargetKind, string> = {
   listing: 'marketplace_listings',
 };
 
+// Column that holds the owning user's id on each boostable table. Used to
+// verify a buyer can only boost their OWN content (service-role bypasses RLS,
+// so ownership must be checked explicitly).
+const OWNER_COLUMN: Record<BoostTargetKind, string> = {
+  event: 'holder_id',
+  wanted: 'user_id',
+  find: 'user_id',
+  listing: 'seller_id',
+};
+
 // Mirrors src/lib/boost.ts (kept tiny + duplicated so the server has no
 // dependency on the client bundle).
 const BOOST_DURATION_HOURS = 72;
@@ -91,7 +101,7 @@ export async function applyBoost(args: {
   const table = TARGET_TABLE[targetKind];
   if (!table) return { ok: false, error: `Unknown boost target: ${targetKind}` };
 
-  const { error } = await admin()
+  const { data, error } = await admin()
     .from(table)
     .update({
       boosted_at: new Date().toISOString(),
@@ -99,9 +109,40 @@ export async function applyBoost(args: {
       boost_type: boostType,
       priority_score: priorityFor(boostType),
     })
-    .eq('id', targetId);
+    .eq('id', targetId)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  // PostgREST treats an UPDATE matching 0 rows as success; without this check a
+  // bad/nonexistent targetId would silently "succeed" and burn a boost.
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'Boost target not found.' };
+  }
   return { ok: true, data: { targetId } };
+}
+
+/**
+ * Confirms a target row exists and is owned by `userId`. Service-role writes
+ * bypass RLS, so callers MUST gate on this before boosting on a user's behalf.
+ */
+export async function verifyBoostOwnership(args: {
+  userId: string;
+  targetKind: BoostTargetKind;
+  targetId: string;
+}): Promise<{ ok: boolean; found: boolean; owned: boolean; error?: string }> {
+  const { userId, targetKind, targetId } = args;
+  const table = TARGET_TABLE[targetKind];
+  const col = OWNER_COLUMN[targetKind];
+  if (!table || !col) {
+    return { ok: false, found: false, owned: false, error: `Unknown boost target: ${targetKind}` };
+  }
+  const { data, error } = await admin()
+    .from(table)
+    .select(`id, ${col}`)
+    .eq('id', targetId)
+    .maybeSingle();
+  if (error) return { ok: false, found: false, owned: false, error: error.message };
+  if (!data) return { ok: true, found: false, owned: false };
+  return { ok: true, found: true, owned: (data as Record<string, unknown>)[col] === userId };
 }
 
 /**
@@ -136,4 +177,76 @@ export async function removeBoost(args: {
     .eq('id', targetId);
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: { targetId } };
+}
+
+// =====================================================================
+// IAP ledger (iap_purchases)
+// ---------------------------------------------------------------------
+// Idempotency + exactly-once accounting for Apple In-App Purchases:
+//   * webhook events are deduped by rc_event_id;
+//   * boost consumables are claimed atomically by rc_transaction_id (a UNIQUE
+//     column), so one purchased boost can be applied to exactly one item.
+// =====================================================================
+
+const UNIQUE_VIOLATION = '23505';
+
+/** Whether this RevenueCat webhook event was already processed. */
+export async function webhookEventSeen(eventId: string): Promise<boolean> {
+  const { data } = await admin()
+    .from('iap_purchases')
+    .select('id')
+    .eq('rc_event_id', eventId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/** Records a processed webhook event. Conflicts are ignored (already recorded). */
+export async function recordWebhookEvent(
+  eventId: string,
+  meta: { userId?: string | null; productId?: string | null; eventType?: string | null },
+): Promise<void> {
+  const { error } = await admin().from('iap_purchases').insert({
+    kind: 'subscription',
+    rc_event_id: eventId,
+    user_id: meta.userId ?? null,
+    product_id: meta.productId ?? null,
+    event_type: meta.eventType ?? null,
+  });
+  if (error && error.code !== UNIQUE_VIOLATION) {
+    console.error('[grants] recordWebhookEvent failed:', error.message);
+  }
+}
+
+/**
+ * Atomically claims a boost transaction for redemption. Returns claimed=false
+ * when the transaction was already redeemed (UNIQUE violation on
+ * rc_transaction_id), which is the once-only guarantee for consumables.
+ */
+export async function claimBoostTransaction(args: {
+  userId: string;
+  txnId: string;
+  targetKind: BoostTargetKind;
+  targetId: string;
+  productId?: string;
+}): Promise<{ claimed: boolean; error?: string }> {
+  const { error } = await admin().from('iap_purchases').insert({
+    kind: 'boost',
+    rc_transaction_id: args.txnId,
+    user_id: args.userId,
+    product_id: args.productId ?? null,
+    target_kind: args.targetKind,
+    target_id: args.targetId,
+  });
+  if (!error) return { claimed: true };
+  if (error.code === UNIQUE_VIOLATION) return { claimed: false };
+  return { claimed: false, error: error.message };
+}
+
+/** Releases a boost claim so it can be retried (call when applyBoost fails). */
+export async function releaseBoostTransaction(txnId: string): Promise<void> {
+  const { error } = await admin()
+    .from('iap_purchases')
+    .delete()
+    .eq('rc_transaction_id', txnId);
+  if (error) console.error('[grants] releaseBoostTransaction failed:', error.message);
 }
