@@ -102,3 +102,9 @@ id = "L0LbkTygJgz0RSINys6q3"
 uri = "file://TreasureTrail-AndroidReady-20260605.zip"
 type = "unspecified"
 title = "TreasureTrail Android project — ready to build (v1.0.3, versionCode 4)"
+
+[[outputs]]
+id = "NC8l9MEywAaBiaWUsBDy0"
+uri = "file://exports/treasuretrail-safe-area-and-pro-audit.md"
+type = "text"
+title = "Safe-Area Fix & Pro Benefits Audit"
