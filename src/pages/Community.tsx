@@ -16,7 +16,7 @@ type CommunityView = 'feed' | 'create' | 'discover' | 'profile' | 'stories';
 
 interface FeedPost {
   id: string;
-  user: { name: string; handle: string; rank: string; avatar: string; verified: boolean };
+  user: { name: string; handle: string; avatar: string; verified: boolean };
   type: 'find' | 'flip' | 'auction_win' | 'collection' | 'sale';
   image: string;
   caption: string;
@@ -136,7 +136,6 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
               user: {
                 name: rp.profiles?.username || 'Unknown',
                 handle: rp.profiles?.username || 'user',
-                rank: rp.profiles?.treasure_rank || 'Hunter',
                 avatar: (rp.profiles?.username || 'U').slice(0, 2).toUpperCase(),
                 verified: rp.profiles?.scout_verified || false,
               },
@@ -210,7 +209,6 @@ function FeedCard({ post, onLike, onSave }: { post: FeedPost; onLike: () => void
         <div style={s.postUserInfo}>
           <div style={s.postNameRow}>
             <span style={s.postUserName}>{post.user.name}</span>
-            <span style={s.postRankBadge}>{post.user.rank}</span>
           </div>
           <div style={s.postMeta}>
             <span style={s.postHandle}>@{post.user.handle}</span>

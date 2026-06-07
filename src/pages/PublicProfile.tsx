@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Shield, Star, Award, MapPin, ArrowLeft, UserPlus, UserCheck, Loader, MessageCircle, Flag } from 'lucide-react';
+import { Shield, MapPin, ArrowLeft, UserPlus, UserCheck, Loader, MessageCircle, Flag } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
 import { MobileDetailPage } from '../components/ui/MobileDetailPage';
 import { notifyUser } from '../lib/notifications';
-import { accountAge, reputationTier, normalizeReputation } from '../lib/reputation';
+import { accountAge } from '../lib/reputation';
 import { getOrCreateConversation } from '../lib/messaging';
 import { blockUser, isUserBlocked } from '../lib/blocks';
 import ReportButton from '../components/moderation/ReportButton';
@@ -223,12 +223,6 @@ export default function PublicProfile() {
           <h1 style={s.username}>@{profile.username}</h1>
           {profile.bio && <p style={s.bio}>{profile.bio}</p>}
 
-          <div style={s.badges}>
-            <span style={s.rankBadge}>{profile.treasure_rank || 'Hunter'}</span>
-            <span style={s.levelBadge}>Lv. {profile.level || 1}</span>
-            <span style={s.xpBadge}>{profile.xp || 0} XP</span>
-          </div>
-
           {(profile.location_city || profile.location_state) && (
             <div style={s.locationRow}>
               <MapPin size={12} style={{ color: 'var(--color-neutral-400)' }} />
@@ -255,11 +249,6 @@ export default function PublicProfile() {
             <div style={s.stat}>
               <span style={s.statNumber}>{savesReceived ?? '—'}</span>
               <span style={s.statLabel}>Saves</span>
-            </div>
-            <div style={s.statDivider} />
-            <div style={s.stat}>
-              <span style={s.statNumber}>{normalizeReputation(profile.reputation_score).toFixed(1)}</span>
-              <span style={s.statLabel}>Rep ★</span>
             </div>
           </div>
         </div>
@@ -308,20 +297,6 @@ export default function PublicProfile() {
         {toast && (
           <div style={s.toast}>{toast}</div>
         )}
-
-        <div style={s.repCard}>
-          <Award size={18} style={{ color: 'var(--color-primary-500)' }} />
-          <div style={s.repInfo}>
-            <span style={s.repTitle}>{reputationTier(profile.reputation_score)}</span>
-            <span style={s.repSub}>
-              {(profile.reputation_score ?? 0) > 0 ? 'Based on real activity' : 'No ratings yet'}
-            </span>
-          </div>
-          <div style={s.repScore}>
-            <span style={s.repNum}>{profile.reputation_score ?? 0}</span>
-            <Star size={12} style={{ color: 'var(--color-primary-500)', fill: 'var(--color-primary-500)' }} />
-          </div>
-        </div>
 
         <div style={s.section}>
           <h2 style={s.sectionTitle}>{isSelf ? 'Your Showcase' : `@${profile.username}'s Showcase`}</h2>

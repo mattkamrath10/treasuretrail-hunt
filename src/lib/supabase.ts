@@ -22,10 +22,6 @@ export type Profile = {
   bio: string;
   avatar_url: string | null;
   favorite_categories: string[];
-  treasure_rank: string;
-  xp: number;
-  level: number;
-  reputation_score: number;
   scout_verified: boolean;
   pro_member: boolean;
   role: 'user' | 'admin';
@@ -69,7 +65,7 @@ export type CommunityPost = {
   is_hidden?: boolean | null;
   report_count?: number | null;
   created_at: string;
-  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
+  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'scout_verified'>;
 };
 
 export type MarketplaceListing = {
@@ -96,7 +92,7 @@ export type MarketplaceListing = {
   priority_score?: number | null;
   is_hidden?: boolean | null;
   report_count?: number | null;
-  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
+  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'scout_verified'>;
 };
 
 export type Notification = {

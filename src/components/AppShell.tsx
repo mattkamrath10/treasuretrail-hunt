@@ -25,7 +25,6 @@ const Alerts = lazy(() => import('../pages/Alerts'));
 const Profile = lazy(() => import('../pages/Profile'));
 const Auctions = lazy(() => import('../pages/Auctions'));
 const Messages = lazy(() => import('../pages/Messages'));
-const Achievements = lazy(() => import('../pages/Achievements'));
 const Marketplace = lazy(() => import('../pages/Marketplace'));
 const Pro = lazy(() => import('../pages/Pro'));
 const Safety = lazy(() => import('../pages/Safety'));
@@ -56,11 +55,6 @@ function MessagesPage() {
   // Single component handles both `/messages` (inbox) and `/messages/:id`
   // (chat) — it branches on useParams() internally.
   return <Messages onBack={() => navigate('/alerts')} />;
-}
-
-function AchievementsPage() {
-  const navigate = useNavigate();
-  return <Achievements onBack={() => navigate('/profile')} />;
 }
 
 function MarketplacePage() {
@@ -332,7 +326,6 @@ export default function AppShell() {
             <Route path="/seller/event/:id" element={<SellerEventFormPage />} />
             <Route path="/event/:id" element={<EventDetailPage />} />
             <Route path="/live" element={<LiveHubPage />} />
-            <Route path="/achievements" element={<AchievementsPage />} />
             <Route path="/profile" element={<Profile />} />
             {/* Public profile by username — the existing /u/:username route in App.tsx is
                 kept as an alias; /profile/:username is the canonical link surfaced from

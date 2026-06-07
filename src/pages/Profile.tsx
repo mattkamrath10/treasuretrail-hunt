@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Camera, Heart, Upload, LogOut, Shield, ShieldOff, Users, CircleCheck as CheckCircle, Trophy, Loader, Share2, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
+import { Camera, Heart, Upload, LogOut, Shield, ShieldOff, Users, CircleCheck as CheckCircle, Loader, Share2, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
@@ -69,7 +69,7 @@ export default function Profile() {
       <PageScroll style={styles.container}>
         <GuestOverlay
           title="Your Treasure Profile"
-          subtitle="Create a free account to build your TreasureRank, track finds, and connect with collectors."
+          subtitle="Create a free account to track finds, list items, and connect with collectors."
         />
       </PageScroll>
     );
@@ -80,10 +80,6 @@ export default function Profile() {
       <header style={styles.header}>
         <h1 style={styles.title}>Profile</h1>
         <div style={styles.headerActions}>
-          <button onClick={() => navigate('/achievements')} style={styles.achieveBtn}>
-            <Trophy size={14} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={styles.achieveBtnText}>Rank</span>
-          </button>
           <button onClick={() => navigate('/following')} style={styles.iconBtn} aria-label="Following feed">
             <Users size={18} style={{ color: 'var(--color-neutral-600)' }} />
           </button>
@@ -390,11 +386,6 @@ function ProfileHeader({ profile }: { profile: any }) {
         {!monetizationHidden() && isProUser(profile) && <ProBadge size="md" />}
       </div>
       {profile?.bio && <p style={styles.bio}>{profile.bio}</p>}
-      <div style={styles.rankRow}>
-        <span style={styles.rankBadge}>{profile?.treasure_rank || 'Hunter'}</span>
-        <span style={styles.levelBadge}>Lv. {profile?.level || 1}</span>
-        <span style={styles.xpBadge}>{profile?.xp || 0} XP</span>
-      </div>
       <span style={styles.joinDate}>Member since {joinDate}</span>
 
       <div style={styles.stats}>

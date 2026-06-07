@@ -26,7 +26,7 @@ type FullListing = MarketplaceListing & {
   description?: string | null;
   general_location?: string | null;
   marketplace_found?: string | null;
-  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'> | null;
+  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'scout_verified'> | null;
 };
 
 const LISTING_KIND = 'marketplace' as const;
@@ -370,9 +370,6 @@ export default function ListingDetail() {
               </div>
               <div style={styles.uploaderMeta}>
                 <span style={styles.uploaderName}>@{username}</span>
-                <span style={styles.uploaderSub}>
-                  {listing.profiles.treasure_rank || 'Hunter'}
-                </span>
               </div>
               <ArrowLeft size={18} style={{ transform: 'rotate(180deg)', color: 'var(--color-neutral-400)' }} />
             </button>
@@ -381,7 +378,7 @@ export default function ListingDetail() {
               <div style={styles.avatarFallback}>{uploaderInitial}</div>
               <div style={styles.uploaderMeta}>
                 <span style={styles.uploaderName}>@seller</span>
-                <span style={styles.uploaderSub}>Hunter</span>
+                <span style={styles.uploaderSub}>Seller</span>
               </div>
             </div>
           )}

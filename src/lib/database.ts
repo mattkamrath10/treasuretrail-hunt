@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type { CommunityPost, MarketplaceListing, Notification, Profile } from './supabase';
 import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
 
-type ProfileEmbed = Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'>;
+type ProfileEmbed = Pick<Profile, 'username' | 'avatar_url' | 'scout_verified'>;
 
 /**
  * PostgREST's `select('*, profiles(...)')` embed only works when the table
@@ -24,7 +24,7 @@ export async function attachProfiles<T extends Record<string, unknown>>(
   if (ids.length === 0) return rows as (T & { profiles?: ProfileEmbed })[];
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, avatar_url, treasure_rank, scout_verified')
+    .select('id, username, avatar_url, scout_verified')
     .in('id', ids);
   if (error) {
     console.warn('[SUPABASE_QUERY_FAIL] table=profiles source=attachProfiles', error.code, error.message);
@@ -35,7 +35,6 @@ export async function attachProfiles<T extends Record<string, unknown>>(
     byId.set(p.id, {
       username: p.username,
       avatar_url: p.avatar_url,
-      treasure_rank: p.treasure_rank,
       scout_verified: p.scout_verified,
     });
   });

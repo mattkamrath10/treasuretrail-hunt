@@ -38,27 +38,3 @@ export function accountAge(createdAt: string | null | undefined): string {
   const years = Math.floor(months / 12);
   return `Joined ${years} year${years === 1 ? '' : 's'} ago`;
 }
-
-/**
- * Star rating helper — clamps to 0..5 and rounds to nearest 0.1 so the
- * displayed value is stable across renders.
- */
-export function normalizeReputation(raw: number | null | undefined): number {
-  const n = typeof raw === 'number' && Number.isFinite(raw) ? raw : 5;
-  return Math.max(0, Math.min(5, Math.round(n * 10) / 10));
-}
-
-/**
- * Reputation tier label for badge text. Tuned for real activity, not vanity:
- *   < 3.0  Building
- *   3.0+   Trusted
- *   4.2+   Established
- *   4.7+   Top Hunter
- */
-export function reputationTier(raw: number | null | undefined): string {
-  const n = normalizeReputation(raw);
-  if (n >= 4.7) return 'Top Hunter';
-  if (n >= 4.2) return 'Established';
-  if (n >= 3.0) return 'Trusted';
-  return 'Building';
-}

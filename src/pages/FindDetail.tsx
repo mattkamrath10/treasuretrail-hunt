@@ -26,7 +26,7 @@ type FullPost = CommunityPost & {
   marketplace_found?: string | null;
   scout_needed?: boolean | null;
   description?: string | null;
-  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'treasure_rank' | 'scout_verified'> | null;
+  profiles?: Pick<Profile, 'username' | 'avatar_url' | 'scout_verified'> | null;
 };
 
 function formatMarketplace(raw?: string | null): string {
@@ -333,9 +333,6 @@ export default function FindDetail() {
               </div>
               <div style={styles.uploaderMeta}>
                 <span style={styles.uploaderName}>@{username}</span>
-                <span style={styles.uploaderSub}>
-                  {post.profiles?.treasure_rank || 'Hunter'}
-                </span>
               </div>
               <ArrowLeft size={18} style={{ transform: 'rotate(180deg)', color: 'var(--color-neutral-400)' }} />
             </button>
