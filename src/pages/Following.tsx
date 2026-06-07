@@ -161,6 +161,7 @@ const s: Record<string, CSSProperties> = {
   header: {
     display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
     padding: 'var(--space-3) var(--space-4)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-3))',
     backgroundColor: 'var(--color-neutral-0)',
     borderBottom: '1px solid var(--color-neutral-100)',
     position: 'sticky', top: 0, zIndex: 2,

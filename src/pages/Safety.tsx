@@ -655,7 +655,7 @@ function SafetyEducation({ onBack }: { onBack: () => void }) {
 
 const st: Record<string, React.CSSProperties> = {
   container: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--color-neutral-0)' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)', paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-3))', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
   backBtn: { width: '36px', height: '36px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-600)' },
   headerTitle: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
   guardianBadge: { display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-secondary-50)', border: '1px solid var(--color-secondary-200)' },
