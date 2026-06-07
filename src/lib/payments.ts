@@ -130,6 +130,42 @@ export async function startBoostPurchase(
 }
 
 /**
+ * Applies a Pro member's INCLUDED boost — no Apple purchase, no charge. Pro
+ * advertises "unlimited event & live-stream boosts", so a Pro member must never
+ * be sent through the paid IAP sheet to boost their own content. The server
+ * independently re-verifies Pro entitlement and ownership (it never trusts the
+ * client's claim of being Pro), then applies a 'pro' boost. Non-Pro callers are
+ * rejected server-side and should use startBoostPurchase instead.
+ */
+export async function startProBoost(
+  args: StartBoostArgs,
+): Promise<PaymentResult<{ targetId: string }>> {
+  const headers = await authHeaders();
+  if (!headers) return { ok: false, error: 'Please sign in to boost.' };
+
+  try {
+    const resp = await fetch(apiUrl('/api/boost/pro'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ targetKind: args.targetKind, targetId: args.targetId }),
+    });
+    if (!resp.ok) {
+      const json = (await resp.json().catch(() => ({}))) as { error?: string };
+      return {
+        ok: false,
+        error: json.error ?? 'Could not apply your Pro boost. Please try again.',
+      };
+    }
+    return { ok: true, data: { targetId: args.targetId } };
+  } catch {
+    return {
+      ok: false,
+      error: 'Could not apply your Pro boost. Please try again.',
+    };
+  }
+}
+
+/**
  * Restores prior purchases and reconciles Pro server-side. Returns whether Pro
  * is active afterwards.
  */

@@ -340,6 +340,69 @@ app.post('/api/admin/boost', async (req, res) => {
 });
 
 // =====================================================================
+// Pro included boost
+// ---------------------------------------------------------------------
+// A Pro member redeems one of their INCLUDED boosts (Pro advertises
+// "unlimited event & live-stream boosts"). No Apple purchase is involved —
+// so the server is the sole authority that the caller is actually Pro. We
+// re-read the tier from the DB (never trust the client) and gate ownership
+// exactly like the paid path before applying a 'pro'-type boost.
+// =====================================================================
+app.post('/api/boost/pro', async (req, res) => {
+  try {
+    if (!hasServiceRole()) {
+      return res.status(503).json({ error: 'Boosting is not configured.' });
+    }
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+    const userId = userData.user.id;
+
+    const { targetKind, targetId } = req.body as {
+      targetKind?: BoostTargetKind;
+      targetId?: string;
+    };
+    if (!targetKind || !VALID_TARGET_KINDS.includes(targetKind)) {
+      return res.status(400).json({ error: 'Valid targetKind is required.' });
+    }
+    if (!targetId || typeof targetId !== 'string') {
+      return res.status(400).json({ error: 'targetId is required.' });
+    }
+
+    // Server-side entitlement check — the client claiming Pro is not enough.
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('membership_tier, pro_member')
+      .eq('id', userId)
+      .maybeSingle();
+    const isPro = profile?.membership_tier === 'pro' || profile?.pro_member === true;
+    if (!isPro) {
+      return res
+        .status(403)
+        .json({ error: 'Event Boosts are included with Pro. Upgrade to Pro to boost for free.' });
+    }
+
+    // Ownership gate — service-role writes bypass RLS, so a member must not be
+    // able to boost someone else's content.
+    const own = await verifyBoostOwnership({ userId, targetKind, targetId });
+    if (!own.ok) return res.status(500).json({ error: own.error ?? 'Ownership check failed.' });
+    if (!own.found) return res.status(404).json({ error: 'That item no longer exists.' });
+    if (!own.owned) {
+      return res.status(403).json({ error: 'You can only boost your own items.' });
+    }
+
+    const result = await applyBoost({ targetKind, targetId, boostType: 'pro' });
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    return res.json({ ok: true, targetId });
+  } catch (err: any) {
+    console.error('[boost/pro]', err?.message || err);
+    return res.status(500).json({ error: 'Boost could not be applied.' });
+  }
+});
+
+// =====================================================================
 // Go-live push fan-out
 // ---------------------------------------------------------------------
 // Fired by viewer surfaces right after the in-app `notify_followers_go_live`

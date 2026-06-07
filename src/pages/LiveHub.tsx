@@ -23,7 +23,7 @@ import { GuestOverlay } from '../components/GuestGate';
 import { PageScroll } from '../components/ui/PageScroll';
 import { fetchMyEvents, fetchPublishedEvents } from '../lib/events';
 import type { EventRow } from '../lib/events';
-import { startBoostPurchase } from '../lib/payments';
+import { startBoostPurchase, startProBoost } from '../lib/payments';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { isProUser } from '../lib/entitlements';
 import { BoostedBadge } from '../components/ui/BoostedBadge';
@@ -1434,7 +1434,11 @@ function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => 
   const handleBoost = async (event: EventRow) => {
     if (isBoosted(event)) return;
     setBusyId(event.id);
-    const res = await startBoostPurchase({ targetKind: 'event', targetId: event.id });
+    // Pro includes unlimited boosts — redeem the included boost (no charge)
+    // rather than opening the paid Apple purchase sheet.
+    const res = isPro
+      ? await startProBoost({ targetKind: 'event', targetId: event.id })
+      : await startBoostPurchase({ targetKind: 'event', targetId: event.id });
     setBusyId(null);
     if (!res.ok) {
       flashToast(
@@ -1443,7 +1447,10 @@ function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => 
       );
       return;
     }
-    flashToast('Boost active for 72 hours.', 'success');
+    flashToast(
+      isPro ? 'Boost active for 72 hours — included with Pro.' : 'Boost active for 72 hours.',
+      'success',
+    );
     await reload();
   };
 

@@ -27,7 +27,7 @@ import { flashToast } from '../lib/toast';
 import { shareWithImage } from '../lib/shareWithImage';
 import { Zap } from 'lucide-react';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
-import { startBoostPurchase } from '../lib/payments';
+import { startBoostPurchase, startProBoost } from '../lib/payments';
 import { monetizationHidden } from '../lib/platform';
 import ReportButton from '../components/moderation/ReportButton';
 import BlockUserButton from '../components/moderation/BlockUserButton';
@@ -884,7 +884,11 @@ function OwnerBoostRow({ event, onApplied }: { event: EventRow; onApplied: () =>
 
   const onBoost = async () => {
     setBusy(true);
-    const res = await startBoostPurchase({ targetKind: 'event', targetId: event.id });
+    // Pro includes unlimited boosts — redeem the included boost (no charge)
+    // rather than opening the paid Apple purchase sheet.
+    const res = isPro
+      ? await startProBoost({ targetKind: 'event', targetId: event.id })
+      : await startBoostPurchase({ targetKind: 'event', targetId: event.id });
     setBusy(false);
     if (!res.ok) {
       flashToast(
@@ -893,7 +897,10 @@ function OwnerBoostRow({ event, onApplied }: { event: EventRow; onApplied: () =>
       );
       return;
     }
-    flashToast('Boost active for 72 hours.', 'success');
+    flashToast(
+      isPro ? 'Boost active for 72 hours — included with Pro.' : 'Boost active for 72 hours.',
+      'success',
+    );
     await onApplied();
   };
 

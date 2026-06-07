@@ -16,7 +16,8 @@ import { toThumbUrl } from '../lib/imageCompress';
 import { setPendingIntent } from '../lib/pendingIntent';
 import { Zap } from 'lucide-react';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
-import { startBoostPurchase } from '../lib/payments';
+import { startBoostPurchase, startProBoost } from '../lib/payments';
+import { isProUser } from '../lib/entitlements';
 import { monetizationHidden } from '../lib/platform';
 import { flashToast } from '../lib/toast';
 import { trackAnalyticsEvent } from '../lib/analytics';
@@ -418,6 +419,8 @@ const s: Record<string, CSSProperties> = {
  * — see that file for behavior notes. Payments mocked in Phase 1.
  */
 function OwnerBoostRow({ item, onApplied }: { item: WantedItemWithRequester; onApplied: () => Promise<void> | void }) {
+  const { profile } = useAuth();
+  const isPro = isProUser(profile);
   const [busy, setBusy] = useState(false);
   const active = isBoosted(item);
   const remaining = boostExpiresInLabel(item);
@@ -428,7 +431,11 @@ function OwnerBoostRow({ item, onApplied }: { item: WantedItemWithRequester; onA
 
   const onBoost = async () => {
     setBusy(true);
-    const res = await startBoostPurchase({ targetKind: 'wanted', targetId: item.id });
+    // Pro includes unlimited boosts — redeem the included boost (no charge)
+    // rather than opening the paid Apple purchase sheet.
+    const res = isPro
+      ? await startProBoost({ targetKind: 'wanted', targetId: item.id })
+      : await startBoostPurchase({ targetKind: 'wanted', targetId: item.id });
     setBusy(false);
     if (!res.ok) {
       flashToast(
@@ -437,7 +444,10 @@ function OwnerBoostRow({ item, onApplied }: { item: WantedItemWithRequester; onA
       );
       return;
     }
-    flashToast('Boost active for 72 hours.', 'success');
+    flashToast(
+      isPro ? 'Boost active for 72 hours — included with Pro.' : 'Boost active for 72 hours.',
+      'success',
+    );
     await onApplied();
   };
 
@@ -455,7 +465,7 @@ function OwnerBoostRow({ item, onApplied }: { item: WantedItemWithRequester; onA
           style={{ ...ownerBoostStyles.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
         >
           {busy ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
-          Boost — $3 / 72h
+          {isPro ? 'Boost — Included with Pro' : 'Boost — $3 / 72h'}
         </button>
       )}
     </div>
