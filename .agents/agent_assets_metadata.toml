@@ -114,3 +114,9 @@ id = "_WLkJOyANxKwOq34SKHGm"
 uri = "file://exports/treasuretrail-safe-area-and-pro-audit.zip"
 type = "unspecified"
 title = "Safe-Area Fix & Pro Benefits Audit (ZIP)"
+
+[[outputs]]
+id = "XPHuuemIZ5dcHkbr_njUW"
+uri = "file://exports/TreasureTrail-Complete-20260607.zip"
+type = "unspecified"
+title = "TreasureTrail — Complete Project (all code + assets)"
