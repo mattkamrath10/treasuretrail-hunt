@@ -254,6 +254,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     overflow: 'auto',
     padding: 'var(--space-6)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-6))',
     maxWidth: 'var(--max-width)',
     margin: '0 auto',
     width: '100%',

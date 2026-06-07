@@ -944,6 +944,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     padding: 'var(--space-4)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-4))',
     borderBottom: '1px solid var(--color-neutral-100)',
     flexShrink: 0,
   },
@@ -1101,6 +1102,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 'var(--space-4)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-4))',
     borderBottom: '1px solid var(--color-neutral-100)',
     flexShrink: 0,
   },

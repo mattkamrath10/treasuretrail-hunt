@@ -200,6 +200,7 @@ const st: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 'var(--space-3) var(--space-4)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-3))',
     borderBottom: '1px solid var(--color-neutral-200)',
   },
   backBtn: {

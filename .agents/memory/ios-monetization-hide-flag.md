@@ -1,35 +1,34 @@
 ---
-name: iOS monetization-hide flag
-description: How the temporary Apple 3.1.1 monetization-hide toggle works and how to keep it airtight.
+name: iOS monetization-hide flag (now OFF) + payments live
+description: monetizationHidden() and iosPaymentsBlocked() both return false now — Pro/boost/IAP are LIVE everywhere; how the kill-switches still work if re-enabled.
 ---
 
-`src/lib/platform.ts` exports `monetizationHidden()` (currently hard-returns `true`,
-i.e. hidden on every platform). It is a TEMPORARY App Store review switch that hides
-EVERY monetization surface — broader than `iosPaymentsBlocked()` (prices/buy buttons only).
+As of the production Apple-IAP launch, BOTH master switches in `src/lib/platform.ts`
+return `false`:
+- `monetizationHidden()` → `false` — every Pro/boost/upgrade/analytics surface is VISIBLE on all platforms.
+- `iosPaymentsBlocked()` → `false` — prices and purchase CTAs are shown on iOS; real purchases run through RevenueCat → StoreKit.
 
-**Why:** Apple rejected under Guideline 3.1.1 (IAP). The iOS build must show no
-Pro/Premium/membership/boost/upgrade/pricing/subscription/reach-analytics UI at all,
-but web and Android must keep monetization. Nothing is deleted — all reversible.
+So the earlier "hidden on every platform for Apple 3.1.1" state is OVER. Do not
+assume Pro/boost UI is suppressed — it is live. `PAYMENTS_ENABLED = true` in
+`src/lib/payments.ts`, and `startProUpgrade()` performs a real `purchasePro()`
+(NOT a "coming soon" stub — a comment block in `src/pages/Pro.tsx` still says
+payments are disabled until Stripe; that comment is STALE/misleading, the code
+does live Apple IAP).
 
-**How to apply when adding/auditing monetization UI:**
-- Reusable badge/card components (ProBadge, BoostedBadge, UpgradeProCard) must
-  early-return `null` when `monetizationHidden()` — self-gate, never rely only on
-  call sites, so future call sites can't leak a Pro signal on iOS.
-- Whole pages/screens (Pro, SellerAnalytics) are removed by redirecting their
-  routes in AppShell with `<Navigate>` when `monetizationHidden()` — this covers
-  nav, menus AND deep links in one place.
-- Inline CTAs/labels/copy gate with `!monetizationHidden()` (or switch the string
-  on the flag, e.g. SellerEventForm free-tier cap message).
-- To RESTORE monetization later: change `monetizationHidden()` to return
-  `false`. That single edit re-enables everything. (It currently hard-returns
-  `true` — hidden on ALL platforms, not just iOS, per the user's request.)
-- BOOST visuals are killed at ONE chokepoint: `isBoosted()` in `src/lib/boost.ts`
-  returns `false` when `monetizationHidden()`. Every boost-derived UI reads through
-  it — `BOOSTED_CARD_GLOW` glow (Discover/Wanted cards), BoostedBadge, "Xh left"
-  pills (`boostExpiresInLabel`), `computePriorityScore`, and boost feed ranking
-  (`rankDiscoverFeed`). NEVER derive boost state from raw `boost_*` columns at a
-  call site — always go through `isBoosted()` or the kill-switch leaks.
-  **Why:** user wanted the gold glow gone too, not just text/price (stricter than
-  the earlier "decorative glow is fine for 3.1.1" stance).
-- `isIOS()` = `Capacitor.getPlatform() === 'ios'`, reliable in native builds, so
-  the gate is trustworthy on TestFlight/App Store.
+**The two switches are still wired, just turned off — to re-enable a hide:**
+- `monetizationHidden()` is the BROAD switch (hides ALL monetization UI). Components
+  self-gate: ProBadge/BoostedBadge/UpgradeProCard early-return `null`; routes (Pro,
+  SellerAnalytics) redirect via `<Navigate>` in AppShell; inline CTAs gate with
+  `!monetizationHidden()`. Boost visuals are killed at ONE chokepoint —
+  `isBoosted()` in `src/lib/boost.ts` returns `false` when hidden, and every
+  boost-derived UI (glow, BoostedBadge, "Xh left" pills, priority score,
+  `rankDiscoverFeed`) reads through it. NEVER derive boost state from raw `boost_*`
+  columns at a call site.
+- `iosPaymentsBlocked()` is the NARROW Apple-3.1.1 switch (hides prices/buy buttons
+  only, page stays informational). Pro.tsx reads it as `blockPurchases`.
+
+**Why:** the project intentionally ships self-serve RevenueCat Apple IAP. If a
+stale review/validation expects "monetization hidden" or "Stripe revenue lockdown,"
+that criterion no longer applies.
+
+`isIOS()` = `Capacitor.getPlatform() === 'ios'`, reliable in native builds.

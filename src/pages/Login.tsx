@@ -161,6 +161,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     padding: 'var(--space-6) var(--space-6) var(--space-5)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-6))',
     background: 'linear-gradient(180deg, var(--color-neutral-900) 0%, var(--color-neutral-800) 100%)',
     borderRadius: '0 0 var(--radius-xl) var(--radius-xl)',
   },
