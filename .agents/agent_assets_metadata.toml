@@ -161,3 +161,9 @@ id = "D_kVBKclYhmNOoNsirZgY"
 uri = "file://dist-downloads/treasuretrail-code-changes.zip"
 type = "unspecified"
 title = "Code changes since the rejected build (zip)"
+
+[[outputs]]
+id = "6w4kSjkbUIv9aELnWuaOc"
+uri = "file://dist-downloads/TreasureTrail-FullApp.zip"
+type = "unspecified"
+title = "TreasureTrail — Full App (complete source code)"
