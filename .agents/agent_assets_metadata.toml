@@ -136,22 +136,22 @@ title = "Pro Seller Monthly — App Store Image (1024×1024, compliant)"
 id = "BuRZO-BxjFGw1trwqsXJk"
 uri = "file://ios-screenshots/ipad-1-discover.png"
 type = "image"
-title = "iPad — Discover (home feed)"
+title = "iPad 1 — Discover"
 
 [[outputs]]
 id = "l_98FwJVDQ9CUq0EumzSL"
 uri = "file://ios-screenshots/ipad-4-pro.png"
 type = "image"
-title = "iPad — Membership / Pricing ($1.99 & $5.99)"
+title = "iPad 2 — Pricing ($1.99 & $5.99)"
 
 [[outputs]]
 id = "hUXmq8q8D3mqsultfJe_I"
 uri = "file://ios-screenshots/ipad-3-live.png"
 type = "image"
-title = "iPad — Live Events"
+title = "iPad 3 — Live Events"
 
 [[outputs]]
 id = "SDmyA1pXBKsrRNcE_NxLx"
 uri = "file://ios-screenshots/ipad-2-marketplace.png"
 type = "image"
-title = "iPad — Marketplace"
+title = "iPad 4 — Marketplace"
