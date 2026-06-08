@@ -1,0 +1,175 @@
+They are not rejecting TreasureTrail because subscriptions are forbidden, and they are not saying your subscription setup is technically broken. They are rejecting it under Guideline 3.1.2(c) – Auto-Renewable Subscriptions because Apple believes the required subscription disclosures are missing from either the app, the App Store metadata, or both.
+
+Issue #1: Missing Terms of Use (EULA) Link
+Summary
+
+Apple states that apps offering auto-renewable subscriptions must provide users with a functional Terms of Use (EULA) link.
+
+The reviewer specifically says the App Store metadata does not include the required Terms of Use information. Apple allows either the standard Apple EULA or your own custom EULA, but whichever option you choose must be properly linked in App Store Connect.
+
+This is a documentation and compliance issue rather than a coding issue. Apple wants users to know the legal agreement governing the subscription before they subscribe.
+
+What must be done
+Option A (easiest)
+
+Use Apple's standard EULA.
+
+Add this link to the App Description:
+
+https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+Option B
+
+Use TreasureTrail's own Terms of Use page.
+
+Example:
+
+https://treasuretrail-hunt.com/terms
+
+Then enter that URL in the EULA section of App Store Connect.
+
+Issue #2: Missing Subscription Information Inside the App
+Summary
+
+Apple reminds developers that auto-renewable subscriptions must clearly disclose subscription details inside the application itself.
+
+The reviewer did not explicitly say which item is missing, but they listed the required information that must appear on the subscription screen.
+
+This usually means Apple either couldn't find the information easily or one or more required pieces were absent.
+
+Required Information Apple Lists
+
+The subscription screen must clearly show:
+
+Subscription Title
+
+Example:
+
+TreasureTrail Pro Seller
+Subscription Length
+
+Example:
+
+1 Month
+Subscription Price
+
+Example:
+
+$9.99 per month
+Privacy Policy Link
+
+Example:
+
+https://treasuretrail-hunt.com/privacy
+Terms of Use Link
+
+Example:
+
+https://treasuretrail-hunt.com/terms
+Issue #3: Missing Subscription Information in App Store Metadata
+Summary
+
+Apple requires subscription information not only inside the app but also inside App Store Connect.
+
+Even if your app displays everything correctly, the App Store listing itself must contain the required legal links.
+
+This is one of the most common subscription rejections.
+
+What must be done
+
+Verify App Store Connect contains:
+
+Privacy Policy URL
+
+Should already point to:
+
+https://treasuretrail-hunt.com/privacy
+Terms of Use URL
+
+Either:
+
+https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+
+or
+
+https://treasuretrail-hunt.com/terms
+Subscription Description
+
+Should clearly describe:
+
+Pro Seller Monthly
+
+$9.99/month
+
+Priority placement in Discover
+Reach analytics
+Unlimited event boosts
+Pro Seller badge
+Issue #4: Future Review Notes Requirement
+Summary
+
+Apple specifically asks that future submissions include information about where reviewers can find subscription information.
+
+This is not the reason for rejection, but it is a recommendation to prevent future delays.
+
+What must be done
+
+In App Review Notes include something like:
+
+Writing
+
+TreasureTrail offers an auto-renewable subscription called "Pro Seller Monthly."
+
+The subscription information is displayed on the TreasureTrail Membership screen and includes:
+
+• Subscription title
+• Subscription duration (1 month)
+• Subscription price ($9.99/month)
+• Privacy Policy link
+• Terms of Use link
+
+Privacy Policy:
+https://treasuretrail-hunt.com/privacy
+
+Terms of Use:
+https://treasuretrail-hunt.com/terms
+
+Complete Correction Checklist
+App Store Connect
+
+□ Privacy Policy URL entered
+
+□ Terms of Use (EULA) URL entered
+
+□ Subscription display name completed
+
+□ Subscription description completed
+
+□ Subscription price set
+
+□ Subscription screenshot uploaded
+
+□ Subscription metadata status shows Ready to Submit
+
+Inside TreasureTrail App
+
+□ Membership screen shows "Pro Seller Monthly"
+
+□ Membership screen shows "$9.99/month"
+
+□ Membership screen shows "1 Month"
+
+□ Membership screen contains Privacy Policy link
+
+□ Membership screen contains Terms of Use link
+
+□ Links open correctly
+
+Review Submission
+
+□ Add reviewer note explaining where subscription information is located
+
+□ Reply to Apple's rejection message explaining that the required subscription disclosures have been added
+
+□ Resubmit
+
+From the screenshots Apple sent, the biggest remaining issue appears to be the missing Terms of Use (EULA) link and ensuring the subscription page visibly contains both the Privacy Policy and Terms of Use links along with the duration and price information. Everything else you've shown me so far suggests you're very close to clearing this rejection.

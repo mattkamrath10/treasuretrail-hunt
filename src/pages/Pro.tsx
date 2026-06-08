@@ -277,6 +277,56 @@ export default function Pro({ onBack }: { onBack: () => void }) {
         </p>
       )}
 
+      {/* Auto-renewable subscription disclosure — required by Apple Guideline
+          3.1.2(c). Always rendered (not gated on IAP detection) so the
+          subscription title, length, price, and the functional Terms of Use
+          (EULA) + Privacy Policy links are present on the membership screen. */}
+      {!blockPurchases ? (
+        <div style={s.subDisclosure}>
+          <p style={s.subHeading}>Pro Seller · Auto-Renewable Subscription</p>
+          <ul style={s.subList}>
+            <li style={s.subItem}>
+              <span style={s.subLabel}>Subscription</span>
+              <span>Pro Seller (Monthly)</span>
+            </li>
+            <li style={s.subItem}>
+              <span style={s.subLabel}>Length</span>
+              <span>1 month</span>
+            </li>
+            <li style={s.subItem}>
+              <span style={s.subLabel}>Price</span>
+              <span>{livePrices.pro ?? '$9.99'} per month</span>
+            </li>
+          </ul>
+          <p style={s.legalText}>
+            Payment is charged to your Apple ID at confirmation of purchase. The
+            subscription renews automatically for the same 1-month period at the
+            same price unless canceled at least 24 hours before the end of the
+            current period. Manage or cancel anytime in your App Store account
+            settings.
+          </p>
+          <p style={s.legalLinks}>
+            <button type="button" onClick={() => navigate('/terms')} style={s.linkBtn}>
+              Terms of Use (EULA)
+            </button>
+            <span style={s.legalDot}>·</span>
+            <button type="button" onClick={() => navigate('/privacy')} style={s.linkBtn}>
+              Privacy Policy
+            </button>
+          </p>
+        </div>
+      ) : (
+        <p style={s.legalLinks}>
+          <button type="button" onClick={() => navigate('/terms')} style={s.linkBtn}>
+            Terms of Use (EULA)
+          </button>
+          <span style={s.legalDot}>·</span>
+          <button type="button" onClick={() => navigate('/privacy')} style={s.linkBtn}>
+            Privacy Policy
+          </button>
+        </p>
+      )}
+
       {showRestore && (
         <div style={s.iapFooter}>
           <button
@@ -287,25 +337,8 @@ export default function Pro({ onBack }: { onBack: () => void }) {
           >
             {restoring ? 'Restoring…' : 'Restore Purchases'}
           </button>
-          <p style={s.legalText}>
-            Pro Seller is a {livePrices.pro ?? '$9.99'}/month auto-renewable
-            subscription. Your Apple ID is charged at confirmation of purchase. It
-            renews automatically unless canceled at least 24 hours before the end
-            of the current period. Manage or cancel anytime in your App Store
-            account settings.
-          </p>
         </div>
       )}
-
-      <p style={s.legalLinks}>
-        <button type="button" onClick={() => navigate('/terms')} style={s.linkBtn}>
-          Terms of Use
-        </button>
-        <span style={s.legalDot}>·</span>
-        <button type="button" onClick={() => navigate('/privacy')} style={s.linkBtn}>
-          Privacy Policy
-        </button>
-      </p>
     </PageScroll>
   );
 }
@@ -639,6 +672,47 @@ const s: Record<string, CSSProperties> = {
     textAlign: 'center',
     fontSize: 11,
     color: 'rgba(245,245,247,0.45)',
+  },
+  subDisclosure: {
+    margin: '22px auto 0',
+    maxWidth: 560,
+    width: 'calc(100% - 40px)',
+    padding: '16px 18px',
+    borderRadius: 14,
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.04)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+  },
+  subHeading: {
+    margin: 0,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: 'rgba(251, 191, 36, 0.9)',
+  },
+  subList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  subItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 12,
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#f5f5f7',
+  },
+  subLabel: {
+    color: 'rgba(245,245,247,0.55)',
+    fontWeight: 600,
   },
   iapFooter: {
     margin: '20px auto 0',
