@@ -1,0 +1,769 @@
+App Store Connect Help
+App Store Connect / Reference / App information / Required, localizable, and editable properties
+
+Expand all
+Release notes
+
+Get started
+
+Manage your team
+
+Create an app record
+
+Manage builds
+
+Manage asset packs
+
+Manage app information
+
+Manage app accessibility
+
+Test a beta version
+
+Manage submissions to App Review
+
+Manage your app's availability
+
+Manage app pricing
+
+Update your app
+
+Manage featuring nominations
+
+Monitor ratings and reviews
+
+Measure app performance
+
+Transfer an app
+
+Manage agreements
+
+Manage banking information
+
+Manage tax information
+
+Manage compliance information
+
+Getting paid
+
+Making payments to Apple
+
+Understanding the Core Technology Fee
+
+Offer promo codes
+
+Offer App Clip experiences
+
+Create custom product pages
+
+Create product page optimization tests
+
+Offer In-App Events
+
+Configure In-App Purchase settings
+
+Manage In-App Purchases
+
+Manage subscriptions
+
+Test In-App Purchases
+
+Configure Game Center
+
+Managing alternative distribution
+
+Reference
+
+Account management
+
+App information
+
+App and submission statuses
+
+App information
+
+Platform version information
+
+App preview specifications
+
+Screenshot specifications
+
+Required, localizable, and editable properties
+
+App Store localizations
+
+App privacy
+
+Age ratings values and definitions
+
+Provide app motion information
+
+Export compliance documentation for encryption
+
+App bundle information
+
+Pricing and availability
+
+App uploads
+
+TestFlight
+
+In-App Purchases and subscriptions
+
+Game Center
+
+Nominations
+
+In-App Events
+
+Reporting
+
+Store Services tiers
+
+
+Filter ⌘K
+Reference
+Required, localizable, and editable properties
+The tables below show the app and version properties required for App Store submission. The tables also indicate the properties that can be localized and edited at any time without submitting a new version of your app.
+
+
+App information
+Learn more about the properties shared across the platforms added to an app.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Name
+
+Subtitle
+
+Rating
+
+Bundle ID
+
+SKU
+
+Content Rights
+
+License Agreement
+
+ 1
+
+Primary Language
+
+Primary Category
+
+Secondary Category
+
+Availability in the Republic of Korea2
+
+ 4
+
+Availability in China mainland3
+
+ 4
+
+Availability in Vietnam
+
+
+URL for App Store Server Notifications5
+
+Digital Services Act (DSA) Status
+
+Regulated Medical Devices
+
+ 6
+
+ 7
+
+Labels and Markings URLs
+
+1 Localized text may be included in the Custom License Agreement text box.
+
+2 Required for developers who enroll as an organization and distribute apps on the App Store in South Korea.
+
+3 Required for apps that meet certain criteria to be available on the App Store in China mainland. Learn about availability requirements.
+
+4 Can be entered at any time, but will be submitted for review with the next version submission.
+
+5 Only visible for apps that offer In-App Purchases.
+
+6 Required for apps that meet certain criteria to be available on the App Store in the EU/EEA, UK, or U.S.. Learn about availability requirements.
+
+7 Localized text is only for the Use Statement and Safety Information.
+
+
+Platform version information
+Learn more about the set of properties of an app version specific to each platform the app supports.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Header Image
+
+Subtitle
+
+Action
+
+Support URL
+
+Marketing URL
+
+App Motion information
+
+ 3
+
+Version Number
+
+Copyright
+
+Routing App Coverage File
+
+App review information
+
+Version Release Settings
+
+What’s New in this Version
+
+ 1
+
+Phased Release for Automatic Updates
+
+ 1
+
+ 2
+
+Reset overview rating
+
+ 1
+
+1 Required for version updates only.
+
+2 Version release can be paused at any time within the seven-day window, but can't be changed once a version is released to all users.
+
+3 Required for visionOS apps only.
+
+
+Default App Clip properties
+Learn about default App Clips.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Header Image
+
+Subtitle
+
+Action
+
+
+Advanced App Clip properties
+Learn about advanced App Clips.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Header Image
+
+Default Display Title
+
+Default Subtitle
+
+Action
+
+
+App pricing and availability information
+Learn more about the properties that determine where and when an app is available on the App Store and at what price.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Availability
+
+Price
+
+Pricing Start Date
+
+Pricing End Date
+
+Make available for pre-order
+
+Pre-Order Release Date
+
+Distribution for Business and Education
+
+Last-Compatible Version Setting
+
+Tax Category
+
+
+App privacy
+Learn more about the app privacy properties.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Privacy Policy URL
+
+Privacy Choices URL
+
+Data Types
+
+
+App accessibility
+Learn more about the app accessibility nutrition labels.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Accessibility URL
+
+Accessibility Support
+
+
+In-App Purchase information
+Learn more about the In-App Purchase properties.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Reference Name
+
+Product ID
+
+Availability
+
+Price
+
+Pricing Start Date
+
+Pricing End Date
+
+Display Name
+
+Description
+
+Image
+
+App Review Screenshot
+
+Review Notes
+
+
+Auto-renewable subscription group information
+Learn more about auto-renewable subscriptions.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Subscription Levels
+
+Subscription Group Reference Name
+
+Subscription Group Display Name
+
+App Name Display Options
+
+
+Auto-renewable subscription information
+Learn more about auto-renewable subscriptions.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Reference Name
+
+Product ID
+
+Availability
+
+Subscription Duration
+
+Subscription Price
+
+Subscription Price Start Date
+
+Subscription Price End Date
+
+Introductory Price
+
+Introductory Price Start Date
+
+ 1
+
+Introductory Price End Date
+
+ 1
+
+Type of Introductory Price
+
+ 1
+
+Introductory Price Duration
+
+ 1
+
+Subscription Display Name
+
+Description
+
+Image
+
+App Review Screenshot
+
+Review Notes
+
+1 Required if the subscription offers introductory pricing.
+
+
+Game Center leaderboard properties
+Learn more about the leaderboards.
+
+Leaderboard properties
+Property
+
+Required
+
+Localized
+
+Editable
+
+Leaderboard Reference Name
+
+Leaderboard ID
+
+Leaderboard Description
+
+Score Format Type
+
+Score Submission Type
+
+Sort Order
+
+Score Range
+
+Start Date and Time1
+
+Duration1
+
+Resets Every1
+
+1 Only available for recurring leaderboards.
+
+Leaderboard language properties
+Property
+
+Required
+
+Editable
+
+Language
+
+Name
+
+Leaderboard Description
+
+Score Format
+
+Score Format Suffix (Singular)
+
+Score Format Suffix (Plural)
+
+Image
+
+
+Game Center achievement properties
+Learn more about the achievements.
+
+Achievement properties
+Property
+
+Required
+
+Localized
+
+Editable
+
+Achievement Reference Name
+
+Achievement ID
+
+Point Value
+
+Hidden
+
+Achievable More Than Once
+
+Achievement language properties
+Property
+
+Required
+
+Editable
+
+Language
+
+Title
+
+Pre-earned Description
+
+Earned Description
+
+Image
+
+
+Game Center challenge properties
+Learn more about the challenges.
+
+Challenge properties
+Property
+
+Required
+
+Localized
+
+Editable
+
+Reference Name
+
+Challenge ID
+
+Repeatable
+
+Associated Leaderboards
+
+Default image
+
+Challenge language properties
+Property
+
+Required
+
+Editable
+
+Localization
+
+Display name
+
+Description
+
+Image
+
+
+Game Center activity properties
+Learn more about the activity.
+
+Activity properties
+Property
+
+Required
+
+Localized
+
+Editable
+
+Reference Name
+
+Activity ID
+
+Default Image
+
+Participants Range
+
+Supports Party Code
+
+Play Style
+
+Properties
+
+Fallback URL
+
+Activity language properties
+Property
+
+Required
+
+Editable
+
+Localization
+
+Display name
+
+Description
+
+Image
+
+
+In-App Event properties
+Learn about the In-App Events.
+
+Property
+
+Required
+
+Localized
+
+Editable
+
+Event Name
+
+Short Description
+
+Long Description
+
+Event Card Media
+
+Event Details Page Media
+
+Badge
+
+Priority
+
+Start Date and Time
+
+
+*
+End Date and Time
+
+Publish Start Date and Time
+
+
+*
+* Start Date and Time and Publish Start Date and Time are only editable for dates in the future, per storefront.
+
+Submit your
+feedback
+
+Ask questions on the forums
+
+Contact Apple Developer Support
+
+Developer Footer
+
+Apple
+DeveloperHelpApp Store ConnectReferenceApp informationRequired, localizable, and editable properties
+Platforms
+iOS
+iPadOS
+macOS
+tvOS
+visionOS
+watchOS
+App Store
+Tools
+Swift
+SwiftUI
+Swift Playground
+TestFlight
+Xcode
+Xcode Cloud
+Icon Composer
+SF Symbols
+Technologies
+Accessibility
+Accessories
+Apple Intelligence
+Audio & Video
+Augmented Reality
+Business
+Design
+Distribution
+Education
+Games
+Health & Fitness
+In-App Purchase
+Localization
+Maps & Location
+Machine Learning & AI
+Security
+Safari & Web
+Resources
+Documentation
+Downloads
+Sample Code
+Videos
+Support
+Help Guides & Articles
+Contact Us
+Forums
+Feedback & Bug Reporting
+System Status
+Account
+Apple Developer
+App Store Connect
+Certificates, IDs, & Profiles
+Feedback Assistant
+Programs
+Apple Developer Program
+Apple Developer Enterprise Program
+App Store Small Business Program
+MFi Program
+Mini Apps Partner Program
+News Partner Program
+Video Partner Program
+Security Bounty Program
+Security Research Device Program
+Events
+Meet with Apple
+Apple Developer Centers
+App Store Awards
+Apple Design Awards
+Apple Developer Academies
+WWDC
+Read the latest news. Get the Apple Developer app.
+Light
+Dark
+Auto
+
+English
+Copyright © 2026 Apple Inc. All rights reserved.Terms of Use Privacy Policy Agreements and Guidelines
