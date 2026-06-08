@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Download iPad Screenshots</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 50% 20%, #2a1a0a, #140b04);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #fff;
+      padding: 28px 20px 60px;
+    }
+    .wrap { max-width: 460px; margin: 0 auto; text-align: center; }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    .sub { font-size: 14px; color: #d9c9b3; margin: 0 0 22px; line-height: 1.5; }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 16px 24px;
+      font-size: 17px;
+      font-weight: 700;
+      color: #1a1109;
+      background: linear-gradient(180deg, #ffd25a, #f4a623);
+      border: none;
+      border-radius: 14px;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(244,166,35,0.4);
+      margin-bottom: 10px;
+    }
+    .btn:active { transform: translateY(1px); }
+    .hint { font-size: 12px; color: #9c8a72; margin: 8px 0 26px; line-height: 1.5; }
+    .grid { display: grid; gap: 22px; }
+    .shot {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .shot h2 { font-size: 15px; margin: 0 0 12px; color: #ffe7bd; }
+    .shot img {
+      width: 180px;
+      max-width: 60%;
+      height: auto;
+      border-radius: 10px;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.5);
+      display: block;
+      margin: 0 auto 14px;
+    }
+    .btn-sm {
+      display: inline-block;
+      padding: 11px 20px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1109;
+      background: linear-gradient(180deg, #ffd25a, #f4a623);
+      border: none;
+      border-radius: 11px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .meta { margin-top: 4px; font-size: 11px; color: #7d6f5b; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>iPad Screenshots</h1>
+    <p class="sub">App Store compliant: 2048&times;2732, PNG, RGB, flattened, 72&nbsp;dpi (12.9&Prime; iPad Pro size).</p>
+
+    <button class="btn" id="downloadAll">⬇️ Download all 4 screenshots</button>
+    <p class="hint">App Store Connect needs each image uploaded separately, so this saves all four files. If your browser only saves one, use the individual buttons below.</p>
+
+    <div class="grid">
+      <div class="shot">
+        <h2>1 · Discover (home feed)</h2>
+        <img src="/ipad-1-discover.png" alt="Discover screenshot" />
+        <a class="btn-sm" href="/ipad-1-discover.png" download="ipad-1-discover.png">Download</a>
+      </div>
+      <div class="shot">
+        <h2>2 · Membership / Pricing</h2>
+        <img src="/ipad-4-pro.png" alt="Membership pricing screenshot" />
+        <a class="btn-sm" href="/ipad-4-pro.png" download="ipad-2-pricing.png">Download</a>
+      </div>
+      <div class="shot">
+        <h2>3 · Live Events</h2>
+        <img src="/ipad-3-live.png" alt="Live events screenshot" />
+        <a class="btn-sm" href="/ipad-3-live.png" download="ipad-3-live.png">Download</a>
+      </div>
+      <div class="shot">
+        <h2>4 · Marketplace</h2>
+        <img src="/ipad-2-marketplace.png" alt="Marketplace screenshot" />
+        <a class="btn-sm" href="/ipad-2-marketplace.png" download="ipad-4-marketplace.png">Download</a>
+      </div>
+    </div>
+
+    <p class="meta">Tip on iPhone/iPad: if a button doesn&rsquo;t prompt a download, tap and hold a preview image, then choose &ldquo;Save to Photos&rdquo; or &ldquo;Add to Files.&rdquo;</p>
+  </div>
+
+  <script>
+    var files = [
+      { url: '/ipad-1-discover.png', name: 'ipad-1-discover.png' },
+      { url: '/ipad-4-pro.png', name: 'ipad-2-pricing.png' },
+      { url: '/ipad-3-live.png', name: 'ipad-3-live.png' },
+      { url: '/ipad-2-marketplace.png', name: 'ipad-4-marketplace.png' }
+    ];
+    document.getElementById('downloadAll').addEventListener('click', function () {
+      files.forEach(function (f, i) {
+        setTimeout(function () {
+          var a = document.createElement('a');
+          a.href = f.url;
+          a.download = f.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }, i * 700);
+      });
+    });
+  </script>
+</body>
+</html>
