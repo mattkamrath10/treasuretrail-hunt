@@ -155,3 +155,9 @@ id = "SDmyA1pXBKsrRNcE_NxLx"
 uri = "file://ios-screenshots/ipad-2-marketplace.png"
 type = "image"
 title = "iPad 4 — Marketplace"
+
+[[outputs]]
+id = "D_kVBKclYhmNOoNsirZgY"
+uri = "file://dist-downloads/treasuretrail-code-changes.zip"
+type = "unspecified"
+title = "Code changes since the rejected build (zip)"
