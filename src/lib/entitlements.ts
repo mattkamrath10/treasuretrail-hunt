@@ -10,7 +10,7 @@
  * Phase 1 rules:
  *  - Free: post 1 active local event at a time; basic Discover surface.
  *  - Pro:  unlimited boosts, analytics, Pro badge, priority placement.
- *  - Boost: a paid one-off ($3, 72h) anyone can buy on any of their
+ *  - Boost: a paid one-off ($1.99, 72h) anyone can buy on any of their
  *           content. Not a tier — orthogonal to membership.
  *
  * Anyone (including unauth visitors with a future account) "can boost"
@@ -74,14 +74,14 @@ export const FREE_TIER_EVENT_LIMIT = 1;
 
 /** Boost product config. Mirrors what the UI shows on Pro / Boost CTAs. */
 export const BOOST_PRODUCT = {
-  priceUsd: 3,
+  priceUsd: 1.99,
   durationHours: 72,
-  label: 'Boost — $3 for 72h',
+  label: 'Boost — $1.99 for 72h',
 } as const;
 
 /** Pro product config. */
 export const PRO_PRODUCT = {
-  priceUsd: 9,
+  priceUsd: 5.99,
   cadence: 'month' as const,
-  label: 'TreasureTrail Pro — $9/mo',
+  label: 'TreasureTrail Pro — $5.99/mo',
 } as const;

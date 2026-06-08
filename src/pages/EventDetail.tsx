@@ -453,7 +453,7 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
 
         {/* Owner-only Boost CTA. We render either the live status (if a
             boost is already active) or a single primary CTA that runs the
-            mocked $3/72h purchase flow. After a successful boost we
+            mocked $1.99/72h purchase flow. After a successful boost we
             re-fetch the event so the badge + status update in place. */}
         {isOwner && <OwnerBoostRow event={event} onApplied={async () => {
           const fresh = await fetchEvent(event.id);
@@ -866,7 +866,7 @@ const s: Record<string, React.CSSProperties> = {
 /**
  * Owner-only Boost row rendered on the event detail page. Two states:
  *  - Already boosted → muted status pill with remaining hours.
- *  - Not boosted    → primary CTA running the mocked $3 / 72h purchase.
+ *  - Not boosted    → primary CTA running the mocked $1.99 / 72h purchase.
  *
  * Payments are MOCKED in Phase 1 (see src/lib/payments.ts). Stripe is a
  * Phase 2 swap behind `startBoostPurchase`.
@@ -918,7 +918,7 @@ function OwnerBoostRow({ event, onApplied }: { event: EventRow; onApplied: () =>
           style={{ ...ownerBoostStyles.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
         >
           {busy ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
-          {isPro ? 'Boost Event — Included with Pro' : 'Boost — $3 / 72h'}
+          {isPro ? 'Boost Event — Included with Pro' : 'Boost — $1.99 / 72h'}
         </button>
       )}
     </div>

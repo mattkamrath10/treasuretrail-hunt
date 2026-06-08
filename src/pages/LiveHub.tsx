@@ -1404,7 +1404,7 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
 }
 
 // ─── Boost picker modal ───────────────────────────────────────────────────────
-// Lets the user pick one of their hosted events and run the mocked $3 / 72h
+// Lets the user pick one of their hosted events and run the mocked $1.99 / 72h
 // boost from Phase 1. Payments are MOCKED via lib/payments.ts; Stripe is a
 // Phase 2 swap behind startBoostPurchase. Routing-to-login is handled by the
 // caller — this modal is only mounted when a user session exists.
@@ -1525,7 +1525,7 @@ function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => 
                         style={{ ...boostPicker.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
                       >
                         {busy ? <Loader2 size={13} className="spin" /> : <Zap size={13} />}
-                        {isPro ? 'Boost Event — Included with Pro' : 'Boost — $3 / 72h'}
+                        {isPro ? 'Boost Event — Included with Pro' : 'Boost — $1.99 / 72h'}
                       </button>
                     )}
                   </div>

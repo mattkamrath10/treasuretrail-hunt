@@ -466,7 +466,7 @@ function OwnerBoostRow({ item, onApplied }: { item: WantedItemWithRequester; onA
           style={{ ...ownerBoostStyles.boostBtn, opacity: busy ? 0.6 : 1, cursor: busy ? 'default' : 'pointer' }}
         >
           {busy ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
-          {isPro ? 'Boost — Included with Pro' : 'Boost — $3 / 72h'}
+          {isPro ? 'Boost — Included with Pro' : 'Boost — $1.99 / 72h'}
         </button>
       )}
     </div>

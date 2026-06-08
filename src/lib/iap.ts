@@ -133,7 +133,7 @@ export async function getProPrice(): Promise<string | null> {
   }
 }
 
-/** Live, localized Event Boost price string (e.g. "$2.99"), or null. */
+/** Live, localized Event Boost price string (e.g. "$1.99"), or null. */
 export async function getBoostPrice(): Promise<string | null> {
   const mod = await ensureReady();
   if (!mod) return null;

@@ -94,7 +94,7 @@ const PLANS: Plan[] = [
   {
     id: 'boost',
     name: 'Local Event Boost',
-    price: '$2.99',
+    price: '$1.99',
     cadence: '/ per promoted event',
     tagline: 'Estate sales · Flea markets · Auction houses',
     features: [
@@ -104,7 +104,7 @@ const PLANS: Plan[] = [
       'Shareable event flyer',
     ],
     cta: 'Boost an event',
-    footnote: 'One-time $3 — perfect for yard sales, estate sales, flea markets & auction events.',
+    footnote: 'One-time $1.99 — perfect for yard sales, estate sales, flea markets & auction events.',
   },
   {
     id: 'pro',
@@ -172,7 +172,7 @@ export default function Pro({ onBack }: { onBack: () => void }) {
     if (id === 'free') { navigate('/seller/new'); return; }
     if (id === 'boost') {
       // Boost is per-content. Surface the seller flow where the user
-      // owns content and can hit "Boost — $3" on a specific item.
+      // owns content and can hit "Boost — $1.99" on a specific item.
       if (!user) { navigate('/'); return; }
       navigate('/seller/new');
       return;
