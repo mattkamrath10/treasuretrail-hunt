@@ -109,7 +109,7 @@ const PLANS: Plan[] = [
   {
     id: 'pro',
     name: 'Pro Seller',
-    price: '$9.99',
+    price: '$5.99',
     cadence: '/ per month',
     tagline: 'Whatnot · Poshmark Live · eBay Live',
     features: [
@@ -295,7 +295,7 @@ export default function Pro({ onBack }: { onBack: () => void }) {
             </li>
             <li style={s.subItem}>
               <span style={s.subLabel}>Price</span>
-              <span>{livePrices.pro ?? '$9.99'} per month</span>
+              <span>{livePrices.pro ?? '$5.99'} per month</span>
             </li>
           </ul>
           <p style={s.legalText}>

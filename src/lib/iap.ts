@@ -121,7 +121,7 @@ function messageOf(err: unknown, fallback: string): string {
   return typeof e?.message === 'string' && e.message ? e.message : fallback;
 }
 
-/** Live, localized Pro price string (e.g. "$9.99"), or null if unavailable. */
+/** Live, localized Pro price string (e.g. "$5.99"), or null if unavailable. */
 export async function getProPrice(): Promise<string | null> {
   const mod = await ensureReady();
   if (!mod) return null;
