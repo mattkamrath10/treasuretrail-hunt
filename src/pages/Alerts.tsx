@@ -145,7 +145,9 @@ export default function Alerts() {
     }
     if (n.related_item_type === 'message') navigate('/messages');
     else if (n.type === 'wanted_post_response' && n.related_item_id) navigate(`/wanted/${n.related_item_id}`);
+    else if (n.type === 'wanted_item_match' && n.related_item_id) navigate(`/listing/${n.related_item_id}`);
     else if (n.type === 'go_live' && n.related_item_id) navigate(`/event/${n.related_item_id}`);
+    else if (n.related_item_type === 'listing' && n.related_item_id) navigate(`/listing/${n.related_item_id}`);
     else if (n.related_item_type === 'event' && n.related_item_id) navigate(`/event/${n.related_item_id}`);
     else if (n.related_item_type === 'live_event' || n.related_item_type === 'local_event') navigate('/events');
     else if (n.related_item_type === 'saved_search') navigate('/marketplace');
