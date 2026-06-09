@@ -150,7 +150,7 @@ export default function Discover() {
         title="Flash Finds"
         subtitle="Treasures uploaded by the community"
         accent="#8b5cf6"
-        onSeeAll={() => navigate('/flash-finds')}
+        onSeeAll={() => navigate('/home', { state: { filter: 'flash_finds' } })}
       >
         {finds.filter((p) => matchQ(p.caption) || matchQ(p.category)).slice(0, 16).map((p) => (
           <FindCard key={p.id} post={p} onClick={() => navigate(`/find/${p.id}`)} />

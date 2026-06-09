@@ -360,7 +360,11 @@ export default function Home() {
     const navState = location.state as {
       highlightPostId?: string;
       newPost?: ExtendedPost;
+      filter?: FilterId;
     } | null;
+    if (navState?.filter) {
+      setActiveFilter(navState.filter);
+    }
     if (navState?.highlightPostId) {
       setHighlightId(navState.highlightPostId);
     }
@@ -372,9 +376,9 @@ export default function Home() {
         return [incoming, ...prev];
       });
     }
-    if (navState?.highlightPostId || navState?.newPost) {
+    if (navState?.highlightPostId || navState?.newPost || navState?.filter) {
       // Clear router state so a manual refresh doesn't re-highlight or
-      // re-prepend a stale post.
+      // re-prepend a stale post (or re-apply the incoming filter).
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
