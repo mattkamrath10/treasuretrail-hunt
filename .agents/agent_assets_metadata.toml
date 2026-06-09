@@ -173,3 +173,9 @@ id = "1BLU29jDB_aL1XhBXMVpy"
 uri = "file://TreasureTrail-FullSource-20260609.zip"
 type = "unspecified"
 title = "TreasureTrail — Full Source Code (June 9, 2026)"
+
+[[outputs]]
+id = "eWj4FnaDJp4JMnttQZu5X"
+uri = "file://TreasureTrail-PlayStore-Icon-512.png"
+type = "image"
+title = "Google Play store listing icon (512×512)"
