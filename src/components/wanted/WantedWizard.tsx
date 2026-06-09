@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { createWantedItem, WANTED_CATEGORY_LABEL, type WantedCategory } from '../../lib/wanted';
 import { createSavedSearch } from '../../lib/savedSearches';
 import { recordSearchDemand } from '../../lib/demand';
 import { activeInferrer, CONFIDENCE_THRESHOLD, type CategoryGuess } from '../../lib/wantedInference';
-import { questionsFor, type WizardQuestion } from '../../lib/wantedQuestions';
+import { questionsFor, generateQuestions, type WizardQuestion } from '../../lib/wantedQuestions';
 import { useScrollLock } from '../../hooks/useScrollLock';
 
 /**
@@ -84,8 +84,31 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
   const lowConfidence = guess != null && guess.confidence < CONFIDENCE_THRESHOLD;
   const needsCategoryPick = lowConfidence && !categoryTouched;
 
-  // The active category's question set drives the middle screens.
-  const questions = useMemo(() => questionsFor(category), [category]);
+  // The active category's question set drives the middle screens. It starts as
+  // the static Phase 2 set (instant, never blocks) and is upgraded in-place to
+  // an AI-tailored set when one arrives (Phase 7) — but only while the user is
+  // still on the item step, so an async swap can never disrupt answers mid-flow.
+  const [questions, setQuestions] = useState<WizardQuestion[]>(() => questionsFor(category));
+
+  // Mirror the live step into a ref so the async AI upgrade can bail if the
+  // user has already moved past the item screen by the time it resolves.
+  const stepRef = useRef(step);
+  useEffect(() => { stepRef.current = step; }, [step]);
+
+  useEffect(() => {
+    // Show the static set immediately, then try to upgrade to AI questions.
+    setQuestions(questionsFor(category));
+    let cancelled = false;
+    void generateQuestions(title, category).then((qs) => {
+      if (cancelled || stepRef.current !== 0) return;
+      setQuestions(qs);
+    });
+    return () => { cancelled = true; };
+    // `title` is read at fire time only — re-running on every keystroke would
+    // spam the endpoint. Category changes (inference + manual picks) drive the
+    // refetch; the static fallback covers the in-between.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
 
   // Screen 0 = item + category, screens 1..N = questions, last = location.
   const totalSteps = questions.length + 2;

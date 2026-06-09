@@ -622,6 +622,206 @@ app.post('/api/iap/boost/confirm', async (req, res) => {
   }
 });
 
+// =====================================================================
+// AI Wanted Wizard (Phase 7) — category detection + question generation
+// ---------------------------------------------------------------------
+// These power the no-results "Wanted Request" wizard. The OpenAI key stays
+// server-side; the client calls them via apiUrl() and ALWAYS has a
+// deterministic fallback (rule-based inference / the static question config),
+// so a slow or failing AI can never block request creation. Output is
+// validated/normalized to the client's category enum + question schema, calls
+// are time-boxed, and common terms are cached in-memory to bound cost/latency.
+// On any failure these return `{ fallback: true }` (HTTP 200) so the client
+// quietly uses its local path.
+// =====================================================================
+const WANTED_CATEGORIES = [
+  'collectibles', 'furniture', 'electronics', 'vintage', 'cards', 'jewelry',
+  'art', 'fashion', 'toys', 'tools', 'books', 'music', 'sports', 'home', 'other',
+] as const;
+type WantedCategoryServer = (typeof WANTED_CATEGORIES)[number];
+const WANTED_CATEGORY_SET = new Set<string>(WANTED_CATEGORIES);
+
+function normalizeWantedCategory(raw: unknown): WantedCategoryServer | null {
+  if (typeof raw !== 'string') return null;
+  const v = raw.trim().toLowerCase();
+  return WANTED_CATEGORY_SET.has(v) ? (v as WantedCategoryServer) : null;
+}
+
+// Stop waiting on the AI after `ms` and let the caller fall back. The request
+// may keep running on OpenAI's side, but the user is never blocked on it.
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('ai-timeout')), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
+async function callOpenAIJSON(system: string, user: string, maxTokens: number, timeoutMs: number) {
+  const resp = await withTimeout(
+    openai.chat.completions.create({
+      model: MODEL,
+      response_format: { type: 'json_object' },
+      max_completion_tokens: maxTokens,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    }),
+    timeoutMs,
+  );
+  const raw = resp.choices[0]?.message?.content ?? '{}';
+  return JSON.parse(raw);
+}
+
+// Small in-memory TTL cache for common terms. Resets on restart — that's fine,
+// it only shaves repeat cost/latency and is never a source of truth.
+const aiWantedCache = new Map<string, { value: unknown; expires: number }>();
+const AI_WANTED_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const AI_WANTED_CACHE_MAX = 500;
+function aiCacheGet(key: string): any | null {
+  const hit = aiWantedCache.get(key);
+  if (!hit) return null;
+  if (hit.expires < Date.now()) { aiWantedCache.delete(key); return null; }
+  return hit.value;
+}
+function aiCacheSet(key: string, value: unknown) {
+  if (aiWantedCache.size >= AI_WANTED_CACHE_MAX) {
+    const oldest = aiWantedCache.keys().next().value;
+    if (oldest !== undefined) aiWantedCache.delete(oldest);
+  }
+  aiWantedCache.set(key, { value, expires: Date.now() + AI_WANTED_CACHE_TTL_MS });
+}
+
+const WANTED_CATEGORY_PROMPT = `You classify a shopper's free-text "wanted" search term into exactly ONE marketplace category.
+Return a SINGLE JSON object, no prose or markdown: {"category": <category>, "confidence": <number 0..1>}
+category MUST be one of: collectibles, furniture, electronics, vintage, cards, jewelry, art, fashion, toys, tools, books, music, sports, home, other.
+confidence is your certainty from 0 (no idea) to 1 (certain). Use "other" with a low confidence when nothing fits.
+Hints: "cards" = trading/sports/TCG cards; "music" = instruments, vinyl/records, audio gear; "home" = kitchen & household appliances/goods; "vintage" only when the term itself emphasizes vintage/retro and no specific category fits better.`;
+
+const WANTED_QUESTIONS_PROMPT = `You design a SHORT set of smart follow-up questions for a second-hand marketplace "wanted request" wizard, tailored to the shopper's item and category. The answers help sellers know exactly what the buyer wants.
+Return a SINGLE JSON object, no prose or markdown: {"questions": WizardQuestion[]}
+Rules:
+- 3 to 5 questions, ordered most-to-least important. Keep them quick to answer.
+- Each WizardQuestion: {"id": string (snake_case, unique), "kind": "text"|"number"|"single", "prompt": string (the step heading, phrased as a question), "summary": string (2-3 word label used when folding the answer into a description, e.g. "Condition"), "label"?: string, "placeholder"?: string, "options"?: [{"value": string (snake_case), "label": string}], "optional"?: boolean, "maps"?: "budget", "inputMode"?: "decimal"|"text"}
+- Use "single" (with 3-6 options) for choices, "text" for free-form, "number" for amounts.
+- Include exactly ONE budget question: {"id":"budget","kind":"number","summary":"Budget","maps":"budget","inputMode":"decimal","optional":true,...}.
+- Make the LAST question a free-form catch-all with "id":"details" and "summary":"Details".
+- Every question must be optional (the user may skip it). Be specific to the item, not generic.`;
+
+app.post('/api/wanted/infer-category', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const { term } = req.body as { term?: string };
+    const clean = (typeof term === 'string' ? term : '').trim().slice(0, 120);
+    if (clean.length < 2) return res.json({ fallback: true });
+
+    const key = `cat:${clean.toLowerCase()}`;
+    const cached = aiCacheGet(key);
+    if (cached) return res.json({ ...cached, cached: true });
+
+    const out = await callOpenAIJSON(WANTED_CATEGORY_PROMPT, clean, 60, 7000);
+    const category = normalizeWantedCategory(out?.category);
+    const confidence = Number(out?.confidence);
+    if (!category || !Number.isFinite(confidence)) return res.json({ fallback: true });
+
+    const result = { category, confidence: Math.max(0, Math.min(1, confidence)), source: 'ai' as const };
+    aiCacheSet(key, result);
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[wanted/infer-category]', err?.message || err);
+    return res.json({ fallback: true });
+  }
+});
+
+// Validate/normalize the model's question array to the client's WizardQuestion
+// schema. Anything malformed is dropped; an empty result => null (client uses
+// the static set). Every question is forced optional so AI output can never
+// block submission.
+function sanitizeServerQuestions(raw: unknown): any[] | null {
+  if (!Array.isArray(raw)) return null;
+  const kinds = new Set(['text', 'number', 'single']);
+  const slug = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const item of raw) {
+    if (out.length >= 5) break;
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? slug(r.id) : '';
+    let kind = typeof r.kind === 'string' ? r.kind.trim().toLowerCase() : '';
+    const prompt = typeof r.prompt === 'string' ? r.prompt.trim().slice(0, 160) : '';
+    const summary = typeof r.summary === 'string' ? r.summary.trim().slice(0, 40) : '';
+    if (!id || !kinds.has(kind) || !prompt || !summary || seen.has(id)) continue;
+
+    const q: Record<string, unknown> = { id, kind, prompt, summary, optional: true };
+    if (typeof r.label === 'string' && r.label.trim()) q.label = r.label.trim().slice(0, 60);
+    if (typeof r.placeholder === 'string' && r.placeholder.trim()) q.placeholder = r.placeholder.trim().slice(0, 80);
+    if (r.maps === 'budget') { q.maps = 'budget'; kind = 'number'; q.kind = 'number'; q.inputMode = 'decimal'; }
+    else if (r.inputMode === 'decimal' || r.inputMode === 'text') q.inputMode = r.inputMode;
+
+    if (kind === 'single') {
+      const rawOpts = Array.isArray(r.options) ? r.options : [];
+      const options: { value: string; label: string }[] = [];
+      const optSeen = new Set<string>();
+      for (const o of rawOpts) {
+        if (!o || typeof o !== 'object') continue;
+        const oo = o as Record<string, unknown>;
+        const label = typeof oo.label === 'string' ? oo.label.trim().slice(0, 40) : '';
+        let value = typeof oo.value === 'string' ? slug(oo.value) : '';
+        if (!value && label) value = slug(label);
+        if (!label || !value || optSeen.has(value)) continue;
+        optSeen.add(value);
+        options.push({ value, label });
+        if (options.length >= 6) break;
+      }
+      if (options.length < 2) continue; // a single-choice needs real options
+      q.options = options;
+    }
+
+    seen.add(id);
+    out.push(q);
+  }
+  return out.length >= 1 ? out : null;
+}
+
+app.post('/api/wanted/questions', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const { term, category } = req.body as { term?: string; category?: string };
+    const cleanTerm = (typeof term === 'string' ? term : '').trim().slice(0, 120);
+    const cat = normalizeWantedCategory(category) ?? 'other';
+
+    const key = `q:${cat}:${cleanTerm.toLowerCase()}`;
+    const cached = aiCacheGet(key);
+    if (cached) return res.json({ ...cached, cached: true });
+
+    const userMsg = `Item the shopper is looking for: ${cleanTerm || '(unspecified)'}\nCategory: ${cat}`;
+    const out = await callOpenAIJSON(WANTED_QUESTIONS_PROMPT, userMsg, 900, 8000);
+    const questions = sanitizeServerQuestions(out?.questions);
+    if (!questions) return res.json({ fallback: true });
+
+    const result = { questions, source: 'ai' as const };
+    aiCacheSet(key, result);
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[wanted/questions]', err?.message || err);
+    return res.json({ fallback: true });
+  }
+});
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 // =====================================================================

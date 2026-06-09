@@ -1,4 +1,6 @@
-import type { WantedCategory } from './wanted';
+import { WANTED_CATEGORIES, type WantedCategory } from './wanted';
+import { apiUrl } from './apiBase';
+import { supabase } from './supabase';
 
 /**
  * Wanted Wizard — Phase 2 category inference.
@@ -152,13 +154,82 @@ function ruleBasedInfer(term: string): CategoryGuess {
 
 export const ruleBasedInferrer: CategoryInferrer = { infer: ruleBasedInfer };
 
+// ---- Phase 7: AI-backed inference (server-proxied, rule-based fallback) -----
+
+const VALID_CATEGORIES = new Set<WantedCategory>(WANTED_CATEGORIES);
+const AI_INFER_TIMEOUT_MS = 4000;
+// Per-session memo so repeating a term (or re-opening the wizard) never re-hits
+// the endpoint. The server keeps its own cross-user cache too.
+const aiInferCache = new Map<string, CategoryGuess>();
+
+async function bearerHeader(): Promise<Record<string, string>> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 /**
- * The inferrer the app actually uses. Swapping this for an async AI-backed
- * implementation in Phase 7 requires NO caller changes — callers (the wizard)
- * resolve `infer()` through `Promise.resolve(...)`, so a sync or async inferrer
- * both work unchanged.
+ * AI category inference via the server (the key stays server-side). Falls back
+ * to the rule-based guess on ANY error, timeout, missing auth, invalid output,
+ * or when the AI is less confident than the keyword matcher — so the wizard is
+ * never worse off than Phase 2 and is never blocked.
  */
-export const activeInferrer: CategoryInferrer = ruleBasedInferrer;
+async function aiInfer(term: string): Promise<CategoryGuess> {
+  const fallback = ruleBasedInfer(term);
+  const clean = term.trim();
+  if (clean.length < 2) return fallback;
+
+  const cacheKey = clean.toLowerCase();
+  const hit = aiInferCache.get(cacheKey);
+  if (hit) return hit;
+
+  try {
+    const headers = await bearerHeader();
+    if (!headers.Authorization) return fallback;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), AI_INFER_TIMEOUT_MS);
+    const res = await fetch(apiUrl('/api/wanted/infer-category'), {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ term: clean }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(timer));
+
+    if (!res.ok) return fallback;
+    const body = (await res.json().catch(() => null)) as
+      | { category?: string; confidence?: number; fallback?: boolean }
+      | null;
+    if (!body || body.fallback) return fallback;
+
+    const category = body.category as WantedCategory;
+    const confidence = Number(body.confidence);
+    if (!VALID_CATEGORIES.has(category) || !Number.isFinite(confidence)) return fallback;
+
+    const ai: CategoryGuess = { category, confidence: Math.max(0, Math.min(1, confidence)) };
+    // Prefer the AI guess when it clears the threshold or is at least as
+    // confident as the keyword matcher; otherwise keep the rule-based guess.
+    const chosen =
+      ai.confidence >= CONFIDENCE_THRESHOLD || ai.confidence >= fallback.confidence ? ai : fallback;
+    aiInferCache.set(cacheKey, chosen);
+    return chosen;
+  } catch {
+    return fallback;
+  }
+}
+
+export const aiInferrer: CategoryInferrer = { infer: aiInfer };
+
+/**
+ * The inferrer the app actually uses. Phase 7 swaps in the AI-backed inferrer;
+ * because it resolves through the async `CategoryInferrer` interface and always
+ * falls back to `ruleBasedInfer`, callers (the wizard) need no changes.
+ */
+export const activeInferrer: CategoryInferrer = aiInferrer;
 
 /** Sync convenience wrapper around the rule-based inferrer. */
 export function inferCategory(term: string): CategoryGuess {

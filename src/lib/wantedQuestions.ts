@@ -1,4 +1,6 @@
 import type { WantedCategory } from './wanted';
+import { apiUrl } from './apiBase';
+import { supabase } from './supabase';
 
 /**
  * Wanted Wizard — Phase 2 question-set config.
@@ -205,4 +207,113 @@ export const QUESTION_SETS: Record<WantedCategory, WizardQuestion[]> = {
 
 export function questionsFor(category: WantedCategory): WizardQuestion[] {
   return QUESTION_SETS[category] ?? QUESTION_SETS.other;
+}
+
+// ---- Phase 7: AI-generated question sets (server-proxied, static fallback) --
+
+const AI_QUESTIONS_TIMEOUT_MS = 6000;
+const QUESTION_KINDS = new Set<QuestionKind>(['text', 'number', 'single']);
+
+const slug = (s: string): string =>
+  s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+/**
+ * Validate/normalize one model-produced question to the WizardQuestion schema.
+ * Returns null for anything malformed so it is dropped rather than rendered.
+ * Every question is forced `optional` so AI output can never block submission.
+ */
+function sanitizeAiQuestion(raw: unknown, seen: Set<string>): WizardQuestion | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const id = typeof r.id === 'string' ? slug(r.id) : '';
+  let kind = (typeof r.kind === 'string' ? r.kind.trim().toLowerCase() : '') as QuestionKind;
+  const prompt = typeof r.prompt === 'string' ? r.prompt.trim().slice(0, 160) : '';
+  const summary = typeof r.summary === 'string' ? r.summary.trim().slice(0, 40) : '';
+  if (!id || !QUESTION_KINDS.has(kind) || !prompt || !summary || seen.has(id)) return null;
+
+  const q: WizardQuestion = { id, kind, prompt, summary, optional: true };
+  if (typeof r.label === 'string' && r.label.trim()) q.label = r.label.trim().slice(0, 60);
+  if (typeof r.placeholder === 'string' && r.placeholder.trim()) q.placeholder = r.placeholder.trim().slice(0, 80);
+
+  if (r.maps === 'budget') {
+    q.maps = 'budget';
+    kind = 'number';
+    q.kind = 'number';
+    q.inputMode = 'decimal';
+  } else if (r.inputMode === 'decimal' || r.inputMode === 'text') {
+    q.inputMode = r.inputMode;
+  }
+
+  if (kind === 'single') {
+    const rawOpts = Array.isArray(r.options) ? r.options : [];
+    const options: QuestionOption[] = [];
+    const optSeen = new Set<string>();
+    for (const o of rawOpts) {
+      if (!o || typeof o !== 'object') continue;
+      const oo = o as Record<string, unknown>;
+      const label = typeof oo.label === 'string' ? oo.label.trim().slice(0, 40) : '';
+      let value = typeof oo.value === 'string' ? slug(oo.value) : '';
+      if (!value && label) value = slug(label);
+      if (!label || !value || optSeen.has(value)) continue;
+      optSeen.add(value);
+      options.push({ value, label });
+      if (options.length >= 6) break;
+    }
+    if (options.length < 2) return null; // a single-choice needs real options
+    q.options = options;
+  }
+
+  seen.add(id);
+  return q;
+}
+
+function sanitizeAiQuestions(raw: unknown): WizardQuestion[] | null {
+  if (!Array.isArray(raw)) return null;
+  const seen = new Set<string>();
+  const out: WizardQuestion[] = [];
+  for (const item of raw) {
+    if (out.length >= 5) break;
+    const q = sanitizeAiQuestion(item, seen);
+    if (q) out.push(q);
+  }
+  return out.length ? out : null;
+}
+
+/**
+ * AI-generated question set for an item + category, via the server (the key
+ * stays server-side). Validated to the WizardQuestion schema and bounded by a
+ * timeout; falls back to the static `questionsFor(category)` set on ANY error,
+ * timeout, missing auth, or invalid output — so the wizard never blocks and is
+ * never worse than the Phase 2 config.
+ */
+export async function generateQuestions(
+  term: string,
+  category: WantedCategory,
+): Promise<WizardQuestion[]> {
+  const fallback = questionsFor(category);
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return fallback;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), AI_QUESTIONS_TIMEOUT_MS);
+    const res = await fetch(apiUrl('/api/wanted/questions'), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ term: term.trim(), category }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(timer));
+
+    if (!res.ok) return fallback;
+    const body = (await res.json().catch(() => null)) as
+      | { questions?: unknown; fallback?: boolean }
+      | null;
+    if (!body || body.fallback) return fallback;
+
+    const qs = sanitizeAiQuestions(body.questions);
+    return qs && qs.length ? qs : fallback;
+  } catch {
+    return fallback;
+  }
 }

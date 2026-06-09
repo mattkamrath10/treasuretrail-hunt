@@ -26,6 +26,10 @@ export const WANTED_CATEGORY_LABEL: Record<WantedCategory, string> = {
   other:        'Other',
 };
 
+/** Canonical list of every category value — drives validation + AI output
+ *  normalization (Phase 7) so there is one source of truth for the enum. */
+export const WANTED_CATEGORIES = Object.keys(WANTED_CATEGORY_LABEL) as WantedCategory[];
+
 export interface WantedItemRow {
   id: string;
   user_id: string;
