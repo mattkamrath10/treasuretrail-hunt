@@ -1,0 +1,105 @@
+TREASURETRAIL DISCOVER PAGE SCROLLING IMPROVEMENTS
+
+GOAL:
+Improve usability on desktop and mobile by eliminating conflicts between vertical page scrolling and horizontal carousels.
+
+DESKTOP BEHAVIOR
+
+1. Mouse Wheel
+
+* Standard mouse wheel should ALWAYS scroll the page vertically.
+* Users should never get trapped inside a carousel when attempting to move down the page.
+
+2. Horizontal Carousel Navigation
+   Add visible left and right navigation arrows to every horizontal carousel.
+
+Examples:
+
+* Flash Finds
+* Estate Sales
+* Auctions
+* Wanted Items
+* Featured Sellers
+* Trending Collectibles
+
+Requirements:
+
+* Arrows appear when hovering over the carousel.
+* Arrows remain visible on desktop.
+* Smooth animated scrolling.
+* Scroll one card group at a time.
+
+3. Shift + Mouse Wheel Support
+   Allow:
+   Shift + Mouse Wheel
+
+to scroll horizontally through the carousel.
+
+This should work in addition to the arrow buttons.
+
+4. Visual Indicators
+   Show a partial preview of the next card on the right edge.
+
+Purpose:
+
+* Makes it obvious there are additional items.
+* Encourages horizontal exploration.
+
+MOBILE BEHAVIOR
+
+1. Standard Gestures
+   Maintain native mobile behavior:
+
+* Swipe up/down = page scroll
+* Swipe left/right = carousel navigation
+
+2. No Scroll Bars
+   Do NOT add horizontal or vertical scroll bars.
+
+Keep the experience clean and touch-friendly.
+
+3. Carousel Discoverability
+   For each horizontal section:
+
+* Show a portion of the next card.
+* Add subtle swipe indicators.
+* Add small pagination dots or progress indicators.
+* Include a "See All" button.
+
+4. Touch Optimization
+
+* Increase touch targets.
+* Ensure smooth swipe response.
+* Prevent accidental page movement while swiping carousel items.
+
+OPTIONAL FUTURE FEATURE
+
+Add a user preference:
+
+View Mode:
+
+* Carousel View
+* Grid View
+
+Grid View:
+
+* Displays items in a vertical grid.
+* Eliminates horizontal scrolling.
+* Useful for power users and heavy browsing.
+
+SUCCESS CRITERIA
+
+Desktop:
+
+* Mouse wheel scrolls page vertically.
+* Shift + Wheel scrolls carousels horizontally.
+* Visible left/right arrows on all carousels.
+
+Mobile:
+
+* Swipe gestures feel natural.
+* No confusion between vertical and horizontal movement.
+* Users immediately understand additional content exists.
+
+GOAL:
+Make TreasureTrail browsing feel modern, intuitive, and frictionless across desktop, tablet, and mobile devices.
