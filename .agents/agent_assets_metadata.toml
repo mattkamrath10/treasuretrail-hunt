@@ -167,3 +167,9 @@ id = "6w4kSjkbUIv9aELnWuaOc"
 uri = "file://dist-downloads/TreasureTrail-FullApp.zip"
 type = "unspecified"
 title = "TreasureTrail — Full App (complete source code)"
+
+[[outputs]]
+id = "1BLU29jDB_aL1XhBXMVpy"
+uri = "file://TreasureTrail-FullSource-20260609.zip"
+type = "unspecified"
+title = "TreasureTrail — Full Source Code (June 9, 2026)"
