@@ -1,30 +1,30 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { createWantedItem, WANTED_CATEGORY_LABEL, type WantedCategory } from '../../lib/wanted';
 import { createSavedSearch } from '../../lib/savedSearches';
+import { activeInferrer, CONFIDENCE_THRESHOLD, type CategoryGuess } from '../../lib/wantedInference';
+import { questionsFor, type WizardQuestion } from '../../lib/wantedQuestions';
 import { useScrollLock } from '../../hooks/useScrollLock';
 
 /**
- * WantedWizard — Phase 1 basic flow.
+ * WantedWizard — Phase 2 smart-question engine.
  *
- * Opened from the no-results search screen so a dead-end search becomes a
- * Wanted Request in a few taps. It seeds the search term as the title and walks
- * through a small FIXED question set (item + category → preferences → location).
- * On finish it creates the wanted item AND wires it into the existing
- * notification infra by also creating a saved search, then hands the new id
- * back to the caller to navigate to the post.
+ * Opened from the no-results search screen so a dead-end search becomes a rich
+ * Wanted Request in a few taps. It seeds the search term as the title, INFERS a
+ * likely category from that term (see wantedInference), and loads that
+ * category's tailored question set (see wantedQuestions). When inference is
+ * low-confidence it nudges the user to pick a category first; the category
+ * picker is always one tap away and `other` is never a dead end.
  *
- * No category inference, travel distance, or AI yet — those are later phases.
+ * The screens are: item + category → the inferred category's questions →
+ * a universal location step. Answers are folded onto the createWantedItem
+ * payload (title / category / max_budget / location) with the rest serialized
+ * into the description. On finish it also creates a saved search so the existing
+ * notification infra alerts the requester on a match.
+ *
+ * Category detection and the question sets are config-driven so the Phase 7 AI
+ * swap is a drop-in with no changes here.
  */
-
-type Condition = 'any' | 'new' | 'used' | 'vintage';
-
-const CONDITION_OPTS: { key: Condition; label: string }[] = [
-  { key: 'any', label: 'Any condition' },
-  { key: 'new', label: 'New' },
-  { key: 'used', label: 'Used' },
-  { key: 'vintage', label: 'Vintage' },
-];
 
 const CATEGORY_ENTRIES = Object.entries(WANTED_CATEGORY_LABEL) as [WantedCategory, string][];
 
@@ -37,7 +37,7 @@ const TRAVEL_OPTS: { label: string; value: number | null }[] = [
   { label: 'Anywhere', value: null },
 ];
 
-const STEP_TITLES = ['What are you looking for?', 'Any preferences?', 'Where are you? (optional)'];
+type Answers = Record<string, string>;
 
 interface Props {
   initialTerm: string;
@@ -49,37 +49,78 @@ interface Props {
 export default function WantedWizard({ initialTerm, userId, onClose, onCreated }: Props) {
   useScrollLock(true);
 
-  const [step, setStep] = useState(0);
   const [title, setTitle] = useState(initialTerm.trim());
-  const [category, setCategory] = useState<WantedCategory>('collectibles');
-  const [condition, setCondition] = useState<Condition>('any');
-  const [maxBudget, setMaxBudget] = useState('');
-  const [details, setDetails] = useState('');
+  const [category, setCategory] = useState<WantedCategory>('other');
+  const [categoryTouched, setCategoryTouched] = useState(false);
+  // Inference is resolved through the async-capable interface so a Phase 7 AI
+  // inferrer (which may be async) is a drop-in with no changes here.
+  const [guess, setGuess] = useState<CategoryGuess | null>(null);
+  const [answers, setAnswers] = useState<Answers>({});
   const [city, setCity] = useState('');
   const [region, setRegion] = useState('');
   const [travelDistance, setTravelDistance] = useState<number | null>(25);
+  const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Resolve the category guess from the seed term once. Promise.resolve handles
+  // both the sync rule-based inferrer and a future async AI one. Until the user
+  // has manually picked, adopt the inferred category as the default.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve(activeInferrer.infer(initialTerm)).then((g) => {
+      if (cancelled) return;
+      setGuess(g);
+      setCategory((prev) => (categoryTouched ? prev : g.category));
+    });
+    return () => { cancelled = true; };
+    // categoryTouched intentionally excluded — re-inferring on every pick would
+    // fight the user's manual choice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTerm]);
+
+  // Low confidence => require an explicit category pick before proceeding.
+  const lowConfidence = guess != null && guess.confidence < CONFIDENCE_THRESHOLD;
+  const needsCategoryPick = lowConfidence && !categoryTouched;
+
+  // The active category's question set drives the middle screens.
+  const questions = useMemo(() => questionsFor(category), [category]);
+
+  // Screen 0 = item + category, screens 1..N = questions, last = location.
+  const totalSteps = questions.length + 2;
+  const isItemStep = step === 0;
+  const isLocationStep = step === totalSteps - 1;
+  const currentQuestion: WizardQuestion | null =
+    !isItemStep && !isLocationStep ? questions[step - 1] : null;
+
   const titleValid = title.trim().length >= 2;
-  const budgetValid = useMemo(() => {
-    const t = maxBudget.trim();
+
+  const setAnswer = (id: string, value: string) =>
+    setAnswers((a) => ({ ...a, [id]: value }));
+
+  const budgetValid = (q: WizardQuestion): boolean => {
+    if (q.maps !== 'budget') return true;
+    const t = (answers[q.id] ?? '').trim();
     if (!t) return true;
     const n = Number(t);
     return Number.isFinite(n) && n >= 0;
-  }, [maxBudget]);
+  };
 
   const next = () => {
     setErr(null);
-    if (step === 0 && !titleValid) {
+    if (isItemStep && !titleValid) {
       setErr('Tell us what you are looking for (at least 2 characters).');
       return;
     }
-    if (step === 1 && !budgetValid) {
+    if (isItemStep && needsCategoryPick) {
+      setErr('Pick a category so we can tailor the next questions.');
+      return;
+    }
+    if (currentQuestion && !budgetValid(currentQuestion)) {
       setErr('Budget must be a number.');
       return;
     }
-    setStep((st) => Math.min(2, st + 1));
+    setStep((st) => Math.min(totalSteps - 1, st + 1));
   };
 
   const back = () => {
@@ -87,20 +128,48 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
     setStep((st) => Math.max(0, st - 1));
   };
 
+  const pickCategory = (key: WantedCategory) => {
+    setCategory(key);
+    setCategoryTouched(true);
+    // Reset answers tied to the previous category's questions so stale values
+    // from a different set never leak into the new request.
+    setAnswers({});
+  };
+
+  const buildDescription = (): { description: string; budget: number | null } => {
+    let budget: number | null = null;
+    const lines: string[] = [];
+    for (const q of questions) {
+      const raw = (answers[q.id] ?? '').trim();
+      if (!raw) continue;
+      if (q.maps === 'budget') {
+        const n = Number(raw);
+        if (Number.isFinite(n) && n >= 0) budget = n;
+        continue;
+      }
+      let display = raw;
+      if (q.kind === 'single' && q.options) {
+        display = q.options.find((o) => o.value === raw)?.label ?? raw;
+      }
+      // The freeform "details" answer reads better on its own line.
+      if (q.id === 'details') lines.push(display);
+      else lines.push(`${q.summary}: ${display}`);
+    }
+    return { description: lines.join('\n'), budget };
+  };
+
   const submit = async () => {
     setErr(null);
     if (!titleValid) { setStep(0); setErr('Tell us what you are looking for.'); return; }
-    if (!budgetValid) { setStep(1); setErr('Budget must be a number.'); return; }
+    const badBudget = questions.find((q) => !budgetValid(q));
+    if (badBudget) {
+      setStep(questions.indexOf(badBudget) + 1);
+      setErr('Budget must be a number.');
+      return;
+    }
     setSaving(true);
     try {
-      const budget = maxBudget.trim() ? Number(maxBudget) : null;
-      const conditionLabel = condition !== 'any'
-        ? CONDITION_OPTS.find((c) => c.key === condition)?.label ?? null
-        : null;
-      const description = [conditionLabel ? `Condition: ${conditionLabel}` : '', details.trim()]
-        .filter(Boolean)
-        .join('\n');
-
+      const { description, budget } = buildDescription();
       const row = await createWantedItem(userId, {
         title: title.trim(),
         description,
@@ -128,6 +197,12 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
     }
   };
 
+  const stepHeading = isItemStep
+    ? 'What are you looking for?'
+    : isLocationStep
+      ? 'Where are you? (optional)'
+      : currentQuestion?.prompt ?? '';
+
   return (
     <div
       className="tt-modal-overlay"
@@ -145,15 +220,15 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
         </header>
 
         <div style={s.progress}>
-          {STEP_TITLES.map((_, i) => (
+          {Array.from({ length: totalSteps }).map((_, i) => (
             <span key={i} style={{ ...s.dot, ...(i <= step ? s.dotActive : {}) }} />
           ))}
         </div>
 
         <div style={s.body} data-scroll-lock-allow>
-          <p style={s.stepTitle}>{STEP_TITLES[step]}</p>
+          <p style={s.stepTitle}>{stepHeading}</p>
 
-          {step === 0 && (
+          {isItemStep && (
             <>
               <label style={s.fieldLabel}>Item</label>
               <input
@@ -164,13 +239,24 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
                 maxLength={120}
                 autoFocus
               />
+
               <label style={{ ...s.fieldLabel, marginTop: 16 }}>Category</label>
+              {needsCategoryPick && (
+                <p style={s.hint}>
+                  Pick a category so we can tailor the next questions.
+                </p>
+              )}
+              {guess != null && !lowConfidence && !categoryTouched && (
+                <p style={s.hint}>
+                  Tailored for <strong>{WANTED_CATEGORY_LABEL[category]}</strong> — tap to change.
+                </p>
+              )}
               <div style={s.chips}>
                 {CATEGORY_ENTRIES.map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setCategory(key)}
+                    onClick={() => pickCategory(key)}
                     style={{ ...s.chip, ...(category === key ? s.chipActive : {}) }}
                   >
                     {label}
@@ -180,43 +266,15 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
             </>
           )}
 
-          {step === 1 && (
-            <>
-              <label style={s.fieldLabel}>Condition</label>
-              <div style={s.chips}>
-                {CONDITION_OPTS.map((c) => (
-                  <button
-                    key={c.key}
-                    type="button"
-                    onClick={() => setCondition(c.key)}
-                    style={{ ...s.chip, ...(condition === c.key ? s.chipActive : {}) }}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-
-              <label style={{ ...s.fieldLabel, marginTop: 16 }}>Max budget ($)</label>
-              <input
-                value={maxBudget}
-                onChange={(e) => setMaxBudget(e.target.value)}
-                placeholder="Optional"
-                inputMode="decimal"
-                style={s.input}
-              />
-
-              <label style={{ ...s.fieldLabel, marginTop: 16 }}>Anything else?</label>
-              <textarea
-                value={details}
-                onChange={(e) => setDetails(e.target.value)}
-                placeholder="Brand, era, size — any specifics that help sellers find a match."
-                style={{ ...s.input, height: 90, resize: 'vertical' }}
-                maxLength={2000}
-              />
-            </>
+          {currentQuestion && (
+            <QuestionField
+              q={currentQuestion}
+              value={answers[currentQuestion.id] ?? ''}
+              onChange={(v) => setAnswer(currentQuestion.id, v)}
+            />
           )}
 
-          {step === 2 && (
+          {isLocationStep && (
             <>
               <p style={s.helper}>
                 Adding your location helps nearby sellers find you. You can leave this blank.
@@ -264,7 +322,7 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
             <span style={{ flex: 1 }} />
           )}
 
-          {step < 2 ? (
+          {!isLocationStep ? (
             <button onClick={next} style={s.nextBtn}>
               Next
             </button>
@@ -276,6 +334,67 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
         </footer>
       </div>
     </div>
+  );
+}
+
+function QuestionField({
+  q,
+  value,
+  onChange,
+}: {
+  q: WizardQuestion;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  if (q.kind === 'single') {
+    return (
+      <>
+        {q.label && <label style={s.fieldLabel}>{q.label}</label>}
+        <div style={s.chips}>
+          {(q.options ?? []).map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => onChange(value === o.value ? '' : o.value)}
+              style={{ ...s.chip, ...(value === o.value ? s.chipActive : {}) }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </>
+    );
+  }
+
+  if (q.id === 'details') {
+    return (
+      <>
+        {q.label && <label style={s.fieldLabel}>{q.label}</label>}
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={q.placeholder}
+          style={{ ...s.input, height: 90, resize: 'vertical' }}
+          maxLength={2000}
+          autoFocus
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      {q.label && <label style={s.fieldLabel}>{q.label}</label>}
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={q.placeholder}
+        inputMode={q.inputMode}
+        style={s.input}
+        maxLength={q.kind === 'number' ? 12 : 120}
+        autoFocus
+      />
+    </>
   );
 }
 
@@ -337,6 +456,7 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 6,
     letterSpacing: 0.2,
   },
+  hint: { margin: '0 0 10px', fontSize: 12.5, color: 'var(--color-neutral-500)', lineHeight: 1.5 },
   helper: { margin: '0 0 14px', fontSize: 13, color: 'var(--color-neutral-500)', lineHeight: 1.5 },
   input: {
     width: '100%',
