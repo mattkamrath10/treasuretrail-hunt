@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import {
   ArrowLeft, Gavel, X, Clock, ExternalLink,
   Upload, ToggleLeft, ToggleRight, ChevronDown,
@@ -293,6 +294,7 @@ function applyAll(
 export default function LiveHub({ onBack }: { onBack: () => void }) {
   const { user, isGuest, exitGuestMode } = useAuth();
   const navigate = useNavigate();
+  const goSearch = useGlobalSearch();
   const location = useLocation();
   const [listings, setListings] = useState<ExternalListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -442,6 +444,8 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
             placeholder="Search auctions, estate sales, yard sales, platforms…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') goSearch(searchQuery); }}
+            enterKeyHint="search"
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery('')} style={st.searchClear}>

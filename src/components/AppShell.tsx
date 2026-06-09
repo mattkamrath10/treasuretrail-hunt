@@ -44,6 +44,7 @@ const CommunityGuidelines = lazy(() => import('../pages/CommunityGuidelines'));
 const ReviewMode = lazy(() => import('../pages/ReviewMode'));
 const AdminModeration = lazy(() => import('../pages/AdminModeration'));
 const BlockedUsers = lazy(() => import('../pages/BlockedUsers'));
+const SearchResults = lazy(() => import('../pages/SearchResults'));
 
 function AuctionsPage() {
   const navigate = useNavigate();
@@ -291,6 +292,7 @@ export default function AppShell() {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Discover />} />
+            <Route path="/search" element={<SearchResults />} />
             <Route path="/home" element={<Home />} />
             <Route path="/flash-finds" element={<FlashFinds />} />
             <Route path="/sell" element={<SellPage />} />

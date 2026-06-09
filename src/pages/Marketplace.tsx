@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { Badge } from '../components/ui/Badge';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -145,6 +146,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
 }) {
   const { requireAuth } = useGuestAction();
   const { user } = useAuth();
+  const goSearch = useGlobalSearch();
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -234,6 +236,8 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
             style={s.searchInput}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') goSearch(searchQuery); }}
+            enterKeyHint="search"
           />
           <button
             onClick={() => setShowSavedSearches(true)}

@@ -14,6 +14,9 @@ export function ensureUiKeyframes() {
       from { opacity: 0; }
       to   { opacity: 1; }
     }
+    @keyframes ttSpin {
+      to { transform: rotate(360deg); }
+    }
     @media (prefers-reduced-motion: reduce) {
       .tt-shimmer, .tt-fade { animation: none !important; transition: none !important; }
     }

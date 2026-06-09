@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye, Trash2, Shield } from 'lucide-react';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
 import { saveListing, unsaveListing } from '../lib/savedListings';
@@ -198,6 +199,7 @@ function locationMatches(itemLocation: string, query: string): boolean {
 
 export default function Home() {
   const navigate = useNavigate();
+  const goSearch = useGlobalSearch();
   const location = useLocation();
   const [posts, setPosts] = useState<ExtendedPost[]>([]);
   const [listings, setListings] = useState<ExternalListing[]>([]);
@@ -692,6 +694,8 @@ export default function Home() {
             placeholder="Search titles, categories, marketplaces…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') goSearch(searchQuery); }}
+            enterKeyHint="search"
             style={styles.locationInput}
             aria-label="Search feed"
           />

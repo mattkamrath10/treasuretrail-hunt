@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import {
   Search, ChevronRight, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar, Users,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ const LOG = '[DISCOVER]';
 
 export default function Discover() {
   const navigate = useNavigate();
+  const goSearch = useGlobalSearch();
   const { profile } = useAuth();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [finds, setFinds] = useState<CommunityPost[]>([]);
@@ -103,6 +105,8 @@ export default function Discover() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') goSearch(query); }}
+            enterKeyHint="search"
             placeholder="Search shows, sales, finds, and wanted items"
             style={s.searchInput}
             aria-label="Search Discover"
