@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Search as SearchIcon, Bell, Globe, ShoppingBag, ExternalLink, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Search as SearchIcon, Bell, Globe, ShoppingBag, ExternalLink, ClipboardList, MapPin } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback, type FallbackKind } from '../components/ui/MediaFallback';
 import { ensureUiKeyframes } from '../components/ui/keyframes';
 import { runSearch } from '../lib/search/searchService';
 import { googleSearchUrl, googleShoppingUrl } from '../lib/search/googleFallback';
+import { geocodeLocation, type GeoPoint } from '../lib/geocode';
 import type { SearchOutcome, SearchResultItem, SearchResultKind } from '../lib/search/types';
 import { useAuth } from '../context/AuthContext';
 import { createSavedSearch } from '../lib/savedSearches';
@@ -30,6 +31,45 @@ function fallbackKind(kind: SearchResultKind): FallbackKind {
     default:
       return 'listing';
   }
+}
+
+// Travel radius options for the search location control. 'any' = no limit.
+const RADIUS_OPTS: { key: string; label: string }[] = [
+  { key: '10', label: 'Within 10 mi' },
+  { key: '25', label: 'Within 25 mi' },
+  { key: '50', label: 'Within 50 mi' },
+  { key: '100', label: 'Within 100 mi' },
+  { key: 'any', label: 'Anywhere' },
+];
+
+const LOC_KEY = 'tt_search_loc';
+const ORIGIN_KEY = 'tt_search_origin';
+const RADIUS_KEY = 'tt_search_radius';
+const DEFAULT_RADIUS = '25';
+
+// Only accept a radius key the control actually offers; a corrupted localStorage
+// value would otherwise yield NaN and silently break the "Near You" bucket.
+function readRadiusKey(): string {
+  const stored = localStorage.getItem(RADIUS_KEY);
+  return stored && RADIUS_OPTS.some((o) => o.key === stored) ? stored : DEFAULT_RADIUS;
+}
+
+function readOrigin(): GeoPoint | null {
+  try {
+    const raw = localStorage.getItem(ORIGIN_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    return Number.isFinite(p?.lat) && Number.isFinite(p?.lng) ? { lat: p.lat, lng: p.lng } : null;
+  } catch {
+    return null;
+  }
+}
+
+function distanceLabel(miles: number | null | undefined): string | null {
+  if (typeof miles !== 'number' || !Number.isFinite(miles)) return null;
+  if (miles < 0.1) return 'Less than 1 mi away';
+  const rounded = miles < 10 ? Math.round(miles * 10) / 10 : Math.round(miles);
+  return `${rounded} mi away`;
 }
 
 function priceLabel(price: SearchResultItem['price']): string | null {
@@ -58,6 +98,17 @@ export default function SearchResults() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const resumedRef = useRef(false);
 
+  // Local-First Search: the searcher's location + travel radius, persisted so
+  // it's remembered across sessions. `origin` drives distance sectioning.
+  const [locInput, setLocInput] = useState(() => localStorage.getItem(LOC_KEY) ?? '');
+  const [origin, setOrigin] = useState<GeoPoint | null>(readOrigin);
+  const [radiusKey, setRadiusKey] = useState(readRadiusKey);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'notfound'>('idle');
+
+  const radiusMiles = radiusKey === 'any' ? null : Number(radiusKey);
+  const originLat = origin?.lat ?? null;
+  const originLng = origin?.lng ?? null;
+
   // Resume a guest's "Create Wanted Request" after they sign in: AppShell
   // routes them back here with state.openWizard once authenticated.
   useEffect(() => {
@@ -76,7 +127,7 @@ export default function SearchResults() {
 
   useEffect(() => {
     if (!query) {
-      setOutcome({ term: '', source: null, label: null, items: [] });
+      setOutcome({ term: '', source: null, label: null, items: [], sections: [] });
       setLoading(false);
       return;
     }
@@ -84,12 +135,17 @@ export default function SearchResults() {
     const controller = new AbortController();
     setLoading(true);
     setNotified(false);
-    runSearch(query, controller.signal)
+    const opts = {
+      signal: controller.signal,
+      origin: originLat != null && originLng != null ? { lat: originLat, lng: originLng } : null,
+      radiusMiles,
+    };
+    runSearch(query, opts)
       .then((res) => {
         if (!cancelled) setOutcome(res);
       })
       .catch(() => {
-        if (!cancelled) setOutcome({ term: query, source: null, label: null, items: [] });
+        if (!cancelled) setOutcome({ term: query, source: null, label: null, items: [], sections: [] });
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -98,13 +154,47 @@ export default function SearchResults() {
       cancelled = true;
       controller.abort();
     };
-  }, [query]);
+  }, [query, originLat, originLng, radiusMiles]);
 
   const submit = (term: string) => {
     const q = term.trim();
     if (!q) return;
     navigate(`/search?q=${encodeURIComponent(q)}`);
   };
+
+  // Geocode the typed location into an origin used for distance sectioning.
+  // Empty input clears the location (search falls back to nationwide).
+  async function resolveLocation() {
+    const raw = locInput.trim();
+    if (!raw) {
+      setOrigin(null);
+      setGeoStatus('idle');
+      localStorage.removeItem(LOC_KEY);
+      localStorage.removeItem(ORIGIN_KEY);
+      return;
+    }
+    setGeoStatus('loading');
+    try {
+      const res = await geocodeLocation(raw);
+      if (res.ok) {
+        setOrigin(res.point);
+        setGeoStatus('idle');
+        localStorage.setItem(LOC_KEY, raw);
+        localStorage.setItem(ORIGIN_KEY, JSON.stringify(res.point));
+      } else {
+        setOrigin(null);
+        setGeoStatus('notfound');
+        localStorage.removeItem(ORIGIN_KEY);
+      }
+    } catch {
+      setGeoStatus('notfound');
+    }
+  }
+
+  function changeRadius(key: string) {
+    setRadiusKey(key);
+    localStorage.setItem(RADIUS_KEY, key);
+  }
 
   async function handleNotify() {
     if (!query) return;
@@ -135,8 +225,8 @@ export default function SearchResults() {
   }
 
   const items = outcome?.items ?? [];
+  const sections = outcome?.sections ?? [];
   const hasResults = items.length > 0;
-  const sourceLabel = outcome?.label ?? null;
 
   const headerSubtitle = useMemo(() => {
     if (!query) return 'Type to search the marketplace';
@@ -179,6 +269,37 @@ export default function SearchResults() {
         )}
       </div>
 
+      <div style={s.locWrap}>
+        <MapPin size={15} style={{ color: 'var(--color-neutral-400)', flexShrink: 0 }} />
+        <input
+          type="text"
+          inputMode="text"
+          placeholder="ZIP or City, State — find it nearby"
+          style={s.locInput}
+          value={locInput}
+          onChange={(e) => setLocInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') resolveLocation(); }}
+          onBlur={resolveLocation}
+        />
+        <select
+          style={s.radiusSelect}
+          value={radiusKey}
+          onChange={(e) => changeRadius(e.target.value)}
+          aria-label="Search radius"
+        >
+          {RADIUS_OPTS.map((o) => (
+            <option key={o.key} value={o.key}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+      {geoStatus === 'loading' && <div style={s.locHint}>Finding that location…</div>}
+      {geoStatus === 'notfound' && (
+        <div style={s.locHintWarn}>Couldn’t find that location — showing all results.</div>
+      )}
+      {origin && geoStatus === 'idle' && locInput.trim() && (
+        <div style={s.locHint}>📍 Nearby results first{radiusMiles ? ` (within ${radiusMiles} mi)` : ''}</div>
+      )}
+
       <div style={s.scroll}>
         {loading && (
           <div style={s.center}>
@@ -189,12 +310,16 @@ export default function SearchResults() {
 
         {!loading && hasResults && (
           <>
-            <div style={s.sourceLabel}>{sourceLabel}</div>
-            <div style={s.grid}>
-              {items.map((item) => (
-                <ResultCard key={`${item.source}:${item.id}`} item={item} onOpen={navigate} />
-              ))}
-            </div>
+            {sections.map((sec) => (
+              <div key={sec.key} style={s.section}>
+                <div style={s.sourceLabel}>{sec.label}</div>
+                <div style={s.grid}>
+                  {sec.items.map((item) => (
+                    <ResultCard key={`${item.source}:${item.id}`} item={item} onOpen={navigate} />
+                  ))}
+                </div>
+              </div>
+            ))}
           </>
         )}
 
@@ -256,6 +381,7 @@ export default function SearchResults() {
 
 function ResultCard({ item, onOpen }: { item: SearchResultItem; onOpen: (to: string) => void }) {
   const price = priceLabel(item.price);
+  const dist = distanceLabel(item.distanceMiles);
   const isExternal = !!item.externalUrl;
 
   const inner = (
@@ -280,6 +406,11 @@ function ResultCard({ item, onOpen }: { item: SearchResultItem; onOpen: (to: str
         ) : item.subtitle && !isExternal ? (
           <span style={s.cardSub}>{item.subtitle}</span>
         ) : null}
+        {dist && (
+          <span style={s.cardDistance}>
+            <MapPin size={10} /> {dist}
+          </span>
+        )}
       </div>
     </>
   );
@@ -365,6 +496,7 @@ const s: Record<string, React.CSSProperties> = {
     animation: 'ttSpin 0.8s linear infinite',
   },
   muted: { fontSize: 13, color: 'var(--color-neutral-500)' },
+  section: { marginBottom: 18 },
   sourceLabel: {
     fontSize: 12,
     fontWeight: 700,
@@ -372,6 +504,47 @@ const s: Record<string, React.CSSProperties> = {
     letterSpacing: 0.4,
     color: 'var(--color-neutral-500)',
     margin: '8px 2px 12px',
+  },
+  locWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    margin: '6px 14px 0',
+    padding: '8px 12px',
+    backgroundColor: 'var(--color-surface, #fff)',
+    border: '1px solid var(--color-neutral-200)',
+    borderRadius: 'var(--radius-lg, 14px)',
+  },
+  locInput: {
+    flex: 1,
+    minWidth: 0,
+    border: 'none',
+    outline: 'none',
+    fontSize: 14,
+    background: 'transparent',
+    color: 'var(--color-neutral-900)',
+  },
+  radiusSelect: {
+    flexShrink: 0,
+    border: '1px solid var(--color-neutral-200)',
+    borderRadius: 'var(--radius-md, 10px)',
+    background: 'var(--color-neutral-50)',
+    color: 'var(--color-neutral-700)',
+    fontSize: 12.5,
+    fontWeight: 600,
+    padding: '6px 6px',
+    cursor: 'pointer',
+  },
+  locHint: { fontSize: 12, color: 'var(--color-neutral-500)', margin: '6px 16px 0' },
+  locHintWarn: { fontSize: 12, color: '#b45309', margin: '6px 16px 0' },
+  cardDistance: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 3,
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: 'var(--color-primary-600)',
+    marginTop: 1,
   },
   grid: {
     display: 'grid',

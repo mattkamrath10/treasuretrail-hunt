@@ -19,6 +19,11 @@ function matches(term: string, ...fields: Array<string | null | undefined>): boo
   return fields.some((f) => (f ?? '').toLowerCase().includes(q));
 }
 
+function numOrNull(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function asArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
   if (value && typeof value === 'object' && Array.isArray((value as { data?: unknown }).data)) {
@@ -85,6 +90,8 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         imageUrl: (m.image_url as string) ?? null,
         route: `/listing/${m.id}`,
         category: (m.category as string) ?? null,
+        lat: numOrNull(m.lat),
+        lng: numOrNull(m.lng),
       });
     }
   }
@@ -112,6 +119,8 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         imageUrl: (e.cover_thumb_url as string) || (e.cover_image_url as string) || null,
         route: `/event/${e.id}`,
         category: (e.category as string) ?? null,
+        lat: numOrNull(e.lat),
+        lng: numOrNull(e.lng),
       });
     }
   }

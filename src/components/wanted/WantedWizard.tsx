@@ -28,6 +28,15 @@ const CONDITION_OPTS: { key: Condition; label: string }[] = [
 
 const CATEGORY_ENTRIES = Object.entries(WANTED_CATEGORY_LABEL) as [WantedCategory, string][];
 
+// Travel radius (miles). `null` = Anywhere (no distance limit). Default 25.
+const TRAVEL_OPTS: { label: string; value: number | null }[] = [
+  { label: '10 mi', value: 10 },
+  { label: '25 mi', value: 25 },
+  { label: '50 mi', value: 50 },
+  { label: '100 mi', value: 100 },
+  { label: 'Anywhere', value: null },
+];
+
 const STEP_TITLES = ['What are you looking for?', 'Any preferences?', 'Where are you? (optional)'];
 
 interface Props {
@@ -48,6 +57,7 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
   const [details, setDetails] = useState('');
   const [city, setCity] = useState('');
   const [region, setRegion] = useState('');
+  const [travelDistance, setTravelDistance] = useState<number | null>(25);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -98,6 +108,7 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
         max_budget: budget,
         city: city.trim() || null,
         region: region.trim() || null,
+        travel_distance: travelDistance,
         source_search_term: initialTerm.trim() || null,
       });
 
@@ -224,6 +235,20 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
                 placeholder="Optional"
                 style={s.input}
               />
+
+              <label style={{ ...s.fieldLabel, marginTop: 16 }}>How far are you willing to travel?</label>
+              <div style={s.chips}>
+                {TRAVEL_OPTS.map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => setTravelDistance(opt.value)}
+                    style={{ ...s.chip, ...(travelDistance === opt.value ? s.chipActive : {}) }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </>
           )}
 

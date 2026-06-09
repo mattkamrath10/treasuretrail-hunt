@@ -29,6 +29,25 @@ export interface SearchResultItem {
   externalUrl?: string | null;
   /** Free-text category, used to pick branded fallback art. */
   category?: string | null;
+  /** Resolved coordinates, when the underlying row has them. Used by the
+   *  aggregator to compute distance from the searcher's location. */
+  lat?: number | null;
+  lng?: number | null;
+  /** Great-circle miles from the searcher's location. Populated by the
+   *  aggregator (not the provider) when both an origin and item coords exist. */
+  distanceMiles?: number | null;
+}
+
+/**
+ * A labeled group of results rendered as one block on the results page, e.g.
+ * "Near You", "More TreasureTrail Results", "Nearby Events That May Have This
+ * Item". The aggregator returns these in priority order; only non-empty
+ * sections are included.
+ */
+export interface SearchSection {
+  key: string;
+  label: string;
+  items: SearchResultItem[];
 }
 
 export interface SearchProvider {
@@ -50,5 +69,8 @@ export interface SearchOutcome {
   source: SearchSource | null;
   /** Display label for the producing source, or null. */
   label: string | null;
+  /** Flattened view of every item across all sections (count + emptiness). */
   items: SearchResultItem[];
+  /** Ordered, non-empty result sections. The UI renders these. */
+  sections: SearchSection[];
 }

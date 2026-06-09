@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { geocodeLocation } from './geocode';
 
 export type WantedCategory =
   | 'collectibles' | 'furniture' | 'electronics' | 'vintage' | 'cards'
@@ -62,6 +63,12 @@ export interface WantedUpsert {
   // that produced it. Optional + migration-gated (see createWantedItem's 42703
   // fallback) so creation keeps working before the column is applied.
   source_search_term?: string | null;
+  // Phase 3 Local-First Search — resolved coordinates (geocoded from
+  // city/region on write) and how far the requester will travel (miles; null =
+  // Anywhere). All migration-gated via the column-drop 42703 fallback.
+  lat?: number | null;
+  lng?: number | null;
+  travel_distance?: number | null;
 }
 
 export async function fetchOpenWantedItems(opts?: { limit?: number; category?: WantedCategory }) {
@@ -147,23 +154,53 @@ export async function fetchMyWantedItems(userId: string) {
   return (data ?? []) as WantedItemRow[];
 }
 
+// Columns added by later-phase migrations that may not exist yet. We attempt
+// the insert with all of them and, on a 42703 naming one, drop that column and
+// retry — so a Wanted Request can always be created, gaining the extra data
+// once the migrations are applied.
+const WANTED_GATED_COLUMNS = ['source_search_term', 'lat', 'lng', 'travel_distance'];
+
 export async function createWantedItem(userId: string, input: WantedUpsert) {
-  // source_search_term is gated on the Phase-1 wizard migration. Retry without
-  // it on 42703 so a dead-end search can still become a Wanted post before the
-  // column is applied. Apply migration 20260609000100_wanted_source_search_term.sql
-  // to enable demand attribution.
-  const build = (withSource: boolean) => {
-    const payload: Record<string, unknown> = { ...input, user_id: userId };
-    if (!withSource) delete payload.source_search_term;
-    return supabase.from('wanted_items').insert(payload).select('*').single();
-  };
-  let { data, error } = await build(true);
-  if (error?.code === '42703' && /source_search_term/i.test(error.message ?? '')) {
-    console.warn('[CREATE_WANTED] source_search_term column missing — retrying without it.');
-    ({ data, error } = await build(false));
+  // Geocode-on-write (Phase 3): resolve coordinates from city/region so the
+  // request can be distance-matched. Best-effort — never block creation on a
+  // geocode miss, and only when the caller hasn't already supplied coords.
+  const payload: Record<string, unknown> = { ...input, user_id: userId };
+  if (payload.lat == null && payload.lng == null) {
+    const locStr = [input.city, input.region].filter(Boolean).join(', ').trim();
+    if (locStr) {
+      try {
+        const r = await geocodeLocation(locStr);
+        if (r.ok) {
+          payload.lat = r.point.lat;
+          payload.lng = r.point.lng;
+        }
+      } catch {
+        /* geocode failure is non-fatal — leave coords unset */
+      }
+    }
   }
-  if (error) throw new Error(error.message);
-  return data as WantedItemRow;
+
+  // Drop migration-gated columns one at a time as the DB reports them missing.
+  for (let attempt = 0; attempt <= WANTED_GATED_COLUMNS.length; attempt++) {
+    const { data, error } = await supabase
+      .from('wanted_items')
+      .insert(payload)
+      .select('*')
+      .single();
+    if (!error) return data as WantedItemRow;
+    if (error.code === '42703') {
+      const missing = WANTED_GATED_COLUMNS.find(
+        (c) => c in payload && new RegExp(c, 'i').test(error.message ?? ''),
+      );
+      if (missing) {
+        console.warn(`[CREATE_WANTED] ${missing} column missing — retrying without it. Apply the Phase-3 geo migration to enable it.`);
+        delete payload[missing];
+        continue;
+      }
+    }
+    throw new Error(error.message);
+  }
+  throw new Error('createWantedItem failed: exhausted migration-gated retries');
 }
 
 export async function updateWantedItem(id: string, patch: Partial<WantedUpsert>) {

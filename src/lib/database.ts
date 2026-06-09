@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { CommunityPost, MarketplaceListing, Notification, Profile } from './supabase';
 import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
+import { geocodeLocation } from './geocode';
 
 type ProfileEmbed = Pick<Profile, 'username' | 'avatar_url' | 'scout_verified'>;
 
@@ -207,14 +208,45 @@ export async function createMarketplaceListing(listing: {
   if (assertClean(listing.title, listing.description).blocked) {
     return { data: null, error: GUIDELINE_MESSAGE };
   }
-  const { data, error } = await supabase
-    .from('marketplace_listings')
-    .insert(listing)
-    .select()
-    .maybeSingle();
 
-  if (error) return { data: null, error: error.message };
-  return { data: data as MarketplaceListing, error: null };
+  // Geocode-on-write (Phase 3): resolve coordinates from the listing's
+  // general_location so Local-First Search can sort it by distance. Best-effort
+  // — never block creation on a geocode miss.
+  const payload: Record<string, unknown> = { ...listing };
+  const loc = (listing.general_location ?? '').trim();
+  if (loc) {
+    try {
+      const r = await geocodeLocation(loc);
+      if (r.ok) {
+        payload.lat = r.point.lat;
+        payload.lng = r.point.lng;
+      }
+    } catch {
+      /* geocode failure is non-fatal — leave coords unset */
+    }
+  }
+
+  // lat/lng are gated on the Phase-3 geo migration. Drop them and retry on a
+  // 42703 so listings keep saving before the migration is applied.
+  const gated = ['lat', 'lng'];
+  for (let attempt = 0; attempt <= gated.length; attempt++) {
+    const { data, error } = await supabase
+      .from('marketplace_listings')
+      .insert(payload)
+      .select()
+      .maybeSingle();
+    if (!error) return { data: data as MarketplaceListing, error: null };
+    if (error.code === '42703') {
+      const missing = gated.find((c) => c in payload && new RegExp(c, 'i').test(error.message ?? ''));
+      if (missing) {
+        console.warn(`[CREATE_LISTING] ${missing} column missing — retrying without it. Apply the Phase-3 geo migration to enable distance search.`);
+        delete payload[missing];
+        continue;
+      }
+    }
+    return { data: null, error: error.message };
+  }
+  return { data: null, error: 'createMarketplaceListing failed: exhausted migration-gated retries' };
 }
 
 export async function followUser(followerId: string, followingId: string): Promise<{ error: string | null }> {

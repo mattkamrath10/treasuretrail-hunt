@@ -1,0 +1,225 @@
+FEATURE ROADMAP: CROSS-PLATFORM DISCOVERY ENGINE
+
+Goal:
+
+Make TreasureTrail the place where users discover opportunities across multiple platforms and then choose how they want to pursue them.
+
+TreasureTrail is NOT a broker.
+
+TreasureTrail is NOT a payment processor.
+
+TreasureTrail is NOT an escrow service.
+
+TreasureTrail is a discovery, intelligence, and lead-generation platform.
+
+IMPLEMENTATION ORDER
+
+PHASE 1
+(Tie into existing Intelligent Wanted Wizard)
+
+When a search returns no TreasureTrail results:
+
+Display:
+
+"No results found on TreasureTrail Marketplace."
+
+Show:
+
+* Create Wanted Request
+* Notify Me When Listed
+* Search Google
+* Search Google Shopping
+
+Status:
+Already aligned with current roadmap.
+
+---
+
+PHASE 2
+Cross-Platform Opportunity Layer
+
+Create provider architecture:
+
+OpportunityProvider
+
+Supported providers:
+
+* TreasureTrailProvider
+* LocalEventsProvider
+
+Future:
+
+* eBayProvider
+* EtsyProvider
+* WhatnotProvider
+* PoshmarkProvider
+* AuctionProvider
+
+Provider interface:
+
+search(term, filters)
+
+returns:
+
+* title
+* image
+* source
+* url
+* start_time
+* category
+* live_status
+
+Providers must be:
+
+* independently enabled
+* feature flagged
+* fault tolerant
+
+---
+
+PHASE 3
+Live & Upcoming Opportunities
+
+New search sections:
+
+TREASURETRAIL RESULTS
+
+LOCAL EVENTS
+
+LIVE NOW
+
+STARTING SOON
+
+ONLINE AUCTIONS ENDING SOON
+
+User can filter:
+
+* Live Now
+* Starting Soon
+* Auctions
+* Estate Sales
+* Marketplace
+* Local Only
+
+---
+
+PHASE 4
+Discovery Redirects
+
+TreasureTrail does NOT purchase items.
+
+TreasureTrail does NOT hold funds.
+
+TreasureTrail does NOT act as escrow.
+
+Instead:
+
+Display:
+
+View on Source Platform
+
+Examples:
+
+* View on Whatnot
+* View on eBay
+* View on Etsy
+* View on Poshmark
+
+Open external source.
+
+---
+
+PHASE 5
+Wanted Intelligence
+
+When a user does not pursue an external listing:
+
+Offer:
+
+Still looking?
+
+Create a Wanted Request.
+
+Wizard pre-fills:
+
+* search term
+* category
+* filters already selected
+
+This becomes:
+
+* Wanted Post
+* Notification subscription
+* Demand data
+
+---
+
+PHASE 6
+Demand Intelligence
+
+Track:
+
+* Search volume
+* Wanted volume
+* Local demand
+
+Examples:
+
+"52 users are looking for guitars."
+
+"17 users within 25 miles are looking for Pokémon cards."
+
+Only store aggregated statistics.
+
+No public user identities.
+
+---
+
+PHASE 7
+Affiliate & Partner Integrations
+
+Future only.
+
+If platforms allow:
+
+* Referral links
+* Partner APIs
+* Affiliate programs
+
+Track:
+
+* clicks
+* referrals
+* conversions
+
+TreasureTrail remains a discovery platform.
+
+---
+
+DO NOT BUILD
+
+* Purchasing on behalf of users
+* Escrow services
+* Holding customer funds
+* Cross-platform brokerage
+* Seller negotiation services
+* Payment processing for external platforms
+
+These create significant legal, tax, fraud, and operational complexity.
+
+SUCCESS CRITERIA
+
+TreasureTrail becomes:
+
+"One search. Many opportunities."
+
+Users discover:
+
+* TreasureTrail listings
+* Wanted items
+* Estate sales
+* Auctions
+* Live selling events
+* External marketplace opportunities
+
+and choose how they want to pursue them.
