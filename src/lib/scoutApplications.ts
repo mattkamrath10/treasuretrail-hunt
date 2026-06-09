@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { notifyUser } from './notifications';
 
 export type ScoutApplicationStatus = 'pending' | 'approved' | 'declined' | 'withdrawn';
 
@@ -39,18 +38,9 @@ export async function submitScoutApplication(input: {
     .select('*')
     .single();
   if (error) return { application: null, error: error.message };
-  // Best-effort: notify any admin watchers. We don't have a per-admin
-  // target user list here so the V1 notification stays on the applicant
-  // (confirmation receipt). Admin-side notifications will land when the
-  // moderation queue ships.
-  await notifyUser({
-    target_user_id: input.applicantId,
-    type: 'scout_application',
-    title: 'Application received',
-    content: 'Your Verified Scout application is being reviewed.',
-    related_item_id: data.id,
-    related_item_type: 'scout_application',
-  }).catch(() => {});
+  // Scout applications still persist and flow through the moderation queue;
+  // per the Phase-1 notification strategy we no longer emit a scout
+  // notification entry here.
   return { application: data as ScoutApplication, error: null };
 }
 
@@ -115,17 +105,9 @@ export async function approveScoutApplication(
     reviewer_id: opts?.reviewerId ?? null,
     reviewer_note: opts?.note ?? '',
   });
-  // Best-effort notify the applicant. Don't fail the call on notify errors.
-  if (result.application) {
-    await notifyUser({
-      target_user_id: result.application.applicant_id,
-      type: 'scout_application',
-      title: 'You are a Verified Scout',
-      content: 'Your Verified Scout application was approved.',
-      related_item_id: result.application.id,
-      related_item_type: 'scout_application',
-    }).catch(() => {});
-  }
+  // Approval still flips the Verified Scout badge server-side (via the
+  // apply_scout_verification trigger). Per the Phase-1 notification strategy
+  // we no longer emit a scout notification entry here.
   return result;
 }
 
@@ -138,18 +120,8 @@ export async function rejectScoutApplication(
     reviewer_id: opts?.reviewerId ?? null,
     reviewer_note: opts?.note ?? '',
   });
-  if (result.application) {
-    await notifyUser({
-      target_user_id: result.application.applicant_id,
-      type: 'scout_application',
-      title: 'Application update',
-      content: opts?.note?.trim()
-        ? `Your Scout application was not approved. Note: ${opts.note.trim()}`
-        : 'Your Scout application was not approved at this time.',
-      related_item_id: result.application.id,
-      related_item_type: 'scout_application',
-    }).catch(() => {});
-  }
+  // Per the Phase-1 notification strategy we no longer emit a scout
+  // notification entry here; the application status update still persists.
   return result;
 }
 

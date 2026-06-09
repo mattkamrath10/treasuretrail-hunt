@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { notifyUser } from './notifications';
 import type { ListingKind } from './messaging';
 
 export interface ScoutRequest {
@@ -15,9 +14,10 @@ export interface ScoutRequest {
 }
 
 /**
- * File a "scout this item" request against a listing's seller. Triggers a
- * seller-facing notification via the existing SECURITY DEFINER RPC; the
- * notification is best-effort and never blocks the scout insert.
+ * File a "scout this item" request against a listing's seller. The scout
+ * feature is unchanged; per the Phase-1 notification strategy we no longer
+ * emit a scout notification entry here (the request still persists and is
+ * visible in the seller's scout queue).
  */
 export async function createScoutRequest(input: {
   listingId: string;
@@ -49,15 +49,6 @@ export async function createScoutRequest(input: {
     .select('*')
     .single();
   if (error) return { scout: null, error: error.message };
-
-  await notifyUser({
-    target_user_id: input.sellerId,
-    type: 'scout_response',
-    title: 'New scout request',
-    content: input.listingTitle ? `A hunter wants to scout “${input.listingTitle}”.` : 'A hunter wants to scout your listing.',
-    related_item_id: input.listingId,
-    related_item_type: input.listingKind,
-  });
 
   return { scout: data as ScoutRequest, error: null };
 }

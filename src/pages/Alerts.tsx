@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bell, Tag, Radar, Heart, MessageCircle, TrendingUp,
   UserPlus, Calendar, Bookmark, ShoppingBag, CheckCheck, Trash2, Radio,
+  PackageCheck, Target, Gavel, Settings,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchNotificationsList, markRead, markAllRead, clearRead, subscribeNotifications,
 } from '../lib/notifications';
 import { fetchUnreadCount as fetchUnreadMessageCount } from '../lib/messaging';
+import { fetchNotificationPrefs, isInAppEnabled, type NotificationPrefs } from '../lib/notificationPrefs';
 import { GuestOverlay } from '../components/GuestGate';
 import type { Notification } from '../lib/supabase';
 
@@ -36,31 +38,39 @@ function bucketFor(dateStr: string): 'today' | 'yesterday' | 'earlier' {
 }
 
 const iconForType: Record<string, typeof Bell> = {
-  rare_radar_match: Radar,
-  marketplace_match: ShoppingBag,
-  scout_response: Radar,
-  event_reminder: Calendar,
-  saved_search_match: Bookmark,
   message: MessageCircle,
   follow: UserPlus,
+  event_reminder: Calendar,
+  wanted_item_match: Target,
+  saved_search_match: Bookmark,
+  rare_radar_match: Radar,
+  marketplace_match: ShoppingBag,
+  wanted_post_response: PackageCheck,
   listing_saved: Heart,
   listing_shared: TrendingUp,
   price_drop: Tag,
+  auction_outbid: Gavel,
+  auction_won: Gavel,
+  auction_ending: Gavel,
   go_live: Radio,
   general: Bell,
 };
 
 const colorForType: Record<string, string> = {
-  rare_radar_match: 'var(--color-primary-500)',
-  marketplace_match: 'var(--color-accent-500)',
-  scout_response: 'var(--color-secondary-500)',
-  event_reminder: 'var(--color-success-500)',
-  saved_search_match: 'var(--color-primary-600)',
   message: 'var(--color-accent-500)',
   follow: 'var(--color-secondary-500)',
+  event_reminder: 'var(--color-success-500)',
+  wanted_item_match: 'var(--color-primary-500)',
+  saved_search_match: 'var(--color-primary-600)',
+  rare_radar_match: 'var(--color-primary-500)',
+  marketplace_match: 'var(--color-accent-500)',
+  wanted_post_response: 'var(--color-success-600)',
   listing_saved: 'var(--color-error-400)',
   listing_shared: 'var(--color-warning-500)',
   price_drop: 'var(--color-success-500)',
+  auction_outbid: 'var(--color-warning-600)',
+  auction_won: 'var(--color-success-500)',
+  auction_ending: 'var(--color-warning-500)',
   go_live: 'var(--color-error-500)',
   general: 'var(--color-neutral-500)',
 };
@@ -69,6 +79,7 @@ export default function Alerts() {
   const navigate = useNavigate();
   const { user, isGuest } = useAuth();
   const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [prefs, setPrefs] = useState<NotificationPrefs>({});
   const [loading, setLoading] = useState(true);
   // Unread DM count — drives the badge on the Messages button. We
   // refresh it on the notification realtime channel (which fires on
@@ -92,30 +103,40 @@ export default function Alerts() {
     Promise.all([
       fetchNotificationsList(user.id, { limit: 100 }),
       fetchUnreadMessageCount(user.id),
-    ]).then(([rows, c]) => {
+      fetchNotificationPrefs(user.id),
+    ]).then(([rows, c, p]) => {
       if (cancelled) return;
       setNotifs(rows);
       setUnreadMsgs(c);
+      setPrefs(p);
       setLoading(false);
     }).catch(() => { if (!cancelled) setLoading(false); });
     const sub = subscribeNotifications(user.id, () => refresh());
     return () => { cancelled = true; sub.unsubscribe(); };
   }, [user]);
 
+  // Respect the user's in-app preferences: a category toggled off is hidden
+  // from the feed (the underlying rows still exist, just not surfaced here).
+  // Category-less types (e.g. `general`) are always shown.
+  const visible = useMemo(
+    () => notifs.filter((n) => isInAppEnabled(prefs, n.type)),
+    [notifs, prefs],
+  );
+
   const grouped = useMemo(() => {
     const today: Notification[] = [];
     const yesterday: Notification[] = [];
     const earlier: Notification[] = [];
-    for (const n of notifs) {
+    for (const n of visible) {
       const b = bucketFor(n.created_at);
       if (b === 'today') today.push(n);
       else if (b === 'yesterday') yesterday.push(n);
       else earlier.push(n);
     }
     return { today, yesterday, earlier };
-  }, [notifs]);
+  }, [visible]);
 
-  const unreadCount = notifs.filter((n) => !n.read_status).length;
+  const unreadCount = visible.filter((n) => !n.read_status).length;
 
   const handleOpen = async (n: Notification) => {
     if (!n.read_status) {
@@ -123,6 +144,7 @@ export default function Alerts() {
       setNotifs((cur) => cur.map((x) => x.id === n.id ? { ...x, read_status: true } : x));
     }
     if (n.related_item_type === 'message') navigate('/messages');
+    else if (n.type === 'wanted_post_response' && n.related_item_id) navigate(`/wanted/${n.related_item_id}`);
     else if (n.type === 'go_live' && n.related_item_id) navigate(`/event/${n.related_item_id}`);
     else if (n.related_item_type === 'event' && n.related_item_id) navigate(`/event/${n.related_item_id}`);
     else if (n.related_item_type === 'live_event' || n.related_item_type === 'local_event') navigate('/events');
@@ -193,29 +215,38 @@ export default function Alerts() {
             <h1 style={s.title}>Alerts</h1>
             {unreadCount > 0 && <span style={s.badge}>{unreadCount} new</span>}
           </div>
-          <button
-            onClick={() => navigate('/messages')}
-            style={s.messagesBtn}
-            aria-label={unreadMsgs > 0 ? `Messages (${unreadMsgs} unread)` : 'Messages'}
-          >
-            <MessageCircle size={16} style={{ color: 'var(--color-primary-600)' }} />
-            <span style={s.messagesBtnText}>Messages</span>
-            {unreadMsgs > 0 && (
-              <span style={s.msgBadge} aria-hidden>
-                {unreadMsgs > 9 ? '9+' : unreadMsgs}
-              </span>
-            )}
-          </button>
+          <div style={s.headerActions}>
+            <button
+              onClick={() => navigate('/notifications')}
+              style={s.iconBtn}
+              aria-label="Notification settings"
+            >
+              <Settings size={16} style={{ color: 'var(--color-neutral-600)' }} />
+            </button>
+            <button
+              onClick={() => navigate('/messages')}
+              style={s.messagesBtn}
+              aria-label={unreadMsgs > 0 ? `Messages (${unreadMsgs} unread)` : 'Messages'}
+            >
+              <MessageCircle size={16} style={{ color: 'var(--color-primary-600)' }} />
+              <span style={s.messagesBtnText}>Messages</span>
+              {unreadMsgs > 0 && (
+                <span style={s.msgBadge} aria-hidden>
+                  {unreadMsgs > 9 ? '9+' : unreadMsgs}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
         <p style={s.subtitle}>Real-time match alerts and activity</p>
-        {notifs.length > 0 && (
+        {visible.length > 0 && (
           <div style={s.actionsRow}>
             <button onClick={handleMarkAll} disabled={unreadCount === 0} style={s.actionBtn}>
               <CheckCheck size={14} /> Mark all read
             </button>
             <button
               onClick={handleClearRead}
-              disabled={notifs.every((n) => !n.read_status)}
+              disabled={visible.every((n) => !n.read_status)}
               style={{ ...s.actionBtn, color: 'var(--color-error-600)' }}
             >
               <Trash2 size={14} /> Clear read
@@ -230,7 +261,7 @@ export default function Alerts() {
             <Bell size={20} style={{ color: 'var(--color-neutral-300)' }} />
             <p style={s.emptyText}>Loading…</p>
           </div>
-        ) : notifs.length === 0 ? (
+        ) : visible.length === 0 ? (
           <div style={s.emptyFooter}>
             <Bell size={32} style={{ color: 'var(--color-neutral-300)' }} />
             <p style={s.emptyTitle}>No alerts yet</p>
@@ -262,6 +293,14 @@ const s: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  headerActions: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)' },
+  iconBtn: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 40, height: 40, borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-neutral-100)',
+    border: '1px solid var(--color-neutral-200)',
+    cursor: 'pointer', flexShrink: 0,
+  },
   titleGroup: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)' },
   title: { fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
   badge: {

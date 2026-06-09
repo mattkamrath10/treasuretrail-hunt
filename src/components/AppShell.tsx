@@ -44,6 +44,7 @@ const CommunityGuidelines = lazy(() => import('../pages/CommunityGuidelines'));
 const ReviewMode = lazy(() => import('../pages/ReviewMode'));
 const AdminModeration = lazy(() => import('../pages/AdminModeration'));
 const BlockedUsers = lazy(() => import('../pages/BlockedUsers'));
+const NotificationSettings = lazy(() => import('../pages/NotificationSettings'));
 const SearchResults = lazy(() => import('../pages/SearchResults'));
 
 function AuctionsPage() {
@@ -312,6 +313,7 @@ export default function AppShell() {
             <Route path="/pro" element={monetizationHidden() ? <Navigate to="/" replace /> : <ProPage />} />
             <Route path="/safety" element={<SafetyPage />} />
             <Route path="/blocked" element={<BlockedUsersPage />} />
+            <Route path="/notifications" element={<NotificationSettings />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsOfServicePage />} />
             <Route path="/guidelines" element={<CommunityGuidelinesPage />} />

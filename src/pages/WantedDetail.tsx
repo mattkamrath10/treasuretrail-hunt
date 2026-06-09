@@ -1,14 +1,19 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Calendar, MessageCircle, UserCircle2, Loader2, Search,
+  ImagePlus, X, Link2, Check,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
-  fetchWantedItemWithRequester, WANTED_CATEGORY_LABEL,
-  type WantedItemWithRequester,
+  fetchWantedItemWithRequester, updateWantedItem, WANTED_CATEGORY_LABEL,
+  type WantedItemWithRequester, type WantedStatus,
 } from '../lib/wanted';
-import { getOrCreateConversation } from '../lib/messaging';
+import { getOrCreateConversation, sendMessage } from '../lib/messaging';
+import {
+  createWantedResponse, fetchMyActiveListings, type MyListingOption,
+} from '../lib/wantedResponses';
+import { uploadCompressedImage } from '../lib/uploadImage';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
@@ -22,10 +27,27 @@ import { monetizationHidden } from '../lib/platform';
 import { flashToast } from '../lib/toast';
 import { trackAnalyticsEvent } from '../lib/analytics';
 
+const MAX_RESPONSE_PHOTOS = 3;
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
 // Optional prefilled opener so the recipient sees context immediately
 // instead of an empty bubble. Kept short — the sender can edit before
 // hitting send.
 const DEFAULT_PREFILL = "Hi, I think I may have the item you're looking for.";
+
+const STATUS_OPTIONS: { value: WantedStatus; label: string }[] = [
+  { value: 'open', label: 'Open' },
+  { value: 'fulfilled', label: 'Found' },
+  { value: 'closed', label: 'Closed' },
+];
 
 // Public route — /wanted/:id. Renders without auth so shared links from
 // Messages / external browsers hydrate cleanly. Auth is only required for
@@ -37,12 +59,24 @@ export default function WantedDetail() {
   const [item, setItem] = useState<WantedItemWithRequester | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [opening, setOpening] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (m: string) => {
     setToast(m);
     window.setTimeout(() => setToast((t) => (t === m ? null : t)), 2400);
   };
+
+  // Respond / "I Have This" composer state. The composer is the non-owner
+  // CTA for OPEN posts — a required message (prefilled), up to 3 optional
+  // photos, and an optional link to one of the responder's own listings.
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [replyText, setReplyText] = useState(DEFAULT_PREFILL);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [myListings, setMyListings] = useState<MyListingOption[]>([]);
+  const [linkedListingId, setLinkedListingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Owner-only status control busy flag.
+  const [statusBusy, setStatusBusy] = useState(false);
 
   useEffect(() => {
     if (!id) { setErr('Missing id'); setLoading(false); return; }
@@ -67,14 +101,12 @@ export default function WantedDetail() {
   const requesterHandle = requester?.username ?? null;
   const isOwner = !!user && !!requester && user.id === requester.id;
 
-  const handleMessageRequester = async () => {
+  // Open the respond composer. Guests / cold deep-links bounce to auth via
+  // the existing pending-intent flow (resumed in AppShell once signed in).
+  const openComposer = () => {
     if (!requester?.id || !id) { showToast('Requester unavailable'); return; }
     if (isOwner) { showToast("That's your wanted post"); return; }
 
-    // Unauthenticated visitor (cold deep-link OR guest mode): stash the
-    // intent and bounce to the auth screen. AppShell's resume hook picks
-    // the intent back up once `user` becomes truthy and lands them in the
-    // freshly-created conversation.
     if (!user) {
       setPendingIntent({
         kind: 'message_requester',
@@ -90,21 +122,105 @@ export default function WantedDetail() {
       return;
     }
 
-    setOpening(true);
-    const { conversationId, error } = await getOrCreateConversation({
-      otherUserId: requester.id,
-    });
-    setOpening(false);
-    if (error || !conversationId) {
-      // Soft fallback — drop the user on the requester's profile so they
-      // can still make contact (follow, view storefront) even if RPC fails.
-      showToast(error || 'Could not open chat');
-      if (requesterHandle) navigate(`/u/${requesterHandle}`);
-      return;
+    setComposerOpen(true);
+    // Lazy-load the responder's own active listings for the optional link
+    // picker. Best-effort — an empty list just hides the picker.
+    fetchMyActiveListings(user.id).then(setMyListings).catch(() => {});
+  };
+
+  const handlePickPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ''; // allow re-selecting the same file
+    if (!files.length) return;
+    const room = MAX_RESPONSE_PHOTOS - photos.length;
+    if (room <= 0) { showToast(`Up to ${MAX_RESPONSE_PHOTOS} photos`); return; }
+    const next: string[] = [];
+    for (const f of files.slice(0, room)) {
+      try { next.push(await fileToDataUrl(f)); } catch { /* skip unreadable */ }
     }
-    // Pass the prefilled opener via location.state so the composer seeds
-    // its draft once on mount. The user can edit/delete before sending.
-    navigate(`/messages/${conversationId}`, { state: { prefill: DEFAULT_PREFILL } });
+    if (next.length) setPhotos((cur) => [...cur, ...next].slice(0, MAX_RESPONSE_PHOTOS));
+  };
+
+  const removePhoto = (i: number) => setPhotos((cur) => cur.filter((_, idx) => idx !== i));
+
+  const submitResponse = async () => {
+    if (!user || !requester?.id || !id) { showToast('Requester unavailable'); return; }
+    const body = replyText.trim();
+    if (!body) { showToast('Please add a message'); return; }
+
+    setSubmitting(true);
+    try {
+      // 1) Upload any photos to the avatars bucket (RLS keys on userId/).
+      //    A single failed upload is skipped, not fatal.
+      let photoUrls: string[] = [];
+      if (photos.length) {
+        const uploaded = await Promise.all(
+          photos.map((p) =>
+            uploadCompressedImage(p, { userId: user.id, folder: 'wanted-responses' })
+              .then((r) => r.url)
+              .catch(() => null),
+          ),
+        );
+        photoUrls = uploaded.filter((u): u is string => !!u);
+      }
+
+      // 2) Open (or reuse) the DM thread with the requester.
+      const { conversationId, error: convErr } = await getOrCreateConversation({
+        otherUserId: requester.id,
+      });
+      if (convErr || !conversationId) {
+        showToast(convErr || 'Could not open chat');
+        if (requesterHandle) navigate(`/u/${requesterHandle}`);
+        return;
+      }
+
+      // 3) Send the opener message, optionally attaching the linked listing.
+      //    A failed send is blocking — we must NOT record a response or fire
+      //    the owner's alert for a message that never went through.
+      const { error: msgErr } = await sendMessage({
+        conversationId,
+        receiverId: requester.id,
+        content: body,
+        listingId: linkedListingId,
+        listingKind: linkedListingId ? 'marketplace' : null,
+      });
+      if (msgErr) { showToast(msgErr); return; }
+
+      // 4) Record the structured response — this AFTER INSERT trigger is what
+      //    fires the single wanted_post_response alert to the owner. The DM
+      //    above does NOT create a notification, so there's no duplicate.
+      const { error: respErr } = await createWantedResponse({
+        wantedItemId: id,
+        responderId: user.id,
+        message: body,
+        photoUrls,
+        linkedListingId,
+      });
+      if (respErr) showToast(respErr); // non-fatal: the DM already went through
+
+      navigate(`/messages/${conversationId}`, { state: { prefill: body } });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const changeStatus = async (next: WantedStatus) => {
+    if (!id || statusBusy || item?.status === next) return;
+    setStatusBusy(true);
+    try {
+      await updateWantedItem(id, { status: next });
+      const fresh = await fetchWantedItemWithRequester(id);
+      if (fresh) setItem(fresh);
+      showToast(
+        next === 'open' ? 'Marked as open'
+          : next === 'fulfilled' ? 'Marked as found'
+          : 'Marked as closed',
+      );
+    } catch (e: any) {
+      showToast(e?.message ?? 'Could not update status');
+    } finally {
+      setStatusBusy(false);
+    }
   };
 
   const handleViewProfile = () => {
@@ -204,14 +320,36 @@ export default function WantedDetail() {
         </div>
 
         {isOwner ? (
-          // Owner can't message themselves — show a muted state-of-affairs
-          // panel instead of a disabled CTA so the page doesn't look broken.
-          // Below it we surface the Boost CTA so the owner has a single
-          // obvious way to raise visibility.
+          // Owner view: a status control (Open / Found / Closed) so they can
+          // signal where the hunt stands, plus the Boost CTA for visibility.
           <>
             <div style={s.ownerNote}>
               <UserCircle2 size={14} style={{ color: 'rgba(245,245,247,0.55)' }} />
               <span>This is your request</span>
+            </div>
+            <div style={s.statusControl}>
+              <span style={s.statusLabel}>Status</span>
+              <div style={s.statusBtnRow}>
+                {STATUS_OPTIONS.map((opt) => {
+                  const active = item.status === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => changeStatus(opt.value)}
+                      disabled={statusBusy}
+                      style={{
+                        ...s.statusBtn,
+                        ...(active ? s.statusBtnActive : null),
+                        cursor: statusBusy ? 'default' : 'pointer',
+                        opacity: statusBusy && !active ? 0.6 : 1,
+                      }}
+                    >
+                      {active && <Check size={13} />} {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <OwnerBoostRow
               item={item}
@@ -222,19 +360,33 @@ export default function WantedDetail() {
               }}
             />
           </>
-        ) : (
+        ) : item.status !== 'open' ? (
+          // Non-owners normally only reach OPEN posts (RLS), but guard anyway:
+          // a fulfilled/closed post shows a muted state instead of a composer.
+          <>
+            <div style={s.ownerNote}>
+              <span>This request is no longer open.</span>
+            </div>
+            <button
+              onClick={handleViewProfile}
+              disabled={!requester}
+              style={{ ...s.secondaryCta, marginTop: 8, opacity: requester ? 1 : 0.5, cursor: requester ? 'pointer' : 'not-allowed' }}
+            >
+              <UserCircle2 size={14} /> View Profile
+            </button>
+          </>
+        ) : !composerOpen ? (
           <div style={s.ctaRow}>
             <button
-              onClick={handleMessageRequester}
-              disabled={!requester || opening}
+              onClick={openComposer}
+              disabled={!requester}
               style={{
                 ...s.primaryCta,
                 opacity: !requester ? 0.5 : 1,
                 cursor: !requester ? 'not-allowed' : 'pointer',
               }}
             >
-              {opening ? <Loader2 size={14} className="spin" /> : <MessageCircle size={14} />}
-              Message Requester
+              <MessageCircle size={14} /> Respond / I Have This
             </button>
             <button
               onClick={handleViewProfile}
@@ -244,10 +396,87 @@ export default function WantedDetail() {
               <UserCircle2 size={14} /> View Profile
             </button>
           </div>
+        ) : (
+          <div style={s.composer}>
+            <label style={s.composerLabel}>Your message</label>
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              rows={4}
+              maxLength={2000}
+              placeholder="Let them know what you've got…"
+              style={s.composerTextarea}
+            />
+
+            <label style={s.composerLabel}>Photos (optional)</label>
+            <div style={s.photoRow}>
+              {photos.map((p, i) => (
+                <div key={i} style={s.photoThumb}>
+                  <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} />
+                  <button onClick={() => removePhoto(i)} style={s.photoRemove} aria-label="Remove photo">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+              {photos.length < MAX_RESPONSE_PHOTOS && (
+                <button onClick={() => fileInputRef.current?.click()} style={s.photoAdd} aria-label="Add photo">
+                  <ImagePlus size={18} />
+                </button>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePickPhotos}
+              style={{ display: 'none' }}
+            />
+
+            {myListings.length > 0 && (
+              <>
+                <label style={s.composerLabel}>Link one of your listings (optional)</label>
+                <div style={s.listingPicker}>
+                  {myListings.map((l) => {
+                    const sel = linkedListingId === l.id;
+                    return (
+                      <button
+                        key={l.id}
+                        onClick={() => setLinkedListingId(sel ? null : l.id)}
+                        style={{ ...s.listingChip, ...(sel ? s.listingChipActive : null) }}
+                      >
+                        <Link2 size={12} />
+                        <span style={s.listingChipText}>{l.title}</span>
+                        {sel && <Check size={12} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            <div style={s.ctaRow}>
+              <button
+                onClick={submitResponse}
+                disabled={submitting || !replyText.trim()}
+                style={{ ...s.primaryCta, opacity: submitting || !replyText.trim() ? 0.6 : 1, cursor: submitting ? 'default' : 'pointer' }}
+              >
+                {submitting ? <Loader2 size={14} className="spin" /> : <MessageCircle size={14} />}
+                Send Response
+              </button>
+              <button
+                onClick={() => setComposerOpen(false)}
+                disabled={submitting}
+                style={s.secondaryCta}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
 
         {!user && requester && !isOwner && (
-          <p style={s.signinHint}>Sign in to message @{requesterHandle ?? 'this user'} — we'll bring you straight back here.</p>
+          <p style={s.signinHint}>Sign in to respond to @{requesterHandle ?? 'this user'} — we'll bring you straight back here.</p>
         )}
       </section>
 
@@ -402,6 +631,70 @@ const s: Record<string, CSSProperties> = {
     background: 'rgba(255,255,255,0.04)',
     border: '1px dashed rgba(255,255,255,0.12)',
     color: 'rgba(245,245,247,0.7)', fontSize: 13, fontWeight: 600,
+  },
+  statusControl: { marginTop: 10 },
+  statusLabel: {
+    display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+    color: 'rgba(245,245,247,0.55)', textTransform: 'uppercase', marginBottom: 6,
+  },
+  statusBtnRow: { display: 'flex', gap: 8 },
+  statusBtn: {
+    flex: 1, minHeight: 40,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    padding: '0 10px', borderRadius: 10,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    color: 'rgba(245,245,247,0.85)', fontSize: 13, fontWeight: 700,
+  },
+  statusBtnActive: {
+    background: 'linear-gradient(135deg, #10b981, #047857)',
+    border: '1px solid rgba(16,185,129,0.6)', color: '#fff',
+  },
+  composer: {
+    marginTop: 4, padding: 12, borderRadius: 14,
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+  },
+  composerLabel: {
+    display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+    color: 'rgba(245,245,247,0.55)', textTransform: 'uppercase', margin: '10px 0 6px',
+  },
+  composerTextarea: {
+    width: '100%', boxSizing: 'border-box', resize: 'vertical',
+    padding: '10px 12px', borderRadius: 10,
+    background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.12)',
+    color: '#f5f5f7', fontSize: 14, lineHeight: 1.5,
+  },
+  photoRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  photoThumb: { position: 'relative', width: 64, height: 64 },
+  photoRemove: {
+    position: 'absolute', top: -6, right: -6,
+    width: 22, height: 22, borderRadius: '50%',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: 'rgba(15,15,20,0.95)', border: '1px solid rgba(255,255,255,0.2)',
+    color: '#fff', cursor: 'pointer',
+  },
+  photoAdd: {
+    width: 64, height: 64, borderRadius: 10,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px dashed rgba(255,255,255,0.2)',
+    color: 'rgba(245,245,247,0.7)', cursor: 'pointer',
+  },
+  listingPicker: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  listingChip: {
+    display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%',
+    padding: '8px 12px', borderRadius: 999,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    color: 'rgba(245,245,247,0.85)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+  },
+  listingChipActive: {
+    background: 'rgba(16,185,129,0.16)',
+    border: '1px solid rgba(16,185,129,0.5)', color: '#10b981',
+  },
+  listingChipText: {
+    maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   signinHint: {
     margin: '12px 0 0', fontSize: 12, color: 'rgba(245,245,247,0.55)', textAlign: 'center',

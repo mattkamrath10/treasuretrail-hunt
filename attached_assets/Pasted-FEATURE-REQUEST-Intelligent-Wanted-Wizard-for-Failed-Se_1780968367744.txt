@@ -1,0 +1,247 @@
+FEATURE REQUEST: Intelligent Wanted Wizard for Failed Searches
+
+Goal:
+
+Convert failed searches into Wanted Posts, demand data, and future notifications instead of showing a dead end.
+
+SEARCH FLOW
+
+Step 1:
+User searches for an item.
+
+Step 2:
+Search TreasureTrail database.
+
+Search:
+
+* Listings
+* Flash Finds
+* Auctions
+* Estate Sales
+* Yard Sales
+* Businesses
+
+Step 3:
+If TreasureTrail results are found:
+Display results normally.
+
+Step 4:
+If TreasureTrail finds no results:
+Display:
+
+"No results found on TreasureTrail Marketplace."
+
+Show buttons:
+
+* Notify Me When Listed
+* Create Wanted Request
+* Search Google
+* Search Google Shopping
+
+INTELLIGENT WANTED WIZARD
+
+When the user selects "Create Wanted Request":
+
+Do NOT present a long blank form.
+
+Instead, automatically generate a short question flow based on the search term.
+
+EXAMPLE
+
+User searched:
+
+"Guitar"
+
+TreasureTrail detects:
+
+Category:
+Musical Instruments
+
+Subcategory:
+Guitars
+
+Display simple selectable questions:
+
+Question 1:
+What type?
+
+* Acoustic
+* Electric
+* Bass
+* Classical
+* Other
+
+Question 2:
+Condition?
+
+* New
+* Used
+* Either
+
+Question 3:
+Budget?
+
+* Under $250
+* $250-$500
+* $500-$1000
+* $1000+
+
+Question 4:
+Preferred Brand?
+
+* Fender
+* Gibson
+* Yamaha
+* Any Brand
+
+Question 5:
+Delivery Preference?
+
+* Local Pickup
+* Shipping OK
+* Either
+
+After completion:
+
+Automatically create a Wanted Post.
+
+EXAMPLE OUTPUT
+
+Wanted:
+Electric Guitar
+
+Condition:
+Used
+
+Budget:
+$500-$1000
+
+Brand:
+Fender
+
+Delivery:
+Shipping OK
+
+SMART CATEGORY SYSTEM
+
+Do not hard-code questions for individual products.
+
+Use category-based question sets.
+
+Examples:
+
+Trading Cards:
+
+* Graded?
+* Raw?
+* Vintage?
+* Modern?
+
+Furniture:
+
+* New?
+* Used?
+* Material?
+* Pickup only?
+
+Electronics:
+
+* Brand?
+* New?
+* Used?
+* Storage size?
+
+Tools:
+
+* Hand tool?
+* Power tool?
+* Brand?
+* Condition?
+
+Vehicles:
+
+* Make?
+* Model?
+* Running?
+* Budget?
+
+UNKNOWN ITEM FLOW
+
+If category confidence is low:
+
+Ask:
+
+"What type of item are you looking for?"
+
+Options:
+
+* Collectible
+* Furniture
+* Electronics
+* Vehicle
+* Tool
+* Toy
+* Jewelry
+* Clothing
+* Other
+
+Then load the appropriate question set.
+
+AUTOMATIC NOTIFICATIONS
+
+When a Wanted Post is created:
+
+1. Save search criteria.
+2. Save wanted record.
+3. Subscribe user to future matching listings.
+4. Generate in-app notification when a match appears.
+5. Support future email notifications.
+
+SELLER INTELLIGENCE
+
+Track anonymous demand statistics.
+
+Example:
+
+Search Term:
+Guitar
+
+Wanted Requests:
+52
+
+Display internally:
+
+"52 users are currently looking for guitars."
+
+This demand data may later be used for:
+
+* Seller insights
+* Marketplace trends
+* Featured opportunities
+* High-demand item indicators
+
+FUTURE AI ENHANCEMENT
+
+Design architecture so AI-generated questions can be added later.
+
+Future flow:
+
+User searches:
+"1967 Mustang Fastback"
+
+AI detects:
+Vehicle > Ford Mustang
+
+Automatically generates relevant questions.
+
+No redesign should be required to support this future enhancement.
+
+CRITICAL REQUIREMENTS
+
+* Never show a blank search result screen.
+* Every failed search should offer a Wanted Request.
+* Keep the process under 5 questions whenever possible.
+* Mobile-first design.
+* Reuse existing notification infrastructure.
+* Reuse existing Wanted Posts system.
+* Build as an extensible framework that can support any category in the future.

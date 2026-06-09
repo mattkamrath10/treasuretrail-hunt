@@ -24,19 +24,26 @@ async function triggerGoLivePush(eventId: string): Promise<void> {
   }
 }
 
+// Phase-1 notification strategy. Scout (`scout_*`) and `reputation_milestone`
+// entries are no longer generated — those FEATURES remain, we just stopped
+// emitting the alerts. `wanted_post_response` is NEW (reply-to-wanted-post).
+// `wanted_item_match` + the auction_* types are forward-looking categories
+// surfaced in settings now; generation lands later.
 export type NotificationType =
-  | 'rare_radar_match'
-  | 'marketplace_match'
-  | 'scout_response'
-  | 'event_reminder'
-  | 'saved_search_match'
   | 'message'
   | 'follow'
+  | 'event_reminder'
+  | 'wanted_item_match'
+  | 'saved_search_match'
+  | 'rare_radar_match'
+  | 'marketplace_match'
+  | 'wanted_post_response'
   | 'listing_saved'
   | 'listing_shared'
-  | 'scout_request'
-  | 'scout_application'
-  | 'reputation_milestone'
+  | 'price_drop'
+  | 'auction_outbid'
+  | 'auction_won'
+  | 'auction_ending'
   | 'go_live'
   | 'general';
 
@@ -74,7 +81,8 @@ export async function createNotification(input: NotificationInput): Promise<{ er
 /**
  * Cross-user notification via SECURITY DEFINER RPC. The DB function enforces:
  *  - caller is authenticated
- *  - p_type is in the allowed set (follow, message, scout_response, listing_saved, listing_shared)
+ *  - p_type is in the allowed set (follow, message, listing_saved,
+ *    listing_shared, wanted_post_response)
  *  - actor_user_id is stamped server-side as auth.uid()
  */
 export async function notifyUser(input: {
@@ -82,12 +90,9 @@ export async function notifyUser(input: {
   type:
     | 'follow'
     | 'message'
-    | 'scout_response'
     | 'listing_saved'
     | 'listing_shared'
-    | 'scout_request'
-    | 'scout_application'
-    | 'reputation_milestone';
+    | 'wanted_post_response';
   title: string;
   content?: string;
   related_item_id?: string | null;
