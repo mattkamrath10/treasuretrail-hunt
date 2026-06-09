@@ -1,0 +1,131 @@
+LOCAL-FIRST SEARCH PRIORITY (HIGH PRIORITY)
+
+Goal:
+
+TreasureTrail should prioritize helping users find items locally before showing results that require shipping.
+
+Reason:
+
+Many users are searching for treasures, collectibles, tools, furniture, vehicles, estate sale items, auction lots, and bargains that are often best purchased locally.
+
+SEARCH PRIORITY ORDER
+
+Step 1:
+Search TreasureTrail listings within the user's selected radius.
+
+Default radius:
+25 miles
+
+Allow user to change:
+
+* 10 miles
+* 25 miles
+* 50 miles
+* 100 miles
+* Nationwide
+
+Step 2:
+Search TreasureTrail listings outside the local radius.
+
+Display section:
+
+"More TreasureTrail Results"
+
+Step 3:
+Search local events that may contain the item.
+
+Include:
+
+* Estate Sales
+* Auctions
+* Yard Sales
+* Garage Sales
+* Flea Markets
+* Business Inventory
+
+Display section:
+
+"Nearby Events That May Have This Item"
+
+Step 4:
+Search integrated marketplace APIs.
+
+Future:
+
+* eBay
+* Etsy
+* Additional approved marketplaces
+
+Attempt to prioritize local listings when location data exists.
+
+Step 5:
+Offer Google Shopping and Google Search fallback.
+
+INTELLIGENT WANTED WIZARD ENHANCEMENT
+
+When creating a Wanted Request, ask:
+
+How far are you willing to travel?
+
+Options:
+
+* 10 miles
+* 25 miles
+* 50 miles
+* 100 miles
+* Anywhere
+
+Store this preference with the Wanted Request.
+
+MATCHING SYSTEM
+
+When new listings are created:
+
+Prioritize notifications in this order:
+
+1. Matching listing inside user's travel radius.
+2. Matching listing outside radius but still local.
+3. Matching listing requiring shipping.
+
+Notification examples:
+
+🔥 A matching guitar was listed 8 miles away.
+
+🔥 A matching guitar was listed 32 miles away.
+
+📦 A matching guitar is available with shipping.
+
+DEMAND INTELLIGENCE
+
+Track not only item demand but local demand.
+
+Examples:
+
+* 18 users within 25 miles are looking for guitars.
+* 12 users within 50 miles are looking for Pokémon cards.
+* 7 users within 25 miles are looking for riding lawn mowers.
+
+This data may later be used for:
+
+* Seller insights
+* Market heat maps
+* Local demand indicators
+* Recommended listings
+* Event planning
+
+USER EXPERIENCE GOAL
+
+TreasureTrail should become:
+
+"Find it nearby first."
+
+Only expand to shipping-based results when local opportunities do not exist.
+
+This local-first strategy should apply to:
+
+* Searches
+* Wanted Requests
+* Notifications
+* Recommendations
+* Marketplace integrations
+* Future AI-assisted matching

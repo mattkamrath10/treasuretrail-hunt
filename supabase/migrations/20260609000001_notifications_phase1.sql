@@ -117,6 +117,14 @@ create trigger wanted_responses_notify
 -- trigger above (direct definer insert), but we keep it allowed here too for
 -- forward-compat. The scout/reputation FEATURES are untouched — only the
 -- notification emission stops.
+--
+-- A prior migration declared notify_user RETURNS uuid and a later one RETURNS
+-- void. CREATE OR REPLACE cannot change a function's return type, so we DROP
+-- first to guarantee this migration applies cleanly regardless of the live DB's
+-- current definition. notify_user is called from client RPC and from inside
+-- trigger functions; neither creates a hard dependency that blocks a plain
+-- DROP, so no CASCADE is needed.
+drop function if exists public.notify_user(uuid, text, text, text, text, text, jsonb);
 create or replace function public.notify_user(
   p_target uuid,
   p_type text,
