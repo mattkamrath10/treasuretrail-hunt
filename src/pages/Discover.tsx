@@ -185,16 +185,52 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
   children: React.ReactNode;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+  const [thumb, setThumb] = useState(1);     // visible fraction (progress-bar width)
+  const [progress, setProgress] = useState(0); // 0..1 scroll position
+  const [isTouch, setIsTouch] = useState(false);
 
-  // Desktop ergonomics: vertical mouse-wheel over a horizontal row
-  // translates to horizontal scroll (Netflix/Whatnot behavior). Touch
-  // and shift+wheel already work natively, so we only intercept the
-  // pure-vertical wheel and only when the row actually overflows.
+  useEffect(() => {
+    setIsTouch(
+      typeof window !== 'undefined' &&
+      window.matchMedia('(hover: none), (pointer: coarse)').matches,
+    );
+  }, []);
+
+  // Recompute arrow availability + progress from the row's scroll metrics.
+  const update = useCallback(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const max = scrollWidth - clientWidth;
+    setCanLeft(scrollLeft > 2);
+    setCanRight(scrollLeft < max - 2);
+    setThumb(scrollWidth > 0 ? Math.min(1, clientWidth / scrollWidth) : 1);
+    setProgress(max > 0 ? scrollLeft / max : 0);
+  }, []);
+
+  // Recompute when content loads in (children change) and on first mount.
+  useEffect(() => { update(); }, [update, children]);
+
+  // Keep metrics fresh on element resize / viewport resize.
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => { ro.disconnect(); window.removeEventListener('resize', update); };
+  }, [update]);
+
+  // Shift+wheel scrolls the carousel horizontally. A PLAIN wheel is left
+  // untouched so it always scrolls the page vertically — users never get
+  // trapped inside a row.
   useEffect(() => {
     const el = rowRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      if (e.deltaY === 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (!e.shiftKey || e.deltaY === 0) return;
       if (el.scrollWidth <= el.clientWidth) return;
       e.preventDefault();
       el.scrollLeft += e.deltaY;
@@ -202,6 +238,14 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel as EventListener);
   }, []);
+
+  // Arrow buttons scroll one card-group (~80% of the viewport) at a time.
+  const scrollByGroup = (dir: 1 | -1) => {
+    const el = rowRef.current;
+    if (!el) return;
+    const amount = Math.max(el.clientWidth * 0.8, 200);
+    el.scrollBy({ left: dir * amount, behavior: 'smooth' });
+  };
 
   return (
     <section style={s.section}>
@@ -219,9 +263,50 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
           </button>
         )}
       </div>
-      <div ref={rowRef} style={s.row} className="tt-hscroll">
-        {children}
+      <div className="tt-carousel" style={s.rowWrap}>
+        <div
+          style={{ ...s.edgeFade, ...s.edgeFadeLeft, opacity: canLeft ? 1 : 0 }}
+          aria-hidden
+        />
+        <div
+          style={{ ...s.edgeFade, ...s.edgeFadeRight, opacity: canRight ? 1 : 0 }}
+          aria-hidden
+        />
+        {canLeft && (
+          <button
+            className="tt-carousel-arrow"
+            style={{ ...s.arrow, left: 6 }}
+            onClick={() => scrollByGroup(-1)}
+            aria-label={`Scroll ${title} left`}
+          >
+            <ChevronLeft size={20} />
+          </button>
+        )}
+        {canRight && (
+          <button
+            className="tt-carousel-arrow"
+            style={{ ...s.arrow, right: 6 }}
+            onClick={() => scrollByGroup(1)}
+            aria-label={`Scroll ${title} right`}
+          >
+            <ChevronRight size={20} />
+          </button>
+        )}
+        <div ref={rowRef} style={s.row} className="tt-hscroll" onScroll={update}>
+          {children}
+        </div>
       </div>
+      {isTouch && (canLeft || canRight) && (
+        <div style={s.progressTrack} aria-hidden>
+          <div
+            style={{
+              ...s.progressThumb,
+              width: `${thumb * 100}%`,
+              left: `${progress * (1 - thumb) * 100}%`,
+            }}
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -481,6 +566,36 @@ const s: Record<string, CSSProperties> = {
     padding: '6px 8px', borderRadius: 8,
     background: 'transparent', border: 'none', cursor: 'pointer',
     color: '#fbbf24', fontSize: 12, fontWeight: 700, flexShrink: 0,
+  },
+  rowWrap: { position: 'relative' },
+  arrow: {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+    zIndex: 4,
+    width: 40, height: 40, borderRadius: '50%',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: 'rgba(20,20,28,0.85)',
+    border: '1px solid rgba(255,255,255,0.14)',
+    color: '#fff', cursor: 'pointer', padding: 0,
+    boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+    backdropFilter: 'blur(6px)',
+  },
+  edgeFade: {
+    position: 'absolute', top: 0, bottom: 4, width: 44, zIndex: 3,
+    pointerEvents: 'none', transition: 'opacity .18s ease',
+  },
+  edgeFadeLeft: { left: 0, background: 'linear-gradient(90deg, #0b0b10 0%, transparent 100%)' },
+  edgeFadeRight: { right: 0, background: 'linear-gradient(270deg, #0b0b10 0%, transparent 100%)' },
+  progressTrack: {
+    position: 'relative', height: 3, borderRadius: 999,
+    margin: '8px 16px 0',
+    background: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  progressThumb: {
+    position: 'absolute', top: 0, bottom: 0,
+    borderRadius: 999,
+    background: 'rgba(251,191,36,0.75)',
+    transition: 'left .06s linear',
   },
   row: {
     display: 'flex',

@@ -205,6 +205,37 @@ input, textarea, select {
   background-clip: content-box;
 }
 
+/* Horizontal carousels (Discover rows) manage their own affordances —
+ * desktop arrows, edge fades, and a mobile progress bar — so we hide the
+ * native scrollbar on them for a clean, touch-friendly feel. */
+.tt-hscroll {
+  scrollbar-width: none;            /* Firefox */
+  -ms-overflow-style: none;         /* legacy Edge */
+}
+.tt-hscroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* Carousel nav arrows: only on devices with a real pointer (desktop).
+ * Always visible there, brighter on hover; never shown on touch. */
+.tt-carousel-arrow {
+  opacity: 0.55;
+  transition: opacity 0.18s ease, transform 0.12s ease;
+}
+.tt-carousel:hover .tt-carousel-arrow {
+  opacity: 1;
+}
+.tt-carousel-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+}
+@media (hover: none), (pointer: coarse) {
+  .tt-carousel-arrow {
+    display: none !important;
+  }
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * Mobile viewport-containment safety net.
  *
