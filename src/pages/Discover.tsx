@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, useCallback, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import {
-  Search, ChevronRight, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar, Users,
+  Search, ChevronRight, ChevronLeft, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar, Users,
 } from 'lucide-react';
 import { fetchPublishedEvents, fetchProHolderIds, PLATFORM_META, isLiveNow, isExpiredLive, type EventRow } from '../lib/events';
 import { WhatnotIcon } from '../components/ui/WhatnotIcon';
