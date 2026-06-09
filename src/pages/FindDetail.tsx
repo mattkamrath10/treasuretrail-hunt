@@ -16,6 +16,7 @@ import { MobileDetailPage } from '../components/ui/MobileDetailPage';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
 import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 import { shareWithImage } from '../lib/shareWithImage';
+import { publicWebUrl } from '../lib/apiBase';
 import { attachProfiles } from '../lib/database';
 import { saveListing, unsaveListing } from '../lib/savedListings';
 import ReportButton from '../components/moderation/ReportButton';
@@ -165,7 +166,7 @@ export default function FindDetail() {
 
   const handleShare = async () => {
     if (!post) return;
-    const url = `${window.location.origin}/find/${post.id}`;
+    const url = publicWebUrl(`/find/${post.id}`);
     const title = post.caption || 'Check out this find on TreasureTrail';
     const result = await shareWithImage({
       url,

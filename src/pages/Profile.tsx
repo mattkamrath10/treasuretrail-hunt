@@ -15,6 +15,7 @@ import { isProUser } from '../lib/entitlements';
 import { monetizationHidden } from '../lib/platform';
 import UserShowcase from '../components/UserShowcase';
 import { shareWithImage } from '../lib/shareWithImage';
+import { publicWebUrl } from '../lib/apiBase';
 import { deleteAccount } from '../lib/account';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { fetchSavedFinds, type SavedFindCard } from '../lib/savedListings';
@@ -30,7 +31,7 @@ export default function Profile() {
 
   const handleShare = async () => {
     const username = profile?.username;
-    const profileUrl = `${window.location.origin}/u/${username || ''}`;
+    const profileUrl = publicWebUrl(`/u/${username || ''}`);
     const title = `${username ? '@' + username : 'My'} TreasureTrail Profile`;
     const text = `Check out my TreasureTrail profile!`;
 

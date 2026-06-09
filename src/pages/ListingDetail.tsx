@@ -20,6 +20,7 @@ import { trackListingView, fetchListingEngagement } from '../lib/listingViews';
 import { blockUser, isUserBlocked } from '../lib/blocks';
 import ReportButton from '../components/moderation/ReportButton';
 import { shareWithImage } from '../lib/shareWithImage';
+import { publicWebUrl } from '../lib/apiBase';
 import { notifyUser } from '../lib/notifications';
 
 type FullListing = MarketplaceListing & {
@@ -189,7 +190,7 @@ export default function ListingDetail() {
 
   const handleShare = async () => {
     if (!listing) return;
-    const url = `${window.location.origin}/listing/${listing.id}`;
+    const url = publicWebUrl(`/listing/${listing.id}`);
     const title = listing.title || 'Check out this listing on TreasureTrail';
     const result = await shareWithImage({
       url,

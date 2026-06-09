@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
+import { publicWebUrl } from '../lib/apiBase';
 import { Heart, MessageCircle, Bookmark, Share2, Gavel, MapPin, ShoppingBag, Crown, Users, Calendar, Zap, HelpCircle, X, Camera, Brain, Radar, TrendingUp, ChevronRight, ExternalLink, Search, Eye, Trash2, Shield } from 'lucide-react';
 import { canDeletePost, deletePost, communityPostToDeletable } from '../lib/moderation';
 import { saveListing, unsaveListing } from '../lib/savedListings';
@@ -334,7 +335,7 @@ export default function Home() {
   }, [requireAuth]);
 
   const handleShareMarketplace = useCallback(async (m: MarketplaceListing) => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/marketplace` : '';
+    const url = publicWebUrl('/marketplace');
     const text = m.title;
     const nav: any = typeof navigator !== 'undefined' ? navigator : null;
     if (nav && 'share' in nav) {
@@ -1065,7 +1066,7 @@ export default function Home() {
                     style={styles.actionBtn}
                     aria-label="Share"
                     onClick={async () => {
-                      const url = typeof window !== 'undefined' ? window.location.origin : '';
+                      const url = publicWebUrl(`/find/${p.id}`);
                       const text = p.caption;
                       const nav: any = typeof navigator !== 'undefined' ? navigator : null;
                       if (nav && 'share' in nav) {

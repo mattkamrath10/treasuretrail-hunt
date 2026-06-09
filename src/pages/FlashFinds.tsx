@@ -19,6 +19,7 @@ import {
   watchTrend,
   shareItem,
 } from '../lib/itemIntelligence';
+import { publicWebUrl } from '../lib/apiBase';
 
 type FlowStep = 'main' | 'photo' | 'details' | 'ai-analysis' | 'confirmation';
 
@@ -379,7 +380,7 @@ export default function FlashFinds() {
         const result = await shareItem({
           title: mergedForm.title || 'TreasureTrail find',
           text: summary,
-          url: typeof window !== 'undefined' ? window.location.origin : undefined,
+          url: publicWebUrl('/'),
         });
         if (result.ok) {
           completed.push(result.via === 'native' ? 'Shared via system' : 'Link copied');

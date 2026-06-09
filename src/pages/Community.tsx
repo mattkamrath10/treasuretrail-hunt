@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useGuestAction } from '../components/GuestGate';
 import { fetchCommunityPosts, createCommunityPost, togglePostLike, fetchUserLikes } from '../lib/database';
 import { saveListing, unsaveListing } from '../lib/savedListings';
+import { publicWebUrl } from '../lib/apiBase';
 import type { CommunityPost } from '../lib/supabase';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback, AvatarFallback } from '../components/ui/MediaFallback';
@@ -175,7 +176,7 @@ function CommunityFeed({ onBack, onCreate, onDiscover }: {
 }
 
 async function sharePost(post: FeedPost) {
-  const url = typeof window !== 'undefined' ? window.location.origin : '';
+  const url = publicWebUrl(`/find/${post.id}`);
   const text = post.caption;
   const nav: any = typeof navigator !== 'undefined' ? navigator : null;
   if (nav?.share) {

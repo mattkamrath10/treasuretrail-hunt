@@ -18,7 +18,11 @@ only fails on a real device — web and the Replit preview look fine.
 
 **How to apply:** when reviewing for native/App-Store readiness, grep
 `fetch\(['"\`]/api` across `src` — any hit that isn't wrapped in `apiUrl()` is a
-native blocker. `VITE_API_BASE`/`VITE_PUBLIC_WEB_URL` are build-time Vite vars
+native blocker. ALSO grep `window.location.origin` — share handlers (Profile,
+ListingDetail, FindDetail, EventDetail, Home, FlashFinds, Community) that build a
+share/social URL from `window.location.origin` ship `capacitor://localhost/...`
+links via iMessage/native share that recipients can't open; they must use
+`publicWebUrl(path)`. `VITE_API_BASE`/`VITE_PUBLIC_WEB_URL` are build-time Vite vars
 (baked into the bundle); they are set as Replit **shared** env vars, and `.env*`
 is gitignored so a committed env file is not an option — CI builds must set them
 in the CI environment.

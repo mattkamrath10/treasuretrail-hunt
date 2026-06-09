@@ -25,6 +25,7 @@ import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { flashToast } from '../lib/toast';
 import { shareWithImage } from '../lib/shareWithImage';
+import { publicWebUrl } from '../lib/apiBase';
 import { Zap } from 'lucide-react';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { startBoostPurchase, startProBoost } from '../lib/payments';
@@ -175,7 +176,7 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
     // Canonical URL — always use origin + /event/:id so a share from a
     // deep-linked tab still produces a sharable URL (window.location.href
     // can include hash/query state that breaks the link unfurl).
-    const url = `${window.location.origin}/event/${event.id}`;
+    const url = publicWebUrl(`/event/${event.id}`);
     const result = await shareWithImage({
       url,
       title: event.title,
