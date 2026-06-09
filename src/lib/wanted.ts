@@ -58,6 +58,10 @@ export interface WantedUpsert {
   image_url?: string | null;
   thumb_url?: string | null;
   status?: WantedStatus;
+  // Phase 1 Wanted Wizard — attributes the request to the failed search term
+  // that produced it. Optional + migration-gated (see createWantedItem's 42703
+  // fallback) so creation keeps working before the column is applied.
+  source_search_term?: string | null;
 }
 
 export async function fetchOpenWantedItems(opts?: { limit?: number; category?: WantedCategory }) {
@@ -144,11 +148,20 @@ export async function fetchMyWantedItems(userId: string) {
 }
 
 export async function createWantedItem(userId: string, input: WantedUpsert) {
-  const { data, error } = await supabase
-    .from('wanted_items')
-    .insert({ ...input, user_id: userId })
-    .select('*')
-    .single();
+  // source_search_term is gated on the Phase-1 wizard migration. Retry without
+  // it on 42703 so a dead-end search can still become a Wanted post before the
+  // column is applied. Apply migration 20260609000100_wanted_source_search_term.sql
+  // to enable demand attribution.
+  const build = (withSource: boolean) => {
+    const payload: Record<string, unknown> = { ...input, user_id: userId };
+    if (!withSource) delete payload.source_search_term;
+    return supabase.from('wanted_items').insert(payload).select('*').single();
+  };
+  let { data, error } = await build(true);
+  if (error?.code === '42703' && /source_search_term/i.test(error.message ?? '')) {
+    console.warn('[CREATE_WANTED] source_search_term column missing — retrying without it.');
+    ({ data, error } = await build(false));
+  }
   if (error) throw new Error(error.message);
   return data as WantedItemRow;
 }

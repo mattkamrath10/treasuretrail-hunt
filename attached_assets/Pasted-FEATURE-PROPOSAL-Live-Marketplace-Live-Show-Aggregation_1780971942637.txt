@@ -1,0 +1,172 @@
+FEATURE PROPOSAL: Live Marketplace & Live Show Aggregation
+
+PLANNING MODE ONLY
+
+Do NOT build yet.
+
+Goal:
+
+Investigate whether TreasureTrail can legally and technically aggregate live shopping events, live auctions, live streams, and upcoming selling events from approved third-party marketplaces and present them inside TreasureTrail.
+
+VISION
+
+When a user searches for an item, TreasureTrail should eventually be able to surface:
+
+1. TreasureTrail Listings
+2. TreasureTrail Wanted Posts
+3. Nearby Estate Sales
+4. Nearby Auctions
+5. Nearby Yard Sales
+6. Live Shopping Shows Happening Now
+7. Live Shopping Shows Starting Soon
+8. Online Auctions Ending Soon
+
+Example:
+
+User searches:
+
+"Shoes"
+
+Wizard asks:
+
+* Men's or Women's
+* Size
+* Brand
+* Style
+
+TreasureTrail then displays:
+
+LOCAL RESULTS
+
+* TreasureTrail listings
+* Estate sales
+* Auctions
+
+LIVE RESULTS
+
+* Live shoe shows happening now
+* Live sneaker streams starting soon
+* Relevant auctions ending soon
+
+LEGAL REQUIREMENT
+
+TreasureTrail must only use:
+
+* Public APIs
+* Approved partner APIs
+* Official feeds
+* Explicitly authorized integrations
+
+Do NOT use:
+
+* Scraping
+* Reverse-engineered APIs
+* Hidden endpoints
+* Terms-of-service violations
+
+RESEARCH TASK
+
+Identify:
+
+1. Which platforms offer:
+
+   * Live event APIs
+   * Live auction APIs
+   * Event feeds
+   * Public developer programs
+
+2. Which platforms allow:
+
+   * Displaying event metadata
+   * Displaying upcoming shows
+   * Linking users to live events
+
+Investigate:
+
+* Whatnot
+* eBay Live
+* Poshmark Live
+* Whatnot Auctions
+* eBay Auctions
+* LiveAuctioneers
+* HiBid
+* Invaluable
+* Etsy Live (if applicable)
+* Other reseller marketplaces
+
+For each platform determine:
+
+* API availability
+* Partner requirements
+* Rate limits
+* Legal restrictions
+* Data available
+* Whether integration is realistic
+
+ARCHITECTURE GOAL
+
+If approved APIs exist:
+
+Create a future provider architecture:
+
+LiveEventProvider
+
+Implementations:
+
+* TreasureTrailLiveProvider
+* eBayLiveProvider
+* WhatnotProvider
+* PoshmarkProvider
+* AuctionProvider
+
+Providers should be:
+
+* Independently enabled
+* Feature flagged
+* Fail-safe
+* Optional
+
+SEARCH INTEGRATION
+
+Future search order:
+
+1. TreasureTrail
+2. Local events
+3. Live event providers
+4. Marketplace providers
+5. Google fallback
+
+FILTERING
+
+Allow filtering by:
+
+* Live Now
+* Starting Soon
+* Ending Soon
+* Distance
+* Category
+* Platform
+
+LOCAL-FIRST RULE
+
+Always prioritize:
+
+1. Local TreasureTrail results
+2. Local events
+3. Local live opportunities
+4. National opportunities
+5. Shipping-based opportunities
+
+SUCCESS CRITERIA
+
+Produce a feasibility report that answers:
+
+1. Which platforms can legally be integrated?
+2. Which require partnerships?
+3. Which are not viable?
+4. Estimated implementation complexity.
+5. Recommended implementation order.
+
+Do not write production code yet.
+
+Deliver the feasibility report and architecture recommendation first.

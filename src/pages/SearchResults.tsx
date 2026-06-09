@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Search as SearchIcon, Bell, Globe, ShoppingBag, ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Search as SearchIcon, Bell, Globe, ShoppingBag, ExternalLink, ClipboardList } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback, type FallbackKind } from '../components/ui/MediaFallback';
 import { ensureUiKeyframes } from '../components/ui/keyframes';
@@ -9,7 +9,9 @@ import { googleSearchUrl, googleShoppingUrl } from '../lib/search/googleFallback
 import type { SearchOutcome, SearchResultItem, SearchResultKind } from '../lib/search/types';
 import { useAuth } from '../context/AuthContext';
 import { createSavedSearch } from '../lib/savedSearches';
+import { setPendingIntent } from '../lib/pendingIntent';
 import { flashToast } from '../lib/toast';
+import WantedWizard from '../components/wanted/WantedWizard';
 
 function fallbackKind(kind: SearchResultKind): FallbackKind {
   switch (kind) {
@@ -44,14 +46,29 @@ function priceLabel(price: SearchResultItem['price']): string | null {
 export default function SearchResults() {
   ensureUiKeyframes();
   const navigate = useNavigate();
+  const location = useLocation();
   const [params] = useSearchParams();
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, exitGuestMode } = useAuth();
   const query = (params.get('q') ?? '').trim();
 
   const [input, setInput] = useState(query);
   const [loading, setLoading] = useState(false);
   const [outcome, setOutcome] = useState<SearchOutcome | null>(null);
   const [notified, setNotified] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const resumedRef = useRef(false);
+
+  // Resume a guest's "Create Wanted Request" after they sign in: AppShell
+  // routes them back here with state.openWizard once authenticated.
+  useEffect(() => {
+    const st = location.state as { openWizard?: boolean } | null;
+    if (st?.openWizard && user && query && !resumedRef.current) {
+      resumedRef.current = true;
+      setWizardOpen(true);
+      // Clear the flag so a back/refresh doesn't reopen the wizard.
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+    }
+  }, [location, user, query, navigate]);
 
   useEffect(() => {
     setInput(query);
@@ -102,6 +119,19 @@ export default function SearchResults() {
     }
     setNotified(true);
     flashToast('We will notify you when a match is listed', 'success');
+  }
+
+  function handleCreateWanted() {
+    if (!query) return;
+    if (isGuest || !user) {
+      // Stash the intent and bounce to auth. Leaving /search lets App.tsx's
+      // gate render Login; AppShell resumes the wizard once signed in.
+      setPendingIntent({ kind: 'create_wanted', term: query });
+      if (isGuest) exitGuestMode();
+      navigate('/');
+      return;
+    }
+    setWizardOpen(true);
   }
 
   const items = outcome?.items ?? [];
@@ -184,6 +214,11 @@ export default function SearchResults() {
                 {notified ? 'Alert is on' : 'Notify Me When Listed'}
               </button>
 
+              <button onClick={handleCreateWanted} style={s.createBtn}>
+                <ClipboardList size={16} />
+                Create Wanted Request
+              </button>
+
               <a href={googleSearchUrl(query)} target="_blank" rel="noopener noreferrer" style={s.secondaryBtn}>
                 <Globe size={16} />
                 Search Google
@@ -206,6 +241,15 @@ export default function SearchResults() {
           </div>
         )}
       </div>
+
+      {wizardOpen && user && (
+        <WantedWizard
+          initialTerm={query}
+          userId={user.id}
+          onClose={() => setWizardOpen(false)}
+          onCreated={(id) => { setWizardOpen(false); navigate(`/wanted/${id}`); }}
+        />
+      )}
     </div>
   );
 }
@@ -406,6 +450,20 @@ const s: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   primaryBtnDone: { backgroundColor: 'var(--color-neutral-400)', cursor: 'default' },
+  createBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: '13px 16px',
+    border: '1px solid var(--color-primary-600)',
+    borderRadius: 'var(--radius-lg, 14px)',
+    backgroundColor: 'var(--color-primary-50, #eef2ff)',
+    color: 'var(--color-primary-700, var(--color-primary-600))',
+    fontWeight: 700,
+    fontSize: 14,
+    cursor: 'pointer',
+  },
   secondaryBtn: {
     display: 'flex',
     alignItems: 'center',

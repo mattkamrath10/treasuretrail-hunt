@@ -258,6 +258,13 @@ function useResumePendingIntent() {
         // Reopen Live Events with the boost picker auto-shown. LiveHub reads
         // `location.state.openBoost` on mount to pop the BoostPickerModal.
         navigate('/live', { replace: true, state: { openBoost: true } });
+      } else if (intent.kind === 'create_wanted') {
+        // Reopen the search for the same term with the Wanted wizard
+        // auto-opened (SearchResults reads location.state.openWizard).
+        navigate(`/search?q=${encodeURIComponent(intent.term)}`, {
+          replace: true,
+          state: { openWizard: true },
+        });
       }
     })();
   }, [user, navigate]);

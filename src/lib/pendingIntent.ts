@@ -24,6 +24,13 @@ export type PendingIntent =
       // Logged-out / guest user tapped "Boost Event" on Live Events. After
       // auth we reopen Live Events with the boost picker already showing.
       kind: 'boost_event';
+    }
+  | {
+      // Guest tapped "Create Wanted Request" on a no-results search. After
+      // auth we reopen /search for the same term with the Wanted wizard
+      // auto-opened (SearchResults reads location.state.openWizard).
+      kind: 'create_wanted';
+      term: string;
     };
 
 export function setPendingIntent(intent: PendingIntent): void {
