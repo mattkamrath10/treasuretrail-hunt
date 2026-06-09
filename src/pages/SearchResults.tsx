@@ -336,6 +336,20 @@ export default function SearchResults() {
                 </div>
               </div>
             ))}
+
+            {/* Google stays the final fallback even when results exist — a clear
+                entry point below the marketplace sections. */}
+            <div style={s.googleFooter}>
+              <span style={s.googleFooterText}>Still not finding it?</span>
+              <div style={s.googleFooterLinks}>
+                <a href={googleSearchUrl(query)} target="_blank" rel="noopener noreferrer" style={s.googleFooterLink}>
+                  <Globe size={14} /> Search Google
+                </a>
+                <a href={googleShoppingUrl(query)} target="_blank" rel="noopener noreferrer" style={s.googleFooterLink}>
+                  <ShoppingBag size={14} /> Google Shopping
+                </a>
+              </div>
+            </div>
           </>
         )}
 
@@ -610,6 +624,30 @@ const s: Record<string, React.CSSProperties> = {
   },
   cardPrice: { fontSize: 13, fontWeight: 700, color: 'var(--color-primary-600)' },
   cardSub: { fontSize: 12, color: 'var(--color-neutral-500)' },
+  googleFooter: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 10,
+    margin: '8px 2px 0',
+    padding: '16px 14px',
+    borderTop: '1px solid var(--color-neutral-200)',
+  },
+  googleFooterText: { fontSize: 13, color: 'var(--color-neutral-500)' },
+  googleFooterLinks: { display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' },
+  googleFooterLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '9px 14px',
+    border: '1px solid var(--color-neutral-300)',
+    borderRadius: 'var(--radius-lg, 14px)',
+    backgroundColor: 'var(--color-surface, #fff)',
+    color: 'var(--color-neutral-800)',
+    fontWeight: 600,
+    fontSize: 13,
+    textDecoration: 'none',
+  },
   empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '40px 16px' },
   emptyIcon: {
     width: 64,
