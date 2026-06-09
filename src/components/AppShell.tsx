@@ -34,6 +34,7 @@ const LiveHub = lazy(() => import('../pages/LiveHub'));
 const SellerDashboard = lazy(() => import('../pages/SellerDashboard'));
 const SellerEventForm = lazy(() => import('../pages/SellerEventForm'));
 const SellerAnalytics = lazy(() => import('../pages/SellerAnalytics'));
+const SellerDemand = lazy(() => import('../pages/SellerDemand'));
 const EventDetail = lazy(() => import('../pages/EventDetail'));
 const FindDetail = lazy(() => import('../pages/FindDetail'));
 const ListingDetail = lazy(() => import('../pages/ListingDetail'));
@@ -152,6 +153,11 @@ function SellerEventFormPage() {
 function SellerAnalyticsPage() {
   const navigate = useNavigate();
   return <SellerAnalytics onBack={() => navigate('/seller')} />;
+}
+
+function SellerDemandPage() {
+  const navigate = useNavigate();
+  return <SellerDemand onBack={() => navigate('/seller')} />;
 }
 
 function EventDetailPage() {
@@ -333,6 +339,7 @@ export default function AppShell() {
             {/* Pro-only Reach Analytics is temporarily removed for App Store
                 review — redirect to the seller dashboard. */}
             <Route path="/seller/analytics" element={monetizationHidden() ? <Navigate to="/seller" replace /> : <SellerAnalyticsPage />} />
+            <Route path="/seller/demand" element={monetizationHidden() ? <Navigate to="/seller" replace /> : <SellerDemandPage />} />
             <Route path="/seller/new" element={<SellerEventFormPage />} />
             <Route path="/seller/event/:id" element={<SellerEventFormPage />} />
             <Route path="/event/:id" element={<EventDetailPage />} />

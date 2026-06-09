@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Calendar, MapPin, Eye, Pencil, Trash2,
-  Store, Save, X, Loader2, Radio, ExternalLink, BarChart3,
+  Store, Save, X, Loader2, Radio, ExternalLink, BarChart3, TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -149,11 +149,16 @@ export default function SellerDashboard({ onBack }: { onBack: () => void }) {
         <div style={s.sectionHeader}>
           <h3 style={s.sectionTitle}>My events</h3>
           <div style={{ display: 'flex', gap: 6 }}>
-            {/* Pro-only Reach Analytics is temporarily hidden for App Store review. */}
+            {/* Pro-only insights are hidden while monetization is gated for review. */}
             {isPro && !monetizationHidden() && (
-              <button onClick={() => navigate('/seller/analytics')} style={s.ghostBtn}>
-                <BarChart3 size={13} /> Analytics
-              </button>
+              <>
+                <button onClick={() => navigate('/seller/demand')} style={s.ghostBtn}>
+                  <TrendingUp size={13} /> Demand
+                </button>
+                <button onClick={() => navigate('/seller/analytics')} style={s.ghostBtn}>
+                  <BarChart3 size={13} /> Analytics
+                </button>
+              </>
             )}
             <button onClick={() => navigate('/seller/new')} style={s.primaryBtn}>
               <Plus size={14} /> New event

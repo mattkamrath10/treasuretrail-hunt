@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { createWantedItem, WANTED_CATEGORY_LABEL, type WantedCategory } from '../../lib/wanted';
 import { createSavedSearch } from '../../lib/savedSearches';
+import { recordSearchDemand } from '../../lib/demand';
 import { activeInferrer, CONFIDENCE_THRESHOLD, type CategoryGuess } from '../../lib/wantedInference';
 import { questionsFor, type WizardQuestion } from '../../lib/wantedQuestions';
 import { useScrollLock } from '../../hooks/useScrollLock';
@@ -189,6 +190,15 @@ export default function WantedWizard({ initialTerm, userId, onClose, onCreated }
       } catch {
         /* noop */
       }
+
+      // Demand Intelligence (Phase 5): fold this request into aggregate demand
+      // with its category + geocoded location (resolved on write). Best-effort.
+      void recordSearchDemand(
+        title.trim(),
+        category,
+        (row as { lat?: number | null }).lat ?? null,
+        (row as { lng?: number | null }).lng ?? null,
+      );
 
       onCreated(row.id);
     } catch (e: any) {

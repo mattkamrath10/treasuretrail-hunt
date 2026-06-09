@@ -10,6 +10,7 @@ import { geocodeLocation, type GeoPoint } from '../lib/geocode';
 import type { SearchOutcome, SearchResultItem, SearchResultKind } from '../lib/search/types';
 import { useAuth } from '../context/AuthContext';
 import { createSavedSearch } from '../lib/savedSearches';
+import { recordSearchDemand } from '../lib/demand';
 import { setPendingIntent } from '../lib/pendingIntent';
 import { flashToast } from '../lib/toast';
 import WantedWizard from '../components/wanted/WantedWizard';
@@ -97,6 +98,8 @@ export default function SearchResults() {
   const [notified, setNotified] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const resumedRef = useRef(false);
+  // Dedupe demand capture: record each no-result term at most once per session.
+  const demandRecordedRef = useRef<Set<string>>(new Set());
 
   // Local-First Search: the searcher's location + travel radius, persisted so
   // it's remembered across sessions. `origin` drives distance sectioning.
@@ -155,6 +158,19 @@ export default function SearchResults() {
       controller.abort();
     };
   }, [query, originLat, originLng, radiusMiles]);
+
+  // Demand Intelligence (Phase 5): when a search completes with no results,
+  // record it as aggregate demand (term + searcher location). Best-effort and
+  // deduped per term per session so a re-render or radius change doesn't
+  // double-count. Only fires once the search has actually resolved.
+  useEffect(() => {
+    if (loading || !query || !outcome) return;
+    if (outcome.term !== query || outcome.items.length > 0) return;
+    const key = query.toLowerCase();
+    if (demandRecordedRef.current.has(key)) return;
+    demandRecordedRef.current.add(key);
+    void recordSearchDemand(query, null, originLat, originLng);
+  }, [loading, query, outcome, originLat, originLng]);
 
   const submit = (term: string) => {
     const q = term.trim();
