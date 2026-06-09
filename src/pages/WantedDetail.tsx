@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Calendar, MessageCircle, UserCircle2, Loader2, Search,
-  ImagePlus, X, Link2, Check,
+  ImagePlus, X, Link2, Check, Pencil, Camera,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchWantedItemWithRequester, updateWantedItem, WANTED_CATEGORY_LABEL,
-  type WantedItemWithRequester, type WantedStatus,
+  type WantedItemWithRequester, type WantedStatus, type WantedCategory,
 } from '../lib/wanted';
 import { getOrCreateConversation, sendMessage } from '../lib/messaging';
 import {
@@ -77,6 +77,8 @@ export default function WantedDetail() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // Owner-only status control busy flag.
   const [statusBusy, setStatusBusy] = useState(false);
+  // Owner-only inline edit flow (refine a wizard-created or any wanted post).
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (!id) { setErr('Missing id'); setLoading(false); return; }
@@ -320,46 +322,67 @@ export default function WantedDetail() {
         </div>
 
         {isOwner ? (
-          // Owner view: a status control (Open / Found / Closed) so they can
-          // signal where the hunt stands, plus the Boost CTA for visibility.
-          <>
-            <div style={s.ownerNote}>
-              <UserCircle2 size={14} style={{ color: 'rgba(245,245,247,0.55)' }} />
-              <span>This is your request</span>
-            </div>
-            <div style={s.statusControl}>
-              <span style={s.statusLabel}>Status</span>
-              <div style={s.statusBtnRow}>
-                {STATUS_OPTIONS.map((opt) => {
-                  const active = item.status === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => changeStatus(opt.value)}
-                      disabled={statusBusy}
-                      style={{
-                        ...s.statusBtn,
-                        ...(active ? s.statusBtnActive : null),
-                        cursor: statusBusy ? 'default' : 'pointer',
-                        opacity: statusBusy && !active ? 0.6 : 1,
-                      }}
-                    >
-                      {active && <Check size={13} />} {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <OwnerBoostRow
+          editing ? (
+            // Owner edit flow — refine the wizard-created (or any) post:
+            // title / details / category / budget + an optional reference photo.
+            <OwnerEditForm
               item={item}
-              onApplied={async () => {
+              onCancel={() => setEditing(false)}
+              onSaved={async () => {
                 if (!id) return;
                 const fresh = await fetchWantedItemWithRequester(id);
                 if (fresh) setItem(fresh);
+                setEditing(false);
+                showToast('Wanted post updated');
               }}
             />
-          </>
+          ) : (
+            // Owner view: a status control (Open / Found / Closed) so they can
+            // signal where the hunt stands, an Edit action, plus the Boost CTA.
+            <>
+              <div style={s.ownerNote}>
+                <UserCircle2 size={14} style={{ color: 'rgba(245,245,247,0.55)' }} />
+                <span>This is your request</span>
+              </div>
+              <div style={s.statusControl}>
+                <span style={s.statusLabel}>Status</span>
+                <div style={s.statusBtnRow}>
+                  {STATUS_OPTIONS.map((opt) => {
+                    const active = item.status === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => changeStatus(opt.value)}
+                        disabled={statusBusy}
+                        style={{
+                          ...s.statusBtn,
+                          ...(active ? s.statusBtnActive : null),
+                          cursor: statusBusy ? 'default' : 'pointer',
+                          opacity: statusBusy && !active ? 0.6 : 1,
+                        }}
+                      >
+                        {active && <Check size={13} />} {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{ ...s.ctaRow, marginTop: 10 }}>
+                <button type="button" onClick={() => setEditing(true)} style={s.secondaryCta}>
+                  <Pencil size={14} /> Edit post
+                </button>
+              </div>
+              <OwnerBoostRow
+                item={item}
+                onApplied={async () => {
+                  if (!id) return;
+                  const fresh = await fetchWantedItemWithRequester(id);
+                  if (fresh) setItem(fresh);
+                }}
+              />
+            </>
+          )
         ) : item.status !== 'open' ? (
           // Non-owners normally only reach OPEN posts (RLS), but guard anyway:
           // a fulfilled/closed post shows a muted state instead of a composer.
@@ -785,5 +808,202 @@ const ownerBoostStyles: Record<string, CSSProperties> = {
     background: 'rgba(251, 191, 36, 0.12)',
     border: '1px solid rgba(251, 191, 36, 0.35)',
     color: '#fbbf24', fontSize: 12, fontWeight: 700,
+  },
+};
+
+/**
+ * Owner-only inline editor for a wanted post. The Wanted Wizard folds the
+ * buyer's ≤5 answers into the description and drops them here with no way to
+ * revise — this lets the owner refine title / details / category / budget and
+ * add (or change) a reference photo after the fact. Reuses updateWantedItem +
+ * uploadCompressedImage; the parent re-fetches and closes on save.
+ */
+function OwnerEditForm({
+  item,
+  onCancel,
+  onSaved,
+}: {
+  item: WantedItemWithRequester;
+  onCancel: () => void;
+  onSaved: () => Promise<void> | void;
+}) {
+  const { user } = useAuth();
+  const [title, setTitle] = useState(item.title);
+  const [description, setDescription] = useState(item.description ?? '');
+  const [category, setCategory] = useState<WantedCategory>(item.category);
+  const [maxBudget, setMaxBudget] = useState(item.max_budget != null ? String(item.max_budget) : '');
+  const [imageUrl, setImageUrl] = useState<string | null>(item.image_url);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(item.thumb_url);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const onPickImage = async (file: File) => {
+    if (!user) return;
+    setErr(null);
+    setUploading(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const up = await uploadCompressedImage(dataUrl, { userId: user.id, folder: 'wanted' });
+      setImageUrl(up.url);
+      setThumbUrl(up.thumbUrl);
+    } catch (e: any) {
+      setErr(`Image upload failed: ${e?.message ?? 'unknown'}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const save = async () => {
+    setErr(null);
+    const t = title.trim();
+    if (t.length < 2) { setErr('Title must be at least 2 characters'); return; }
+    const budget = maxBudget.trim() ? Number(maxBudget) : null;
+    if (budget != null && !Number.isFinite(budget)) { setErr('Budget must be a number'); return; }
+    setSaving(true);
+    try {
+      // Only edit the fields the spec covers; city/region (and their geocoded
+      // coords) are left untouched so we never need to re-geocode here.
+      await updateWantedItem(item.id, {
+        title: t,
+        description: description.trim(),
+        category,
+        max_budget: budget,
+        image_url: imageUrl,
+        thumb_url: thumbUrl,
+      });
+      await onSaved();
+    } catch (e: any) {
+      setErr(e?.message ?? 'Could not save changes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={editStyles.form}>
+      <label style={editStyles.cover}>
+        {imageUrl ? (
+          <ImageWithFade
+            src={thumbUrl ?? imageUrl}
+            fallbackSrc={imageUrl}
+            alt="Wanted item"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            fallback={<MediaFallback kind="wanted" seed={item.id} label={title} />}
+          />
+        ) : (
+          <div style={editStyles.coverPlaceholder}>
+            <Camera size={24} />
+            <span>{uploading ? 'Uploading…' : 'Add a reference photo (optional)'}</span>
+          </div>
+        )}
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickImage(f); }}
+          style={{ display: 'none' }}
+          disabled={uploading}
+        />
+        {imageUrl && (
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); setImageUrl(null); setThumbUrl(null); }}
+            style={editStyles.coverClear}
+            aria-label="Remove image"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </label>
+
+      <label style={s.composerLabel}>What are you looking for?</label>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        maxLength={120}
+        style={editStyles.input}
+      />
+
+      <label style={s.composerLabel}>Details</label>
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        maxLength={2000}
+        placeholder="Condition, era, brand, any specifics that help sellers find you a match."
+        style={{ ...editStyles.input, height: 96, resize: 'vertical' }}
+      />
+
+      <label style={s.composerLabel}>Category</label>
+      <select
+        value={category}
+        onChange={(e) => setCategory(e.target.value as WantedCategory)}
+        style={editStyles.input}
+      >
+        {(Object.entries(WANTED_CATEGORY_LABEL) as [WantedCategory, string][]).map(([k, v]) => (
+          <option key={k} value={k}>{v}</option>
+        ))}
+      </select>
+
+      <label style={s.composerLabel}>Max budget ($)</label>
+      <input
+        value={maxBudget}
+        onChange={(e) => setMaxBudget(e.target.value)}
+        placeholder="Optional"
+        inputMode="decimal"
+        style={editStyles.input}
+      />
+
+      {err && <p style={editStyles.err}>{err}</p>}
+
+      <div style={{ ...s.ctaRow, marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || uploading}
+          style={{ ...s.primaryCta, opacity: saving || uploading ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}
+        >
+          {saving ? <Loader2 size={14} className="spin" /> : <Check size={14} />}
+          Save changes
+        </button>
+        <button type="button" onClick={onCancel} disabled={saving} style={s.secondaryCta}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const editStyles: Record<string, CSSProperties> = {
+  form: {
+    marginTop: 4, padding: 12, borderRadius: 14,
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    display: 'flex', flexDirection: 'column',
+  },
+  cover: {
+    position: 'relative', width: '100%', aspectRatio: '16 / 9', overflow: 'hidden',
+    borderRadius: 12, cursor: 'pointer', background: '#15151a',
+    border: '1px dashed rgba(255,255,255,0.18)',
+  },
+  coverPlaceholder: {
+    width: '100%', height: '100%',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+    color: 'rgba(245,245,247,0.55)', fontSize: 12,
+  },
+  coverClear: {
+    position: 'absolute', top: 8, right: 8,
+    width: 28, height: 28, borderRadius: '50%',
+    background: 'rgba(0,0,0,0.65)', color: '#fff', border: 'none',
+    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  },
+  input: {
+    width: '100%', boxSizing: 'border-box', minHeight: 44, padding: '10px 12px',
+    background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 10, color: '#f5f5f7', fontSize: 14, outline: 'none', fontFamily: 'inherit',
+  },
+  err: {
+    margin: '8px 0 0', padding: '10px 12px',
+    background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)',
+    borderRadius: 10, color: '#fca5a5', fontSize: 12,
   },
 };
