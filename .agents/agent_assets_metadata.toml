@@ -179,3 +179,9 @@ id = "eWj4FnaDJp4JMnttQZu5X"
 uri = "file://TreasureTrail-PlayStore-Icon-512.png"
 type = "image"
 title = "Google Play store listing icon (512×512)"
+
+[[outputs]]
+id = "ykIsoxFiBkk-pFvLFPo4L"
+uri = "file://public/upload-key-reset.zip"
+type = "unspecified"
+title = "TreasureTrail New Upload Key + Reset Instructions"
