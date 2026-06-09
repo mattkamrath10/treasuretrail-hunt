@@ -159,9 +159,13 @@ export async function fetchMyWantedItems(userId: string) {
 }
 
 // Columns added by later-phase migrations that may not exist yet. We attempt
-// the insert with all of them and, on a 42703 naming one, drop that column and
-// retry — so a Wanted Request can always be created, gaining the extra data
-// once the migrations are applied.
+// the insert with all of them and, on a missing-column error naming one, drop
+// that column and retry — so a Wanted Request can always be created, gaining the
+// extra data once the migrations are applied. Postgres reports a missing column
+// as 42703, but PostgREST (the path the client actually takes) reports it as
+// PGRST204 "Could not find the 'X' column ... in the schema cache", so we must
+// catch BOTH or the retry never fires and creation hard-fails (see the wizard
+// "Could not find the 'source_search_term' column" failure).
 const WANTED_GATED_COLUMNS = ['source_search_term', 'lat', 'lng', 'travel_distance'];
 
 export async function createWantedItem(userId: string, input: WantedUpsert) {
@@ -192,12 +196,13 @@ export async function createWantedItem(userId: string, input: WantedUpsert) {
       .select('*')
       .single();
     if (!error) return data as WantedItemRow;
-    if (error.code === '42703') {
+    if (error.code === '42703' || error.code === 'PGRST204') {
+      const haystack = `${error.message ?? ''} ${error.details ?? ''}`;
       const missing = WANTED_GATED_COLUMNS.find(
-        (c) => c in payload && new RegExp(c, 'i').test(error.message ?? ''),
+        (c) => c in payload && haystack.toLowerCase().includes(c),
       );
       if (missing) {
-        console.warn(`[CREATE_WANTED] ${missing} column missing — retrying without it. Apply the Phase-3 geo migration to enable it.`);
+        console.warn(`[CREATE_WANTED] ${missing} column missing — retrying without it. Apply the matching migration to enable it.`);
         delete payload[missing];
         continue;
       }
