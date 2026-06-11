@@ -112,6 +112,60 @@ export async function notifyUser(input: {
   return { error: null };
 }
 
+/**
+ * Fire-and-forget: ask the server to fan out a native push for a transactional
+ * notification the current user just authored (message, follow, listing save,
+ * wanted-post response). The server claims `notifications.pushed_at` + dedupes
+ * atomically and no-ops when push isn't configured, so this is always safe to
+ * call best-effort right after the in-app notification is created.
+ */
+export async function triggerNotificationPush(input: {
+  type: 'message' | 'follow' | 'listing_saved' | 'listing_shared' | 'wanted_post_response';
+  recipientId?: string | null;
+  relatedItemId?: string | null;
+}): Promise<void> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    await fetch(apiUrl('/api/push/notify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        type: input.type,
+        recipientId: input.recipientId ?? null,
+        relatedItemId: input.relatedItemId ?? null,
+      }),
+    });
+  } catch {
+    /* push is best-effort; the in-app notification is already delivered */
+  }
+}
+
+/**
+ * Convenience: create a cross-user in-app notification AND fan out its native
+ * push. Only fires the push when the in-app insert succeeded.
+ */
+export async function notifyUserWithPush(input: {
+  target_user_id: string;
+  type: 'follow' | 'message' | 'listing_saved' | 'listing_shared' | 'wanted_post_response';
+  title: string;
+  content?: string;
+  related_item_id?: string | null;
+  related_item_type?: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<{ error: string | null }> {
+  const res = await notifyUser(input);
+  if (!res.error) {
+    void triggerNotificationPush({
+      type: input.type,
+      recipientId: input.target_user_id,
+      relatedItemId: input.related_item_id ?? null,
+    });
+  }
+  return res;
+}
+
 export async function fetchNotificationsList(
   userId: string,
   opts: { unreadOnly?: boolean; limit?: number } = {}

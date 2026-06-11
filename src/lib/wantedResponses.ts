@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { MarketplaceListing } from './supabase';
+import { triggerNotificationPush } from './notifications';
 
 /**
  * Reply-to-wanted-post (Phase 1).
@@ -53,6 +54,13 @@ export async function createWantedResponse(input: {
     }
     return { response: null, error: error.message };
   }
+  // The in-app `wanted_post_response` notification is created by the
+  // notify_wanted_post_response AFTER INSERT trigger. Fan out its native push
+  // best-effort — the server resolves the post owner from the claimed row.
+  void triggerNotificationPush({
+    type: 'wanted_post_response',
+    relatedItemId: input.wantedItemId,
+  });
   return { response: data as WantedResponse, error: null };
 }
 

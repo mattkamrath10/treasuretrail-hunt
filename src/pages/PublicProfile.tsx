@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { followUser, unfollowUser, checkIsFollowing } from '../lib/database';
 import { MobileDetailPage } from '../components/ui/MobileDetailPage';
-import { notifyUser } from '../lib/notifications';
+import { notifyUserWithPush } from '../lib/notifications';
 import { accountAge } from '../lib/reputation';
 import { getOrCreateConversation } from '../lib/messaging';
 import { blockUser, isUserBlocked } from '../lib/blocks';
@@ -150,7 +150,7 @@ export default function PublicProfile() {
         const followerName = meProfile?.username
           ? `@${meProfile.username}`
           : 'Someone';
-        notifyUser({
+        notifyUserWithPush({
           target_user_id: profile.id,
           type: 'follow',
           title: 'New follower',

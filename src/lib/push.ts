@@ -34,6 +34,27 @@ function platform(): 'ios' | 'android' | 'web' | 'unknown' {
   return 'unknown';
 }
 
+/**
+ * Map an FCM data payload to an in-app hash route, mirroring the tap targets in
+ * the Alerts feed (src/pages/Alerts.tsx). Returns null when there's no specific
+ * destination (the app simply opens). go-live uses an `eventId` key; the
+ * transactional fan-out uses `{ type, id, relatedType }`.
+ */
+function routeForPush(data: Record<string, unknown>): string | null {
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+  const type = str(data.type);
+  const id = str(data.id);
+  const relatedType = str(data.relatedType);
+  const eventId = str(data.eventId);
+
+  if (eventId) return `#/event/${eventId}`;
+  if (type === 'go_live' && id) return `#/event/${id}`;
+  if (type === 'message' || relatedType === 'message') return '#/messages';
+  if (type === 'wanted_post_response' && id) return `#/wanted/${id}`;
+  if ((type === 'listing_saved' || type === 'listing_shared') && id) return `#/listing/${id}`;
+  return null;
+}
+
 async function upsertToken(token: string): Promise<void> {
   const { data } = await supabase.auth.getSession();
   const userId = data.session?.user?.id;
@@ -70,14 +91,14 @@ export async function registerPush(): Promise<void> {
       });
       await FirebaseMessaging.addListener('notificationActionPerformed', (event: { notification?: { data?: Record<string, unknown> } }) => {
         const data = (event?.notification?.data ?? {}) as Record<string, unknown>;
-        const eventId = typeof data.eventId === 'string' ? data.eventId : null;
-        if (eventId) {
+        const route = routeForPush(data);
+        if (route) {
           // This handler only runs on native (Capacitor), where the app uses
           // HashRouter (see src/main.tsx). Navigating via the hash updates the
-          // route in-place (no file request to capacitor://localhost/event/:id,
+          // route in-place (no file request to capacitor://localhost/<path>,
           // which would 404) and HashRouter picks it up on hashchange.
           try {
-            window.location.assign(`#/event/${eventId}`);
+            window.location.assign(route);
           } catch {
             /* ignore */
           }

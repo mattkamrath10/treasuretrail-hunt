@@ -29,7 +29,7 @@ import {
   hasRevenueCatRest,
   type RevenueCatEvent,
 } from './revenuecat';
-import { sendGoLivePush, hasPush } from './push';
+import { sendGoLivePush, sendNotificationPush, hasPush } from './push';
 
 // Deployment (Autoscale/VM) injects PORT; bind it in production. In dev the
 // server keeps using AI_SERVER_PORT (3001) so the Vite /api proxy resolves.
@@ -429,6 +429,47 @@ app.post('/api/push/go-live', async (req, res) => {
     return res.json({ ...result, configured: true });
   } catch (err: any) {
     console.error('[push/go-live]', err?.message || err);
+    return res.status(500).json({ error: 'push failed' });
+  }
+});
+
+// =====================================================================
+// Transactional notification push fan-out
+// ---------------------------------------------------------------------
+// Fired best-effort by the client right after a transactional in-app
+// notification is created (new message, follow, listing save, wanted-post
+// response). The server claims `notifications.pushed_at` atomically and fans
+// the push out to the recipient's devices, honouring their push preference —
+// the DB claim is the once-only authority, exactly like the go-live push.
+// The actor is always the verified caller; a caller can only push a
+// notification they authored. No-ops quietly when push isn't configured.
+// =====================================================================
+app.post('/api/push/notify', async (req, res) => {
+  try {
+    if (!hasPush()) return res.json({ sent: 0, claimed: false, configured: false });
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const { type, recipientId, relatedItemId } = req.body as {
+      type?: string;
+      recipientId?: string | null;
+      relatedItemId?: string | null;
+    };
+    if (!type || typeof type !== 'string') {
+      return res.status(400).json({ error: 'type is required.' });
+    }
+    const result = await sendNotificationPush({
+      actorId: userData.user.id,
+      recipientId: typeof recipientId === 'string' ? recipientId : null,
+      type,
+      relatedItemId: typeof relatedItemId === 'string' ? relatedItemId : null,
+    });
+    return res.json({ ...result, configured: true });
+  } catch (err: any) {
+    console.error('[push/notify]', err?.message || err);
     return res.status(500).json({ error: 'push failed' });
   }
 });

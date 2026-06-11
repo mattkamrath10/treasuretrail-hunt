@@ -21,7 +21,7 @@ import { blockUser, isUserBlocked } from '../lib/blocks';
 import ReportButton from '../components/moderation/ReportButton';
 import { shareWithImage } from '../lib/shareWithImage';
 import { publicWebUrl } from '../lib/apiBase';
-import { notifyUser } from '../lib/notifications';
+import { notifyUserWithPush } from '../lib/notifications';
 
 type FullListing = MarketplaceListing & {
   description?: string | null;
@@ -162,7 +162,7 @@ export default function ListingDetail() {
       showToast(next ? 'Saved to your list' : 'Removed from saved');
       // Notify the seller on save (not unsave). Best-effort; ignore errors.
       if (next && listing?.seller_id && listing.seller_id !== user.id) {
-        notifyUser({
+        notifyUserWithPush({
           target_user_id: listing.seller_id,
           type: 'listing_saved',
           title: 'Someone saved your listing',

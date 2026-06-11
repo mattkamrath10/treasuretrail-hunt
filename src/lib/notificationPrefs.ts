@@ -26,8 +26,9 @@ export type NotificationCategory =
  *  are surfaced disabled ("Coming Soon") but already persist if toggled. */
 export const CHANNELS: NotificationChannel[] = ['in_app', 'email', 'sms', 'push'];
 
-/** Phase-1 active channels (toggles are interactive). */
-export const ACTIVE_CHANNELS: NotificationChannel[] = ['in_app'];
+/** Active channels (toggles are interactive). In-app + push are live; push
+ *  delivery is native-only but the preference applies wherever push is sent. */
+export const ACTIVE_CHANNELS: NotificationChannel[] = ['in_app', 'push'];
 
 export const CHANNEL_LABELS: Record<NotificationChannel, string> = {
   in_app: 'In-App',
@@ -111,9 +112,10 @@ export type NotificationPrefs = Partial<
   Record<NotificationCategory, Partial<Record<NotificationChannel, boolean>>>
 >;
 
-/** Built-in default: In-App ON for every category, all other channels OFF. */
+/** Built-in default: In-App and Push ON for every category (opt-out); Email
+ *  and SMS OFF (opt-in). Keep in sync with pushEnabledFor() in server/push.ts. */
 export function defaultChannelValue(channel: NotificationChannel): boolean {
-  return channel === 'in_app';
+  return channel === 'in_app' || channel === 'push';
 }
 
 export function isChannelEnabled(

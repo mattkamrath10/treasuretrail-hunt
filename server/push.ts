@@ -193,3 +193,186 @@ export async function sendGoLivePush(eventId: string): Promise<GoLivePushResult>
 
   return { sent, claimed: true };
 }
+
+/* -------------------- Transactional notification push -------------------- */
+
+// The notification types that may fan out a native push, mapped to the
+// user-facing preference CATEGORY (must stay in sync with the client's
+// notificationPrefs.ts TYPE_TO_CATEGORY). Any type not listed here is ignored.
+const PUSHABLE_TYPE_CATEGORY: Record<string, string> = {
+  message: 'messages',
+  follow: 'followers',
+  listing_saved: 'listing_activity',
+  listing_shared: 'listing_activity',
+  wanted_post_response: 'wanted_post_responses',
+};
+
+// Per-channel default when the user has no stored preference for a category.
+// In-app and push are ON by default (opt-out); email/sms are OFF (opt-in).
+// Mirrors defaultChannelValue() in src/lib/notificationPrefs.ts.
+function pushEnabledFor(prefs: unknown, category: string): boolean {
+  const cat =
+    prefs && typeof prefs === 'object'
+      ? (prefs as Record<string, Record<string, unknown> | undefined>)[category]
+      : undefined;
+  const v = cat?.push;
+  return typeof v === 'boolean' ? v : true;
+}
+
+export type NotifyPushParams = {
+  /** The verified caller — the actor who performed the action. */
+  actorId: string;
+  /** Optional recipient hint; disambiguates the claim for follow/message/save. */
+  recipientId?: string | null;
+  /** The notification type (must be in PUSHABLE_TYPE_CATEGORY). */
+  type: string;
+  /** Optional related item id; disambiguates the claim (e.g. listing/wanted id). */
+  relatedItemId?: string | null;
+};
+
+export type NotifyPushResult = { sent: number; claimed: boolean };
+
+/**
+ * Claim + fan out a native push for a single transactional notification.
+ *
+ * Mirrors sendGoLivePush(): the dedupe authority is a single atomic UPDATE on
+ * the notification row (pushed_at IS NULL → now()), so the (best-effort) client
+ * trigger can fire any number of times and the push goes out at most once. The
+ * recipient is taken from the claimed row, their push preference is honoured,
+ * dead tokens are pruned, and the claim is released on a wholly-transient FCM
+ * failure so a later retry can re-send.
+ */
+export async function sendNotificationPush(
+  params: NotifyPushParams
+): Promise<NotifyPushResult> {
+  const { actorId, type } = params;
+  const recipientId = params.recipientId || null;
+  const relatedItemId = params.relatedItemId || null;
+  if (!actorId || !type) return { sent: 0, claimed: false };
+
+  const category = PUSHABLE_TYPE_CATEGORY[type];
+  if (!category) return { sent: 0, claimed: false };
+
+  const fcm = messagingOrNull();
+  if (!fcm) return { sent: 0, claimed: false };
+
+  // 1. Locate the latest still-unpushed notification authored by this actor of
+  // this type (optionally narrowed by recipient / related item). The actor gate
+  // ties the push to the person who performed the action — a caller can never
+  // push a notification they did not author.
+  let q = db()
+    .from('notifications')
+    .select('id, user_id, title, content, type, related_item_id, related_item_type')
+    .eq('actor_user_id', actorId)
+    .eq('type', type)
+    .is('pushed_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (recipientId) q = q.eq('user_id', recipientId);
+  if (relatedItemId) q = q.eq('related_item_id', relatedItemId);
+
+  const { data: candidate, error: findErr } = await q.maybeSingle();
+  if (findErr) {
+    // 42703 = pushed_at column missing (migration not applied). Degrade quietly.
+    if (findErr.code === '42703') {
+      console.warn('[push] notifications.pushed_at missing — apply migration 20260611000001.');
+      return { sent: 0, claimed: false };
+    }
+    console.error('[push] notify lookup failed:', findErr.message);
+    return { sent: 0, claimed: false };
+  }
+  if (!candidate) return { sent: 0, claimed: false };
+
+  // 2. Atomic claim — the WHERE (id matches AND still unpushed) is the gate, so
+  // concurrent triggers race for the single claim and only one wins.
+  const nowIso = new Date().toISOString();
+  const { data: claimed, error: claimErr } = await db()
+    .from('notifications')
+    .update({ pushed_at: nowIso })
+    .eq('id', candidate.id)
+    .is('pushed_at', null)
+    .select('id')
+    .maybeSingle();
+  if (claimErr) {
+    console.error('[push] notify claim failed:', claimErr.message);
+    return { sent: 0, claimed: false };
+  }
+  if (!claimed) return { sent: 0, claimed: false };
+
+  const targetUserId = candidate.user_id as string;
+  if (!targetUserId || targetUserId === actorId) return { sent: 0, claimed: true };
+
+  // 3. Honour the recipient's push preference for this category.
+  const { data: prof } = await db()
+    .from('profiles')
+    .select('notification_prefs')
+    .eq('id', targetUserId)
+    .maybeSingle();
+  if (!pushEnabledFor((prof as { notification_prefs?: unknown } | null)?.notification_prefs, category)) {
+    return { sent: 0, claimed: true };
+  }
+
+  // 4. Recipient device tokens.
+  const { data: tokenRows } = await db()
+    .from('device_tokens')
+    .select('token')
+    .eq('user_id', targetUserId);
+  const tokens = Array.from(new Set((tokenRows ?? []).map((t) => t.token).filter(Boolean)));
+  if (tokens.length === 0) return { sent: 0, claimed: true };
+
+  const title = (candidate.title as string) || 'TreasureTrail';
+  const body = (candidate.content as string) || '';
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < tokens.length; i += 500) chunks.push(tokens.slice(i, i + 500));
+
+  let sent = 0;
+  let transientFailure = false;
+  const deadTokens: string[] = [];
+  for (const chunk of chunks) {
+    try {
+      const resp = await fcm.sendEachForMulticast({
+        tokens: chunk,
+        notification: { title, body },
+        data: {
+          type: candidate.type as string,
+          id: (candidate.related_item_id as string) ?? '',
+          relatedType: (candidate.related_item_type as string) ?? '',
+        },
+        apns: { payload: { aps: { sound: 'default' } } },
+        android: { priority: 'high', notification: { sound: 'default' } },
+      });
+      sent += resp.successCount;
+      resp.responses.forEach((r, idx) => {
+        const code = r.error?.code;
+        if (
+          code === 'messaging/registration-token-not-registered' ||
+          code === 'messaging/invalid-registration-token' ||
+          code === 'messaging/invalid-argument'
+        ) {
+          deadTokens.push(chunk[idx]);
+        }
+      });
+    } catch (err: any) {
+      transientFailure = true;
+      console.error('[push] notify multicast failed:', err?.message || err);
+    }
+  }
+
+  if (deadTokens.length > 0) {
+    await db().from('device_tokens').delete().in('token', deadTokens);
+  }
+
+  // Release the claim only on a wholly-transient failure (delivered nothing AND
+  // the multicast threw), so a later trigger for the same notification can retry.
+  if (sent === 0 && transientFailure) {
+    await db()
+      .from('notifications')
+      .update({ pushed_at: null })
+      .eq('id', candidate.id)
+      .eq('pushed_at', nowIso);
+    return { sent: 0, claimed: false };
+  }
+
+  return { sent, claimed: true };
+}

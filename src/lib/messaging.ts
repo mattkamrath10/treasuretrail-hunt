@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
+import { notifyUserWithPush } from './notifications';
 
 export type ListingKind = 'marketplace' | 'community_post' | 'external_listing';
 
@@ -92,6 +93,20 @@ export async function sendMessage(input: {
       last_message_preview: body.slice(0, 140),
     })
     .eq('id', input.conversationId);
+
+  // Best-effort: drop an in-app "New message" notification on the recipient and
+  // fan out its native push. related_item_type='message' so the Alerts feed
+  // routes the tap to the inbox. Never blocks (or fails) the actual send.
+  if (input.receiverId && input.receiverId !== user.id) {
+    void notifyUserWithPush({
+      target_user_id: input.receiverId,
+      type: 'message',
+      title: 'New message',
+      content: body.slice(0, 140),
+      related_item_id: input.conversationId,
+      related_item_type: 'message',
+    });
+  }
 
   return { message: data as ChatMessage, error: null };
 }

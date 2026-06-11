@@ -37,9 +37,12 @@ export default function NotificationSettings() {
     window.setTimeout(() => setNote((t) => (t === m ? null : t)), 2400);
   };
 
-  const toggleInApp = async (category: NotificationCategory) => {
+  const toggleChannel = async (
+    category: NotificationCategory,
+    channel: 'in_app' | 'push',
+  ) => {
     if (!user || saving) return;
-    const next = setPref(prefs, category, 'in_app', !isChannelEnabled(prefs, category, 'in_app'));
+    const next = setPref(prefs, category, channel, !isChannelEnabled(prefs, category, channel));
     setPrefs(next); // optimistic
     setSaving(true);
     const { error } = await saveNotificationPrefs(user.id, next);
@@ -74,8 +77,9 @@ export default function NotificationSettings() {
         <div style={s.intro}>
           <div style={s.introIcon}><Bell size={18} style={{ color: 'var(--color-primary-600)' }} /></div>
           <p style={s.introText}>
-            Choose what shows up in your in-app Alerts. Email, SMS, and push are
-            coming soon.
+            Choose what shows up in your in-app Alerts and what we push to your
+            device. Push arrives on your phone even when the app is closed (turn
+            on notifications when prompted). Email and SMS are coming soon.
           </p>
         </div>
 
@@ -86,13 +90,15 @@ export default function NotificationSettings() {
             <div style={s.colHead}>
               <span style={s.colHeadCategory}>Category</span>
               <span style={s.colHeadChannel}>In-App</span>
+              <span style={s.colHeadChannel}>Push</span>
               <span style={s.colHeadChannelMuted}>Email<br /><span style={s.soon}>Coming soon</span></span>
             </div>
 
             <div style={s.list}>
               {CATEGORY_ORDER.map((cat) => {
                 const meta = CATEGORY_LABELS[cat];
-                const on = isChannelEnabled(prefs, cat, 'in_app');
+                const inApp = isChannelEnabled(prefs, cat, 'in_app');
+                const push = isChannelEnabled(prefs, cat, 'push');
                 return (
                   <div key={cat} style={s.row}>
                     <div style={s.rowMain}>
@@ -100,7 +106,10 @@ export default function NotificationSettings() {
                       <span style={s.rowDesc}>{meta.description}</span>
                     </div>
                     <div style={s.rowToggle}>
-                      <Toggle on={on} disabled={saving} onClick={() => toggleInApp(cat)} ariaLabel={`${meta.label} in-app`} />
+                      <Toggle on={inApp} disabled={saving} onClick={() => toggleChannel(cat, 'in_app')} ariaLabel={`${meta.label} in-app`} />
+                    </div>
+                    <div style={s.rowToggle}>
+                      <Toggle on={push} disabled={saving} onClick={() => toggleChannel(cat, 'push')} ariaLabel={`${meta.label} push`} />
                     </div>
                     <div style={s.rowToggle}>
                       <Toggle on={false} disabled comingSoon ariaLabel={`${meta.label} email (coming soon)`} />
@@ -111,8 +120,8 @@ export default function NotificationSettings() {
             </div>
 
             <p style={s.footNote}>
-              SMS and push notifications are also on the way. Your choices here
-              already carry over to those channels when they launch.
+              Push reaches your phone outside the app. Email and SMS are on the
+              way — your choices here already carry over when they launch.
             </p>
           </>
         )}
@@ -189,7 +198,7 @@ const s: Record<string, CSSProperties> = {
     padding: 24, color: 'var(--color-neutral-500)', fontSize: 14,
   },
   colHead: {
-    display: 'grid', gridTemplateColumns: '1fr 64px 64px',
+    display: 'grid', gridTemplateColumns: '1fr 54px 54px 54px',
     alignItems: 'end', gap: 8,
     padding: '0 4px 8px',
   },
@@ -214,7 +223,7 @@ const s: Record<string, CSSProperties> = {
     overflow: 'hidden',
   },
   row: {
-    display: 'grid', gridTemplateColumns: '1fr 64px 64px',
+    display: 'grid', gridTemplateColumns: '1fr 54px 54px 54px',
     alignItems: 'center', gap: 8,
     padding: 'var(--space-4)',
     borderBottom: '1px solid var(--color-neutral-100)',
