@@ -824,6 +824,136 @@ app.post('/api/wanted/questions', async (req, res) => {
 });
 
 // =====================================================================
+// Smart Screenshot Import — OCR + AI extraction from a marketplace/auction
+// ---------------------------------------------------------------------
+// The client uploads a screenshot of a listing from any marketplace/auction
+// site (eBay, Facebook Marketplace, Craigslist, OfferUp, Walmart, HiBid,
+// Whatnot, EstateSales.net, …). We read all visible text and analyze the
+// photo with the vision model, returning a structured draft the user reviews
+// and edits before publishing. This NEVER auto-publishes — it is a draft tool.
+
+const IMPORT_LISTING_TYPES = ['Auction', 'Marketplace', 'Estate Sale', 'Yard Sale', 'Swap Meet', 'Other'];
+const IMPORT_CATEGORIES = ['Electronics', 'Furniture', 'Books', 'Collectibles', 'Antiques', 'Art', 'Jewelry', 'Watches', 'Toys', 'Tools', 'Clothing', 'Home & Garden', 'Sports & Outdoors', 'Other'];
+
+const SMART_IMPORT_PROMPT = `You are an expert reseller assistant. You are given a SCREENSHOT of a single product listing from a marketplace or auction website or app (eBay, Facebook Marketplace, Craigslist, OfferUp, Walmart Marketplace, HiBid, Whatnot, EstateSales.net, yard-sale and estate-sale listings, etc.).
+
+Read ALL visible text in the image (OCR) and analyze the photo, then extract the listing into a SINGLE JSON object matching the schema EXACTLY. No prose, no markdown fences.
+
+Rules:
+- If a value is unknown or not visible, use an empty string "" (or 0 for confidenceScore). NEVER invent data.
+- Detect whether the source is an AUCTION (bids, lot numbers, "current bid", countdown timers) or a fixed-price MARKETPLACE listing, and set listingType accordingly.
+- listingType MUST be exactly one of: ${IMPORT_LISTING_TYPES.join(', ')}.
+- category MUST be the closest match from: ${IMPORT_CATEGORIES.join(', ')}.
+- marketplaceSource is the website/app the screenshot came from (e.g. "eBay", "Facebook Marketplace", "HiBid"). Infer from branding/layout if it is not written out.
+- price is the asking / buy-now price; currentBid is the current auction bid. Output digits and a decimal point only — no currency symbols, no commas.
+- description: a concise, clean, factual resale description (1-3 sentences). Do not copy seller fluff, phone numbers, or contact info.
+- condition: estimate from the text/photo if possible (New, Like New, Good, Fair, For Parts), else "".
+- confidenceScore: integer 0-100 for how confident you are in the overall extraction.
+
+JSON schema:
+{
+  "title": "",
+  "description": "",
+  "category": "",
+  "subcategory": "",
+  "brand": "",
+  "condition": "",
+  "price": "",
+  "currentBid": "",
+  "auctionEndDate": "",
+  "lotNumber": "",
+  "marketplaceSource": "",
+  "sellerName": "",
+  "location": "",
+  "listingType": "",
+  "confidenceScore": 0
+}`;
+
+async function callOpenAISmartImport(dataUrl: string) {
+  const resp = await withTimeout(
+    openai.chat.completions.create({
+      model: MODEL,
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 900,
+      messages: [
+        { role: 'system', content: SMART_IMPORT_PROMPT },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Extract this marketplace/auction screenshot into the JSON schema.' },
+            { type: 'image_url', image_url: { url: dataUrl, detail: 'high' } },
+          ],
+        },
+      ],
+    }),
+    25000,
+  );
+  const raw = resp.choices[0]?.message?.content ?? '{}';
+  return JSON.parse(raw);
+}
+
+function clampImportStr(v: unknown, max: number): string {
+  if (typeof v !== 'string') return '';
+  const s = v.trim();
+  if (!s || s.toLowerCase() === 'null' || s.toLowerCase() === 'unknown' || s.toLowerCase() === 'n/a') return '';
+  return s.slice(0, max);
+}
+
+function sanitizeImportedListing(out: any) {
+  if (!out || typeof out !== 'object') return null;
+  const ltRaw = clampImportStr(out.listingType, 40);
+  const listingType = IMPORT_LISTING_TYPES.includes(ltRaw) ? ltRaw : 'Marketplace';
+  let conf = Number(out.confidenceScore);
+  if (!Number.isFinite(conf)) conf = 0;
+  conf = Math.max(0, Math.min(100, Math.round(conf)));
+  const cleanNum = (v: unknown) => clampImportStr(v, 24).replace(/[^0-9.]/g, '').slice(0, 24);
+  const listing = {
+    title: clampImportStr(out.title, 140),
+    description: clampImportStr(out.description, 1200),
+    category: clampImportStr(out.category, 60),
+    subcategory: clampImportStr(out.subcategory, 60),
+    brand: clampImportStr(out.brand, 80),
+    condition: clampImportStr(out.condition, 40),
+    price: cleanNum(out.price),
+    currentBid: cleanNum(out.currentBid),
+    auctionEndDate: clampImportStr(out.auctionEndDate, 60),
+    lotNumber: clampImportStr(out.lotNumber, 40),
+    marketplaceSource: clampImportStr(out.marketplaceSource, 80),
+    sellerName: clampImportStr(out.sellerName, 80),
+    location: clampImportStr(out.location, 120),
+    listingType,
+    confidenceScore: conf,
+  };
+  // Require at least a title or description to count as a usable extraction.
+  if (!listing.title && !listing.description) return null;
+  return listing;
+}
+
+app.post('/api/import/screenshot', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const { imageDataUrl } = req.body as { imageDataUrl?: string };
+    if (typeof imageDataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp|gif|heic|heif);base64,/i.test(imageDataUrl)) {
+      return res.status(400).json({ error: 'invalid_image' });
+    }
+    if (imageDataUrl.length > 11_000_000) return res.status(413).json({ error: 'image_too_large' });
+
+    const out = await callOpenAISmartImport(imageDataUrl);
+    const listing = sanitizeImportedListing(out);
+    if (!listing) return res.json({ fallback: true });
+    return res.json({ data: listing, source: 'ai' });
+  } catch (err: any) {
+    console.error('[import/screenshot]', err?.message || err);
+    return res.json({ fallback: true });
+  }
+});
+
+// =====================================================================
 // Event import from URL — paste an event/auction link, extract fields
 // ---------------------------------------------------------------------
 // Fetches the page server-side, pulls OpenGraph/JSON-LD metadata, and

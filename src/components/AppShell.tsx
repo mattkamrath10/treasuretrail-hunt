@@ -49,6 +49,7 @@ const BlockedUsers = lazy(() => import('../pages/BlockedUsers'));
 const NotificationSettings = lazy(() => import('../pages/NotificationSettings'));
 const SearchResults = lazy(() => import('../pages/SearchResults'));
 const LocationSettings = lazy(() => import('../pages/LocationSettings'));
+const SmartScreenshotImport = lazy(() => import('../pages/SmartScreenshotImport'));
 
 function AuctionsPage() {
   const navigate = useNavigate();
@@ -330,6 +331,7 @@ export default function AppShell() {
             <Route path="/blocked" element={<BlockedUsersPage />} />
             <Route path="/notifications" element={<NotificationSettings />} />
             <Route path="/location-settings" element={<LocationSettings />} />
+            <Route path="/import-screenshot" element={<SmartScreenshotImport />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsOfServicePage />} />
             <Route path="/guidelines" element={<CommunityGuidelinesPage />} />

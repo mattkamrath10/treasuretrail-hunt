@@ -24,13 +24,16 @@ import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect
 import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
+import { ScanLine } from 'lucide-react';
 
 // [BETA_GATE] Marketplace listing creation ("Add Marketplace") is hidden from
 // the UI for the beta / App Store review while its workflow and moderation
 // process are finalized. All underlying code (CreateListing view, the
 // createMarketplaceListing call, the DB table) is left intact so the feature
-// can be re-enabled later by flipping this single flag back to true.
-const MARKETPLACE_CREATE_ENABLED = false;
+// can be re-enabled later by flipping this single flag back on. Smart Screenshot
+// Import shares this flag — its extraction/review flow is always available, but
+// the final Publish step is gated by the same flag.
+import { MARKETPLACE_CREATE_ENABLED } from '../lib/featureFlags';
 
 type MarketView = 'home' | 'detail' | 'create' | 'offer' | 'checkout' | 'dashboard' | 'confirmation';
 
@@ -146,6 +149,7 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
 }) {
   const { requireAuth } = useGuestAction();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const goSearch = useGlobalSearch();
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -252,6 +256,20 @@ function MarketHome({ onBack, onItemClick, onCreateListing, onDashboard }: {
             <Bookmark size={16} style={{ color: 'var(--color-primary-600)' }} />
           </button>
         </div>
+
+        {/* Smart Screenshot Import entry — always available (extraction +
+            review). Publishing is separately gated by MARKETPLACE_CREATE_ENABLED. */}
+        <button
+          onClick={() => requireAuth(() => navigate('/import-screenshot'))}
+          style={s.importBtn}
+        >
+          <span style={s.importIconWrap}><ScanLine size={18} style={{ color: 'var(--color-primary-600)' }} /></span>
+          <span style={s.importTextWrap}>
+            <span style={s.importTitle}>Import From Screenshot</span>
+            <span style={s.importSub}>Snap a listing — AI fills in the details</span>
+          </span>
+          <ChevronRight size={16} style={{ color: 'var(--color-neutral-400)' }} />
+        </button>
 
         {/* Categories */}
         <div style={s.catScroll}>
@@ -1067,6 +1085,11 @@ const s: Record<string, React.CSSProperties> = {
   // Search
   searchWrap: { display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-3)', backgroundColor: 'var(--color-neutral-50)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)', border: '1px solid var(--color-neutral-100)' },
   searchInput: { flex: 1, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-800)', border: 'none', outline: 'none', background: 'transparent' },
+  importBtn: { display: 'flex', alignItems: 'center', gap: 'var(--space-3)', width: '100%', padding: 'var(--space-3)', marginBottom: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-primary-100)', background: 'var(--color-primary-50)', cursor: 'pointer', textAlign: 'left' },
+  importIconWrap: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, flexShrink: 0, borderRadius: 'var(--radius-full)', background: 'var(--color-neutral-0)', border: '1px solid var(--color-primary-100)' },
+  importTextWrap: { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 },
+  importTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-neutral-900)' },
+  importSub: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' },
 
   // Categories
   catScroll: { display: 'flex', gap: 'var(--space-2)', overflow: 'auto', marginBottom: 'var(--space-3)', paddingBottom: 'var(--space-1)' },
