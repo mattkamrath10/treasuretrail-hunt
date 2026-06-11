@@ -915,7 +915,10 @@ const s: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex', flexDirection: 'column',
     backgroundColor: 'var(--color-neutral-50)',
-    paddingBottom: 88,
+    // Clear the fixed BottomNav (var(--nav-height) 64px) + the iOS home-indicator
+    // safe-area inset so the final "Create event" / "Save changes" button is
+    // always scrollable into view and never sits behind the nav bar on iPhone.
+    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 120px)',
   },
   header: {
     display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
