@@ -196,6 +196,9 @@ export default function FlashFinds() {
     setForm(mergedForm);
 
     const completed: string[] = [];
+    // Captured after the Flash Find row is created so the Share action can
+    // link to the SPECIFIC find (/find/:id) instead of the site homepage.
+    let createdFindId: string | null = null;
 
     try {
       // Upload image once — used by every action that needs it.
@@ -299,6 +302,10 @@ export default function FlashFinds() {
 
         if (postErr) throw new Error(postErr);
 
+        // Remember the new find's id so the Share action below can deep-link
+        // to its detail page (/find/:id) instead of the TreasureTrail homepage.
+        if (createdPost?.id) createdFindId = createdPost.id;
+
         // Optimistic prepend prep: build a CommunityPost-shaped object
         // from the canonical payload, then validate before handing it
         // off to the navigation state. If validation fails we DO NOT
@@ -377,10 +384,15 @@ export default function FlashFinds() {
         ]
           .filter(Boolean)
           .join('\n');
+        // Deep-link to the specific find when it was just posted; otherwise
+        // (e.g. user shared without posting) fall back to the homepage.
+        const shareUrl = createdFindId
+          ? publicWebUrl(`/find/${createdFindId}`)
+          : publicWebUrl('/');
         const result = await shareItem({
           title: mergedForm.title || 'TreasureTrail find',
           text: summary,
-          url: publicWebUrl('/'),
+          url: shareUrl,
         });
         if (result.ok) {
           completed.push(result.via === 'native' ? 'Shared via system' : 'Link copied');
