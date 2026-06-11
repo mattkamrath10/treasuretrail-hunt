@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import {
@@ -24,6 +24,7 @@ import { GuestOverlay } from '../components/GuestGate';
 import { PageScroll } from '../components/ui/PageScroll';
 import { fetchMyEvents, fetchPublishedEvents } from '../lib/events';
 import type { EventRow } from '../lib/events';
+import { uploadCompressedImage } from '../lib/uploadImage';
 import { startBoostPurchase, startProBoost } from '../lib/payments';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { isProUser } from '../lib/entitlements';
@@ -1032,6 +1033,16 @@ function FilterDrawer({ dateFilter, setDateFilter, customDate, setCustomDate, so
   );
 }
 
+/** Read a File into a base64 data URL for the image-compression pipeline. */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
 // ─── Upload Event modal ───────────────────────────────────────────────────────
 
 interface EventForm {
@@ -1061,7 +1072,31 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState('');
   const [success, setSuccess] = useState('');
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const imgInputRef = useRef<HTMLInputElement>(null);
   const set = (k: keyof EventForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Upload a photo from the user's device/camera and store it in Supabase,
+  // then drop the resulting public URL into form.image_url. This is the
+  // primary way to add an event photo — pasting an Image URL is the manual
+  // fallback for users who already have a hosted image link.
+  const onPickImage = async (file: File) => {
+    if (!userId) {
+      setError('Please sign in to upload a photo. Guest mode is read-only.');
+      return;
+    }
+    setError('');
+    setUploadingImg(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const up = await uploadCompressedImage(dataUrl, { userId, folder: 'events' });
+      set('image_url', up.url);
+    } catch (e: any) {
+      setError(`Photo upload failed: ${e?.message ?? 'unknown error'}`);
+    } finally {
+      setUploadingImg(false);
+    }
+  };
 
   // Toggle helpers — Same-Day / Multi-Day / No End Time are mutually exclusive
   // in spirit. Same-Day auto-mirrors end_date to start_date as the user types.
@@ -1363,8 +1398,60 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
             </>
           )}
 
-          <label style={mo.label}>Image URL</label>
-          <input style={mo.input} placeholder="https://…" value={form.image_url} onChange={(e) => set('image_url', e.target.value)} />
+          <label style={mo.label}>Event Photo</label>
+          {form.image_url.trim() ? (
+            <div style={{ position: 'relative', marginBottom: 8 }}>
+              <ImageWithFade
+                src={form.image_url}
+                alt="Event photo"
+                style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 'var(--radius-md)', background: 'var(--color-neutral-100)' }}
+              />
+              <button
+                type="button"
+                onClick={() => set('image_url', '')}
+                style={{
+                  position: 'absolute', top: 8, right: 8,
+                  width: 28, height: 28, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', cursor: 'pointer',
+                }}
+                aria-label="Remove photo"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => imgInputRef.current?.click()}
+              disabled={uploadingImg}
+              style={{
+                width: '100%', minHeight: 88,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+                border: '1px dashed var(--color-neutral-300)', borderRadius: 'var(--radius-md)',
+                background: 'var(--color-neutral-50)', color: 'var(--color-neutral-600)',
+                cursor: uploadingImg ? 'default' : 'pointer', marginBottom: 8,
+              }}
+            >
+              {uploadingImg ? <Loader2 size={20} className="spin" /> : <Upload size={20} />}
+              <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
+                {uploadingImg ? 'Uploading…' : 'Upload a photo'}
+              </span>
+            </button>
+          )}
+          {!form.image_url.trim() && (
+            <>
+              <p style={{ ...mo.label, marginTop: 0, color: 'var(--color-neutral-400)' }}>or paste an image link</p>
+              <input style={mo.input} placeholder="https://…" value={form.image_url} onChange={(e) => set('image_url', e.target.value)} />
+            </>
+          )}
+          <input
+            ref={imgInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickImage(f); e.target.value = ''; }}
+          />
 
           <div style={{ marginTop: 12 }}>
             <LocationFields value={loc} onChange={setLoc} />
@@ -1398,8 +1485,8 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
 
           {error && <p style={mo.errorText}>{error}</p>}
           {success && <p style={mo.successText}>{success}</p>}
-          <button onClick={handleSubmit} disabled={saving || !!success} style={{ ...mo.submitBtn, opacity: saving || success ? 0.7 : 1 }}>
-            {success ? 'Submitted' : saving ? 'Submitting…' : 'Submit Event'}
+          <button onClick={handleSubmit} disabled={saving || uploadingImg || !!success} style={{ ...mo.submitBtn, opacity: saving || uploadingImg || success ? 0.7 : 1 }}>
+            {success ? 'Submitted' : saving ? 'Submitting…' : uploadingImg ? 'Uploading photo…' : 'Submit Event'}
           </button>
         </div>
       </div>
