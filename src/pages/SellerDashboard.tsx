@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Calendar, MapPin, Eye, Pencil, Trash2,
-  Store, Save, X, Loader2, Radio, ExternalLink, BarChart3, TrendingUp,
+  Store, Save, X, Loader2, Radio, ExternalLink, BarChart3, TrendingUp, Repeat, Copy,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchMyEvents, deleteEvent, PLATFORM_META,
   type EventRow, type EventStatus,
 } from '../lib/events';
+import { describeRecurrence } from '../lib/recurrence';
 import { isProUser } from '../lib/entitlements';
 import { monetizationHidden } from '../lib/platform';
 import { SkeletonList } from '../components/ui/Skeleton';
@@ -191,6 +192,7 @@ export default function SellerDashboard({ onBack }: { onBack: () => void }) {
                 onEdit={() => navigate(`/seller/event/${e.id}`)}
                 onView={() => navigate(`/event/${e.id}`)}
                 onDelete={() => onDelete(e.id, e.title)}
+                onDuplicate={() => navigate(`/seller/new?duplicate=${e.id}`)}
               />
             ))}
           </div>
@@ -236,17 +238,19 @@ const STATUS_BADGE: Record<EventStatus, { label: string; variant: 'shipping' | '
 };
 
 function EventRowCard({
-  event, busy, onEdit, onView, onDelete,
+  event, busy, onEdit, onView, onDelete, onDuplicate,
 }: {
   event: EventRow;
   busy: boolean;
   onEdit: () => void;
   onView: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
 }) {
   const badge = STATUS_BADGE[event.status];
   const isOnline = event.event_kind === 'online';
   const platformMeta = isOnline && event.platform ? PLATFORM_META[event.platform] : null;
+  const recurrenceLabel = describeRecurrence(event);
   const location = isOnline
     ? (event.seller_handle ?? platformMeta?.label ?? 'Online live show')
     : ([event.city, event.region].filter(Boolean).join(', ') || event.address || '');
@@ -285,6 +289,12 @@ function EventRowCard({
           <Calendar size={12} />
           <span>{formatDate(event.starts_at)}</span>
         </div>
+        {recurrenceLabel && (
+          <div style={{ ...s.eventMeta, color: 'var(--color-primary-700, #1d4ed8)', fontWeight: 700 }}>
+            <Repeat size={12} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{recurrenceLabel}</span>
+          </div>
+        )}
         {location && (
           <div style={s.eventMeta}>
             {isOnline
@@ -296,6 +306,7 @@ function EventRowCard({
         <div style={s.eventActions}>
           <button onClick={onView}   style={s.ghostBtn}><Eye size={13} /> View</button>
           <button onClick={onEdit}   style={s.ghostBtn}><Pencil size={13} /> Edit</button>
+          <button onClick={onDuplicate} style={s.ghostBtn}><Copy size={13} /> Duplicate</button>
           <button onClick={onDelete} disabled={busy} style={{ ...s.ghostBtn, color: 'var(--color-error-700, #b91c1c)' }}>
             <Trash2 size={13} /> {busy ? 'Deleting…' : 'Delete'}
           </button>

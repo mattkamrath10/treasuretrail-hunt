@@ -5,12 +5,13 @@ import 'leaflet.markercluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import { MapPin, Search, LocateFixed, X, ChevronRight, Navigation } from 'lucide-react';
+import { MapPin, Search, LocateFixed, X, ChevronRight, Navigation, Repeat } from 'lucide-react';
 import {
   fetchPublishedEvents,
   type EventRow,
   type EventCategory,
 } from '../lib/events';
+import { describeRecurrence } from '../lib/recurrence';
 import {
   geocodeLocation,
   haversineMiles,
@@ -39,6 +40,8 @@ const RADIUS_OPTIONS: Array<{ value: number | 'any'; label: string }> = [
   { value: 50, label: '50 mi' },
   { value: 75, label: '75 mi' },
   { value: 100, label: '100 mi' },
+  { value: 150, label: '150 mi' },
+  { value: 250, label: '250 mi' },
   { value: 'any', label: 'Any distance' },
 ];
 
@@ -243,6 +246,8 @@ export default function EventsMap() {
     if (!map || !center) return;
     const zoom =
       radiusMiles === 'any' ? 7
+      : radiusMiles >= 250 ? 6
+      : radiusMiles >= 150 ? 7
       : radiusMiles >= 100 ? 8
       : radiusMiles >= 75 ? 8
       : radiusMiles >= 50 ? 9
@@ -372,6 +377,11 @@ export default function EventsMap() {
                 </div>
                 <div style={s.cardTitle}>{selected.title}</div>
                 <div style={s.cardMeta}>{formatWhen(selected.starts_at)}</div>
+                {describeRecurrence(selected) && (
+                  <div style={s.cardRepeat}>
+                    <Repeat size={12} style={{ verticalAlign: -2 }} /> {describeRecurrence(selected)}
+                  </div>
+                )}
                 <div style={s.cardMeta}>{eventLocationLabel(selected)}</div>
               </div>
             </div>
@@ -485,6 +495,7 @@ const s: Record<string, React.CSSProperties> = {
     margin: '2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   cardMeta: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  cardRepeat: { fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary-700, #1d4ed8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cardActions: { display: 'flex', gap: 8, marginTop: 'var(--space-3)' },
   detailsBtn: {
     flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2,

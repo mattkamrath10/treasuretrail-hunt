@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
 import { apiUrl } from './apiBase';
+import { normalizeEvents } from './recurrence';
 
 export type EventCategory =
   | 'estate_sale'
@@ -94,6 +95,17 @@ export interface EventRow {
   // auction, Whatnot stream, etc). Optional so rows fetched before the
   // `20260529000001_event_url.sql` migration lands still typecheck.
   event_url?: string | null;
+  // Recurrence — a recurring event is ONE row; the anchor starts_at/ends_at
+  // define the first occurrence and these columns describe the repeat rule.
+  // The next occurrence is computed at read time (see recurrence.ts). All
+  // optional so rows fetched before the recurrence migration still typecheck.
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | null;
+  recurrence_days?: number[] | null;
+  recurrence_monthly_mode?: 'day_of_month' | 'nth_weekday' | null;
+  recurrence_day_of_month?: number | null;
+  recurrence_nth?: number | null;
+  recurrence_weekday?: number | null;
+  recurrence_until?: string | null;
   // Phase 1 monetization — boost + moderation. Optional so older code
   // paths that don't SELECT them still typecheck. See
   // `supabase/migrations/20260528000002_monetization_phase1.sql`.
@@ -141,6 +153,14 @@ export interface EventUpsert {
   show_category?: ShowCategory | null;
   // Optional external event page link (any kind of event).
   event_url?: string | null;
+  // Recurrence config (see EventRow for semantics).
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | null;
+  recurrence_days?: number[] | null;
+  recurrence_monthly_mode?: 'day_of_month' | 'nth_weekday' | null;
+  recurrence_day_of_month?: number | null;
+  recurrence_nth?: number | null;
+  recurrence_weekday?: number | null;
+  recurrence_until?: string | null;
 }
 
 /* ---------------- Time-based helpers (Live now / Starting soon) ---------- */
@@ -247,7 +267,10 @@ export async function fetchPublishedEvents(opts?: { city?: string | null; limit?
     ({ data, error } = await build(false));
   }
   if (error) throw new Error(error.message);
-  return (data ?? []) as EventRow[];
+  // Recurring events are stored as a single anchor row; normalize each to its
+  // next upcoming occurrence (and re-sort soonest first) so the public feed,
+  // Discover, nearby, category and search all show the right date.
+  return normalizeEvents((data ?? []) as EventRow[]);
 }
 
 /**
@@ -336,41 +359,72 @@ export async function fetchMyEvent(id: string, holderId: string) {
   return (data ?? null) as EventRow | null;
 }
 
-// `event_url` arrives before its column may exist (the
-// `20260529000001_event_url.sql` migration is applied by hand in the
-// Supabase SQL editor). Sending the field to a table without the column
-// errors and would break ALL event creation/edits. So we strip it and
-// retry once, mirroring the is_hidden pattern in fetchPublishedEvents.
+// Some optional columns are applied by hand in the Supabase SQL editor and may
+// not exist yet at write time: `event_url` (20260529000001_event_url.sql) and
+// the `recurrence*` columns (20260610000000_recurring_events.sql). Sending a
+// field to a table without its column errors and would break ALL event
+// creation/edits, so we strip the offending group and retry, mirroring the
+// is_hidden pattern in fetchPublishedEvents.
 //
-// Two error shapes are possible depending on the path: raw Postgres
-// returns `42703` (undefined_column), while PostgREST's schema cache
-// returns `PGRST204` ("Could not find the 'event_url' column"). Tolerate
-// both, scoped to event_url so we never mask an unrelated failure.
-const isMissingEventUrl = (
+// Two error shapes are possible: raw Postgres returns `42703`
+// (undefined_column), while PostgREST's schema cache returns `PGRST204`
+// ("Could not find the '<col>' column"). Tolerate both, scoped to known
+// optional columns so we never mask an unrelated failure.
+const RECURRENCE_COLS = [
+  'recurrence', 'recurrence_days', 'recurrence_monthly_mode',
+  'recurrence_day_of_month', 'recurrence_nth', 'recurrence_weekday', 'recurrence_until',
+];
+
+type MissingGroup = 'event_url' | 'recurrence';
+
+function classifyMissingColumn(
   error: { code?: string; message?: string; details?: string } | null,
-) => {
-  if (!error) return false;
+): MissingGroup | null {
+  if (!error) return null;
+  if (error.code !== '42703' && error.code !== 'PGRST204') return null;
   const haystack = `${error.message ?? ''} ${error.details ?? ''}`;
-  if (!/event_url/i.test(haystack)) return false;
-  return error.code === '42703' || error.code === 'PGRST204';
-};
+  if (/recurrence/i.test(haystack)) return 'recurrence';
+  if (/event_url/i.test(haystack)) return 'event_url';
+  return null;
+}
+
+/**
+ * Run an event insert/update, transparently stripping optional column groups
+ * (event_url, recurrence*) and retrying when the DB reports them missing. The
+ * `run` callback receives the payload to send and returns the Supabase result.
+ */
+async function writeEventRow(
+  base: Record<string, unknown>,
+  run: (payload: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string; message?: string; details?: string } | null }>,
+): Promise<EventRow> {
+  const stripped = new Set<MissingGroup>();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const payload: Record<string, unknown> = { ...base };
+    if (stripped.has('event_url')) delete payload.event_url;
+    if (stripped.has('recurrence')) for (const c of RECURRENCE_COLS) delete payload[c];
+
+    const { data, error } = await run(payload);
+    if (!error) return data as EventRow;
+
+    const miss = classifyMissingColumn(error);
+    if (miss && !stripped.has(miss)) {
+      stripped.add(miss);
+      console.warn(`[WRITE_EVENT] '${miss}' column(s) missing — retrying without them. Apply the matching migration to enable this feature.`);
+      continue;
+    }
+    throw new Error(error.message ?? 'Failed to save event');
+  }
+  throw new Error('Failed to save event after stripping optional columns.');
+}
 
 export async function createEvent(holderId: string, input: EventUpsert) {
   if (assertClean(input.title, input.description).blocked) {
     throw new Error(GUIDELINE_MESSAGE);
   }
-  const build = (withUrl: boolean) => {
-    const payload: Record<string, unknown> = { ...input, holder_id: holderId };
-    if (!withUrl) delete payload.event_url;
-    return supabase.from('events').insert(payload).select('*').single();
-  };
-  let { data, error } = await build(true);
-  if (isMissingEventUrl(error)) {
-    console.warn('[CREATE_EVENT] event_url column missing — retrying without it. Apply migration 20260529000001_event_url.sql to enable event links.');
-    ({ data, error } = await build(false));
-  }
-  if (error) throw new Error(error.message);
-  return data as EventRow;
+  return writeEventRow(
+    { ...input, holder_id: holderId },
+    (payload) => supabase.from('events').insert(payload).select('*').single(),
+  );
 }
 
 /**
@@ -426,20 +480,10 @@ export async function importEventFromUrl(url: string): Promise<ImportedEvent> {
 }
 
 export async function updateEvent(id: string, patch: Partial<EventUpsert>) {
-  // TEMP DIAGNOSTIC — remove after Event URL flow confirmed.
-  console.log('[UPDATE_EVENT_DIAG] id + event_url in payload:', id, patch.event_url);
-  const build = (withUrl: boolean) => {
-    const payload: Record<string, unknown> = { ...patch };
-    if (!withUrl) delete payload.event_url;
-    return supabase.from('events').update(payload).eq('id', id).select('*').single();
-  };
-  let { data, error } = await build(true);
-  if (isMissingEventUrl(error)) {
-    console.warn('[UPDATE_EVENT] event_url column missing — retrying without it. Apply migration 20260529000001_event_url.sql to enable event links.');
-    ({ data, error } = await build(false));
-  }
-  if (error) throw new Error(error.message);
-  return data as EventRow;
+  return writeEventRow(
+    { ...patch },
+    (payload) => supabase.from('events').update(payload).eq('id', id).select('*').single(),
+  );
 }
 
 export async function deleteEvent(id: string) {

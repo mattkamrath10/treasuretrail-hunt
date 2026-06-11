@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, MapPin, ImagePlus, Loader2, Plus, Trash2, Save,
-  Eye, X, Store, Radio, Video, Zap,
+  Eye, X, Store, Radio, Video, Zap, Repeat,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -11,8 +11,12 @@ import {
   importEventFromUrl,
   PLATFORM_META, SHOW_CATEGORY_LABELS,
   type EventCategory, type EventStatus, type EventUpsert, type EventFeaturedItem,
-  type EventKind, type EventPlatform, type ShowCategory,
+  type EventKind, type EventPlatform, type ShowCategory, type EventRow,
 } from '../lib/events';
+import {
+  describeRecurrence,
+  type RecurrenceFreq, type MonthlyMode,
+} from '../lib/recurrence';
 import { geocodeEventLocation } from '../lib/geocode';
 import { uploadCompressedImage } from '../lib/uploadImage';
 import { toThumbUrl } from '../lib/imageCompress';
@@ -54,9 +58,36 @@ const STATUSES: { value: EventStatus; label: string; hint: string }[] = [
   { value: 'cancelled', label: 'Cancelled', hint: 'Hidden but kept for records'},
 ];
 
+// 0=Sun … 6=Sat, matching JS Date.getDay() and the recurrence engine.
+const WEEKDAYS: { value: number; short: string }[] = [
+  { value: 0, short: 'Sun' },
+  { value: 1, short: 'Mon' },
+  { value: 2, short: 'Tue' },
+  { value: 3, short: 'Wed' },
+  { value: 4, short: 'Thu' },
+  { value: 5, short: 'Fri' },
+  { value: 6, short: 'Sat' },
+];
+
+const NTH_OPTIONS: { value: number; label: string }[] = [
+  { value: 1,  label: 'First'  },
+  { value: 2,  label: 'Second' },
+  { value: 3,  label: 'Third'  },
+  { value: 4,  label: 'Fourth' },
+  { value: -1, label: 'Last'   },
+];
+
+const FREQ_OPTIONS: { value: RecurrenceFreq; label: string }[] = [
+  { value: 'none',    label: 'Does not repeat' },
+  { value: 'daily',   label: 'Daily'   },
+  { value: 'weekly',  label: 'Weekly'  },
+  { value: 'monthly', label: 'Monthly' },
+];
+
 export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
+  const [searchParams] = useSearchParams();
   const { profile, user } = useAuth();
   const isEdit = !!id;
   const isHolder = profile?.account_type === 'holder';
@@ -90,6 +121,16 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   const [sellerHandle, setSellerHandle] = useState('');
   const [showCategory, setShowCategory] = useState<ShowCategory | ''>('');
 
+  // Recurrence — a recurring event is one row; these drive the repeat rule.
+  const [recurrence,    setRecurrence]    = useState<RecurrenceFreq>('none');
+  const [recurrenceDays,setRecurrenceDays]= useState<number[]>([]);
+  const [monthlyMode,   setMonthlyMode]   = useState<MonthlyMode>('day_of_month');
+  const [monthlyDom,    setMonthlyDom]     = useState<number>(1);
+  const [monthlyNth,    setMonthlyNth]     = useState<number>(1);
+  const [monthlyWeekday,setMonthlyWeekday]= useState<number>(6);
+  const [endsMode,      setEndsMode]      = useState<'never' | 'on'>('never');
+  const [recurrenceUntil, setRecurrenceUntil] = useState(''); // date input (YYYY-MM-DD)
+
   // Import-from-URL (create flow only).
   const [importUrl, setImportUrl] = useState('');
   const [importing, setImporting] = useState(false);
@@ -97,6 +138,38 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
 
   // featured items (edit only)
   const [items, setItems] = useState<EventFeaturedItem[] | null>(null);
+
+  // Copy a loaded event's fields into form state. Shared by the edit-load and
+  // the "Duplicate Event" flow. For duplicates we append "(Copy)" to the title
+  // and force draft status; recurrence config is carried over verbatim.
+  const prefillForm = (e: EventRow, opts?: { duplicate?: boolean }) => {
+    setTitle(opts?.duplicate ? `${e.title} (Copy)`.slice(0, 120) : e.title);
+    setDescription(e.description);
+    setEventUrl(e.event_url ?? '');
+    setCategory(e.category);
+    setStartsAt(toLocalInput(e.starts_at));
+    setEndsAt(e.ends_at ? toLocalInput(e.ends_at) : '');
+    setAddress(e.address ?? '');
+    setCity(e.city ?? '');
+    setRegion(e.region ?? '');
+    setCoverUrl(e.cover_image_url);
+    setCoverThumb(e.cover_thumb_url);
+    setStatus(opts?.duplicate ? 'draft' : e.status);
+    setEventKind(e.event_kind);
+    setPlatform(e.platform ?? 'whatnot');
+    setLivestreamUrl(e.livestream_url ?? '');
+    setSellerHandle(e.seller_handle ?? '');
+    setShowCategory(e.show_category ?? '');
+    // recurrence
+    setRecurrence((e.recurrence ?? 'none') as RecurrenceFreq);
+    setRecurrenceDays(e.recurrence_days ?? []);
+    setMonthlyMode((e.recurrence_monthly_mode ?? 'day_of_month') as MonthlyMode);
+    if (e.recurrence_day_of_month != null) setMonthlyDom(e.recurrence_day_of_month);
+    if (e.recurrence_nth != null) setMonthlyNth(e.recurrence_nth);
+    if (e.recurrence_weekday != null) setMonthlyWeekday(e.recurrence_weekday);
+    if (e.recurrence_until) { setEndsMode('on'); setRecurrenceUntil(toDateInput(e.recurrence_until)); }
+    else { setEndsMode('never'); setRecurrenceUntil(''); }
+  };
 
   // Load existing event on edit. Owner-scoped — a holder loading another
   // holder's published event URL gets a "not found" rather than silently
@@ -112,23 +185,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
         if (cancelled) return;
         console.log(LOG, 'load:result', { event: !!e, items: its.length });
         if (!e) { setErr('Event not found or you don\'t have access to edit it.'); setLoading(false); return; }
-        setTitle(e.title);
-        setDescription(e.description);
-        setEventUrl(e.event_url ?? '');
-        setCategory(e.category);
-        setStartsAt(toLocalInput(e.starts_at));
-        setEndsAt(e.ends_at ? toLocalInput(e.ends_at) : '');
-        setAddress(e.address ?? '');
-        setCity(e.city ?? '');
-        setRegion(e.region ?? '');
-        setCoverUrl(e.cover_image_url);
-        setCoverThumb(e.cover_thumb_url);
-        setStatus(e.status);
-        setEventKind(e.event_kind);
-        setPlatform(e.platform ?? 'whatnot');
-        setLivestreamUrl(e.livestream_url ?? '');
-        setSellerHandle(e.seller_handle ?? '');
-        setShowCategory(e.show_category ?? '');
+        prefillForm(e);
         setItems(its);
         setLoading(false);
       })
@@ -139,7 +196,112 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
         setLoading(false);
       });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, id, user]);
+
+  // Duplicate flow — /seller/new?duplicate=<id> prefills from an existing event
+  // (owner-scoped), strips the id and forces draft so the user reviews & saves a
+  // brand-new row. Featured items are NOT copied (they belong to the source).
+  const duplicateId = searchParams.get('duplicate');
+  const duplicatedRef = useRef(false);
+  useEffect(() => {
+    if (isEdit || !duplicateId || !user || duplicatedRef.current) return;
+    duplicatedRef.current = true;
+    let cancelled = false;
+    setLoading(true);
+    setErr(null);
+    fetchMyEvent(duplicateId, user.id)
+      .then((e) => {
+        if (cancelled) return;
+        if (e) prefillForm(e, { duplicate: true });
+        else setErr('Could not load the event to duplicate.');
+        setLoading(false);
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setErr(e?.message ?? 'Failed to load event to duplicate');
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, duplicateId, user]);
+
+  // Weekday of the chosen start, used to seed sensible recurrence defaults.
+  const anchorWeekday = startsAt ? new Date(startsAt).getDay() : null;
+  const anchorDom     = startsAt ? new Date(startsAt).getDate() : null;
+
+  // Switching frequency seeds defaults from the start date so a user who picks
+  // "Weekly" immediately sees the start's weekday selected, etc.
+  const onChangeFrequency = (v: RecurrenceFreq) => {
+    setRecurrence(v);
+    if (v === 'weekly' && recurrenceDays.length === 0 && anchorWeekday != null) {
+      setRecurrenceDays([anchorWeekday]);
+    }
+    if (v === 'monthly') {
+      if (anchorDom != null) setMonthlyDom(anchorDom);
+      if (anchorWeekday != null) setMonthlyWeekday(anchorWeekday);
+    }
+  };
+
+  const toggleWeekday = (d: number) => {
+    setRecurrenceDays((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b),
+    );
+  };
+
+  // Build the recurrence slice of the upsert payload. When not repeating we
+  // explicitly null every column so editing a recurring event back to one-off
+  // clears the old rule.
+  const buildRecurrencePayload = (): Partial<EventUpsert> => {
+    if (recurrence === 'none') {
+      return {
+        recurrence: 'none',
+        recurrence_days: null,
+        recurrence_monthly_mode: null,
+        recurrence_day_of_month: null,
+        recurrence_nth: null,
+        recurrence_weekday: null,
+        recurrence_until: null,
+      };
+    }
+    const until = endsMode === 'on' && recurrenceUntil
+      ? new Date(`${recurrenceUntil}T23:59:59`).toISOString()
+      : null;
+    const out: Partial<EventUpsert> = {
+      recurrence,
+      recurrence_until: until,
+      recurrence_days: null,
+      recurrence_monthly_mode: null,
+      recurrence_day_of_month: null,
+      recurrence_nth: null,
+      recurrence_weekday: null,
+    };
+    if (recurrence === 'weekly') {
+      out.recurrence_days = recurrenceDays.length > 0
+        ? [...recurrenceDays].sort((a, b) => a - b)
+        : (anchorWeekday != null ? [anchorWeekday] : null);
+    } else if (recurrence === 'monthly') {
+      out.recurrence_monthly_mode = monthlyMode;
+      if (monthlyMode === 'day_of_month') out.recurrence_day_of_month = monthlyDom;
+      else { out.recurrence_nth = monthlyNth; out.recurrence_weekday = monthlyWeekday; }
+    }
+    return out;
+  };
+
+  // Live human-readable preview of the configured repeat rule.
+  const recurrencePreview = recurrence === 'none'
+    ? null
+    : describeRecurrence({
+        starts_at: startsAt ? new Date(startsAt).toISOString() : new Date().toISOString(),
+        recurrence,
+        recurrence_days: recurrence === 'weekly'
+          ? (recurrenceDays.length > 0 ? recurrenceDays : (anchorWeekday != null ? [anchorWeekday] : []))
+          : null,
+        recurrence_monthly_mode: monthlyMode,
+        recurrence_day_of_month: monthlyDom,
+        recurrence_nth: monthlyNth,
+        recurrence_weekday: monthlyWeekday,
+      });
 
   const onPickCover = async (file: File) => {
     if (!user) return;
@@ -259,6 +421,16 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       }
     }
 
+    // Recurrence — when the event repeats, validate the bounded end date.
+    if (recurrence !== 'none' && endsMode === 'on') {
+      if (!recurrenceUntil) {
+        setErr('Choose a repeat end date or set the event to never end.'); return;
+      }
+      if (new Date(`${recurrenceUntil}T23:59:59`) < new Date(startsAt)) {
+        setErr('Repeat end date must be on or after the start date.'); return;
+      }
+    }
+
     const isOnline = eventKind === 'online';
     const payload: EventUpsert = {
       title: title.trim(),
@@ -280,6 +452,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       livestream_url: isOnline ? livestreamUrl.trim() : null,
       seller_handle:  isOnline ? (sellerHandle.trim() || null) : null,
       show_category:  isOnline ? (showCategory || null) : null,
+      ...buildRecurrencePayload(),
     };
 
     // Geocode local events to a coordinate so they show up in the Local
@@ -640,6 +813,116 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
               onChange={(e) => setEndsAt(e.target.value)}
               style={s.input}
             />
+          </section>
+
+          {/* Repeats */}
+          <section style={s.section}>
+            <h3 style={s.sectionTitle}><Repeat size={14} style={{ verticalAlign: -2 }} /> Repeats</h3>
+            <label style={s.label}>Frequency</label>
+            <select
+              value={recurrence}
+              onChange={(e) => onChangeFrequency(e.target.value as RecurrenceFreq)}
+              style={s.input}
+            >
+              {FREQ_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+
+            {recurrence === 'weekly' && (
+              <>
+                <label style={s.label}>Repeat on</label>
+                <div style={s.dayRow}>
+                  {WEEKDAYS.map((d) => {
+                    const on = recurrenceDays.includes(d.value);
+                    return (
+                      <button
+                        key={d.value}
+                        type="button"
+                        onClick={() => toggleWeekday(d.value)}
+                        style={{ ...s.dayChip, ...(on ? s.dayChipOn : {}) }}
+                      >
+                        {d.short}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {recurrence === 'monthly' && (
+              <>
+                <label style={s.label}>Monthly pattern</label>
+                <select
+                  value={monthlyMode}
+                  onChange={(e) => setMonthlyMode(e.target.value as MonthlyMode)}
+                  style={s.input}
+                >
+                  <option value="day_of_month">On a day of the month</option>
+                  <option value="nth_weekday">On a weekday of the month</option>
+                </select>
+                {monthlyMode === 'day_of_month' ? (
+                  <>
+                    <label style={s.label}>Day of month</label>
+                    <select
+                      value={monthlyDom}
+                      onChange={(e) => setMonthlyDom(Number(e.target.value))}
+                      style={s.input}
+                    >
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <div style={s.row2}>
+                    <select
+                      value={monthlyNth}
+                      onChange={(e) => setMonthlyNth(Number(e.target.value))}
+                      style={s.input}
+                    >
+                      {NTH_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={monthlyWeekday}
+                      onChange={(e) => setMonthlyWeekday(Number(e.target.value))}
+                      style={s.input}
+                    >
+                      {WEEKDAYS.map((d) => (
+                        <option key={d.value} value={d.value}>{d.short}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+
+            {recurrence !== 'none' && (
+              <>
+                <label style={s.label}>Ends</label>
+                <select
+                  value={endsMode}
+                  onChange={(e) => setEndsMode(e.target.value as 'never' | 'on')}
+                  style={s.input}
+                >
+                  <option value="never">Never</option>
+                  <option value="on">On a date</option>
+                </select>
+                {endsMode === 'on' && (
+                  <input
+                    type="date"
+                    value={recurrenceUntil}
+                    onChange={(e) => setRecurrenceUntil(e.target.value)}
+                    style={s.input}
+                  />
+                )}
+                {recurrencePreview && (
+                  <p style={s.recurrenceHint}>{recurrencePreview}</p>
+                )}
+              </>
+            )}
           </section>
 
           {/* Where (local) / Live show details (online) */}
@@ -1014,6 +1297,14 @@ function toLocalInput(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Convert ISO → value accepted by <input type="date"> (local calendar day). */
+function toDateInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
 /* --------------- Styles --------------- */
 
 const s: Record<string, React.CSSProperties> = {
@@ -1123,6 +1414,29 @@ const s: Record<string, React.CSSProperties> = {
     outline: 'none', boxSizing: 'border-box',
   },
   row2: { display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-end' },
+
+  // recurrence
+  dayRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  dayChip: {
+    minWidth: 44,
+    padding: 'var(--space-2) var(--space-2)',
+    border: '1px solid var(--color-neutral-200)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--font-size-xs)', fontWeight: 600,
+    color: 'var(--color-neutral-700)',
+    backgroundColor: 'var(--color-neutral-0)',
+    cursor: 'pointer',
+  },
+  dayChipOn: {
+    borderColor: 'var(--color-primary-500, #2563eb)',
+    backgroundColor: 'var(--color-primary-50, #eff6ff)',
+    color: 'var(--color-primary-700, #1d4ed8)',
+  },
+  recurrenceHint: {
+    margin: 'var(--space-3) 0 0',
+    fontSize: 'var(--font-size-xs)', fontWeight: 600,
+    color: 'var(--color-primary-700, #1d4ed8)',
+  },
 
   // cover
   coverWrap: {

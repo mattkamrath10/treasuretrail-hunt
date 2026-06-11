@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, MapPin, Share2, Bookmark, BookmarkCheck,
-  Navigation, Loader2, Store, Pencil, X, ExternalLink, Radio, Flag,
+  Navigation, Loader2, Store, Pencil, X, ExternalLink, Radio, Flag, Repeat,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -12,6 +12,7 @@ import {
   isExpiredLive, resolveExternalEventUrl,
   type EventRow, type EventFeaturedItem, type EventCategory,
 } from '../lib/events';
+import { applyNextOccurrence, describeRecurrence } from '../lib/recurrence';
 import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { MediaFallback, AvatarFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
@@ -248,16 +249,22 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
   }
 
   const isOwner = user?.id === event.holder_id;
-  const dateLabel = formatEventDate(event.starts_at, event.ends_at);
+  // EventDetail fetches the raw anchor row; for recurring events show the next
+  // upcoming occurrence's date and a human description of the repeat rule.
+  const nextEvent = applyNextOccurrence(event);
+  const recurrenceLabel = describeRecurrence(event);
+  const dateLabel = formatEventDate(nextEvent.starts_at, nextEvent.ends_at);
   const isOnline = event.event_kind === 'online';
   const fullAddress = isOnline ? '' : [event.address, event.city, event.region].filter(Boolean).join(', ');
   const hasLocation = fullAddress.length > 0;
   const hasContactTarget = !!holder?.username;
   const platformMeta = isOnline && event.platform ? PLATFORM_META[event.platform] : null;
   const isWhatnot = event.platform === 'whatnot';
-  const live = isLiveNow(event);
-  const expired = isExpiredLive(event);
-  const soon = !live && isStartingSoon(event);
+  // Time-based status must reflect the NEXT occurrence for recurring events,
+  // not the original anchor (which may be long past).
+  const live = isLiveNow(nextEvent);
+  const expired = isExpiredLive(nextEvent);
+  const soon = !live && isStartingSoon(nextEvent);
 
   // Optional external event page. Show the button whenever a non-empty
   // value exists. A value missing its protocol (e.g. "facebook.com/...")
@@ -373,8 +380,14 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
 
         <div style={s.metaRow}>
           <Calendar size={14} style={{ color: 'var(--color-neutral-500)' }} />
-          <span>{dateLabel}</span>
+          <span>{recurrenceLabel ? `Next: ${dateLabel}` : dateLabel}</span>
         </div>
+        {recurrenceLabel && (
+          <div style={s.metaRow}>
+            <Repeat size={14} style={{ color: 'var(--color-primary-700, #1d4ed8)' }} />
+            <span style={{ fontWeight: 700, color: 'var(--color-primary-700, #1d4ed8)' }}>{recurrenceLabel}</span>
+          </div>
+        )}
         {hasLocation && (
           <div style={s.metaRow}>
             <MapPin size={14} style={{ color: 'var(--color-neutral-500)' }} />

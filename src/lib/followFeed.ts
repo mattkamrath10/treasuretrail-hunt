@@ -15,6 +15,7 @@
  */
 import { supabase } from './supabase';
 import { isLiveNow, isExpiredLive, type EventRow } from './events';
+import { applyNextOccurrence } from './recurrence';
 import { rankDiscoverFeed } from './feedRanking';
 import type { CommunityPost, MarketplaceListing } from './supabase';
 import type { WantedItemRow } from './wanted';
@@ -231,7 +232,10 @@ export async function fetchFollowingFeed(userId: string): Promise<FollowingFeed>
   ]);
 
   const items: FollowFeedItem[] = [
-    ...events.map(mapEvent),
+    // Recurring events are single anchor rows — surface the next occurrence so
+    // followed recurring events show their upcoming date / live state. Raw
+    // `events` (returned below for go-live notifications) stay untouched.
+    ...events.map((e) => mapEvent(applyNextOccurrence(e))),
     ...listings.map(mapListing),
     ...wanted.map(mapWanted),
     ...finds.map(mapFind),
