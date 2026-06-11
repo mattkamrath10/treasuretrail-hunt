@@ -30,6 +30,7 @@ const Pro = lazy(() => import('../pages/Pro'));
 const Safety = lazy(() => import('../pages/Safety'));
 const Community = lazy(() => import('../pages/Community'));
 const Events = lazy(() => import('../pages/Events'));
+const EventsMap = lazy(() => import('../pages/EventsMap'));
 const LiveHub = lazy(() => import('../pages/LiveHub'));
 const SellerDashboard = lazy(() => import('../pages/SellerDashboard'));
 const SellerEventForm = lazy(() => import('../pages/SellerEventForm'));
@@ -334,6 +335,7 @@ export default function AppShell() {
             <Route path="/admin/moderation" element={<AdminModerationPage />} />
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/events" element={<EventsPage />} />
+            <Route path="/map" element={<EventsMap />} />
             <Route path="/following" element={<FollowingPage />} />
             <Route path="/seller" element={<SellerDashboardPage />} />
             {/* Pro-only Reach Analytics is temporarily removed for App Store

@@ -1,0 +1,240 @@
+# Feature Request: Recurring Events System
+
+Add support for recurring events so organizers do not need to recreate the same event every week or every month.
+
+Examples:
+
+* NW Surplus Auction (every Wednesday)
+* Weekly swap meets
+* Weekly flea markets
+* Farmers markets
+* Monthly estate auctions
+* Monthly community sales
+
+## Event Creation Form
+
+Add a new section:
+
+### Event Schedule Type
+
+Options:
+
+* One-Time Event (default)
+* Recurring Event
+
+---
+
+## Recurring Event Settings
+
+When "Recurring Event" is selected, display:
+
+### Recurrence Frequency
+
+Options:
+
+* Daily
+* Weekly
+* Monthly
+
+---
+
+### Weekly Recurrence
+
+Allow selecting one or more days:
+
+Example:
+
+☑ Monday
+
+☑ Wednesday
+
+☑ Friday
+
+or
+
+☑ Saturday
+
+☑ Sunday
+
+---
+
+### Monthly Recurrence
+
+Options:
+
+* Specific day of month (e.g. 15th)
+* First Saturday
+* First Sunday
+* Second Saturday
+* Second Sunday
+* Last Saturday
+* Last Sunday
+
+---
+
+## Event Time
+
+Store:
+
+* Start Time
+* End Time
+
+Examples:
+
+Start: 9:00 AM
+
+End: 12:00 AM
+
+or
+
+Start: 7:00 AM
+
+End: 3:00 PM
+
+---
+
+## Recurrence End Options
+
+### Never Ends
+
+OR
+
+### End On Date
+
+Example:
+
+December 31, 2027
+
+---
+
+## Event Listing Behavior
+
+Recurring events should automatically generate upcoming occurrences.
+
+The organizer should create the event only once.
+
+The system should calculate future occurrences automatically.
+
+Do not require organizers to manually recreate the event every week.
+
+---
+
+## Event Details Page
+
+Display recurrence information prominently.
+
+Examples:
+
+"Repeats Weekly Every Wednesday"
+
+"Repeats Weekly Every Saturday and Sunday"
+
+"Repeats Monthly on the First Saturday"
+
+"Repeats Monthly on the 15th"
+
+---
+
+## Search Integration
+
+Recurring events must appear in:
+
+* Search results
+* Event lists
+* Featured events
+* Nearby events
+* Category browsing
+* Saved searches
+
+The next upcoming occurrence should be used when determining whether an event is upcoming.
+
+---
+
+## Map Integration
+
+Recurring events must also appear on the new Event Map.
+
+Map pins should be displayed for upcoming occurrences.
+
+When a recurring event is tapped, show:
+
+* Event title
+* Category
+* Next occurrence date
+* Start time
+* End time
+* Directions button
+* View Details button
+
+---
+
+## Radius Search Integration
+
+Recurring events must work with:
+
+* 10 mile radius
+* 25 mile radius
+* 50 mile radius
+* 75 mile radius
+* 100 mile radius
+* 150 mile radius
+* 250 mile radius
+
+Use the existing location and haversine distance systems.
+
+---
+
+## Seller Convenience Features
+
+Add a "Duplicate Event" button.
+
+This allows organizers to quickly copy:
+
+* Title
+* Description
+* Photos
+* Address
+* Category
+* Times
+
+and create a new event without re-entering all information.
+
+---
+
+## Technical Requirements
+
+Reuse existing event infrastructure where possible.
+
+Avoid creating duplicate event records for every future occurrence.
+
+Store recurrence rules and calculate occurrences dynamically.
+
+Optimize for performance so recurring events work efficiently in:
+
+* Event lists
+* Search
+* Radius filtering
+* Interactive map
+* Featured events
+
+---
+
+## Success Criteria
+
+An organizer can create:
+
+"NW Surplus Auction"
+
+Location: Fresno, CA
+
+Occurs:
+
+Every Wednesday
+
+9:00 AM – 12:00 AM
+
+Never Ends
+
+The event automatically appears every Wednesday throughout the app without requiring the organizer to create a new listing each week.
+
+The recurring event functions correctly in event lists, search results, nearby events, category browsing, and the interactive map.

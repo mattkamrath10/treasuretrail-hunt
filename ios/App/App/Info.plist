@@ -32,6 +32,8 @@
         <string>TreasureTrail saves photos to your library when you choose to download images from the app.</string>
         <key>NSMicrophoneUsageDescription</key>
         <string>TreasureTrail may use your microphone when you record video to share with the community.</string>
+        <key>NSLocationWhenInUseUsageDescription</key>
+        <string>TreasureTrail uses your location to center the event map near you and show nearby in-person events.</string>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>UILaunchStoryboardName</key>

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Radio, Search, Plus, User } from 'lucide-react';
+import { Compass, Radio, Search, Plus, User, Map } from 'lucide-react';
 
 interface NavItem {
   path: string;
@@ -12,6 +12,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/',        label: 'Discover', icon: Compass, match: (p) => p === '/' || p === '/flash-finds' || p === '/events' },
   { path: '/live',    label: 'Live',     icon: Radio },
+  { path: '/map',     label: 'Map',      icon: Map,   match: (p) => p === '/map' },
   { path: '/sell',    label: 'Sell',     icon: Plus, primary: true, match: (p) => p.startsWith('/sell') || p.startsWith('/seller') },
   { path: '/wanted',  label: 'Wanted',   icon: Search, match: (p) => p === '/wanted' || p.startsWith('/wanted/') },
   { path: '/profile', label: 'Profile',  icon: User,  match: (p) => p === '/profile' || p.startsWith('/profile/') },
@@ -99,9 +100,10 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
-    padding: 'var(--space-2) var(--space-3)',
+    padding: 'var(--space-2) var(--space-1)',
     position: 'relative',
-    minWidth: 56,
+    minWidth: 0,
+    flex: 1,
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
