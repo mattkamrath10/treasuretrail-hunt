@@ -35,9 +35,27 @@ message* — high-traffic chats can get noisy. If spam becomes a problem, add a
 per-conversation debounce/coalesce; do NOT silently drop the notification (the
 Alerts entry depends on it).
 
-## Native delivery is still gated
-`src/lib/push.ts` is a no-op until `@capacitor-firebase/messaging` is reinstalled
-and GoogleService-Info.plist / google-services.json + APNs key are configured.
-Server fan-out runs regardless, but tokens won't register until the native setup
-is done (see firebase-messaging-launch-crash.md — the plugin self-configures at
-launch and hard-crashes iOS without the plist).
+## Native enablement recipe (done once @capacitor-firebase/messaging is back)
+`src/lib/push.ts` dynamically imports the plugin, so reinstalling the package +
+`npx cap sync` re-activates it with NO code change. Pin the plugin to the
+Capacitor major (Capacitor 8.3.x → `@capacitor-firebase/messaging@8.3.0`).
+Non-obvious native steps `cap sync` does NOT do for you:
+- **iOS plist must be added to the Xcode project manually.** `cap sync` copies
+  files but never edits `project.pbxproj`. GoogleService-Info.plist needs a
+  PBXFileReference + PBXBuildFile + entry in the App group + entry in the
+  PBXResourcesBuildPhase, or it isn't bundled and FirebaseApp.configure() crashes
+  at launch (see firebase-messaging-launch-crash.md).
+- **iOS APNs entitlement.** Create `ios/App/App/App.entitlements` with
+  `aps-environment` and set `CODE_SIGN_ENTITLEMENTS = App/App.entitlements;` in
+  BOTH Debug and Release build configs. Value = `production` for the Codemagic
+  TestFlight/App-Store pipeline; switch to `development` only for local on-device
+  debug builds.
+- **Apple Developer portal (user-only):** the App ID `com.treasuretrail.hunt`
+  must have the Push Notifications capability enabled, else the fetched/created
+  provisioning profile lacks the push entitlement.
+- **Android needs nothing extra:** android/build.gradle already has the
+  `com.google.gms:google-services` classpath and android/app/build.gradle
+  conditionally applies the plugin when google-services.json is present.
+Server fan-out runs regardless, but tokens won't register until the above + the
+config files (iOS plist / Android json) and the FCM service-account credential
+are all in place.

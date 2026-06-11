@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "334832233831",
+    "project_id": "treasuretrail-eda01",
+    "storage_bucket": "treasuretrail-eda01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:334832233831:android:18403c16e21237718b13c2",
+        "android_client_info": {
+          "package_name": "com.treasuretrailhunt"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1j2arf9zblR89KIKxU1762qylIiU63jQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
