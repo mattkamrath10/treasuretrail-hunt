@@ -1,0 +1,89 @@
+TreasureTrail Feature Request: Event Import From URL
+
+I want to make event creation dramatically faster by allowing users to paste an event URL and have TreasureTrail automatically populate as many fields as possible.
+
+Current Problem:
+Users must manually enter multiple fields such as:
+
+Event title
+Description
+Platform
+Date
+Time
+Seller name
+Event URL
+Category
+Images
+This creates unnecessary friction and reduces the likelihood that sellers and auction companies will post events.
+
+Requested Solution:
+
+At the top of SellerEventForm.tsx, add a new primary section:
+
+⚡ Import Event From URL
+
+Supported platforms should include:
+
+HiBid
+Whatnot
+eBay Live
+Facebook Events
+Facebook Marketplace Events
+Poshmark Live
+AuctionZip
+EstateSales.net
+Additional auction/event platforms in the future
+User Flow:
+
+User clicks “Host Event”
+User pastes an event URL
+User clicks “Import Event”
+TreasureTrail analyzes the URL
+TreasureTrail automatically fills as many fields as possible
+User reviews the information
+User clicks Publish
+Example URL:
+
+https://auctionusa.hibid.com/catalog/750159/6-14-2026-auction-usa-120th-auction
+
+Using the above HiBid auction as an example, TreasureTrail should attempt to extract:
+
+Event title
+Auction company name
+Platform name
+Event URL
+Cover image
+Event description
+Event date
+Event time
+Event location
+Auction type
+Seller/Auctioneer name
+Lot count (if available)
+Categories (if available)
+The extracted information should automatically populate the existing SellerEventForm fields.
+
+UI Layout Request:
+
+⚡ Import Event From URL
+
+Paste a HiBid, Whatnot, eBay Live,
+Facebook Event, Poshmark Live,
+AuctionZip, or EstateSales.net URL
+
+[ Paste URL Here ]
+
+[ Import Event ]
+OR
+
+Create Event Manually
+
+Design Goal:
+
+Make URL Import the primary workflow and manual event creation the secondary workflow.
+
+Most sellers already have an event page elsewhere. TreasureTrail should leverage existing event data instead of requiring users to manually re-enter information.
+
+Success Metric:
+
+A user should be able to create and publish an event in under 15 seconds by pasting a URL and confirming the imported data.

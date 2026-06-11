@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
+import { apiUrl } from './apiBase';
 
 export type EventCategory =
   | 'estate_sale'
@@ -370,6 +371,58 @@ export async function createEvent(holderId: string, input: EventUpsert) {
   }
   if (error) throw new Error(error.message);
   return data as EventRow;
+}
+
+/**
+ * Normalized event data extracted from a pasted URL by the server's
+ * `/api/events/import` endpoint. Mirrors the fields the SellerEventForm
+ * pre-fills; everything is best-effort and may be null.
+ */
+export interface ImportedEvent {
+  title: string | null;
+  description: string | null;
+  category: EventCategory | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  city: string | null;
+  region: string | null;
+  address: string | null;
+  seller_name: string | null;
+  lot_count: number | null;
+  cover_image_url: string | null;
+  event_kind: EventKind;
+  platform: EventPlatform | null;
+  livestream_url: string | null;
+  event_url: string;
+  site_name: string | null;
+}
+
+/**
+ * Ask the server to fetch + extract event details from an external URL
+ * (HiBid, Whatnot, eBay Live, Facebook Event, Poshmark Live, AuctionZip,
+ * EstateSales.net, …). Uses `apiUrl()` so it works inside the Capacitor
+ * webview, and forwards the user's bearer token. Throws a user-friendly
+ * Error on failure so the caller can fall back to manual entry.
+ */
+export async function importEventFromUrl(url: string): Promise<ImportedEvent> {
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess.session?.access_token;
+  if (!token) throw new Error('Please sign in to import events.');
+  let resp: Response;
+  try {
+    resp = await fetch(apiUrl('/api/events/import'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ url }),
+    });
+  } catch {
+    throw new Error('Network error — check your connection and try again.');
+  }
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok || !json?.ok || !json?.data) {
+    throw new Error(json?.error || 'Could not import this event. Try a different link or enter details manually.');
+  }
+  return json.data as ImportedEvent;
 }
 
 export async function updateEvent(id: string, patch: Partial<EventUpsert>) {

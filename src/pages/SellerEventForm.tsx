@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, MapPin, ImagePlus, Loader2, Plus, Trash2, Save,
-  Eye, X, Store, Radio, Video,
+  Eye, X, Store, Radio, Video, Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchMyEvent, createEvent, updateEvent, countActiveLocalEvents,
   fetchEventFeaturedItems, addEventFeaturedItem, deleteEventFeaturedItem,
+  importEventFromUrl,
   PLATFORM_META, SHOW_CATEGORY_LABELS,
   type EventCategory, type EventStatus, type EventUpsert, type EventFeaturedItem,
   type EventKind, type EventPlatform, type ShowCategory,
@@ -89,6 +90,11 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   const [sellerHandle, setSellerHandle] = useState('');
   const [showCategory, setShowCategory] = useState<ShowCategory | ''>('');
 
+  // Import-from-URL (create flow only).
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
   // featured items (edit only)
   const [items, setItems] = useState<EventFeaturedItem[] | null>(null);
 
@@ -151,6 +157,61 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       setErr(`Cover upload failed: ${e?.message ?? 'unknown error'}`);
     } finally {
       setUploadingCover(false);
+    }
+  };
+
+  const onImport = async () => {
+    setErr(null);
+    setImportMsg(null);
+    const u = importUrl.trim();
+    if (!u) { setImportMsg('Paste an event link first.'); return; }
+    if (!isValidHttpUrl(u)) { setImportMsg('Enter a valid link starting with http:// or https://'); return; }
+
+    setImporting(true);
+    try {
+      const d = await importEventFromUrl(u);
+      let filled = 0;
+
+      if (d.title) { setTitle(d.title.slice(0, 120)); filled++; }
+
+      // Fold seller/auctioneer name and lot count into the description since
+      // the form has no dedicated field for them on local events.
+      let desc = d.description ?? '';
+      if (d.seller_name && !desc.toLowerCase().includes(d.seller_name.toLowerCase())) {
+        desc = desc ? `${desc}\n\nHosted by ${d.seller_name}.` : `Hosted by ${d.seller_name}.`;
+      }
+      if (d.lot_count && d.lot_count > 0) {
+        desc = `${desc}${desc ? '\n' : ''}Approx. ${d.lot_count} lots.`;
+      }
+      if (desc.trim()) { setDescription(desc.trim().slice(0, 2000)); filled++; }
+
+      if (d.category) { setCategory(d.category); filled++; }
+      if (d.starts_at) { const v = toLocalInput(d.starts_at); if (v) { setStartsAt(v); filled++; } }
+      if (d.ends_at) { const v = toLocalInput(d.ends_at); if (v) setEndsAt(v); }
+
+      setEventKind(d.event_kind);
+      if (d.event_kind === 'online') {
+        if (d.platform) setPlatform(d.platform);
+        if (d.livestream_url) { setLivestreamUrl(d.livestream_url); filled++; }
+      } else {
+        if (d.address) { setAddress(d.address); filled++; }
+        if (d.city) { setCity(d.city); filled++; }
+        if (d.region) { setRegion(d.region); filled++; }
+      }
+
+      if (d.event_url) { setEventUrl(d.event_url); filled++; }
+      if (d.cover_image_url) { setCoverUrl(d.cover_image_url); setCoverThumb(null); filled++; }
+
+      if (filled === 0) {
+        setImportMsg("We couldn't pull details from that link — it may block automated reads. Enter the event manually below.");
+      } else {
+        setImportMsg(`Imported ${filled} field${filled === 1 ? '' : 's'} — review everything below, then publish.`);
+        flashToast('Event details imported — review & publish', 'success');
+      }
+    } catch (e: any) {
+      setImportMsg(e?.message ?? 'Import failed. Enter the event manually below.');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -437,6 +498,42 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
         <div style={s.loadingWrap}><Loader2 size={22} className="spin" /></div>
       ) : (
         <>
+          {/* Import from URL — primary fast path (create flow only) */}
+          {!isEdit && (
+            <section style={s.importCard}>
+              <h3 style={s.importTitle}>
+                <Zap size={16} style={{ verticalAlign: -3, color: 'var(--color-primary-600, #d97706)' }} /> Import Event From URL
+              </h3>
+              <p style={s.importHint}>
+                Paste a HiBid, Whatnot, eBay Live, Facebook Event, Poshmark Live, AuctionZip, or
+                EstateSales.net link and we'll fill in the details for you.
+              </p>
+              <input
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onImport(); } }}
+                placeholder="Paste event URL here"
+                style={s.input}
+                inputMode="url"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={importing}
+              />
+              <button
+                type="button"
+                onClick={onImport}
+                disabled={importing}
+                style={{ ...s.importBtn, opacity: importing ? 0.7 : 1 }}
+              >
+                {importing ? <Loader2 size={15} className="spin" /> : <Zap size={15} />}
+                {importing ? 'Importing…' : 'Import Event'}
+              </button>
+              {importMsg && <p style={s.importMsg}>{importMsg}</p>}
+              <div style={s.importDivider}><span style={s.importDividerText}>or create event manually</span></div>
+            </section>
+          )}
+
           {/* Cover */}
           <section style={s.section}>
             <h3 style={s.sectionTitle}>Cover photo</h3>
@@ -949,6 +1046,46 @@ const s: Record<string, React.CSSProperties> = {
     border: '1px solid var(--color-neutral-100)',
     borderRadius: 'var(--radius-md)',
   },
+
+  // Import-from-URL card — visually primary above the manual form.
+  importCard: {
+    margin: 'var(--space-3) var(--space-4) 0',
+    padding: 'var(--space-4)',
+    background: 'linear-gradient(135deg, var(--color-primary-50, #fff7ed), var(--color-neutral-0))',
+    border: '1px solid var(--color-primary-200, #fed7aa)',
+    borderRadius: 'var(--radius-md)',
+  },
+  importTitle: {
+    margin: '0 0 6px',
+    fontSize: 'var(--font-size-base)', fontWeight: 800,
+    color: 'var(--color-neutral-900)',
+  },
+  importHint: {
+    margin: '0 0 var(--space-3)',
+    fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-600)',
+    lineHeight: 1.45,
+  },
+  importBtn: {
+    marginTop: 8, width: '100%', minHeight: 44,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderRadius: 'var(--radius-md)', border: 'none', cursor: 'pointer',
+    background: 'var(--color-primary-600, #d97706)', color: '#fff',
+    fontSize: 'var(--font-size-sm)', fontWeight: 700,
+  },
+  importMsg: {
+    margin: '10px 0 0',
+    fontSize: 'var(--font-size-xs)', color: 'var(--color-primary-700, #b45309)',
+    lineHeight: 1.45,
+  },
+  importDivider: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    marginTop: 'var(--space-3)',
+  },
+  importDividerText: {
+    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em',
+    color: 'var(--color-neutral-400)', fontWeight: 700,
+  },
+
   sectionTitle: {
     margin: '0 0 var(--space-3)',
     fontSize: 'var(--font-size-base)', fontWeight: 700,

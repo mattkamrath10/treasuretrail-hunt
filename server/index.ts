@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import {
   grantPro,
   revokePro,
@@ -819,6 +820,236 @@ app.post('/api/wanted/questions', async (req, res) => {
   } catch (err: any) {
     console.error('[wanted/questions]', err?.message || err);
     return res.json({ fallback: true });
+  }
+});
+
+// =====================================================================
+// Event import from URL — paste an event/auction link, extract fields
+// ---------------------------------------------------------------------
+// Fetches the page server-side, pulls OpenGraph/JSON-LD metadata, and
+// uses the LLM to normalize it into the SellerEventForm field shape so a
+// user can paste a HiBid/Whatnot/eBay/Facebook/EstateSales link and get
+// the form pre-filled instead of typing everything by hand.
+
+const EVENT_CATEGORIES = ['estate_sale', 'yard_sale', 'flea_market', 'auction', 'pop_up', 'collectibles_show', 'other'];
+function normalizeEventCategory(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return EVENT_CATEGORIES.includes(s) ? s : null;
+}
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
+function pickStr(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  return s && s.toLowerCase() !== 'null' ? s.slice(0, 2000) : null;
+}
+function pickHttpUrl(v: unknown): string | null {
+  const s = pickStr(v);
+  return s && /^https?:\/\//i.test(s) ? s : null;
+}
+
+// Block obviously-internal hosts/IPs to limit SSRF. `value` may be a
+// hostname ("localhost") or an IP literal (also used to re-check the
+// DNS-resolved address). DNS rebinding isn't fully closed, but the
+// common private ranges and loopback are rejected.
+function isBlockedHost(value: string): boolean {
+  const h = value.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost') || h === '0.0.0.0' || h === '') return true;
+  if (h === '::1' || h.startsWith('fe80') || h.startsWith('fc') || h.startsWith('fd')) return true;
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = Number(m[1]); const b = Number(m[2]);
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+  }
+  return false;
+}
+
+function metaContent(html: string, key: string, attr: 'property' | 'name'): string | null {
+  const re1 = new RegExp(`<meta[^>]+${attr}=["']${key}["'][^>]+content=["']([^"']*)["']`, 'i');
+  const re2 = new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+${attr}=["']${key}["']`, 'i');
+  const mm = html.match(re1) || html.match(re2);
+  return mm ? decodeEntities(mm[1].trim()) : null;
+}
+
+async function fetchPageHtml(url: string, timeoutMs: number): Promise<string> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      redirect: 'follow',
+      signal: ctrl.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; TreasureTrailBot/1.0; +https://treasuretrail-hunt.com)',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    if (!resp.ok) throw new Error(`status ${resp.status}`);
+    const ct = resp.headers.get('content-type') || '';
+    if (ct && !/html|xml|text/i.test(ct)) throw new Error('not html');
+    const buf = Buffer.from(await resp.arrayBuffer()).subarray(0, 700_000);
+    return buf.toString('utf8');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const EVENT_IMPORT_PROMPT = `You extract structured event data from a web page's metadata and text for a second-hand marketplace (estate sales, auctions, yard sales, live selling shows). Return a SINGLE JSON object, no prose or markdown fences.
+Schema:
+{
+ "title": string|null,
+ "description": string|null,
+ "category": one of ["estate_sale","yard_sale","flea_market","auction","pop_up","collectibles_show","other"]|null,
+ "starts_at": ISO8601 datetime string|null,
+ "ends_at": ISO8601 datetime string|null,
+ "city": string|null,
+ "region": string|null,
+ "address": string|null,
+ "seller_name": string|null,
+ "lot_count": number|null,
+ "cover_image_url": string|null
+}
+Rules:
+- Use ONLY information present in the provided evidence. Never invent details. Use null when unknown.
+- title: the event/auction name, concise (no site name suffix).
+- description: 1-3 plain sentences summarizing what is being sold. No URLs, no marketing fluff.
+- category: best fit; online/in-person auctions => "auction"; estate sales => "estate_sale"; if unsure use "other".
+- starts_at / ends_at: parse any date/time you find into ISO 8601. Include a timezone offset only if the page states one; otherwise return local wall-clock time with no offset. Null if no date is present.
+- region: US state abbreviation (e.g. "TX") when possible, else the state/region name.
+- seller_name: the auction company / seller / host name.
+- lot_count: number of lots/items if stated, else null.
+- cover_image_url: an absolute http(s) image URL found in the evidence (prefer og:image), else null.`;
+
+app.post('/api/events/import', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ ok: false, error: 'Please sign in to import events.' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ ok: false, error: 'Please sign in to import events.' });
+
+    const { url } = req.body as { url?: string };
+    const raw = (typeof url === 'string' ? url : '').trim();
+    let parsed: URL;
+    try { parsed = new URL(raw); } catch { return res.status(400).json({ ok: false, error: 'Enter a valid http:// or https:// link.' }); }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return res.status(400).json({ ok: false, error: 'Only http and https links are supported.' });
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (isBlockedHost(host)) return res.status(400).json({ ok: false, error: 'That link is not allowed.' });
+    try {
+      const { address } = await dnsLookup(host);
+      if (isBlockedHost(address)) return res.status(400).json({ ok: false, error: 'That link is not allowed.' });
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Could not resolve that link. Check the URL and try again.' });
+    }
+
+    const cacheKey = `evt:${raw.slice(0, 300)}`;
+    const cached = aiCacheGet(cacheKey);
+    if (cached) return res.json({ ...(cached as object), cached: true });
+
+    // Deterministic platform mapping — must match PLATFORM_META URL patterns
+    // on the client so an imported online show passes form validation.
+    let event_kind: 'local' | 'online' = 'local';
+    let platform: string | null = null;
+    let livestream_url: string | null = null;
+    if (host.includes('whatnot.com')) { event_kind = 'online'; platform = 'whatnot'; livestream_url = raw; }
+    else if (host.includes('poshmark.com') || host.includes('posh.mk')) { event_kind = 'online'; platform = 'poshmark_live'; livestream_url = raw; }
+    else if (host.includes('ebay.') && /live/i.test(parsed.pathname + parsed.search)) { event_kind = 'online'; platform = 'ebay_live'; livestream_url = raw; }
+
+    let html = '';
+    try { html = await fetchPageHtml(raw, 9000); }
+    catch (e: any) { console.warn('[events/import] fetch failed', host, e?.message); }
+
+    // Deterministic meta fallback (works even if the LLM call fails).
+    const ogTitle = html ? (metaContent(html, 'og:title', 'property') || metaContent(html, 'twitter:title', 'name')) : null;
+    const ogDesc = html ? (metaContent(html, 'og:description', 'property') || metaContent(html, 'description', 'name') || metaContent(html, 'twitter:description', 'name')) : null;
+    const ogImage = html ? (metaContent(html, 'og:image', 'property') || metaContent(html, 'twitter:image', 'name')) : null;
+    const siteName = html ? metaContent(html, 'og:site_name', 'property') : null;
+    const titleTag = html ? (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? null) : null;
+
+    let data: any = {
+      title: ogTitle || (titleTag ? decodeEntities(titleTag) : null),
+      description: ogDesc,
+      category: null,
+      starts_at: null,
+      ends_at: null,
+      city: null,
+      region: null,
+      address: null,
+      seller_name: null,
+      lot_count: null,
+      cover_image_url: ogImage && /^https?:\/\//i.test(ogImage) ? ogImage : null,
+    };
+    let source: 'ai' | 'meta' = 'meta';
+
+    if (html) {
+      const ldBlocks: string[] = [];
+      const ldRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+      let mm: RegExpExecArray | null;
+      while ((mm = ldRe.exec(html)) && ldBlocks.length < 4) ldBlocks.push(mm[1].trim().slice(0, 3000));
+      const visibleText = html
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 3500);
+      const evidence = [
+        `URL: ${raw}`,
+        `Host: ${host}`,
+        siteName ? `Site: ${siteName}` : '',
+        ogTitle ? `og:title: ${ogTitle}` : (titleTag ? `title: ${decodeEntities(titleTag)}` : ''),
+        ogDesc ? `og:description: ${ogDesc}` : '',
+        ogImage ? `og:image: ${ogImage}` : '',
+        ldBlocks.length ? `JSON-LD:\n${ldBlocks.join('\n')}` : '',
+        `Page text:\n${visibleText}`,
+      ].filter(Boolean).join('\n');
+
+      try {
+        const out = await callOpenAIJSON(EVENT_IMPORT_PROMPT, evidence, 700, 12000);
+        if (out && typeof out === 'object') {
+          data = {
+            title: pickStr(out.title) || data.title,
+            description: pickStr(out.description) || data.description,
+            category: normalizeEventCategory(out.category),
+            starts_at: pickStr(out.starts_at),
+            ends_at: pickStr(out.ends_at),
+            city: pickStr(out.city),
+            region: pickStr(out.region),
+            address: pickStr(out.address),
+            seller_name: pickStr(out.seller_name),
+            lot_count: Number.isFinite(Number(out.lot_count)) && Number(out.lot_count) > 0 ? Math.floor(Number(out.lot_count)) : null,
+            cover_image_url: pickHttpUrl(out.cover_image_url) || data.cover_image_url,
+          };
+          source = 'ai';
+        }
+      } catch (e: any) {
+        console.warn('[events/import] openai failed', e?.message);
+      }
+    }
+
+    const result = {
+      ok: true,
+      source,
+      data: { ...data, event_kind, platform, livestream_url, event_url: raw, site_name: siteName },
+    };
+    if (data.title) aiCacheSet(cacheKey, result); // only cache useful extractions
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[events/import]', err?.message || err);
+    return res.status(200).json({ ok: false, error: 'Could not import this event. Try a different link or enter details manually.' });
   }
 });
 

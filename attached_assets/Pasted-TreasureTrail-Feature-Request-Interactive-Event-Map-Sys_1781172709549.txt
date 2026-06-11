@@ -1,0 +1,204 @@
+TreasureTrail Feature Request: Interactive Event Map System
+
+Overview
+
+I want every event in TreasureTrail that has a physical address to automatically appear on an interactive map.
+
+This includes:
+
+Yard Sales
+Garage Sales
+Estate Sales
+Auctions
+Auction Houses
+HiBid Auctions
+Whatnot Meetups
+Swap Meets
+Flea Markets
+Farmers Markets
+Vendor Fairs
+Craft Fairs
+Community Events
+Storage Auctions
+Any future event types with a physical location
+The goal is for users to visually discover events near them without having to browse through lists.
+
+New Bottom Navigation Item
+
+Add a dedicated Map tab:
+
+🏠 Home
+🔍 Discover
+📍 Map
+📅 Events
+👤 Profile
+
+The Map page should become a primary discovery feature of TreasureTrail.
+
+Map View Requirements
+
+When users open the Map page:
+
+Automatically show all events within their selected radius.
+Display event locations as map pins.
+Cluster pins when zoomed out.
+Separate event types using different pin colors/icons.
+Example:
+
+🟢 Yard Sale
+🔵 Estate Sale
+🟠 Auction
+🟣 Swap Meet
+🟡 Flea Market
+🔴 Live Event Meetup
+
+Radius Filter
+
+Add a radius selector at the top of the map:
+
+10 Miles
+25 Miles
+50 Miles
+75 Miles
+100 Miles
+250 Miles
+Nationwide
+
+Default radius:
+
+75 Miles
+
+Reason:
+
+75 miles provides the best balance between local relevance and event discovery.
+
+Event Cards
+
+When a pin is tapped:
+
+Show a popup card containing:
+
+Event Title
+Event Image
+Event Date
+Event Time
+Event Type
+Distance From User
+Event Location
+Buttons:
+
+[ View Details ]
+[ Directions ]
+
+Directions Button
+
+Every event with a physical address should include a Directions button.
+
+When tapped:
+
+iPhone:
+
+Open Apple Maps
+Android:
+
+Open Google Maps
+Web:
+
+Open default map application
+Example:
+
+maps://?daddr=LATITUDE,LONGITUDE
+
+or
+
+https://www.google.com/maps/dir/?api=1&destination=LAT,LNG
+
+Required Database Changes
+
+Every event should store:
+
+{
+address: string,
+latitude: number,
+longitude: number
+}
+
+When an event is created:
+
+User enters address
+Address is automatically geocoded
+Latitude and longitude are stored
+Event automatically appears on the map
+Map Data Source
+
+The map should automatically include:
+
+User-created events
+Yard sales
+Estate sales
+Auction events
+HiBid imports
+AuctionZip imports
+Whatnot meetup events
+Future event sources
+Any event with coordinates should automatically generate a map pin.
+
+Future Feature: Treasure Trail Route Planner
+
+Add a future feature called:
+
+🔥 Treasure Trail Route
+
+Users can select:
+
+Yard Sales
+Auctions
+Estate Sales
+Swap Meets
+within a chosen radius.
+
+TreasureTrail generates an optimized route:
+
+Stop 1
+Stop 2
+Stop 3
+Stop 4
+Stop 5
+
+with estimated driving times.
+
+This would be especially useful for:
+
+Resellers
+Flippers
+Collectors
+Treasure hunters
+Auction buyers
+Recommended Technical Approach
+
+Frontend:
+
+React Leaflet or Google Maps
+Mobile-friendly map controls
+Pin clustering
+Radius filtering
+Backend:
+
+Store latitude and longitude for every event
+Automatically geocode addresses during event creation
+Query events by distance from user location
+Example:
+
+Find all events within 75 miles of user.
+
+Success Criteria
+
+Users should be able to:
+
+Open Map tab.
+See all nearby events as pins.
+Filter by radius.
+Tap any pin.
+View event details.
+Launch navigation directly from TreasureTrail.
+The Map page should become one of the primary ways users discover auctions, yard sales, estate sales, swap meets, and other treasure-hunting opportunities.
