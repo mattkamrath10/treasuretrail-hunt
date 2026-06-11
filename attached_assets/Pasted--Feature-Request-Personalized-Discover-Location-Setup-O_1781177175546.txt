@@ -1,0 +1,186 @@
+# Feature Request: Personalized Discover Location Setup
+
+## Objective
+
+Improve the first-time user experience by showing nearby events instead of displaying events from unrelated parts of the country.
+
+As TreasureTrail grows nationwide, users should immediately see auctions, estate sales, flea markets, swap meets, garage sales, and other events near their location.
+
+---
+
+## First Launch Experience
+
+When a user opens TreasureTrail for the first time, display a card near the top of the Discover page.
+
+### Find Events Near You
+
+Discover local auctions, estate sales, flea markets, swap meets, garage sales, and more.
+
+Buttons:
+
+[ Use My Location ]
+
+[ Enter ZIP Code ]
+
+---
+
+## Location Permission Flow
+
+If the user selects:
+
+### Use My Location
+
+Request location permission.
+
+If approved:
+
+* Store the user's coordinates.
+* Use those coordinates for Discover.
+* Use those coordinates for Nearby Events.
+* Use those coordinates for Event Map defaults.
+
+If denied:
+
+Prompt the user to enter a ZIP code instead.
+
+---
+
+## ZIP Code Flow
+
+If the user selects:
+
+### Enter ZIP Code
+
+Allow entry of:
+
+* ZIP Code
+
+Examples:
+
+* 93257
+* 90210
+* 10001
+
+Use the existing geocoding infrastructure to convert the ZIP code into coordinates.
+
+Store the ZIP code and coordinates for future sessions.
+
+---
+
+## Discover Page Personalization
+
+Once a location is established:
+
+Show a section at the top called:
+
+### Events Near You
+
+Display events sorted by distance from the user's location.
+
+Default radius:
+
+75 miles
+
+Use the existing haversine distance calculations already implemented in the app.
+
+Display:
+
+* Distance
+* Event title
+* Date
+* Category
+* City
+* Thumbnail
+
+---
+
+## Secondary Section
+
+Below "Events Near You" show:
+
+### Popular Nationwide Events
+
+This allows users to discover major auctions, estate sales, swap meets, and special events outside their local area.
+
+---
+
+## No Local Events Available
+
+If there are no events within the selected radius:
+
+Display:
+
+### No Events Found Nearby
+
+Try expanding your search radius or browse nationwide events.
+
+Buttons:
+
+[ Expand Radius ]
+
+[ Browse Nationwide Events ]
+
+---
+
+## Returning Users
+
+Do not ask repeatedly.
+
+Remember the user's:
+
+* ZIP code
+* Location preference
+* Coordinates
+
+Automatically load local events on future visits.
+
+---
+
+## Settings Page
+
+Add an option in Settings:
+
+### My Location
+
+Allow users to:
+
+* Change ZIP code
+* Use current location
+* Clear saved location
+
+---
+
+## Event Map Integration
+
+Use the saved ZIP code or saved location as the default map center.
+
+When opening the Event Map:
+
+* Automatically center on the user's saved location.
+* Display nearby events first.
+
+---
+
+## Future Notification Support
+
+Design the location preference system so it can later be used for:
+
+* Nearby event alerts
+* Auction notifications
+* Estate sale notifications
+* Saved search areas
+* Regional recommendations
+
+---
+
+## Success Criteria
+
+A user in Florida should primarily see Florida-area events.
+
+A user in Texas should primarily see Texas-area events.
+
+A user in California should primarily see California-area events.
+
+The Discover page should prioritize local events first while still allowing exploration of nationwide events.
+
+Reuse existing geocoding, radius filtering, and distance calculation infrastructure wherever possible.
