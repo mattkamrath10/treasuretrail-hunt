@@ -1,0 +1,166 @@
+Build a new TreasureTrail feature called “Smart Screenshot Import.”
+
+GOAL:
+Allow users to upload a screenshot from any marketplace, auction site, estate sale site, yard sale listing, Facebook Marketplace listing, eBay listing, Walmart Marketplace listing, Craigslist listing, OfferUp listing, or similar source.
+
+When a screenshot is uploaded:
+
+Extract all visible text using OCR.
+Send extracted text and image context to AI.
+Generate a draft TreasureTrail listing automatically.
+Allow user to review and edit before publishing.
+CREATE NEW SCREEN:
+
+SmartScreenshotImportScreen
+
+Add button:
+
+“Import From Screenshot”
+
+WORKFLOW:
+
+User taps button
+→ Select image from gallery or camera
+→ Upload image
+→ OCR extracts text
+→ AI analyzes image
+→ AI returns structured data
+→ Auto-populate listing form
+
+FIELDS TO GENERATE:
+
+title
+description
+category
+subcategory
+brand
+condition
+price
+currentBid
+auctionEndDate
+lotNumber
+marketplaceSource
+sellerName
+location
+imageUrl
+listingType
+
+listingType values:
+
+Auction
+Marketplace
+Estate Sale
+Yard Sale
+Swap Meet
+Other
+OPENAI PROMPT:
+
+Analyze this marketplace or auction screenshot.
+
+Extract all available information.
+
+Return JSON only.
+
+{
+“title”:””,
+“description”:””,
+“category”:””,
+“subcategory”:””,
+“brand”:””,
+“condition”:””,
+“price”:””,
+“currentBid”:””,
+“auctionEndDate”:””,
+“lotNumber”:””,
+“marketplaceSource”:””,
+“sellerName”:””,
+“location”:””,
+“listingType”:””,
+“confidenceScore”:0
+}
+
+RULES:
+
+If value is unknown leave blank.
+Detect auction sites automatically.
+Detect marketplace sites automatically.
+Create concise listing description.
+Detect category automatically.
+Estimate item condition if visible.
+Return confidence score from 0 to 100.
+AFTER AI RESPONSE:
+
+Create TreasureTrail draft listing.
+
+Populate:
+
+Title
+Description
+Price
+Category
+Images
+Auction Information
+Marketplace Source
+
+DISPLAY ACTION BUTTONS:
+
+If listingType = Auction:
+
+Show:
+
+View Original Auction
+Watch Item
+Set Reminder
+If listingType = Marketplace:
+
+Show:
+
+View Original Listing
+Save Listing
+Contact Seller
+ADD FUTURE SUPPORT FOR:
+
+Batch screenshot imports
+URL import
+Copy/paste listing import
+AI value estimation
+AI resale profit estimation
+Duplicate listing detection
+Auction lot tracking
+Estate sale flyer scanning
+EXAMPLE:
+
+Input Screenshot:
+
+Lot #1304
+JINCHAN CURTAIN PANEL
+Current Bid $2.50
+Online Only Auction
+
+Expected Output:
+
+Title:
+Jinchan Curtain Panel
+
+Category:
+Home & Garden
+
+Condition:
+New
+
+Current Bid:
+$2.50
+
+Lot Number:
+1304
+
+Listing Type:
+Auction
+
+Marketplace Source:
+HiBid
+
+Description:
+New Jinchan curtain panel in original packaging. Online auction listing with active bidding.
+
+Create clean, production-ready FlutterFlow-compatible code and integrate into existing TreasureTrail listing creation workflow.
