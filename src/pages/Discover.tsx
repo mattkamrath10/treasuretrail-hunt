@@ -2,9 +2,11 @@ import { useEffect, useRef, useState, useCallback, type CSSProperties } from 're
 import { useNavigate } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import {
-  Search, ChevronRight, ChevronLeft, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar, Users,
+  Search, ChevronRight, ChevronLeft, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar, Users, Navigation,
 } from 'lucide-react';
 import { fetchPublishedEvents, fetchProHolderIds, PLATFORM_META, isLiveNow, isExpiredLive, type EventRow } from '../lib/events';
+import { haversineMiles } from '../lib/geocode';
+import { useSavedLocation, requestGpsLocation, saveZipLocation } from '../lib/userLocation';
 import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { fetchCommunityPosts } from '../lib/database';
 import { fetchOpenWantedItemsWithRequesters, WANTED_CATEGORY_LABEL, type WantedItemWithRequester } from '../lib/wanted';
@@ -26,6 +28,25 @@ import { useAuth } from '../context/AuthContext';
 
 const LOG = '[DISCOVER]';
 
+// Default radius (miles) for "Events Near You". Expands in steps when empty.
+const NEAR_RADIUS_DEFAULT = 75;
+
+const EVENT_CATEGORY_LABEL: Record<string, string> = {
+  estate_sale: 'Estate Sale',
+  yard_sale: 'Yard Sale',
+  flea_market: 'Flea Market',
+  auction: 'Auction',
+  pop_up: 'Pop-up',
+  collectibles_show: 'Collectibles Show',
+  other: 'Event',
+};
+
+function formatDistance(mi: number): string {
+  if (mi < 1) return '<1 mi';
+  if (mi < 10) return `${mi.toFixed(1)} mi`;
+  return `${Math.round(mi)} mi`;
+}
+
 export default function Discover() {
   const navigate = useNavigate();
   const goSearch = useGlobalSearch();
@@ -35,6 +56,15 @@ export default function Discover() {
   const [wanted, setWanted] = useState<WantedItemWithRequester[]>([]);
   const [proHolders, setProHolders] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
+  const savedLocation = useSavedLocation();
+  const [nearRadius, setNearRadius] = useState(NEAR_RADIUS_DEFAULT);
+
+  // Whenever the saved location changes (or is cleared), start back at the
+  // default radius so each new location begins from 75 miles rather than a
+  // previously-expanded radius.
+  useEffect(() => {
+    setNearRadius(NEAR_RADIUS_DEFAULT);
+  }, [savedLocation?.savedAt]);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +113,23 @@ export default function Discover() {
   const q = query.trim().toLowerCase();
   const matchQ = (s: string | null | undefined) => !q || (s ?? '').toLowerCase().includes(q);
 
+  // "Events Near You": local events with coordinates, within the chosen radius
+  // of the saved location, sorted nearest-first. Search box filters these too.
+  const nearbyEvents = savedLocation
+    ? localEvents
+        .filter((e) => e.lat != null && e.lng != null)
+        .filter((e) => matchQ(e.title) || matchQ(e.city) || matchQ(e.region))
+        .map((e) => ({
+          event: e,
+          dist: haversineMiles(
+            { lat: savedLocation.lat, lng: savedLocation.lng },
+            { lat: e.lat as number, lng: e.lng as number },
+          ),
+        }))
+        .filter((x) => x.dist <= nearRadius)
+        .sort((a, b) => a.dist - b.dist)
+    : [];
+
   return (
     <PageScroll style={s.page}>
       <header style={s.header}>
@@ -122,6 +169,19 @@ export default function Discover() {
         </div>
       )}
 
+      {!savedLocation ? (
+        <LocationSetupCard />
+      ) : (
+        <NearbySection
+          nearby={nearbyEvents}
+          radius={nearRadius}
+          onExpand={() => setNearRadius((r) => (r >= 250 ? r : r >= 150 ? 250 : 150))}
+          onBrowse={() => navigate('/events')}
+          onChange={() => navigate('/location-settings')}
+          onOpen={(id) => navigate(`/event/${id}`)}
+        />
+      )}
+
       <Section
         title="Live Now"
         subtitle="Whatnot · Poshmark Live · eBay Live"
@@ -135,8 +195,8 @@ export default function Discover() {
       </Section>
 
       <Section
-        title="Local Events"
-        subtitle="Yard sales · Estate sales · Flea markets · Auctions"
+        title={savedLocation ? 'Popular Nationwide Events' : 'Local Events'}
+        subtitle={savedLocation ? 'Major sales & auctions across the country' : 'Yard sales · Estate sales · Flea markets · Auctions'}
         accent="#f59e0b"
         onSeeAll={() => navigate('/events')}
       >
@@ -364,9 +424,10 @@ function LiveCard({ event, onClick }: { event: EventRow; onClick: () => void }) 
   );
 }
 
-function LocalEventCard({ event, onClick }: { event: EventRow; onClick: () => void }) {
+function LocalEventCard({ event, onClick, distanceMi }: { event: EventRow; onClick: () => void; distanceMi?: number }) {
   const where = [event.city, event.region].filter(Boolean).join(', ') || event.address || 'Local event';
   const boosted = isBoosted(event);
+  const category = EVENT_CATEGORY_LABEL[event.category] ?? 'Event';
   return (
     <article style={{ ...s.cardLg, ...(boosted ? BOOSTED_CARD_GLOW : null) }} onClick={onClick} role="button" tabIndex={0}>
       <div style={s.cardImgLg}>
@@ -380,6 +441,11 @@ function LocalEventCard({ event, onClick }: { event: EventRow; onClick: () => vo
         <div style={s.cardOverlay} />
         <div style={s.cardBadgeRow}>
           {boosted && <BoostedBadge />}
+          {distanceMi != null && (
+            <span style={{ ...s.badge, background: 'rgba(34, 211, 238, 0.95)', color: '#04222a' }}>
+              <Navigation size={10} /> {formatDistance(distanceMi)}
+            </span>
+          )}
           <span style={{ ...s.badge, background: 'rgba(245, 158, 11, 0.95)' }}>
             <Calendar size={10} /> {formatShort(event.starts_at)}
           </span>
@@ -390,6 +456,7 @@ function LocalEventCard({ event, onClick }: { event: EventRow; onClick: () => vo
         <p style={s.cardMeta}>
           <MapPin size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />{where}
         </p>
+        <p style={{ ...s.cardMeta, marginTop: 3, color: 'rgba(245,245,247,0.45)' }}>{category}</p>
       </div>
     </article>
   );
@@ -468,6 +535,139 @@ function WantedCard({ item, onClick }: { item: WantedItemWithRequester; onClick:
         </div>
       </div>
     </article>
+  );
+}
+
+/* ---------- Location personalization ---------- */
+
+function LocationSetupCard() {
+  const [mode, setMode] = useState<'idle' | 'zip'>('idle');
+  const [zip, setZip] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const onUseLocation = async () => {
+    setBusy(true);
+    setErr(null);
+    const r = await requestGpsLocation();
+    setBusy(false);
+    if (!r.ok) {
+      // No coordinates — fall back to manual ZIP entry so the user is never stuck.
+      setMode('zip');
+      setErr(
+        r.reason === 'unsupported'
+          ? "Location isn't available on this device. Enter your ZIP code instead."
+          : 'Location permission denied. Enter your ZIP code instead.',
+      );
+    }
+    // On success the saved-location store updates and Discover swaps this card
+    // out for the "Events Near You" section automatically.
+  };
+
+  const onSaveZip = async () => {
+    setBusy(true);
+    setErr(null);
+    const r = await saveZipLocation(zip);
+    setBusy(false);
+    if (!r.ok) {
+      setErr(
+        r.reason === 'invalid'
+          ? 'Enter a 5-digit ZIP code.'
+          : r.reason === 'not_found'
+            ? "We couldn't find that ZIP code."
+            : "Couldn't look up that ZIP. Try again.",
+      );
+    }
+  };
+
+  return (
+    <div style={s.locCard}>
+      <h2 style={s.locTitle}>
+        <Navigation size={16} style={{ color: '#22d3ee' }} /> Find Events Near You
+      </h2>
+      <p style={s.locBody}>
+        Share your location to see nearby estate sales, auctions, and flea markets first.
+      </p>
+
+      {mode === 'idle' ? (
+        <div style={s.locBtnRow}>
+          <button onClick={onUseLocation} disabled={busy} style={s.locBtnPrimary}>
+            <Navigation size={15} /> {busy ? 'Locating…' : 'Use My Location'}
+          </button>
+          <button onClick={() => { setMode('zip'); setErr(null); }} disabled={busy} style={s.locBtnGhost}>
+            <MapPin size={15} /> Enter ZIP Code
+          </button>
+        </div>
+      ) : (
+        <>
+          <div style={s.locZipRow}>
+            <input
+              value={zip}
+              onChange={(e) => setZip(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
+              onKeyDown={(e) => { if (e.key === 'Enter') onSaveZip(); }}
+              placeholder="ZIP code"
+              inputMode="numeric"
+              autoFocus
+              style={s.locZipInput}
+              aria-label="ZIP code"
+            />
+            <button onClick={onSaveZip} disabled={busy} style={s.locBtnPrimary}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+          <button onClick={() => { setMode('idle'); setErr(null); }} style={s.locLink}>
+            Use my location instead
+          </button>
+        </>
+      )}
+
+      {err && <p style={s.locErr}>{err}</p>}
+    </div>
+  );
+}
+
+function NearbySection({ nearby, radius, onExpand, onBrowse, onChange, onOpen }: {
+  nearby: { event: EventRow; dist: number }[];
+  radius: number;
+  onExpand: () => void;
+  onBrowse: () => void;
+  onChange: () => void;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <section style={s.section}>
+      <div style={s.sectionHead}>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={s.sectionTitle}>
+            <span style={{ ...s.sectionDot, background: '#22d3ee' }} />
+            Events Near You
+          </h2>
+          <p style={s.sectionSub}>Within {radius} miles of your location</p>
+        </div>
+        <button onClick={onChange} style={s.seeAll} aria-label="Change location">
+          <MapPin size={13} /> Change
+        </button>
+      </div>
+
+      {nearby.length === 0 ? (
+        <div style={s.nearEmpty}>
+          <p style={s.nearEmptyTitle}>No events found nearby</p>
+          <p style={s.nearEmptyBody}>Try expanding your search radius or browse events nationwide.</p>
+          <div style={s.nearEmptyBtns}>
+            {radius < 250 && (
+              <button onClick={onExpand} style={s.nearBtnPrimary}>Expand Radius</button>
+            )}
+            <button onClick={onBrowse} style={s.nearBtnGhost}>Browse Nationwide</button>
+          </div>
+        </div>
+      ) : (
+        <div style={s.row}>
+          {nearby.slice(0, 16).map(({ event, dist }) => (
+            <LocalEventCard key={event.id} event={event} distanceMi={dist} onClick={() => onOpen(event.id)} />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -679,5 +879,68 @@ const s: Record<string, CSSProperties> = {
     border: '1px dashed rgba(16,185,129,0.45)',
     borderRadius: 14, color: '#10b981',
     fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  },
+
+  /* Location setup card (first launch / no saved location) */
+  locCard: {
+    margin: '4px 16px 8px',
+    padding: 16,
+    borderRadius: 16,
+    background: 'linear-gradient(135deg, rgba(34,211,238,0.12), rgba(217,119,6,0.10))',
+    border: '1px solid rgba(255,255,255,0.10)',
+  },
+  locTitle: {
+    margin: 0, fontSize: 16, fontWeight: 800, color: '#fff',
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+  },
+  locBody: { margin: '6px 0 12px', fontSize: 12.5, color: 'rgba(245,245,247,0.7)', lineHeight: 1.4 },
+  locBtnRow: { display: 'flex', gap: 10, flexWrap: 'wrap' },
+  locBtnPrimary: {
+    flex: '1 1 auto',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: '12px 14px', borderRadius: 12, border: 'none', cursor: 'pointer',
+    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+    color: '#1a1205', fontSize: 13, fontWeight: 800,
+  },
+  locBtnGhost: {
+    flex: '1 1 auto',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: '12px 14px', borderRadius: 12,
+    border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer',
+    background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 13, fontWeight: 700,
+  },
+  locZipRow: { display: 'flex', gap: 8, alignItems: 'center' },
+  locZipInput: {
+    flex: 1, minWidth: 0,
+    padding: '11px 12px', borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(0,0,0,0.25)',
+    color: '#fff', fontSize: 16, outline: 'none',
+  },
+  locLink: {
+    background: 'transparent', border: 'none', color: '#22d3ee',
+    fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '8px 2px', marginTop: 4,
+  },
+  locErr: { margin: '8px 0 0', fontSize: 12, color: '#fca5a5' },
+
+  /* "Events Near You" empty state */
+  nearEmpty: {
+    margin: '0 16px',
+    padding: '20px 16px', borderRadius: 14,
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px dashed rgba(255,255,255,0.16)',
+    textAlign: 'center',
+  },
+  nearEmptyTitle: { margin: 0, fontSize: 14, fontWeight: 800, color: '#fff' },
+  nearEmptyBody: { margin: '6px 0 12px', fontSize: 12, color: 'rgba(245,245,247,0.6)' },
+  nearEmptyBtns: { display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' },
+  nearBtnPrimary: {
+    padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+    color: '#1a1205', fontSize: 12.5, fontWeight: 800,
+  },
+  nearBtnGhost: {
+    padding: '10px 14px', borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer',
+    background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 12.5, fontWeight: 700,
   },
 };

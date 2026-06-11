@@ -18,6 +18,7 @@ import {
   type GeoPoint,
 } from '../lib/geocode';
 import { isIOS } from '../lib/platform';
+import { getSavedLocation } from '../lib/userLocation';
 
 /* --------------------------------------------------------------------------
  * Interactive Event Map.
@@ -132,7 +133,12 @@ export default function EventsMap() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
-  const [center, setCenter] = useState<GeoPoint | null>(null);
+  // Default the map center to the user's saved location (set on Discover or in
+  // Settings) so the map opens on their area and shows nearby events first.
+  const [center, setCenter] = useState<GeoPoint | null>(() => {
+    const saved = getSavedLocation();
+    return saved ? { lat: saved.lat, lng: saved.lng } : null;
+  });
   const [geoStatus, setGeoStatus] = useState<'idle' | 'searching' | 'ok' | 'not_found' | 'error'>('idle');
   const [radiusMiles, setRadiusMiles] = useState<number | 'any'>(DEFAULT_RADIUS_MILES);
   const [locating, setLocating] = useState(false);
