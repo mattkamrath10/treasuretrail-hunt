@@ -170,6 +170,19 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
     setImporting(true);
     try {
       const d = await importEventFromUrl(u);
+
+      // Always capture the link + platform routing. These are derived from the
+      // pasted URL itself (not "extracted" content), so they DON'T count toward
+      // import success — otherwise a link that yields no real data would still
+      // show a misleading "imported" message.
+      if (d.event_url) setEventUrl(d.event_url);
+      setEventKind(d.event_kind);
+      if (d.event_kind === 'online') {
+        if (d.platform) setPlatform(d.platform);
+        if (d.livestream_url) setLivestreamUrl(d.livestream_url);
+      }
+
+      // Count only substantive, genuinely-extracted fields.
       let filled = 0;
 
       if (d.title) { setTitle(d.title.slice(0, 120)); filled++; }
@@ -189,21 +202,16 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       if (d.starts_at) { const v = toLocalInput(d.starts_at); if (v) { setStartsAt(v); filled++; } }
       if (d.ends_at) { const v = toLocalInput(d.ends_at); if (v) setEndsAt(v); }
 
-      setEventKind(d.event_kind);
-      if (d.event_kind === 'online') {
-        if (d.platform) setPlatform(d.platform);
-        if (d.livestream_url) { setLivestreamUrl(d.livestream_url); filled++; }
-      } else {
+      if (d.event_kind === 'local') {
         if (d.address) { setAddress(d.address); filled++; }
         if (d.city) { setCity(d.city); filled++; }
         if (d.region) { setRegion(d.region); filled++; }
       }
 
-      if (d.event_url) { setEventUrl(d.event_url); filled++; }
       if (d.cover_image_url) { setCoverUrl(d.cover_image_url); setCoverThumb(null); filled++; }
 
       if (filled === 0) {
-        setImportMsg("We couldn't pull details from that link — it may block automated reads. Enter the event manually below.");
+        setImportMsg("We couldn't pull details from that link — it may block automated reads. The link is saved; please fill in the event manually below.");
       } else {
         setImportMsg(`Imported ${filled} field${filled === 1 ? '' : 's'} — review everything below, then publish.`);
         flashToast('Event details imported — review & publish', 'success');

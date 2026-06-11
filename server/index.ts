@@ -882,24 +882,48 @@ function metaContent(html: string, key: string, attr: 'property' | 'name'): stri
   return mm ? decodeEntities(mm[1].trim()) : null;
 }
 
-async function fetchPageHtml(url: string, timeoutMs: number): Promise<string> {
+// Validate a single URL before fetching it: only http(s), and neither the
+// hostname nor its first resolved address may be a blocked/internal target.
+// Throws on rejection. Called for the initial URL AND every redirect hop so a
+// public URL can't 30x-redirect into an internal address (SSRF).
+async function assertFetchable(target: URL): Promise<void> {
+  if (target.protocol !== 'http:' && target.protocol !== 'https:') throw new Error('blocked scheme');
+  const host = target.hostname.toLowerCase();
+  if (isBlockedHost(host)) throw new Error('blocked host');
+  const { address } = await dnsLookup(host);
+  if (isBlockedHost(address)) throw new Error('blocked address');
+}
+
+async function fetchPageHtml(startUrl: string, timeoutMs: number): Promise<string> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const resp = await fetch(url, {
-      redirect: 'follow',
-      signal: ctrl.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TreasureTrailBot/1.0; +https://treasuretrail-hunt.com)',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-    });
-    if (!resp.ok) throw new Error(`status ${resp.status}`);
-    const ct = resp.headers.get('content-type') || '';
-    if (ct && !/html|xml|text/i.test(ct)) throw new Error('not html');
-    const buf = Buffer.from(await resp.arrayBuffer()).subarray(0, 700_000);
-    return buf.toString('utf8');
+    let current = startUrl;
+    for (let hop = 0; hop < 5; hop++) {
+      const target = new URL(current);
+      await assertFetchable(target); // re-validate scheme/host/IP on EVERY hop
+      const resp = await fetch(target, {
+        redirect: 'manual', // follow manually so each hop is re-validated
+        signal: ctrl.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; TreasureTrailBot/1.0; +https://treasuretrail-hunt.com)',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
+      if (resp.status >= 300 && resp.status < 400) {
+        const loc = resp.headers.get('location');
+        if (!loc) throw new Error('redirect without location');
+        current = new URL(loc, target).toString();
+        continue;
+      }
+      if (!resp.ok) throw new Error(`status ${resp.status}`);
+      const ct = resp.headers.get('content-type') || '';
+      if (ct && !/html|xml|text/i.test(ct)) throw new Error('not html');
+      const buf = Buffer.from(await resp.arrayBuffer()).subarray(0, 700_000);
+      return buf.toString('utf8');
+    }
+    throw new Error('too many redirects');
   } finally {
     clearTimeout(timer);
   }
