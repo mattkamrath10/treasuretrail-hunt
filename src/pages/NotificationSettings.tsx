@@ -251,6 +251,6 @@ const s: Record<string, CSSProperties> = {
     position: 'fixed', left: '50%', bottom: 96, transform: 'translateX(-50%)',
     padding: '10px 16px', borderRadius: 999,
     background: 'rgba(15,15,20,0.95)', color: '#fff',
-    fontSize: 13, fontWeight: 600, zIndex: 50, maxWidth: '90%', textAlign: 'center',
+    fontSize: 13, fontWeight: 600, zIndex: 50, maxWidth: 'min(90%, calc(var(--max-width) - 32px))', textAlign: 'center',
   },
 };

@@ -477,7 +477,7 @@ const s: Record<string, React.CSSProperties> = {
     color: 'var(--color-neutral-600)',
   },
   fab: {
-    position: 'fixed', bottom: 80, right: 20,
+    position: 'fixed', bottom: 80, right: 'calc(var(--side-gutter) + 20px)',
     width: 52, height: 52, borderRadius: '50%',
     background: 'var(--color-primary-600, #d97706)',
     border: 'none', cursor: 'pointer',

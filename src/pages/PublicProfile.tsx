@@ -652,7 +652,7 @@ const s: Record<string, CSSProperties> = {
     padding: '10px 14px', borderRadius: 'var(--radius-md)',
     backgroundColor: 'rgba(15,23,42,0.92)', color: '#fff',
     fontSize: 'var(--font-size-sm)', fontWeight: 500,
-    zIndex: 1000, maxWidth: '90vw',
+    zIndex: 1000, maxWidth: 'min(90vw, calc(var(--max-width) - 32px))',
   },
   ctaCard: {
     display: 'flex',

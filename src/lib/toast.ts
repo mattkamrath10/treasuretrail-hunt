@@ -35,7 +35,7 @@ export function flashToast(msg: string, kind: ToastKind = 'info', durationMs = 2
     boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
     transition: 'opacity 200ms',
     opacity: '0',
-    maxWidth: 'calc(100% - 32px)',
+    maxWidth: 'min(calc(100% - 32px), calc(var(--max-width) - 32px))',
     textAlign: 'center',
   } as CSSStyleDeclaration);
   document.body.appendChild(el);

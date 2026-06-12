@@ -119,7 +119,20 @@
   --nav-height: 64px;
   --header-height: 56px;
   --max-width: 480px;
+  /* Horizontal gutter between the centered content column and the screen
+     edge. 0 on phones (the column fills the viewport); grows on tablets,
+     so fixed-position elements (FABs, toasts) can be offset to hug the
+     content column instead of floating against the raw viewport edge. */
+  --side-gutter: max(0px, calc((100vw - var(--max-width)) / 2));
 }
+
+/* Tablet / iPad: widen the centered content column so the app uses the
+   available screen instead of rendering as a narrow phone-width strip in
+   the middle of a large display (Apple Guideline 4 — iPad layout). Every
+   screen sizes off var(--max-width), so widening it here scales the whole
+   app from one place without touching individual screens. */
+@media (min-width: 700px)  { :root { --max-width: 760px; } }
+@media (min-width: 1024px) { :root { --max-width: 960px; } }
 
 * {
   margin: 0;
