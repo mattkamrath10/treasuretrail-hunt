@@ -215,3 +215,9 @@ id = "kWr7D-lcQaThiHgnd9Hve"
 uri = "file://TreasureTrail-iOS-Ready-20260612-1105.zip"
 type = "unspecified"
 title = "TreasureTrail iOS Ready (with iPad fixes)"
+
+[[outputs]]
+id = "emYUetwAArxB0td9dIX-R"
+uri = "file://public/TreasureTrail-Source-20260612.zip"
+type = "unspecified"
+title = "TreasureTrail-Source-20260612.zip"
