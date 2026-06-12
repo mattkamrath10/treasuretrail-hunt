@@ -6,11 +6,14 @@ export interface AiAnalysisResult {
   title: string;
   category: string;
   brand: string | null;
+  model?: string | null;
   era: string | null;
   condition_estimate: string;
   rarity_score: number;
   confidence: number;
   estimated_value: { low: number; high: number; currency: string };
+  suggested_price?: number;
+  keywords?: string[];
   summary: string;
   highlights: string[];
   selling_tips: string[];

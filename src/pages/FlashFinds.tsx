@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, ArrowLeft, ArrowRight, X, MapPin, DollarSign, Tag, Sparkles, Eye, CircleCheck as CheckCircle, Image, Pencil, Plus, ShoppingBag } from 'lucide-react';
+import { Camera, ArrowLeft, ArrowRight, X, MapPin, DollarSign, Tag, Sparkles, Eye, CircleCheck as CheckCircle, Image, Pencil, Plus, ShoppingBag, Loader, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import AiAnalysisPage, { type AnalysisDonePayload } from './AiAnalysis';
@@ -18,6 +18,8 @@ import {
   saveAnalysis,
   watchTrend,
   shareItem,
+  buildIntelligence,
+  type ConditionKey,
 } from '../lib/itemIntelligence';
 import { publicWebUrl } from '../lib/apiBase';
 import {
@@ -29,7 +31,48 @@ import {
 } from '../lib/aiAnalysis';
 import { compressImage } from '../lib/imageCompress';
 
-type FlowStep = 'main' | 'photo' | 'details' | 'ai-analysis' | 'confirmation';
+type FlowStep = 'main' | 'photo' | 'details' | 'ai-review' | 'ai-analysis' | 'confirmation';
+
+// Condition chips shared by the AI review surface. Mirrors the keys used by
+// itemIntelligence / AiAnalysis so a posted find carries a consistent label.
+const CONDITIONS: { key: ConditionKey; label: string; desc: string }[] = [
+  { key: 'mint',  label: 'Mint',      desc: 'Like new, no flaws' },
+  { key: 'good',  label: 'Good',      desc: 'Used, fully working' },
+  { key: 'fair',  label: 'Fair',      desc: 'Visible wear' },
+  { key: 'parts', label: 'For parts', desc: 'Repair needed' },
+];
+
+function conditionLabel(key: ConditionKey | null): string {
+  return CONDITIONS.find((c) => c.key === key)?.label ?? '';
+}
+
+// Map the model's free-text condition estimate onto one of our chip keys so
+// the review surface can pre-select it. Defaults to 'good' when ambiguous.
+function mapAiCondition(text: string | undefined | null): ConditionKey | null {
+  const t = (text || '').toLowerCase();
+  if (!t) return null;
+  if (/parts|repair|broken|not working|salvage|damaged/.test(t)) return 'parts';
+  if (/mint|new|excellent|pristine|unused/.test(t)) return 'mint';
+  if (/fair|worn|poor|rough|heavy wear/.test(t)) return 'fair';
+  return 'good';
+}
+
+// Editable AI-derived fields that don't map to a FlashFindForm/DB column.
+// They are surfaced as individual editable inputs on the AI review step and
+// folded into the post's description (notes) at submit time.
+interface AiReviewFields {
+  condition: ConditionKey | null;
+  brand: string;
+  model: string;
+  keywords: string;        // comma-separated for easy editing
+  estLow: string;
+  estHigh: string;
+  suggestedPrice: string;
+}
+
+const EMPTY_AI_FIELDS: AiReviewFields = {
+  condition: null, brand: '', model: '', keywords: '', estLow: '', estHigh: '', suggestedPrice: '',
+};
 
 const CATEGORIES = [
   'Electronics', 'Furniture', 'Books', 'Collectibles', 'Antiques',
@@ -46,23 +89,37 @@ function normalizeAiCategory(c: string): string {
   return found || 'Other';
 }
 
-// Compose a human-readable description from the structured AI result so the
-// user gets a ready-to-post Notes block (summary + key facts + highlights).
-// We deliberately do NOT touch the price field — FlashFindForm.price is the
-// "Price Found At" (what the user PAID), while the AI returns a RESALE
-// estimate, so the value range lives in the notes instead.
-function buildNotesFromAi(r: AiAnalysisResult): string {
+// Compose an editable, buyer-facing Description from the structured AI result
+// (summary + highlight bullets). This becomes the editable "Description" field
+// on the AI review step. Structured facts (brand/model/condition/value/price/
+// keywords) are kept in their OWN editable fields and only merged back into the
+// final notes at post time — see composeFinalNotes.
+function buildDescriptionFromAi(r: AiAnalysisResult): string {
   const parts: string[] = [];
   if (r.summary) parts.push(r.summary.trim());
-  const facts: string[] = [];
-  if (r.brand) facts.push(`Brand: ${r.brand}`);
-  if (r.era) facts.push(`Era: ${r.era}`);
-  if (r.condition_estimate) facts.push(`Condition: ${r.condition_estimate}`);
-  if (r.estimated_value && (r.estimated_value.low || r.estimated_value.high)) {
-    facts.push(`Est. resale: $${r.estimated_value.low}–$${r.estimated_value.high}`);
-  }
-  if (facts.length) parts.push(facts.join(' · '));
   if (r.highlights?.length) parts.push(r.highlights.map((h) => `• ${h}`).join('\n'));
+  return parts.join('\n\n').trim();
+}
+
+// Merge the edited Description with the edited structured fields into a single
+// notes block for posting. There are no DB columns for brand/model/condition/
+// keywords/value/suggested-price, so they are appended to the description in a
+// readable form. We deliberately do NOT write the AI value into form.price —
+// FlashFindForm.price is the "Price Found At" (what the user PAID), distinct
+// from the AI's resale estimate / suggested listing price.
+function composeFinalNotes(description: string, f: AiReviewFields): string {
+  const parts: string[] = [];
+  if (description.trim()) parts.push(description.trim());
+  const facts: string[] = [];
+  if (f.brand.trim()) facts.push(`Brand: ${f.brand.trim()}`);
+  if (f.model.trim()) facts.push(`Model: ${f.model.trim()}`);
+  if (f.condition) facts.push(`Condition: ${conditionLabel(f.condition)}`);
+  if (f.estLow.trim() || f.estHigh.trim()) {
+    facts.push(`Est. value: $${f.estLow.trim() || '?'}–$${f.estHigh.trim() || '?'}`);
+  }
+  if (f.suggestedPrice.trim()) facts.push(`Suggested listing price: $${f.suggestedPrice.trim()}`);
+  if (facts.length) parts.push(facts.join(' · '));
+  if (f.keywords.trim()) parts.push(`Keywords: ${f.keywords.trim()}`);
   return parts.join('\n\n').trim();
 }
 
@@ -156,6 +213,10 @@ export default function FlashFinds() {
   const [aiLimitReached, setAiLimitReached] = useState(false);
   const [aiUsage, setAiUsage] = useState<AiScanUsage | null>(null);
   const [aiPrefilled, setAiPrefilled] = useState(false);
+  // AI-derived editable fields (brand/model/condition/keywords/value/suggested
+  // price) shown on the dedicated AI review step. Reset whenever a new photo is
+  // picked so a prior scan can't bleed into the next item.
+  const [aiFields, setAiFields] = useState<AiReviewFields>(EMPTY_AI_FIELDS);
 
   // Refresh the remaining-scan counter whenever the photo preview is shown
   // so the AI Autofill button always reflects the live quota.
@@ -192,6 +253,7 @@ export default function FlashFinds() {
     setAiError('');
     setAiPrefilled(false);
     setAiLimitReached(false);
+    setAiFields(EMPTY_AI_FIELDS);
     const reader = new FileReader();
     reader.onload = (e) => {
       const url = e.target?.result as string;
@@ -228,8 +290,9 @@ export default function FlashFinds() {
   };
 
   // AI path: compress the captured photo, run the real GPT-vision scan, map
-  // the structured result onto the form, then drop the user on the details
-  // step (pre-filled) so they can review/edit before posting.
+  // the structured result onto the form + the individual editable AI fields,
+  // then drop the user on the dedicated AI review step so they can review and
+  // edit EVERY field before posting.
   const handleAiAutofill = async () => {
     if (!photoUrl || aiScanning) return;
     setAiScanning(true);
@@ -243,12 +306,23 @@ export default function FlashFinds() {
         ...prev,
         title: r.title?.trim() || prev.title,
         category: normalizeAiCategory(r.category) || prev.category,
-        notes: buildNotesFromAi(r) || prev.notes,
+        notes: buildDescriptionFromAi(r) || prev.notes,
       }));
+      const ev = r.estimated_value;
+      const mid = ev ? Math.round((ev.low + ev.high) / 2) : 0;
+      setAiFields({
+        condition: mapAiCondition(r.condition_estimate),
+        brand: r.brand?.trim() ?? '',
+        model: r.model?.trim() ?? '',
+        keywords: (r.keywords ?? []).join(', '),
+        estLow: ev?.low ? String(ev.low) : '',
+        estHigh: ev?.high ? String(ev.high) : '',
+        suggestedPrice: r.suggested_price ? String(r.suggested_price) : (mid ? String(mid) : ''),
+      });
       setAiUsage({ tier: resp.tier, used: resp.used, limit: resp.limit, remaining: resp.remaining });
       setAiPrefilled(true);
       setSubmitError('');
-      setStep('details');
+      setStep('ai-review');
     } catch (e) {
       if (e instanceof AiScanError) {
         if (e.status === 429) {
@@ -281,6 +355,36 @@ export default function FlashFinds() {
     }
     setSubmitError('');
     setStep('ai-analysis');
+  };
+
+  // AI review path: fold the edited Description + structured AI fields into a
+  // single notes block and post directly, reusing the same canonical-payload
+  // pipeline as the manual flow (handleAiDone). We skip the heuristic Reseller
+  // Assist step entirely — the user has already reviewed real AI output here.
+  const handleAiReviewPost = () => {
+    if (!form.title.trim()) {
+      setSubmitError('Add a title for your find so the community knows what you posted.');
+      return;
+    }
+    const finalNotes = composeFinalNotes(form.notes, aiFields);
+    const purchasePrice = form.price ? parseFloat(form.price) : null;
+    handleAiDone({
+      editedForm: {
+        title: form.title.trim(),
+        category: form.category || 'Other',
+        condition: aiFields.condition,
+        price: form.price,
+        notes: finalNotes,
+      },
+      actions: ['post_flash_finds'],
+      intelligence: buildIntelligence({
+        title: form.title,
+        category: form.category,
+        notes: finalNotes,
+        purchasePrice: Number.isFinite(purchasePrice as number) ? purchasePrice : null,
+        condition: aiFields.condition,
+      }),
+    });
   };
 
   const handleAiDone = async (payload: AnalysisDonePayload) => {
@@ -527,6 +631,7 @@ export default function FlashFinds() {
     setAiError('');
     setAiPrefilled(false);
     setAiLimitReached(false);
+    setAiFields(EMPTY_AI_FIELDS);
   };
 
   if (isGuest) {
@@ -591,6 +696,21 @@ export default function FlashFinds() {
           onBack={() => setStep('photo')}
           error={submitError}
           aiPrefilled={aiPrefilled}
+        />
+      )}
+
+      {step === 'ai-review' && (
+        <AiReviewForm
+          photoUrl={photoUrl}
+          form={form}
+          setForm={(f) => { setForm(f); if (submitError) setSubmitError(''); }}
+          aiFields={aiFields}
+          setAiFields={setAiFields}
+          usage={aiUsage}
+          onPost={handleAiReviewPost}
+          onBack={() => setStep('photo')}
+          submitting={submitting}
+          submitError={submitError}
         />
       )}
 
@@ -833,28 +953,303 @@ function PhotoPreview({
             <div style={styles.aiErrorBox} role="alert">{aiError}</div>
           )}
           {showUpgrade ? (
-            <button onClick={onUpgrade} style={styles.aiUpgradeBtn}>
-              <Sparkles size={18} />
-              <span>Upgrade to Pro for unlimited AI Autofill</span>
-            </button>
+            <div style={styles.upgradeBox}>
+              <p style={styles.upgradeText}>
+                You've used all {aiUsage?.limit ?? 5} of your free AI photo scans for today.
+                Pro Seller includes <strong>unlimited AI photo scans</strong>.
+              </p>
+              <button onClick={onUpgrade} style={styles.aiUpgradeBtn}>
+                <Sparkles size={18} />
+                <span>Upgrade to Pro Seller</span>
+              </button>
+              <button onClick={onManual} style={styles.manualBtn} disabled={aiScanning}>
+                <Pencil size={16} />
+                <span>Enter Details Manually</span>
+              </button>
+            </div>
           ) : (
-            <button
-              onClick={onAiAutofill}
-              style={{ ...styles.aiAutofillBtn, opacity: photoUrl && !imgErrored && !aiScanning ? 1 : 0.6 }}
-              disabled={!photoUrl || imgErrored || aiScanning}
-            >
-              <span style={styles.aiAutofillTop}>
-                <Sparkles size={18} style={aiScanning ? styles.spin : undefined} />
-                <span>{aiScanning ? 'Analyzing your photo…' : 'AI Autofill'}</span>
-              </span>
-              {!aiScanning && <span style={styles.aiAutofillSub}>{aiSubLabel}</span>}
-            </button>
+            <>
+              <button
+                onClick={onAiAutofill}
+                style={{ ...styles.aiAutofillBtn, opacity: photoUrl && !imgErrored && !aiScanning ? 1 : 0.6 }}
+                disabled={!photoUrl || imgErrored || aiScanning}
+              >
+                <span style={styles.aiAutofillTop}>
+                  <Sparkles size={18} style={aiScanning ? styles.spin : undefined} />
+                  <span>{aiScanning ? 'Analyzing your photo…' : '✨ AI Autofill From Photo'}</span>
+                </span>
+                {!aiScanning && <span style={styles.aiAutofillSub}>{aiSubLabel}</span>}
+              </button>
+              <button onClick={onManual} style={styles.manualBtn} disabled={aiScanning}>
+                <Pencil size={16} />
+                <span>Enter Details Manually</span>
+              </button>
+            </>
           )}
-          <button onClick={onManual} style={styles.manualBtn} disabled={aiScanning}>
-            <Pencil size={16} />
-            <span>Enter details manually</span>
-          </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Dedicated review surface for the AI-autofill path. Every field the model
+// returned is shown as an individual EDITABLE input so the user can tweak
+// anything before posting. On submit the structured fields are folded into the
+// description by the parent (handleAiReviewPost) and posted via the same
+// pipeline as the manual flow. This is a step on the SAME page — not a route.
+function AiReviewForm({
+  photoUrl,
+  form,
+  setForm,
+  aiFields,
+  setAiFields,
+  usage,
+  onPost,
+  onBack,
+  submitting,
+  submitError,
+}: {
+  photoUrl: string | null;
+  form: FlashFindForm;
+  setForm: (f: FlashFindForm) => void;
+  aiFields: AiReviewFields;
+  setAiFields: (f: AiReviewFields) => void;
+  usage: AiScanUsage | null;
+  onPost: () => void;
+  onBack: () => void;
+  submitting?: boolean;
+  submitError?: string;
+}) {
+  const usageLabel = usage
+    ? usage.tier === 'pro'
+      ? 'Pro · unlimited AI scans'
+      : `${Math.max(0, usage.remaining)} of ${usage.limit} free scans left today`
+    : 'Reviewed from your photo';
+  return (
+    <div style={styles.container}>
+      <header style={styles.stepHeader}>
+        <button onClick={onBack} style={styles.backBtn} aria-label="Back">
+          <ArrowLeft size={20} />
+        </button>
+        <span style={styles.stepLabel}>Review AI Details</span>
+        <div style={{ width: 36 }} />
+      </header>
+
+      <div style={styles.detailsContent}>
+        <div style={styles.aiBanner}>
+          <Sparkles size={16} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+          <span>AI filled these in from your photo. Review and edit anything before posting.</span>
+        </div>
+
+        <div style={styles.miniPreview}>
+          <div style={{ ...styles.miniImage, borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+            <ImageWithFade
+              src={photoUrl}
+              alt={form.title || 'Your find'}
+              fallback={<MediaFallback kind="find" seed={photoUrl || form.title || 'ai-review'} label={form.title?.slice(0, 14) || 'FIND'} compact />}
+            />
+          </div>
+          <div style={styles.miniMeta}>
+            <span style={styles.miniLabel}>Your find</span>
+            <span style={styles.miniHint}>{usageLabel}</span>
+          </div>
+        </div>
+
+        <div style={styles.formFields}>
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Title</label>
+            <input
+              type="text"
+              placeholder="What did you find?"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              style={styles.input}
+            />
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Category</label>
+            <div style={styles.categoryGrid}>
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setForm({ ...form, category: cat })}
+                  style={{
+                    ...styles.categoryChip,
+                    ...(form.category === cat ? styles.categoryChipActive : {}),
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Condition</label>
+            <div style={styles.conditionGrid}>
+              {CONDITIONS.map((c) => {
+                const active = aiFields.condition === c.key;
+                return (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setAiFields({ ...aiFields, condition: active ? null : c.key })}
+                    style={{ ...styles.conditionBtn, ...(active ? styles.conditionBtnActive : {}) }}
+                    aria-pressed={active}
+                  >
+                    <span style={styles.conditionLabel}>{c.label}</span>
+                    <span style={styles.conditionDesc}>{c.desc}</span>
+                    {active && (
+                      <span style={styles.conditionCheck}>
+                        <Check size={12} style={{ color: 'var(--color-neutral-0)' }} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={styles.aiTwoCol}>
+            <div style={{ ...styles.field, flex: 1 }}>
+              <label style={styles.fieldLabel}>Brand</label>
+              <input
+                type="text"
+                placeholder="e.g. Pyrex"
+                value={aiFields.brand}
+                onChange={(e) => setAiFields({ ...aiFields, brand: e.target.value })}
+                style={styles.input}
+              />
+            </div>
+            <div style={{ ...styles.field, flex: 1 }}>
+              <label style={styles.fieldLabel}>Model</label>
+              <input
+                type="text"
+                placeholder="e.g. Spring Blossom"
+                value={aiFields.model}
+                onChange={(e) => setAiFields({ ...aiFields, model: e.target.value })}
+                style={styles.input}
+              />
+            </div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Description</label>
+            <textarea
+              placeholder="What makes this find special…"
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              style={styles.textarea}
+              rows={4}
+            />
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Suggested keywords <span style={styles.fieldOptional}>(comma-separated)</span></label>
+            <input
+              type="text"
+              placeholder="vintage, glass, casserole"
+              value={aiFields.keywords}
+              onChange={(e) => setAiFields({ ...aiFields, keywords: e.target.value })}
+              style={styles.input}
+            />
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Estimated value range (USD)</label>
+            <div style={styles.aiTwoCol}>
+              <div style={styles.priceWrapper}>
+                <DollarSign size={16} style={{ color: 'var(--color-neutral-400)' }} />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Low"
+                  value={aiFields.estLow}
+                  onChange={(e) => setAiFields({ ...aiFields, estLow: e.target.value.replace(/[^\d.]/g, '') })}
+                  style={styles.priceInput}
+                />
+              </div>
+              <div style={styles.priceWrapper}>
+                <DollarSign size={16} style={{ color: 'var(--color-neutral-400)' }} />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="High"
+                  value={aiFields.estHigh}
+                  onChange={(e) => setAiFields({ ...aiFields, estHigh: e.target.value.replace(/[^\d.]/g, '') })}
+                  style={styles.priceInput}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Suggested listing price (USD)</label>
+            <div style={styles.priceWrapper}>
+              <DollarSign size={16} style={{ color: 'var(--color-neutral-400)' }} />
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={aiFields.suggestedPrice}
+                onChange={(e) => setAiFields({ ...aiFields, suggestedPrice: e.target.value.replace(/[^\d.]/g, '') })}
+                style={styles.priceInput}
+              />
+            </div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>Price Found At <span style={styles.fieldOptional}>(what you paid)</span></label>
+            <div style={styles.priceWrapper}>
+              <DollarSign size={16} style={{ color: 'var(--color-neutral-400)' }} />
+              <input
+                type="text"
+                placeholder="0.00"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                style={styles.priceInput}
+              />
+            </div>
+          </div>
+
+          <div style={styles.field}>
+            <LocationFields
+              value={{
+                general_location: form.general_location,
+                exact_address_private: form.exact_address_private,
+                address_reveal_policy: form.address_reveal_policy,
+              }}
+              onChange={(v: LocationValue) => setForm({
+                ...form,
+                general_location: v.general_location,
+                exact_address_private: v.exact_address_private,
+                address_reveal_policy: v.address_reveal_policy,
+                location: v.general_location,
+              })}
+              hint="ZIP/City helps buyers filter local finds; exact address stays private."
+            />
+          </div>
+
+          <div style={styles.field}>
+            <SafetyReminder />
+          </div>
+        </div>
+
+        {submitError && <div style={styles.detailsError}>{submitError}</div>}
+
+        <button
+          onClick={onPost}
+          disabled={submitting}
+          style={{ ...styles.continueBtn, opacity: submitting ? 0.6 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}
+        >
+          {submitting ? (
+            <Loader size={18} style={{ color: 'var(--color-neutral-0)', ...styles.spin }} />
+          ) : (
+            <CheckCircle size={18} style={{ color: 'var(--color-neutral-0)' }} />
+          )}
+          <span style={styles.continueBtnText}>{submitting ? 'Posting…' : 'Post Find'}</span>
+        </button>
       </div>
     </div>
   );
@@ -1467,6 +1862,67 @@ const styles: Record<string, React.CSSProperties> = {
   },
   spin: {
     animation: 'spin 1s linear infinite',
+  },
+  upgradeBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: '#f5f3ff',
+    border: '1px solid #ddd6fe',
+  },
+  upgradeText: {
+    margin: 0,
+    fontSize: 'var(--font-size-sm)',
+    lineHeight: 1.4,
+    color: '#5b21b6',
+  },
+  aiTwoCol: {
+    display: 'flex',
+    gap: 'var(--space-2)',
+  },
+  conditionGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 'var(--space-2)',
+  },
+  conditionBtn: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '2px',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '2px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-0)',
+    textAlign: 'left',
+    minHeight: '60px',
+    cursor: 'pointer',
+  },
+  conditionBtnActive: {
+    border: '2px solid var(--color-primary-500)',
+    backgroundColor: 'var(--color-primary-50)',
+    boxShadow: '0 0 0 3px rgba(79, 70, 229, 0.12)',
+  },
+  conditionLabel: {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-neutral-900)',
+  },
+  conditionDesc: { fontSize: '11px', color: 'var(--color-neutral-500)' },
+  conditionCheck: {
+    position: 'absolute',
+    top: '6px',
+    right: '6px',
+    width: '18px',
+    height: '18px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-primary-600)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   retakeBtn: {
     flex: 1,

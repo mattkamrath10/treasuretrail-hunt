@@ -73,12 +73,15 @@ JSON schema:
   "title": string,           // short product title, e.g. "1970s Pyrex Spring Blossom Casserole Dish"
   "category": string,        // best category from: Electronics, Furniture, Books, Collectibles, Antiques, Art, Jewelry, Watches, Toys, Tools, Clothing, Other
   "brand": string|null,
+  "model": string|null,      // specific model name or number if identifiable, else null
   "era": string|null,        // e.g. "1970s", "Mid-Century", "Modern"
-  "condition_estimate": string, // e.g. "Good", "Fair", "Excellent"
+  "condition_estimate": string, // one of: "Mint", "Good", "Fair", "For parts"
   "rarity_score": number,    // 1-10, 10 = extremely rare
   "confidence": number,      // 0-100 your confidence in the identification
   "estimated_value": { "low": number, "high": number, "currency": "USD" },
-  "summary": string,         // 1-2 sentence reseller-focused summary
+  "suggested_price": number, // recommended single listing price in USD, within estimated_value range
+  "keywords": string[],      // 4-8 search keywords/tags a buyer would type to find this item
+  "summary": string,         // 2-3 sentence buyer-facing description of the item
   "highlights": string[],    // 2-4 bullets: notable features, markings, or value drivers
   "selling_tips": string[],  // 2-3 short reseller tips (best platform, listing angle, photo advice)
   "watch_outs": string[]     // 1-3 things to verify before listing (damage, repros, authenticity)
@@ -88,7 +91,7 @@ async function callOpenAIVision(dataUrl: string, userContext: string) {
   const resp = await openai.chat.completions.create({
     model: MODEL,
     response_format: { type: 'json_object' },
-    max_completion_tokens: 1200,
+    max_completion_tokens: 1500,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       {
