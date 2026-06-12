@@ -209,3 +209,9 @@ id = "GZdtaUszzMujxvN_jmnRM"
 uri = "file://TreasureTrail-FullSource-20260612-0957.zip"
 type = "unspecified"
 title = "TreasureTrail — Full Source (with iPad fixes), June 12 2026"
+
+[[outputs]]
+id = "kWr7D-lcQaThiHgnd9Hve"
+uri = "file://TreasureTrail-iOS-Ready-20260612-1105.zip"
+type = "unspecified"
+title = "TreasureTrail iOS Ready (with iPad fixes)"
