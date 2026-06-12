@@ -197,3 +197,9 @@ id = "SKbRElKb-mdp5lW7jUjzx"
 uri = "file://ios-screenshots/iap-pro-seller.png"
 type = "image"
 title = "Download IAP Review Screenshot — Pro Seller ($5.99/mo)"
+
+[[outputs]]
+id = "44d8jEK1avQqEPlvVC_ZU"
+uri = "file://TreasureTrail-FullSource-20260612.zip"
+type = "unspecified"
+title = "TreasureTrail — Full Source + Latest Build (June 12, 2026)"
