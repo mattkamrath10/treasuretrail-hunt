@@ -191,3 +191,9 @@ id = "Llqu3FLny8vfYmqNc-6d9"
 uri = "file://TreasureTrail-FullSource-20260611.zip"
 type = "unspecified"
 title = "TreasureTrail — Full Source (lockfile fixed, Jun 11, 2026)"
+
+[[outputs]]
+id = "SKbRElKb-mdp5lW7jUjzx"
+uri = "file://ios-screenshots/iap-pro-seller.png"
+type = "image"
+title = "IAP Review Screenshot — Pro Seller ($5.99/mo)"
