@@ -1,0 +1,74 @@
+
+============================================================
+  TreasureTrail - Android build preparation
+============================================================
+
+[1/5] Checking for Node.js ...
+       Found Node.js v24.15.0
+       Node.js version OK.
+
+[2/5] Installing dependencies (npm install) ...
+npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated uuid@9.0.1: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated uuid@9.0.1: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated uuid@9.0.1: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn cleanup Failed to remove some directories [
+npm warn cleanup   [
+npm warn cleanup     '\\\\?\\C:\\Users\\matth\\Documents\\upload-key-reset\\node_modules\\@grpc',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'C:\Users\matth\Documents\upload-key-reset\node_modules\@grpc\grpc-js\proto\xds\xds'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'C:\\Users\\matth\\Documents\\upload-key-reset\\node_modules\\@grpc\\grpc-js\\proto\\xds\\xds'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     '\\\\?\\C:\\Users\\matth\\Documents\\upload-key-reset\\node_modules\\@firebase',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'C:\Users\matth\Documents\upload-key-reset\node_modules\@firebase\firestore\dist\lite'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'C:\\Users\\matth\\Documents\\upload-key-reset\\node_modules\\@firebase\\firestore\\dist\\lite'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     '\\\\?\\C:\\Users\\matth\\Documents\\upload-key-reset\\node_modules',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'C:\Users\matth\Documents\upload-key-reset\node_modules\@grpc\grpc-js\build\src'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'C:\\Users\\matth\\Documents\\upload-key-reset\\node_modules\\@grpc\\grpc-js\\build\\src'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     '\\\\?\\C:\\Users\\matth\\Documents\\upload-key-reset\\node_modules\\@revenuecat',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'C:\Users\matth\Documents\upload-key-reset\node_modules\@revenuecat\purchases-capacitor\android\src'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'C:\\Users\\matth\\Documents\\upload-key-reset\\node_modules\\@revenuecat\\purchases-capacitor\\android\\src'
+npm warn cleanup     }
+npm warn cleanup   ]
+npm warn cleanup ]
+npm error code ENOTFOUND
+npm error syscall getaddrinfo
+npm error errno ENOTFOUND
+npm error network request to http://package-firewall.replit.local/npm/leaflet.markercluster/-/leaflet.markercluster-1.5.3.tgz failed, reason: getaddrinfo ENOTFOUND package-firewall.replit.local
+npm error network This is a problem related to network connectivity.
+npm error network In most cases you are behind a proxy or have bad network settings.
+npm error network
+npm error network If you are behind a proxy, please make sure that the 'proxy' config is set properly.  See: 'npm help config'
+npm notice
+npm notice New minor version of npm available! 11.12.1 -> 11.17.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.17.0
+npm notice To update run: npm install -g npm@11.17.0
+npm notice
+npm error A complete log of this run can be found in: C:\Users\matth\AppData\Local\npm-cache\_logs\2026-06-12T03_50_34_439Z-debug-0.log
+[ERROR] "npm install" failed. See the messages above.
+
+============================================================
+  STOPPED - a step failed. Nothing further was run.
+============================================================
+
+Press any key to close this window...
