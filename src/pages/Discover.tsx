@@ -2,12 +2,11 @@ import { useEffect, useRef, useState, useCallback, type CSSProperties } from 're
 import { useNavigate } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import {
-  Search, ChevronRight, ChevronLeft, Radio, MapPin, Sparkles, Heart, ExternalLink, Calendar, Users, Navigation,
+  Search, ChevronRight, ChevronLeft, MapPin, Sparkles, Heart, Calendar, Users, Navigation,
 } from 'lucide-react';
-import { fetchPublishedEvents, fetchProHolderIds, PLATFORM_META, isLiveNow, isExpiredLive, type EventRow } from '../lib/events';
+import { fetchPublishedEvents, fetchProHolderIds, type EventRow } from '../lib/events';
 import { haversineMiles } from '../lib/geocode';
 import { useSavedLocation, requestGpsLocation, saveZipLocation } from '../lib/userLocation';
-import { WhatnotIcon } from '../components/ui/WhatnotIcon';
 import { fetchCommunityPosts } from '../lib/database';
 import { fetchOpenWantedItemsWithRequesters, WANTED_CATEGORY_LABEL, type WantedItemWithRequester } from '../lib/wanted';
 import type { CommunityPost } from '../lib/supabase';
@@ -97,13 +96,6 @@ export default function Discover() {
   // ordinary content but still below paid boosts and live shows.
   const isProSeller = (e: EventRow) => proHolders.has(e.holder_id);
 
-  // "Live Now" surface: rank by priority — live+boosted first, then live,
-  // then boosted, then Pro sellers, then newest, with expired pushed to the
-  // bottom. `rankDiscoverFeed` is the single source of truth for ordering.
-  const liveAndOnline = rankDiscoverFeed(
-    events.filter((e) => e.event_kind === 'online' || isLiveNow(e)),
-    { isLive: isLiveNow, isExpired: isExpiredLive, createdAt: (e) => e.starts_at, isPro: isProSeller },
-  );
   // Local events: no "live" concept, but boosted + Pro should still float up.
   const localEvents = rankDiscoverFeed(
     events.filter((e) => e.event_kind === 'local'),
@@ -181,30 +173,6 @@ export default function Discover() {
           onOpen={(id) => navigate(`/event/${id}`)}
         />
       )}
-
-      <Section
-        title="Live Now"
-        subtitle="Whatnot · Poshmark Live · eBay Live"
-        accent="#ef4444"
-        onSeeAll={() => navigate('/live')}
-      >
-        {liveAndOnline.filter((e) => matchQ(e.title) || matchQ(e.seller_handle)).slice(0, 16).map((e) => (
-          <LiveCard key={e.id} event={e} onClick={() => navigate(`/event/${e.id}`)} />
-        ))}
-        {liveAndOnline.length === 0 && <SkeletonRow kind="live" />}
-      </Section>
-
-      <Section
-        title={savedLocation ? 'Popular Nationwide Events' : 'Local Events'}
-        subtitle={savedLocation ? 'Major sales & auctions across the country' : 'Yard sales · Estate sales · Flea markets · Auctions'}
-        accent="#f59e0b"
-        onSeeAll={() => navigate('/events')}
-      >
-        {localEvents.filter((e) => matchQ(e.title) || matchQ(e.city) || matchQ(e.region)).slice(0, 16).map((e) => (
-          <LocalEventCard key={e.id} event={e} onClick={() => navigate(`/event/${e.id}`)} />
-        ))}
-        {localEvents.length === 0 && <SkeletonRow kind="event" />}
-      </Section>
 
       <Section
         title="Flash Finds"
@@ -372,57 +340,6 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
 }
 
 /* ---------- Cards ---------- */
-
-function LiveCard({ event, onClick }: { event: EventRow; onClick: () => void }) {
-  const platform = event.platform ? PLATFORM_META[event.platform] : null;
-  const live = isLiveNow(event);
-  const expired = isExpiredLive(event);
-  const isWhatnot = event.platform === 'whatnot';
-  const boosted = isBoosted(event);
-  return (
-    <article style={{ ...s.cardLg, ...(boosted ? BOOSTED_CARD_GLOW : null) }} onClick={onClick} role="button" tabIndex={0}>
-      <div style={s.cardImgLg}>
-        <ImageWithFade
-          src={event.cover_thumb_url ?? toThumbUrl(event.cover_image_url)}
-          fallbackSrc={event.cover_image_url}
-          alt={event.title}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          fallback={<MediaFallback kind="live" seed={event.id} label={event.title} />}
-        />
-        <div style={s.cardOverlay} />
-        <div style={s.cardBadgeRow}>
-          {boosted && <BoostedBadge />}
-          {live && (
-            <span style={{ ...s.badge, background: '#dc2626' }}>
-              <span style={s.liveDot} /> LIVE
-            </span>
-          )}
-          {expired && (
-            <span style={{ ...s.badge, background: 'rgba(0,0,0,0.7)', color: '#fff' }}>
-              Past show
-            </span>
-          )}
-          {platform && (
-            <span style={{ ...s.badge, background: platform.color, color: isWhatnot ? '#000' : '#fff' }}>
-              {isWhatnot ? <WhatnotIcon size={12} /> : <Radio size={10} />} {platform.label}
-            </span>
-          )}
-        </div>
-        {event.livestream_url && !expired && (
-          <span style={s.cardCornerIcon}>
-            <ExternalLink size={12} />
-          </span>
-        )}
-      </div>
-      <div style={s.cardBody}>
-        <h3 style={s.cardTitle}>{event.title}</h3>
-        <p style={s.cardMeta}>
-          {event.seller_handle ? (event.seller_handle.startsWith('@') ? event.seller_handle : '@' + event.seller_handle) : (platform?.label ?? 'Live show')}
-        </p>
-      </div>
-    </article>
-  );
-}
 
 function LocalEventCard({ event, onClick, distanceMi }: { event: EventRow; onClick: () => void; distanceMi?: number }) {
   const where = [event.city, event.region].filter(Boolean).join(', ') || event.address || 'Local event';
