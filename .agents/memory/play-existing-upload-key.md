@@ -38,13 +38,21 @@ keystore) but its password is unknown/unrecoverable.
   password must be the one it was created with (Android Studio "Remember passwords"
   only re-fills the password for the EXACT keystore file path it was saved against —
   you cannot transplant one keystore's password onto another file).
-- Path 2 (TAKEN 2026-06-09 — original password lost): requested **upload key reset**
-  in Play Console → Test and release → Setup → App integrity → App signing. Generated
-  a fresh keystore + `upload_certificate.pem` (`keytool -export -rfc ... -alias upload`)
-  for the user to submit. New upload key SHA1
-  `4A:B1:B0:61:FF:7C:15:F8:E0:84:85:FB:40:6E:CC:FE:38:B4:DF:6E`, alias `upload`,
-  valid to 2053. After Google approves (~48h) sign with it and re-upload. Reset is
-  ~once/year, so this new keystore must be backed up.
+- Path 2 (TAKEN — original password lost): requested **upload key reset**
+  in Play Console → App signing (the menu item is NOT "Setup"; that label is gone — reach
+  the App signing page by replacing the URL's trailing segment with `keymanagement`).
+  Generated a fresh keystore + `upload_certificate.pem` (`keytool -export -rfc ... -alias upload`).
+  New upload key SHA1 `4A:B1:B0:61:FF:7C:15:F8:E0:84:85:FB:40:6E:CC:FE:38:B4:DF:6E`,
+  alias `upload`, password in `android-upload-key-reset/README.txt`.
+  **Reset request SUBMITTED 2026-06-11; new key becomes valid 2026-06-14 ~04:37 UTC.**
+  Until then Google rejects ALL uploads. After that date, sign the AAB with
+  `treasuretrail-upload-NEW.jks` and upload to the Closed testing track. The signed
+  `app-release.aab` (versionCode 6 / 1.0.5) was already built locally on the user's PC.
+  Reset is ~once/year, so this new keystore must be backed up.
+- The user's local project copy was downloaded with a poisoned `package-lock.json`
+  (`package-firewall.replit.local` URLs) → local `npm install` dies with ENOTFOUND;
+  fix is delete `package-lock.json` + `node_modules` then re-run (npm pulls from public
+  registry). The repo's own lockfile is clean.
 - Generated-keystore artifacts: `.local/android-keystore/` (the WRONG B9:BE:DF one)
   and `android-upload-key-reset/` (the NEW 4A:B1:B0 one). The reset bundle is also
   served at `public/upload-key-reset.zip` for download — remove it once the user
