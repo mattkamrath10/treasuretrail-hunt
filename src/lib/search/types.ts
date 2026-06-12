@@ -36,6 +36,9 @@ export interface SearchResultItem {
   /** Great-circle miles from the searcher's location. Populated by the
    *  aggregator (not the provider) when both an origin and item coords exist. */
   distanceMiles?: number | null;
+  /** Relevance score from the provider's scoring algorithm (higher = better match).
+   *  Used as a secondary sort key within distance-based sections. */
+  relevanceScore?: number | null;
 }
 
 /**

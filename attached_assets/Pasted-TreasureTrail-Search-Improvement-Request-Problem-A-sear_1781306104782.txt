@@ -1,0 +1,187 @@
+TreasureTrail Search Improvement Request
+
+Problem:
+
+A search for "tiger oak furniture" returns no results even though a Flash Find exists called "Tiger Oak Buffet Table."
+
+The current search appears too strict and is missing obvious matches.
+
+Please audit the entire search system and improve search relevance.
+
+Requirements:
+
+1. Search across ALL available fields:
+
+* title
+* description
+* category
+* subcategory
+* tags
+* keywords
+* seller-provided metadata
+* event names
+* event descriptions
+* Flash Finds
+* Marketplace listings
+* Wanted items
+
+2. Implement keyword tokenization.
+
+Example:
+
+User searches:
+
+"tiger oak furniture"
+
+Split into:
+
+["tiger", "oak", "furniture"]
+
+Each token should be evaluated independently.
+
+3. Partial matching.
+
+Examples:
+
+Search:
+"tiger oak"
+
+Should match:
+
+"Tiger Oak Buffet Table"
+
+Search:
+"buffet"
+
+Should match:
+
+"Tiger Oak Buffet Table"
+
+Search:
+"table"
+
+Should match:
+
+"Tiger Oak Buffet Table"
+
+4. Weighted relevance scoring.
+
+Suggested ranking:
+
+Title match = 100 points
+
+Tag match = 80 points
+
+Category match = 60 points
+
+Description match = 40 points
+
+Seller keywords = 30 points
+
+Return highest score first.
+
+5. Singular/plural matching.
+
+Examples:
+
+table ↔ tables
+
+chair ↔ chairs
+
+tool ↔ tools
+
+toy ↔ toys
+
+6. Fuzzy matching.
+
+Allow small spelling mistakes.
+
+Examples:
+
+tigar oak
+
+tiger oack
+
+furnature
+
+should still find relevant results.
+
+7. Category intelligence.
+
+Searching:
+
+furniture
+
+should return:
+
+tables
+dressers
+buffets
+cabinets
+desks
+chairs
+bookcases
+
+if those categories are tagged as furniture.
+
+8. Multi-source search.
+
+Results should include:
+
+Marketplace Listings
+
+Flash Finds
+
+Wanted Items
+
+Events
+
+Auctions
+
+and display them grouped by source.
+
+9. Search diagnostics.
+
+Add console logging during development showing:
+
+search query
+
+tokens generated
+
+matched fields
+
+relevance score
+
+returned results
+
+10. Create a test suite.
+
+Verify these searches return results:
+
+tiger oak furniture
+
+tiger oak
+
+buffet
+
+table
+
+furniture
+
+oak table
+
+wood furniture
+
+prime
+
+yard sale
+
+swap meet
+
+Generate a report of:
+
+* files modified
+* search algorithm used
+* ranking system
+* performance impact
+* before/after search accuracy

@@ -7,17 +7,186 @@
 // external_listings query (SELECT *), then filter client-side. This avoids
 // brittle server-side `.or(...)` filters that 400 the whole query when one
 // optional column is missing (see memory: supabase-select-schema-drift).
+//
+// Search algorithm:
+//   1. Tokenize the query into individual words.
+//   2. Score each item by summing per-token best-field scores:
+//        title=100, tags=80, category=60, description=40, extra fields=20
+//   3. Each token is tested with: exact substring → stem match → fuzzy match.
+//   4. Category synonyms expand "furniture" to match items in tables/dressers/etc.
+//   5. Items with score > 0 are included; sorted by relevanceScore descending.
 
 import { supabase } from '../../supabase';
 import { fetchCommunityPosts, fetchMarketplaceListings } from '../../database';
 import { fetchPublishedEvents } from '../../events';
 import type { SearchProvider, SearchResultItem, SearchResultKind } from '../types';
 
-function matches(term: string, ...fields: Array<string | null | undefined>): boolean {
-  const q = term.trim().toLowerCase();
-  if (!q) return false;
-  return fields.some((f) => (f ?? '').toLowerCase().includes(q));
+/* ─────────────────────────── Field weights ─────────────────────────────── */
+
+const W_TITLE = 100;
+const W_TAGS = 80;
+const W_CATEGORY = 60;
+const W_DESCRIPTION = 40;
+const W_EXTRA = 20;
+
+/* ─────────────────── Category intelligence / synonyms ──────────────────── */
+
+// Keys are user-searchable terms; values are related subcategory/item words.
+// Allows "furniture" to surface items tagged as tables, dressers, buffets, etc.
+const CATEGORY_SYNONYMS: Record<string, string[]> = {
+  furniture: ['furniture', 'table', 'chair', 'dresser', 'cabinet', 'desk', 'bookcase', 'bookshelf', 'buffet', 'sofa', 'couch', 'wardrobe', 'armoire', 'chest', 'credenza', 'hutch', 'sideboard'],
+  electronics: ['electronics', 'computer', 'laptop', 'phone', 'tablet', 'tv', 'television', 'audio', 'camera', 'console', 'stereo'],
+  clothing: ['clothing', 'clothes', 'apparel', 'shirt', 'pants', 'dress', 'jacket', 'coat', 'shoes', 'boots', 'hat', 'blouse', 'skirt', 'suit'],
+  toys: ['toys', 'toy', 'game', 'games', 'puzzle', 'doll', 'lego', 'action figure', 'figurine', 'stuffed'],
+  tools: ['tools', 'tool', 'drill', 'saw', 'wrench', 'hammer', 'screwdriver', 'power tool', 'hand tool'],
+  jewelry: ['jewelry', 'jewellery', 'ring', 'necklace', 'bracelet', 'earring', 'watch', 'brooch', 'pendant'],
+  books: ['books', 'book', 'novel', 'textbook', 'magazine', 'comic', 'manual'],
+  art: ['art', 'painting', 'print', 'sculpture', 'artwork', 'drawing', 'lithograph'],
+  antiques: ['antiques', 'antique', 'vintage', 'collectible', 'collectibles', 'retro', 'heirloom', 'curio'],
+  kitchen: ['kitchen', 'cookware', 'pot', 'pan', 'dish', 'appliance', 'coffee maker', 'blender', 'mixer'],
+  sports: ['sports', 'sport', 'fitness', 'exercise', 'gym', 'outdoor', 'camping', 'fishing', 'bike', 'bicycle'],
+};
+
+/* ─────────────────────────── Stemmer ────────────────────────────────────── */
+
+// Light suffix-stripping stemmer for common English plurals/verb forms.
+// Not a full Porter stemmer — just enough for the query tokens we care about.
+function stem(word: string): string {
+  const w = word.toLowerCase();
+  if (w.length <= 3) return w;
+  if (w.endsWith('ies') && w.length > 5) return w.slice(0, -3) + 'y';   // batteries→battery
+  if (w.endsWith('ves') && w.length > 5) return w.slice(0, -3) + 'f';   // knives→knife
+  if (w.endsWith('sses') && w.length > 6) return w.slice(0, -2);         // glasses→glass
+  if (w.endsWith('ses') && w.length > 5) return w.slice(0, -1);          // gases→gas
+  if (w.endsWith('oes') && w.length > 5) return w.slice(0, -2);          // potatoes→potato
+  if (w.endsWith('ing') && w.length > 6) return w.slice(0, -3);          // running→run
+  if (w.endsWith('tion') && w.length > 6) return w.slice(0, -4);         // auction→auct (good enough)
+  if (w.endsWith('ed') && w.length > 5) return w.slice(0, -2);           // painted→paint
+  if (w.endsWith('er') && w.length > 5) return w.slice(0, -2);           // dresser→dress (good enough)
+  if (w.endsWith('es') && w.length > 4) return w.slice(0, -1);           // tables→table
+  if (w.endsWith('s') && w.length > 4) return w.slice(0, -1);            // chairs→chair
+  return w;
 }
+
+/* ─────────────────────── Levenshtein distance ───────────────────────────── */
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  // Use two rows instead of a full matrix for memory efficiency.
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  let curr = new Array<number>(n + 1);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      curr[j] = a[i - 1] === b[j - 1]
+        ? prev[j - 1]
+        : 1 + Math.min(prev[j], curr[j - 1], prev[j - 1]);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+/* ─────────────────────────── Token scorer ───────────────────────────────── */
+
+// Score a single token against a text field.
+// Returns a multiplier: 1.0 = exact, 0.9 = stem, 0.5 = fuzzy, 0 = no match.
+function scoreToken(token: string, text: string, allowFuzzy = false): number {
+  if (!text || !token) return 0;
+  const t = text.toLowerCase();
+
+  // 1. Exact substring match.
+  if (t.includes(token)) return 1.0;
+
+  // 2. Stem-based match.
+  const tokenStem = stem(token);
+  if (tokenStem !== token && t.includes(tokenStem)) return 0.9;
+
+  // 3. Fuzzy word-level match (only for longer tokens to avoid noise).
+  if (allowFuzzy && token.length >= 4) {
+    const maxDist = token.length >= 6 ? 2 : 1;
+    const words = t.split(/[\s\W]+/).filter(Boolean);
+    for (const word of words) {
+      if (Math.abs(word.length - token.length) <= maxDist + 1) {
+        if (levenshtein(word, token) <= maxDist) return 0.5;
+        // Also try stem of the text word against the token.
+        const wordStem = stem(word);
+        if (wordStem !== word && Math.abs(wordStem.length - token.length) <= maxDist + 1) {
+          if (levenshtein(wordStem, token) <= maxDist) return 0.45;
+        }
+      }
+    }
+  }
+
+  return 0;
+}
+
+/* ─────────────────────────── Relevance scorer ───────────────────────────── */
+
+interface ScoredFields {
+  title?: string | null;
+  tags?: string | null;
+  category?: string | null;
+  description?: string | null;
+  extra?: string | null;   // city, region, seller handle, platform, etc.
+}
+
+/**
+ * Compute a relevance score for an item against a raw search query.
+ * Returns 0 when nothing matches (item should be excluded).
+ *
+ * Algorithm:
+ *   - Tokenize the query into individual words.
+ *   - For each token (expanded with category synonyms where applicable):
+ *       multiply the token's field match multiplier by the field weight.
+ *   - Sum the best-per-original-token scores across all fields.
+ *   - Bonus: a multi-token query where ALL tokens match scores higher than
+ *     a query where only some tokens match (complete-match multiplier ×1.5).
+ */
+function computeScore(query: string, fields: ScoredFields): number {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return 0;
+
+  let totalScore = 0;
+  let matchedTokens = 0;
+
+  for (const token of tokens) {
+    // Expand this token with category synonyms so "furniture" matches "table".
+    const variants = CATEGORY_SYNONYMS[token]
+      ? Array.from(new Set([token, ...CATEGORY_SYNONYMS[token]]))
+      : [token];
+
+    let tokenBestScore = 0;
+
+    for (const variant of variants) {
+      const titleScore  = scoreToken(variant, fields.title ?? '', true)  * W_TITLE;
+      const tagsScore   = scoreToken(variant, fields.tags ?? '', false)  * W_TAGS;
+      const catScore    = scoreToken(variant, fields.category ?? '', false) * W_CATEGORY;
+      const descScore   = scoreToken(variant, fields.description ?? '', true) * W_DESCRIPTION;
+      const extraScore  = scoreToken(variant, fields.extra ?? '', false) * W_EXTRA;
+
+      const best = Math.max(titleScore, tagsScore, catScore, descScore, extraScore);
+      if (best > tokenBestScore) tokenBestScore = best;
+    }
+
+    if (tokenBestScore > 0) matchedTokens++;
+    totalScore += tokenBestScore;
+  }
+
+  if (totalScore === 0) return 0;
+
+  // Bonus for matching all tokens (complete-phrase quality boost).
+  if (tokens.length > 1 && matchedTokens === tokens.length) {
+    totalScore *= 1.5;
+  }
+
+  return Math.round(totalScore);
+}
+
+/* ─────────────────────────── Helpers ───────────────────────────────────── */
 
 function numOrNull(v: unknown): number | null {
   const n = typeof v === 'number' ? v : Number(v);
@@ -39,8 +208,10 @@ function eventKind(category?: string | null): SearchResultKind {
   return 'auction';
 }
 
+/* ─────────────────────────── Main search ───────────────────────────────── */
+
 async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
-  const q = term.trim();
+  const q = term.trim().toLowerCase();
   if (!q) return [];
 
   const [postsRaw, marketRaw, eventsRaw, externalRaw] = await Promise.all([
@@ -61,8 +232,15 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
 
   // Flash Finds — community_posts
   for (const p of asArray<Record<string, unknown>>(postsRaw)) {
-    const tags = Array.isArray(p.tags) ? (p.tags as string[]).join(' ') : '';
-    if (matches(q, p.caption as string, p.description as string, p.category as string, tags)) {
+    const tags = Array.isArray(p.tags) ? (p.tags as string[]).join(' ') : String(p.tags ?? '');
+    const score = computeScore(q, {
+      title: p.caption as string,
+      tags,
+      category: p.category as string,
+      description: p.description as string,
+      extra: p.location as string,
+    });
+    if (score > 0) {
       items.push({
         id: String(p.id),
         source: 'treasuretrail',
@@ -73,13 +251,20 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         imageUrl: (p.image_url as string) ?? null,
         route: `/find/${p.id}`,
         category: (p.category as string) ?? null,
+        relevanceScore: score,
       });
     }
   }
 
   // Business Listings — marketplace_listings
   for (const m of asArray<Record<string, unknown>>(marketRaw)) {
-    if (matches(q, m.title as string, m.description as string, m.category as string)) {
+    const score = computeScore(q, {
+      title: m.title as string,
+      category: m.category as string,
+      description: m.description as string,
+      extra: [m.general_location, m.condition, m.subcategory].filter(Boolean).join(' '),
+    });
+    if (score > 0) {
       items.push({
         id: String(m.id),
         source: 'treasuretrail',
@@ -92,22 +277,20 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         category: (m.category as string) ?? null,
         lat: numOrNull(m.lat),
         lng: numOrNull(m.lng),
+        relevanceScore: score,
       });
     }
   }
 
   // Auctions / Estate Sales / Yard Sales — events
   for (const e of asArray<Record<string, unknown>>(eventsRaw)) {
-    if (
-      matches(
-        q,
-        e.title as string,
-        e.description as string,
-        e.category as string,
-        e.city as string,
-        e.region as string,
-      )
-    ) {
+    const score = computeScore(q, {
+      title: e.title as string,
+      category: e.category as string,
+      description: e.description as string,
+      extra: [e.city, e.region, e.address].filter(Boolean).join(' '),
+    });
+    if (score > 0) {
       const loc = [e.city, e.region].filter(Boolean).join(', ');
       items.push({
         id: String(e.id),
@@ -121,13 +304,20 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         category: (e.category as string) ?? null,
         lat: numOrNull(e.lat),
         lng: numOrNull(e.lng),
+        relevanceScore: score,
       });
     }
   }
 
-  // Listings — external_listings (may link out to the source platform)
+  // Listings — external_listings
   for (const l of asArray<Record<string, unknown>>(externalRaw)) {
-    if (matches(q, l.title as string, l.description as string, l.category as string, l.platform as string)) {
+    const score = computeScore(q, {
+      title: l.title as string,
+      category: l.category as string,
+      description: l.description as string,
+      extra: [l.platform, l.seller_name].filter(Boolean).join(' '),
+    });
+    if (score > 0) {
       const url =
         (l.url as string) ||
         (l.listing_url as string) ||
@@ -145,8 +335,22 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         route: url ? null : '/auctions',
         externalUrl: url,
         category: (l.category as string) ?? null,
+        relevanceScore: score,
       });
     }
+  }
+
+  // Sort by relevance descending before handing off to the aggregator
+  // (the aggregator will re-sort by distance within sections, but relevanceScore
+  // is preserved so the UI can show it as a secondary sort signal).
+  items.sort((a, b) => (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0));
+
+  if (import.meta.env.DEV) {
+    const tokens = q.split(/\s+/).filter(Boolean);
+    console.debug(
+      `[search] query="${q}" tokens=${JSON.stringify(tokens)} results=${items.length}`,
+      items.slice(0, 5).map((it) => ({ title: it.title, score: it.relevanceScore, kind: it.kind })),
+    );
   }
 
   return items;

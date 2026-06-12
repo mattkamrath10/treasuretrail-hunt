@@ -83,8 +83,13 @@ function withDistance(items: SearchResultItem[], origin: GeoPoint | null): Searc
 const byDistance = (a: SearchResultItem, b: SearchResultItem): number => {
   const da = a.distanceMiles ?? Number.POSITIVE_INFINITY;
   const db = b.distanceMiles ?? Number.POSITIVE_INFINITY;
-  return da - db;
+  if (da !== db) return da - db;
+  // Equal distance (or both unknown) → higher relevance first.
+  return (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
 };
+
+const byRelevance = (a: SearchResultItem, b: SearchResultItem): number =>
+  (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
 
 /** Build the ordered, non-empty TreasureTrail sections from its raw items. */
 function buildTreasureTrailSections(
@@ -111,7 +116,7 @@ function buildTreasureTrailSections(
     if (near.length) sections.push({ key: 'near', label: 'Near You', items: near });
     if (rest.length) sections.push({ key: 'tt-more', label: 'More TreasureTrail Results', items: rest });
   } else if (listings.length) {
-    sections.push({ key: 'tt', label: 'TreasureTrail Marketplace', items: listings });
+    sections.push({ key: 'tt', label: 'TreasureTrail Marketplace', items: [...listings].sort(byRelevance) });
   }
 
   if (events.length) {
