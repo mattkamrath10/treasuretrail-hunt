@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, ArrowLeft, ArrowRight, X, MapPin, DollarSign, Tag, Sparkles, Eye, CircleCheck as CheckCircle, Image, Pencil, Plus, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,14 @@ import {
   shareItem,
 } from '../lib/itemIntelligence';
 import { publicWebUrl } from '../lib/apiBase';
+import {
+  runAiScan,
+  fetchAiScanUsage,
+  AiScanError,
+  type AiScanUsage,
+  type AiAnalysisResult,
+} from '../lib/aiAnalysis';
+import { compressImage } from '../lib/imageCompress';
 
 type FlowStep = 'main' | 'photo' | 'details' | 'ai-analysis' | 'confirmation';
 
@@ -27,6 +35,36 @@ const CATEGORIES = [
   'Electronics', 'Furniture', 'Books', 'Collectibles', 'Antiques',
   'Art', 'Jewelry', 'Watches', 'Toys', 'Tools', 'Clothing', 'Other',
 ];
+
+// Map the model's free-text category onto one of our chips. The AI prompt
+// is constrained to this exact list, but we normalize defensively (case +
+// trim) and fall back to 'Other' so an unexpected value never leaves the
+// category blank.
+function normalizeAiCategory(c: string): string {
+  if (!c) return '';
+  const found = CATEGORIES.find((cat) => cat.toLowerCase() === c.trim().toLowerCase());
+  return found || 'Other';
+}
+
+// Compose a human-readable description from the structured AI result so the
+// user gets a ready-to-post Notes block (summary + key facts + highlights).
+// We deliberately do NOT touch the price field — FlashFindForm.price is the
+// "Price Found At" (what the user PAID), while the AI returns a RESALE
+// estimate, so the value range lives in the notes instead.
+function buildNotesFromAi(r: AiAnalysisResult): string {
+  const parts: string[] = [];
+  if (r.summary) parts.push(r.summary.trim());
+  const facts: string[] = [];
+  if (r.brand) facts.push(`Brand: ${r.brand}`);
+  if (r.era) facts.push(`Era: ${r.era}`);
+  if (r.condition_estimate) facts.push(`Condition: ${r.condition_estimate}`);
+  if (r.estimated_value && (r.estimated_value.low || r.estimated_value.high)) {
+    facts.push(`Est. resale: $${r.estimated_value.low}–$${r.estimated_value.high}`);
+  }
+  if (facts.length) parts.push(facts.join(' · '));
+  if (r.highlights?.length) parts.push(r.highlights.map((h) => `• ${h}`).join('\n'));
+  return parts.join('\n\n').trim();
+}
 
 interface FlashFindForm {
   title: string;
@@ -110,6 +148,25 @@ export default function FlashFinds() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  // Real photo-based AI autofill (GPT vision) state. The scan is rate
+  // limited server-side (free: 5 / rolling 24h, Pro: unlimited); we mirror
+  // the remaining count in the UI and surface a Pro upsell on 429.
+  const [aiScanning, setAiScanning] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiLimitReached, setAiLimitReached] = useState(false);
+  const [aiUsage, setAiUsage] = useState<AiScanUsage | null>(null);
+  const [aiPrefilled, setAiPrefilled] = useState(false);
+
+  // Refresh the remaining-scan counter whenever the photo preview is shown
+  // so the AI Autofill button always reflects the live quota.
+  useEffect(() => {
+    if (step === 'photo' && user) {
+      fetchAiScanUsage().then((u) => {
+        if (u) setAiUsage(u);
+      });
+    }
+  }, [step, user]);
+
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -130,6 +187,11 @@ export default function FlashFinds() {
       return;
     }
     setSubmitError('');
+    // Fresh photo: clear any AI state from a prior attempt so stale error
+    // text / prefill banner / limit flag don't carry over to the new image.
+    setAiError('');
+    setAiPrefilled(false);
+    setAiLimitReached(false);
     const reader = new FileReader();
     reader.onload = (e) => {
       const url = e.target?.result as string;
@@ -158,8 +220,49 @@ export default function FlashFinds() {
     galleryInputRef.current?.click();
   };
 
-  const handlePhotoConfirm = () => {
+  // Manual path: skip AI and go straight to the (empty) details form.
+  const handleManualEntry = () => {
+    setAiError('');
+    setAiPrefilled(false);
     setStep('details');
+  };
+
+  // AI path: compress the captured photo, run the real GPT-vision scan, map
+  // the structured result onto the form, then drop the user on the details
+  // step (pre-filled) so they can review/edit before posting.
+  const handleAiAutofill = async () => {
+    if (!photoUrl || aiScanning) return;
+    setAiScanning(true);
+    setAiError('');
+    setAiLimitReached(false);
+    try {
+      const compact = await compressImage(photoUrl, 1024, 0.6);
+      const resp = await runAiScan(compact);
+      const r = resp.result;
+      setForm((prev) => ({
+        ...prev,
+        title: r.title?.trim() || prev.title,
+        category: normalizeAiCategory(r.category) || prev.category,
+        notes: buildNotesFromAi(r) || prev.notes,
+      }));
+      setAiUsage({ tier: resp.tier, used: resp.used, limit: resp.limit, remaining: resp.remaining });
+      setAiPrefilled(true);
+      setSubmitError('');
+      setStep('details');
+    } catch (e) {
+      if (e instanceof AiScanError) {
+        if (e.status === 429) {
+          setAiLimitReached(true);
+          if (e.usage) setAiUsage(e.usage);
+        }
+        setAiError(e.message);
+      } else {
+        console.error('[AI_AUTOFILL] scan failed', e);
+        setAiError('AI autofill failed. Please try again, or enter details manually.');
+      }
+    } finally {
+      setAiScanning(false);
+    }
   };
 
   const handleDetailsSubmit = () => {
@@ -421,6 +524,9 @@ export default function FlashFinds() {
       pickup_type: [], shipping_available: false, meetup_notes: '',
     });
     setSubmitError('');
+    setAiError('');
+    setAiPrefilled(false);
+    setAiLimitReached(false);
   };
 
   if (isGuest) {
@@ -463,10 +569,16 @@ export default function FlashFinds() {
       {step === 'photo' && (
         <PhotoPreview
           photoUrl={photoUrl}
-          onConfirm={handlePhotoConfirm}
+          onAiAutofill={handleAiAutofill}
+          onManual={handleManualEntry}
           onRetakeCamera={openCamera}
           onRetakeGallery={openGallery}
           onBack={handleReset}
+          aiScanning={aiScanning}
+          aiUsage={aiUsage}
+          aiError={aiError}
+          aiLimitReached={aiLimitReached}
+          onUpgrade={() => navigate('/pro')}
         />
       )}
 
@@ -478,6 +590,7 @@ export default function FlashFinds() {
           onSubmit={handleDetailsSubmit}
           onBack={() => setStep('photo')}
           error={submitError}
+          aiPrefilled={aiPrefilled}
         />
       )}
 
@@ -613,17 +726,36 @@ function MainScreen({
 
 function PhotoPreview({
   photoUrl,
-  onConfirm,
+  onAiAutofill,
+  onManual,
   onRetakeCamera,
   onRetakeGallery,
   onBack,
+  aiScanning,
+  aiUsage,
+  aiError,
+  aiLimitReached,
+  onUpgrade,
 }: {
   photoUrl: string | null;
-  onConfirm: () => void;
+  onAiAutofill: () => void;
+  onManual: () => void;
   onRetakeCamera: () => void;
   onRetakeGallery: () => void;
   onBack: () => void;
+  aiScanning: boolean;
+  aiUsage: AiScanUsage | null;
+  aiError: string;
+  aiLimitReached: boolean;
+  onUpgrade: () => void;
 }) {
+  const outOfFreeScans = aiUsage?.tier === 'free' && aiUsage.remaining <= 0;
+  const showUpgrade = aiLimitReached || outOfFreeScans;
+  const aiSubLabel = aiUsage
+    ? aiUsage.tier === 'pro'
+      ? 'Pro · unlimited scans'
+      : `${Math.max(0, aiUsage.remaining)} of ${aiUsage.limit} free scans left today`
+    : 'Identify it & fill the details from your photo';
   const [imgErrored, setImgErrored] = useState(false);
   // Reset error state whenever a new photo is loaded so retaking clears
   // the prior failure message.
@@ -664,7 +796,9 @@ function PhotoPreview({
                 }}
               />
               <div style={styles.photoOverlay}>
-                <span style={styles.photoHint}>AI will analyze this image</span>
+                <span style={styles.photoHint}>
+                  {aiScanning ? 'Analyzing your photo…' : 'Use AI Autofill or enter details manually'}
+                </span>
               </div>
             </>
           ) : photoUrl && imgErrored ? (
@@ -695,13 +829,30 @@ function PhotoPreview({
         </div>
 
         <div style={styles.photoActions}>
-          <button
-            onClick={onConfirm}
-            style={{ ...styles.usePhotoBtn, opacity: photoUrl && !imgErrored ? 1 : 0.5 }}
-            disabled={!photoUrl || imgErrored}
-          >
-            <CheckCircle size={18} />
-            <span>Use This Photo</span>
+          {aiError && (
+            <div style={styles.aiErrorBox} role="alert">{aiError}</div>
+          )}
+          {showUpgrade ? (
+            <button onClick={onUpgrade} style={styles.aiUpgradeBtn}>
+              <Sparkles size={18} />
+              <span>Upgrade to Pro for unlimited AI Autofill</span>
+            </button>
+          ) : (
+            <button
+              onClick={onAiAutofill}
+              style={{ ...styles.aiAutofillBtn, opacity: photoUrl && !imgErrored && !aiScanning ? 1 : 0.6 }}
+              disabled={!photoUrl || imgErrored || aiScanning}
+            >
+              <span style={styles.aiAutofillTop}>
+                <Sparkles size={18} style={aiScanning ? styles.spin : undefined} />
+                <span>{aiScanning ? 'Analyzing your photo…' : 'AI Autofill'}</span>
+              </span>
+              {!aiScanning && <span style={styles.aiAutofillSub}>{aiSubLabel}</span>}
+            </button>
+          )}
+          <button onClick={onManual} style={styles.manualBtn} disabled={aiScanning}>
+            <Pencil size={16} />
+            <span>Enter details manually</span>
           </button>
         </div>
       </div>
@@ -716,6 +867,7 @@ function DetailsForm({
   onSubmit,
   onBack,
   error,
+  aiPrefilled,
 }: {
   photoUrl: string | null;
   form: FlashFindForm;
@@ -723,6 +875,7 @@ function DetailsForm({
   onSubmit: () => void;
   onBack: () => void;
   error?: string;
+  aiPrefilled?: boolean;
 }) {
   return (
     <div style={styles.container}>
@@ -735,6 +888,12 @@ function DetailsForm({
       </header>
 
       <div style={styles.detailsContent}>
+        {aiPrefilled && (
+          <div style={styles.aiBanner}>
+            <Sparkles size={16} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+            <span>AI filled these in from your photo. Review and tweak before posting.</span>
+          </div>
+        )}
         <div style={styles.miniPreview}>
           <div style={{ ...styles.miniImage, borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
             <ImageWithFade
@@ -1223,10 +1382,91 @@ const styles: Record<string, React.CSSProperties> = {
   },
   photoActions: {
     display: 'flex',
-    gap: 'var(--space-3)',
+    flexDirection: 'column',
+    gap: 'var(--space-2)',
     padding: 'var(--space-3) var(--space-4) var(--space-4)',
     backgroundColor: 'var(--color-neutral-0)',
     borderTop: '1px solid var(--color-neutral-100)',
+  },
+  aiAutofillBtn: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '2px',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: 'none',
+    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+    color: 'var(--color-neutral-0)',
+    fontWeight: 'var(--font-weight-semibold)',
+    cursor: 'pointer',
+    transition: 'opacity 0.2s',
+  },
+  aiAutofillTop: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--space-2)',
+    fontSize: 'var(--font-size-base)',
+  },
+  aiAutofillSub: {
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-medium)',
+    opacity: 0.9,
+  },
+  manualBtn: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)',
+    backgroundColor: 'var(--color-neutral-0)',
+    color: 'var(--color-neutral-700)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-medium)',
+    cursor: 'pointer',
+  },
+  aiUpgradeBtn: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    border: 'none',
+    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+    color: 'var(--color-neutral-0)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-semibold)',
+    cursor: 'pointer',
+  },
+  aiErrorBox: {
+    padding: 'var(--space-2) var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-error-50, #fef2f2)',
+    border: '1px solid var(--color-error-200, #fecaca)',
+    color: 'var(--color-error-700, #b91c1c)',
+    fontSize: 'var(--font-size-xs)',
+  },
+  aiBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-3)',
+    marginBottom: 'var(--space-3)',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: '#f5f3ff',
+    border: '1px solid #ddd6fe',
+    color: '#5b21b6',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 'var(--font-weight-medium)',
+  },
+  spin: {
+    animation: 'spin 1s linear infinite',
   },
   retakeBtn: {
     flex: 1,
