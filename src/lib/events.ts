@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { assertClean, GUIDELINE_MESSAGE } from './contentFilter';
 import { apiUrl } from './apiBase';
 import { normalizeEvents } from './recurrence';
+import { extractStoragePath } from './moderation';
 
 export type EventCategory =
   | 'estate_sale'
@@ -486,9 +487,57 @@ export async function updateEvent(id: string, patch: Partial<EventUpsert>) {
   );
 }
 
+// Best-effort removal of storage objects for a set of public image URLs.
+// Groups paths by bucket and never throws — orphaned files are undesirable
+// but must not block the DB delete (which is the source of truth).
+async function removeStorageImages(urls: (string | null | undefined)[]) {
+  const byBucket = new Map<string, string[]>();
+  for (const url of urls) {
+    const loc = extractStoragePath(url);
+    if (!loc) continue;
+    const list = byBucket.get(loc.bucket) ?? [];
+    list.push(loc.path);
+    byBucket.set(loc.bucket, list);
+  }
+  for (const [bucket, paths] of byBucket) {
+    try {
+      const { error } = await supabase.storage.from(bucket).remove(paths);
+      if (error) console.warn('[EVENTS] storage remove failed (continuing)', { bucket, message: error.message });
+    } catch (e) {
+      console.warn('[EVENTS] storage remove threw (continuing)', e);
+    }
+  }
+}
+
+// Permanently delete an event AND clean up its images. Featured-item rows
+// are removed automatically by the ON DELETE CASCADE on
+// event_featured_items.event_id, but their storage objects (and the event
+// cover) are NOT, so we collect and remove them first.
 export async function deleteEvent(id: string) {
+  // Collect every image we'll need to purge before the rows disappear.
+  const imageUrls: (string | null | undefined)[] = [];
+  try {
+    const { data: ev } = await supabase
+      .from('events')
+      .select('cover_image_url, cover_thumb_url')
+      .eq('id', id)
+      .maybeSingle();
+    if (ev) imageUrls.push(ev.cover_image_url, ev.cover_thumb_url);
+
+    const { data: items } = await supabase
+      .from('event_featured_items')
+      .select('image_url, thumb_url')
+      .eq('event_id', id);
+    for (const it of items ?? []) imageUrls.push(it.image_url, it.thumb_url);
+  } catch (e) {
+    console.warn('[EVENTS] could not gather images before delete (continuing)', e);
+  }
+
   const { error } = await supabase.from('events').delete().eq('id', id);
   if (error) throw new Error(error.message);
+
+  // Row gone — now best-effort purge the storage objects.
+  await removeStorageImages(imageUrls);
 }
 
 /* ---------------- Featured items ---------------- */
@@ -517,6 +566,21 @@ export async function addEventFeaturedItem(
 }
 
 export async function deleteEventFeaturedItem(id: string) {
+  // Grab the item's images first so we can purge storage after the row is gone.
+  let imageUrls: (string | null | undefined)[] = [];
+  try {
+    const { data } = await supabase
+      .from('event_featured_items')
+      .select('image_url, thumb_url')
+      .eq('id', id)
+      .maybeSingle();
+    if (data) imageUrls = [data.image_url, data.thumb_url];
+  } catch (e) {
+    console.warn('[EVENTS] could not gather item image before delete (continuing)', e);
+  }
+
   const { error } = await supabase.from('event_featured_items').delete().eq('id', id);
   if (error) throw new Error(error.message);
+
+  await removeStorageImages(imageUrls);
 }

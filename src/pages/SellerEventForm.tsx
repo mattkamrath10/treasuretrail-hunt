@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   fetchMyEvent, createEvent, updateEvent, countActiveLocalEvents,
   fetchEventFeaturedItems, addEventFeaturedItem, deleteEventFeaturedItem,
-  importEventFromUrl,
+  deleteEvent, importEventFromUrl,
   PLATFORM_META, SHOW_CATEGORY_LABELS,
   type EventCategory, type EventStatus, type EventUpsert, type EventFeaturedItem,
   type EventKind, type EventPlatform, type ShowCategory, type EventRow,
@@ -28,6 +28,7 @@ import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isProUser, FREE_TIER_EVENT_LIMIT } from '../lib/entitlements';
 import { monetizationHidden } from '../lib/platform';
 import { flashToast } from '../lib/toast';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 const LOG = '[SELLER_FORM]';
 
