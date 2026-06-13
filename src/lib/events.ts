@@ -512,9 +512,14 @@ async function removeStorageImages(urls: (string | null | undefined)[]) {
 // Permanently delete an event AND clean up its images. Featured-item rows
 // are removed automatically by the ON DELETE CASCADE on
 // event_featured_items.event_id, but their storage objects (and the event
-// cover) are NOT, so we collect and remove them first.
+// cover) are NOT, so we collect and remove them too.
+//
+// Mirrors the deletePost() convention in moderation.ts: storage removal is
+// best-effort and runs BEFORE the row delete, so an orphaned row never blocks
+// a future re-upload to the same path. The DB row is the source of truth — a
+// failed storage purge is logged but never aborts the delete.
 export async function deleteEvent(id: string) {
-  // Collect every image we'll need to purge before the rows disappear.
+  // Collect every image to purge while the rows still exist.
   const imageUrls: (string | null | undefined)[] = [];
   try {
     const { data: ev } = await supabase
@@ -533,11 +538,11 @@ export async function deleteEvent(id: string) {
     console.warn('[EVENTS] could not gather images before delete (continuing)', e);
   }
 
+  // Best-effort storage cleanup BEFORE the row delete (matches deletePost).
+  await removeStorageImages(imageUrls);
+
   const { error } = await supabase.from('events').delete().eq('id', id);
   if (error) throw new Error(error.message);
-
-  // Row gone — now best-effort purge the storage objects.
-  await removeStorageImages(imageUrls);
 }
 
 /* ---------------- Featured items ---------------- */
@@ -566,7 +571,7 @@ export async function addEventFeaturedItem(
 }
 
 export async function deleteEventFeaturedItem(id: string) {
-  // Grab the item's images first so we can purge storage after the row is gone.
+  // Grab the item's images while the row still exists.
   let imageUrls: (string | null | undefined)[] = [];
   try {
     const { data } = await supabase
@@ -579,8 +584,9 @@ export async function deleteEventFeaturedItem(id: string) {
     console.warn('[EVENTS] could not gather item image before delete (continuing)', e);
   }
 
+  // Best-effort storage cleanup BEFORE the row delete (matches deletePost).
+  await removeStorageImages(imageUrls);
+
   const { error } = await supabase.from('event_featured_items').delete().eq('id', id);
   if (error) throw new Error(error.message);
-
-  await removeStorageImages(imageUrls);
 }

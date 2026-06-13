@@ -140,6 +140,14 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   // featured items (edit only)
   const [items, setItems] = useState<EventFeaturedItem[] | null>(null);
 
+  // Destructive-action confirmation state. Featured-item removal and whole-
+  // event deletion both route through <ConfirmDialog> (App Store requires an
+  // explicit confirm before any destructive action).
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<string | null>(null);
+  const [removingItem, setRemovingItem] = useState(false);
+  const [showDeleteEvent, setShowDeleteEvent] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState(false);
+
   // Copy a loaded event's fields into form state. Shared by the edit-load and
   // the "Duplicate Event" flow. For duplicates we append "(Copy)" to the title
   // and force draft status; recurrence config is carried over verbatim.
@@ -622,16 +630,45 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const onRemoveItem = async (itemId: string) => {
-    if (!confirm('Remove this featured item?')) return;
+  // Step 1: open the styled confirm modal for a featured item.
+  const onRemoveItem = (itemId: string) => setPendingDeleteItem(itemId);
+
+  // Step 2: user confirmed — remove from DB + storage, then drop from the UI.
+  const confirmRemoveItem = async () => {
+    const itemId = pendingDeleteItem;
+    if (!itemId) return;
+    setRemovingItem(true);
     try {
       console.log(LOG, 'removeItem', { itemId });
       await deleteEventFeaturedItem(itemId);
       setItems((prev) => (prev ?? []).filter((i) => i.id !== itemId));
+      setPendingDeleteItem(null);
       flashToast('Item removed', 'success');
     } catch (e: any) {
       console.error(LOG, 'removeItem:error', e);
       flashToast(`Couldn't remove item: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+    } finally {
+      setRemovingItem(false);
+    }
+  };
+
+  // Permanently delete the whole event. The featured-item ROWS are removed by
+  // the ON DELETE CASCADE on event_featured_items.event_id; deleteEvent()
+  // additionally purges the cover + per-item storage images. On success we
+  // return to My Events (Profile) with a confirmation toast.
+  const confirmDeleteEvent = async () => {
+    if (!id) return;
+    setDeletingEvent(true);
+    try {
+      console.log(LOG, 'deleteEvent', { id });
+      await deleteEvent(id);
+      setShowDeleteEvent(false);
+      flashToast('Event deleted', 'success');
+      navigate('/profile');
+    } catch (e: any) {
+      console.error(LOG, 'deleteEvent:error', e);
+      flashToast(`Couldn't delete event: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+      setDeletingEvent(false);
     }
   };
 
@@ -1056,7 +1093,46 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
               {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
             </button>
           </div>
+
+          {/* Danger Zone — destructive event deletion, edit mode only */}
+          {isEdit && id && (
+            <section style={s.dangerZone}>
+              <h3 style={s.dangerTitle}>Danger Zone</h3>
+              <p style={s.dangerHint}>
+                Deleting this event is permanent and removes all of its featured items.
+              </p>
+              <button
+                onClick={() => setShowDeleteEvent(true)}
+                style={s.deleteEventBtn}
+              >
+                <Trash2 size={15} />
+                Delete Event
+              </button>
+            </section>
+          )}
         </>
+      )}
+
+      {pendingDeleteItem && (
+        <ConfirmDialog
+          title="Delete this item?"
+          message="This item will be removed from the event."
+          confirmLabel="Delete"
+          busy={removingItem}
+          onConfirm={confirmRemoveItem}
+          onCancel={() => setPendingDeleteItem(null)}
+        />
+      )}
+
+      {showDeleteEvent && (
+        <ConfirmDialog
+          title="Delete Event?"
+          message="This action cannot be undone and will permanently remove this event and all associated featured items."
+          confirmLabel="Delete Event"
+          busy={deletingEvent}
+          onConfirm={confirmDeleteEvent}
+          onCancel={() => setShowDeleteEvent(false)}
+        />
       )}
     </PageScroll>
   );
@@ -1138,7 +1214,7 @@ function FeaturedItemsEditor({
 }: {
   items: EventFeaturedItem[];
   onAdd:    (input: { title: string; price: number | null; coverFile: File | null }) => Promise<void>;
-  onRemove: (id: string) => Promise<void>;
+  onRemove: (id: string) => void;
 }) {
   const [title, setTitle]       = useState('');
   const [price, setPrice]       = useState('');
@@ -1589,6 +1665,36 @@ const s: Record<string, React.CSSProperties> = {
   saveBar: {
     display: 'flex', gap: 8, justifyContent: 'flex-end',
     padding: 'var(--space-3) var(--space-4) var(--space-4)',
+  },
+  dangerZone: {
+    margin: 'var(--space-2) var(--space-4) var(--space-6)',
+    padding: 'var(--space-4)',
+    borderRadius: 'var(--radius-lg)',
+    border: '1px solid var(--color-error-200, #fecaca)',
+    background: 'var(--color-error-50, #fef2f2)',
+    display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+  },
+  dangerTitle: {
+    margin: 0,
+    fontSize: 'var(--font-size-sm)', fontWeight: 700,
+    color: 'var(--color-error-700, #b91c1c)',
+  },
+  dangerHint: {
+    margin: 0,
+    fontSize: 'var(--font-size-xs)',
+    color: 'var(--color-error-600, #dc2626)',
+    lineHeight: 1.5,
+  },
+  deleteEventBtn: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    alignSelf: 'flex-start',
+    marginTop: 'var(--space-1)',
+    padding: 'var(--space-2) var(--space-4)',
+    borderRadius: 'var(--radius-md)',
+    border: 'none', cursor: 'pointer',
+    background: 'var(--color-error-600, #dc2626)',
+    color: '#fff',
+    fontSize: 'var(--font-size-sm)', fontWeight: 700,
   },
   ghostBtn: {
     display: 'inline-flex', alignItems: 'center', gap: 4,

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Calendar, MapPin, Search, Sparkles, Package, Flag } from 'lucide-react';
+import { ChevronRight, Calendar, MapPin, Search, Sparkles, Package, Flag, EllipsisVertical, Eye, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { CommunityPost, MarketplaceListing } from '../lib/supabase';
-import { fetchMyEvents, type EventRow } from '../lib/events';
+import { fetchMyEvents, deleteEvent, type EventRow } from '../lib/events';
+import { flashToast } from '../lib/toast';
+import ConfirmDialog from './ui/ConfirmDialog';
 import { fetchMyWantedItems, WANTED_CATEGORY_LABEL, type WantedItemRow } from '../lib/wanted';
 import { ImageWithFade } from './ui/ImageWithFade';
 import { MediaFallback } from './ui/MediaFallback';
@@ -173,6 +175,8 @@ export default function UserShowcase({ userId, isSelf }: { userId: string; isSel
               onClick={() => navigate(`/event/${e.id}`)}
               canReport={canReport}
               ownerId={userId}
+              isSelf={!!isSelf}
+              onDeleted={(deletedId) => setEvents((prev) => (prev ?? []).filter((ev) => ev.id !== deletedId))}
             />
           ))}
         </Rail>
@@ -274,8 +278,33 @@ function FindCard({ item, onClick, canReport, ownerId }: { item: FindItem; onCli
   );
 }
 
-function EventCard({ event, onClick, canReport, ownerId }: { event: EventRow; onClick: () => void; canReport?: boolean; ownerId: string }) {
+function EventCard({ event, onClick, canReport, ownerId, isSelf, onDeleted }: {
+  event: EventRow;
+  onClick: () => void;
+  canReport?: boolean;
+  ownerId: string;
+  isSelf?: boolean;
+  onDeleted?: (id: string) => void;
+}) {
+  const navigate = useNavigate();
   const where = [event.city, event.region].filter(Boolean).join(', ') || event.address || 'Event';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const doDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteEvent(event.id);
+      setConfirmDelete(false);
+      onDeleted?.(event.id);
+      flashToast('Event deleted', 'success');
+    } catch (e: any) {
+      flashToast(`Couldn't delete event: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+      setDeleting(false);
+    }
+  };
+
   return (
     <article style={s.cardLg} onClick={onClick} role="button" tabIndex={0} aria-label={`Open ${event.title}`}>
       <div style={s.cardImgLg}>
@@ -290,6 +319,44 @@ function EventCard({ event, onClick, canReport, ownerId }: { event: EventRow; on
         {canReport && (
           <CardReportButton contentType="event" contentId={event.id} ownerId={ownerId} />
         )}
+        {isSelf && (
+          <div
+            style={s.menuWrap}
+            role="presentation"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              style={s.menuBtn}
+              aria-label="Event options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <EllipsisVertical size={15} />
+            </button>
+            {menuOpen && (
+              <>
+                <div style={s.menuBackdrop} onClick={() => setMenuOpen(false)} role="presentation" />
+                <div style={s.menu} role="menu">
+                  <button type="button" style={s.menuItem} role="menuitem"
+                    onClick={() => { setMenuOpen(false); navigate(`/event/${event.id}`); }}>
+                    <Eye size={14} /> View
+                  </button>
+                  <button type="button" style={s.menuItem} role="menuitem"
+                    onClick={() => { setMenuOpen(false); navigate(`/seller/event/${event.id}`); }}>
+                    <Pencil size={14} /> Edit
+                  </button>
+                  <button type="button" style={{ ...s.menuItem, ...s.menuItemDanger }} role="menuitem"
+                    onClick={() => { setMenuOpen(false); setConfirmDelete(true); }}>
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <div style={s.cardBadgeRow}>
           <span style={{ ...s.badge, background: 'rgba(245, 158, 11, 0.95)' }}>
             <Calendar size={10} /> {formatShort(event.starts_at)}
@@ -302,6 +369,19 @@ function EventCard({ event, onClick, canReport, ownerId }: { event: EventRow; on
           <MapPin size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />{where}
         </p>
       </div>
+
+      {confirmDelete && (
+        <div role="presentation" onClick={(e) => e.stopPropagation()}>
+          <ConfirmDialog
+            title="Delete Event?"
+            message="This action cannot be undone and will permanently remove this event and all associated featured items."
+            confirmLabel="Delete Event"
+            busy={deleting}
+            onConfirm={doDelete}
+            onCancel={() => setConfirmDelete(false)}
+          />
+        </div>
+      )}
     </article>
   );
 }
@@ -440,6 +520,39 @@ const s: Record<string, CSSProperties> = {
     fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: '0.04em',
     boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
   },
+  menuWrap: { position: 'absolute', top: 8, left: 8, zIndex: 4 },
+  menuBtn: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 28, height: 28, padding: 0,
+    borderRadius: '50%',
+    background: 'rgba(0,0,0,0.55)',
+    border: '1px solid rgba(255,255,255,0.18)',
+    color: '#fff', cursor: 'pointer',
+    backdropFilter: 'blur(2px)',
+  },
+  menuBackdrop: {
+    position: 'fixed', inset: 0, zIndex: 4,
+  },
+  menu: {
+    position: 'absolute', top: 34, left: 0, zIndex: 5,
+    minWidth: 132,
+    background: 'var(--color-neutral-0, #fff)',
+    borderRadius: 'var(--radius-md, 8px)',
+    border: '1px solid var(--color-neutral-200, #e5e7eb)',
+    boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.18))',
+    overflow: 'hidden',
+    padding: 4,
+    display: 'flex', flexDirection: 'column', gap: 2,
+  },
+  menuItem: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    width: '100%', padding: '8px 10px',
+    background: 'transparent', border: 'none', cursor: 'pointer',
+    borderRadius: 'var(--radius-sm, 6px)',
+    fontSize: 13, fontWeight: 600, textAlign: 'left',
+    color: 'var(--color-neutral-800, #1f2937)',
+  },
+  menuItemDanger: { color: 'var(--color-error-600, #dc2626)' },
   reportWrap: { position: 'absolute', top: 8, right: 8, zIndex: 3 },
   reportBtn: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
