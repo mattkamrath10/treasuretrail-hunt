@@ -219,8 +219,8 @@ input, textarea, select {
 }
 
 /* Horizontal carousels (Discover rows) manage their own affordances —
- * desktop arrows, edge fades, and a mobile progress bar — so we hide the
- * native scrollbar on them for a clean, touch-friendly feel. */
+ * desktop arrows and edge fades — so we hide the native scrollbar on them
+ * for a clean, touch-friendly feel. */
 .tt-hscroll {
   scrollbar-width: none;            /* Firefox */
   -ms-overflow-style: none;         /* legacy Edge */

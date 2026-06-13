@@ -8,7 +8,6 @@ import { fetchPublishedEvents, fetchProHolderIds, type EventRow } from '../lib/e
 import { haversineMiles } from '../lib/geocode';
 import { useSavedLocation, requestGpsLocation, saveZipLocation } from '../lib/userLocation';
 import { fetchCommunityPosts } from '../lib/database';
-import { fetchOpenWantedItemsWithRequesters, WANTED_CATEGORY_LABEL, type WantedItemWithRequester } from '../lib/wanted';
 import type { CommunityPost } from '../lib/supabase';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
@@ -52,7 +51,6 @@ export default function Discover() {
   const { profile } = useAuth();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [finds, setFinds] = useState<CommunityPost[]>([]);
-  const [wanted, setWanted] = useState<WantedItemWithRequester[]>([]);
   const [proHolders, setProHolders] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const savedLocation = useSavedLocation();
@@ -70,16 +68,13 @@ export default function Discover() {
     Promise.allSettled([
       fetchPublishedEvents({ limit: 40 }),
       fetchCommunityPosts(24),
-      fetchOpenWantedItemsWithRequesters({ limit: 24 }),
-    ]).then(async ([e, f, w]) => {
+    ]).then(async ([e, f]) => {
       if (cancelled) return;
       let eventRows: EventRow[] = [];
       if (e.status === 'fulfilled') { eventRows = e.value; setEvents(e.value); maybeNotifyGoLive(e.value); }
       else console.warn(LOG, 'events fetch failed', e.reason);
       if (f.status === 'fulfilled') setFinds(f.value);
       else console.warn(LOG, 'finds fetch failed', f.reason);
-      if (w.status === 'fulfilled') setWanted(w.value);
-      else console.warn(LOG, 'wanted fetch failed', w.reason);
 
       // Resolve which sellers are Pro so they get priority placement.
       // Best-effort — fetchProHolderIds swallows errors and returns an
@@ -186,18 +181,6 @@ export default function Discover() {
         {finds.length === 0 && <SkeletonRow kind="find" />}
       </Section>
 
-      <Section
-        title="Wanted Items"
-        subtitle="Buyers searching for treasures"
-        accent="#10b981"
-        onSeeAll={() => navigate('/wanted')}
-      >
-        {wanted.filter((w) => matchQ(w.title) || matchQ(w.category)).slice(0, 16).map((w) => (
-          <WantedCard key={w.id} item={w} onClick={() => navigate(`/wanted/${w.id}`)} />
-        ))}
-        {wanted.length === 0 && <EmptyWantedTeaser onCreate={() => navigate('/sell/wanted')} />}
-      </Section>
-
       <div style={{ height: 24 }} />
     </PageScroll>
   );
@@ -215,18 +198,8 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
   const rowRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
-  const [thumb, setThumb] = useState(1);     // visible fraction (progress-bar width)
-  const [progress, setProgress] = useState(0); // 0..1 scroll position
-  const [isTouch, setIsTouch] = useState(false);
 
-  useEffect(() => {
-    setIsTouch(
-      typeof window !== 'undefined' &&
-      window.matchMedia('(hover: none), (pointer: coarse)').matches,
-    );
-  }, []);
-
-  // Recompute arrow availability + progress from the row's scroll metrics.
+  // Recompute arrow availability from the row's scroll metrics.
   const update = useCallback(() => {
     const el = rowRef.current;
     if (!el) return;
@@ -234,8 +207,6 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
     const max = scrollWidth - clientWidth;
     setCanLeft(scrollLeft > 2);
     setCanRight(scrollLeft < max - 2);
-    setThumb(scrollWidth > 0 ? Math.min(1, clientWidth / scrollWidth) : 1);
-    setProgress(max > 0 ? scrollLeft / max : 0);
   }, []);
 
   // Recompute when content loads in (children change) and on first mount.
@@ -324,17 +295,6 @@ function Section({ title, subtitle, accent, onSeeAll, children }: {
           {children}
         </div>
       </div>
-      {isTouch && (canLeft || canRight) && (
-        <div style={s.progressTrack} aria-hidden>
-          <div
-            style={{
-              ...s.progressThumb,
-              width: `${thumb * 100}%`,
-              left: `${progress * (1 - thumb) * 100}%`,
-            }}
-          />
-        </div>
-      )}
     </section>
   );
 }
@@ -408,48 +368,6 @@ function FindCard({ post, onClick }: { post: CommunityPost; onClick: () => void 
       </div>
       <div style={s.cardBody}>
         <h3 style={s.cardTitleSm}>{post.caption || 'Untitled find'}</h3>
-      </div>
-    </article>
-  );
-}
-
-function WantedCard({ item, onClick }: { item: WantedItemWithRequester; onClick: () => void }) {
-  const where = [item.city, item.region].filter(Boolean).join(', ');
-  const handle = item.requester?.username ?? null;
-  const boosted = isBoosted(item);
-  return (
-    <article style={{ ...s.cardMd, ...(boosted ? BOOSTED_CARD_GLOW : null) }} onClick={onClick} role="button" tabIndex={0} aria-label={`Open wanted post: ${item.title}`}>
-      <div style={s.cardImgMd}>
-        <ImageWithFade
-          src={item.thumb_url ?? toThumbUrl(item.image_url)}
-          fallbackSrc={item.image_url}
-          alt={item.title}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          fallback={<MediaFallback kind="wanted" seed={item.id} label={item.title} />}
-        />
-        <div style={s.cardOverlay} />
-        <div style={s.cardBadgeRow}>
-          {boosted && <BoostedBadge />}
-          <span style={{ ...s.badge, background: 'rgba(16, 185, 129, 0.95)' }}>
-            <Search size={10} /> {WANTED_CATEGORY_LABEL[item.category]}
-          </span>
-          {item.max_budget != null && (
-            <span style={{ ...s.badge, background: 'rgba(15, 23, 42, 0.78)' }}>
-              up to ${Math.round(item.max_budget)}
-            </span>
-          )}
-        </div>
-      </div>
-      <div style={s.cardBody}>
-        <h3 style={s.cardTitleSm}>{item.title}</h3>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-          {handle ? (
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>@{handle}</span>
-          ) : (
-            <span style={{ fontSize: 11, color: 'rgba(245,245,247,0.4)' }}>Requester unavailable</span>
-          )}
-          {where && <span style={s.cardMeta}><MapPin size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />{where}</span>}
-        </div>
       </div>
     </article>
   );
@@ -588,15 +506,6 @@ function NearbySection({ nearby, radius, onExpand, onBrowse, onChange, onOpen }:
   );
 }
 
-function EmptyWantedTeaser({ onCreate }: { onCreate: () => void }) {
-  return (
-    <button onClick={onCreate} style={s.emptyTeaser}>
-      <Search size={18} />
-      <span>Be the first to post what you're looking for →</span>
-    </button>
-  );
-}
-
 function SkeletonRow({ kind }: { kind: 'live' | 'event' | 'find' }) {
   const wide = kind !== 'find';
   return (
@@ -702,18 +611,6 @@ const s: Record<string, CSSProperties> = {
   },
   edgeFadeLeft: { left: 0, background: 'linear-gradient(90deg, #0b0b10 0%, transparent 100%)' },
   edgeFadeRight: { right: 0, background: 'linear-gradient(270deg, #0b0b10 0%, transparent 100%)' },
-  progressTrack: {
-    position: 'relative', height: 3, borderRadius: 999,
-    margin: '8px 16px 0',
-    background: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
-  },
-  progressThumb: {
-    position: 'absolute', top: 0, bottom: 0,
-    borderRadius: 999,
-    background: 'rgba(251,191,36,0.75)',
-    transition: 'left .06s linear',
-  },
   row: {
     display: 'flex',
     flexWrap: 'nowrap',
