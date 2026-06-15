@@ -146,3 +146,10 @@ vite.config.ts.timestamp-*
 *.jks
 *.keystore
 android-upload-key-reset/
+
+# Full-project backup archives — these were stored in Git LFS and burned
+# deploy bandwidth on every clone. Keep backups locally, not in the repo.
+treasuretrail.zip
+treasuretrail-project.zip
+TreasureTrail-FullSource-20260611.zip
+exports/TreasureTrail-Complete-20260607.zip
