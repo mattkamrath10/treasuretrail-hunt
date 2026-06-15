@@ -704,7 +704,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <PageScroll style={s.container}>
+    <div style={s.page}>
       <Header onBack={onBack} title={isEdit ? 'Edit event' : 'New event'} right={
         isEdit && id ? (
           <button onClick={() => navigate(`/event/${id}`)} style={s.ghostBtn}>
@@ -717,6 +717,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
         <div style={s.loadingWrap}><Loader2 size={22} className="spin" /></div>
       ) : (
         <>
+          <PageScroll style={s.scrollBody}>
           {/* Import from URL — primary fast path (create flow only) */}
           {!isEdit && (
             <section style={s.importCard}>
@@ -1078,21 +1079,11 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
             </section>
           )}
 
-          {/* Sticky save bar */}
-          {err && <div style={s.errorBanner}>{err}</div>}
           {!monetizationHidden() && capBlocked && (
-            <div style={{ margin: '0 0 var(--space-3)' }}>
+            <div style={{ margin: '0 var(--space-4) var(--space-3)' }}>
               <UpgradeProCard onUpgrade={() => navigate('/pro')} />
             </div>
           )}
-
-          <div style={s.saveBar}>
-            <button onClick={onBack} style={s.ghostBtnLg}>Cancel</button>
-            <button onClick={onSave} disabled={saving} style={s.primaryBtnLg}>
-              {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
-              {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
-            </button>
-          </div>
 
           {/* Danger Zone — destructive event deletion, edit mode only */}
           {isEdit && id && (
@@ -1110,6 +1101,20 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
               </button>
             </section>
           )}
+          </PageScroll>
+
+          {/* Sticky footer — Cancel + Create/Save stay reachable above the
+              BottomNav + safe area and are never hidden by the keyboard. */}
+          <footer style={s.footer}>
+            {err && <div style={s.errorBanner}>{err}</div>}
+            <div style={s.saveBar}>
+              <button onClick={onBack} style={s.ghostBtnLg}>Cancel</button>
+              <button onClick={onSave} disabled={saving} style={s.primaryBtnLg}>
+                {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
+                {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
+              </button>
+            </div>
+          </footer>
         </>
       )}
 
@@ -1134,7 +1139,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
           onCancel={() => setShowDeleteEvent(false)}
         />
       )}
-    </PageScroll>
+    </div>
   );
 }
 
@@ -1392,6 +1397,20 @@ const s: Record<string, React.CSSProperties> = {
     // safe-area inset so the final "Create event" / "Save changes" button is
     // always scrollable into view and never sits behind the nav bar on iPhone.
     paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 120px)',
+  },
+  // Page is a flex column inside AppShell's fixed-height content slot: a static
+  // header, a scrollable body (flex:1), and a sticky footer. This keeps the
+  // Cancel/Create-Event buttons pinned above the BottomNav and visible when the
+  // webview resizes for the keyboard, on every screen size and orientation.
+  page: {
+    height: '100%',
+    display: 'flex', flexDirection: 'column',
+    backgroundColor: 'var(--color-neutral-50)',
+  },
+  scrollBody: {
+    flex: 1, minHeight: 0, height: 'auto',
+    backgroundColor: 'var(--color-neutral-50)',
+    paddingBottom: 'var(--space-4)',
   },
   header: {
     display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
@@ -1661,6 +1680,14 @@ const s: Record<string, React.CSSProperties> = {
     backgroundColor: 'var(--color-error-50, #fef2f2)',
     color: 'var(--color-error-700, #b91c1c)',
     fontSize: 'var(--font-size-xs)',
+  },
+  // Sticky footer container. The BottomNav sits directly below this footer and
+  // already pads the home-indicator safe area, so we deliberately do NOT add
+  // safe-area-inset-bottom here (that would double the gap on iPhone).
+  footer: {
+    flexShrink: 0,
+    background: 'var(--color-neutral-0)',
+    borderTop: '1px solid var(--color-neutral-100)',
   },
   saveBar: {
     display: 'flex', gap: 8, justifyContent: 'flex-end',
