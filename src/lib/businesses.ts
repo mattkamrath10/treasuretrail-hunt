@@ -330,10 +330,11 @@ async function removeStorageImages(urls: (string | null | undefined)[]) {
 }
 
 export async function deleteBusiness(id: string, ownerId: string): Promise<void> {
-  // Collect image URLs first so we can purge storage after the row is gone.
-  // Featured-item ROWS are removed automatically by the ON DELETE CASCADE on
-  // business_featured_items.business_id, but their storage objects are NOT, so
-  // we gather them too while the rows still exist.
+  // Gather image URLs (business logo/photos + featured-item images) and purge
+  // storage BEFORE deleting the row, matching the event-deletion convention
+  // (deletePost / event deletion). Featured-item ROWS cascade-delete via the FK
+  // ON DELETE CASCADE, but their storage objects do not, so we collect them
+  // while the rows still exist. Storage removal is best-effort and never blocks.
   const row = await fetchMyBusiness(id, ownerId);
   let featuredImageUrls: (string | null | undefined)[] = [];
   try {
@@ -342,6 +343,12 @@ export async function deleteBusiness(id: string, ownerId: string): Promise<void>
   } catch (e) {
     console.warn(LOG, 'could not gather featured-item images before delete (continuing)', e);
   }
+
+  const urls: (string | null | undefined)[] = [
+    ...(row ? [row.logo_url, row.logo_thumb_url, ...row.photos.flatMap((p) => [p.url, p.thumb_url])] : []),
+    ...featuredImageUrls,
+  ];
+  await removeStorageImages(urls);
 
   const { error } = await supabase
     .from('businesses')
@@ -352,11 +359,6 @@ export async function deleteBusiness(id: string, ownerId: string): Promise<void>
     console.error(LOG, 'deleteBusiness', error);
     throw error;
   }
-  const urls: (string | null | undefined)[] = [
-    ...(row ? [row.logo_url, row.logo_thumb_url, ...row.photos.flatMap((p) => [p.url, p.thumb_url])] : []),
-    ...featuredImageUrls,
-  ];
-  await removeStorageImages(urls);
 }
 
 /* ---------------- Featured items (Phase 2) ----------------

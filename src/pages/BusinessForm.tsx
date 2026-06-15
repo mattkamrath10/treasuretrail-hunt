@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, ImagePlus, Loader2, Save, Trash2, X, Store, Plus,
+  ArrowLeft, ImagePlus, Loader2, Save, Trash2, X, Store, Plus, Pencil,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -340,6 +340,43 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const onUpdateItem = async (itemId: string, input: {
+    title: string;
+    description: string;
+    price: number | null;
+    category: string | null;
+    availability: BusinessAvailability;
+    file: File | null;
+  }) => {
+    if (!user) throw new Error('Not ready — please reload the page');
+    const patch: Partial<{
+      title: string; description: string; price: number | null;
+      category: string | null; availability: BusinessAvailability;
+      image_url: string | null; thumb_url: string | null;
+    }> = {
+      title: input.title.trim(),
+      description: input.description.trim(),
+      price: input.price,
+      category: input.category,
+      availability: input.availability,
+    };
+    if (input.file) {
+      const dataUrl = await fileToDataUrl(input.file);
+      const up = await uploadCompressedImage(dataUrl, { userId: user.id, folder: 'businesses' });
+      patch.image_url = up.url;
+      patch.thumb_url = up.thumbUrl;
+    }
+    try {
+      const row = await updateBusinessFeaturedItem(itemId, patch);
+      setItems((prev) => (prev ?? []).map((i) => (i.id === itemId ? row : i)));
+      flashToast('Item updated', 'success');
+    } catch (e: any) {
+      console.error(LOG, 'updateItem', e);
+      flashToast(`Couldn't update item: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+      throw e;
+    }
+  };
+
   const onChangeAvailability = async (itemId: string, availability: BusinessAvailability) => {
     setUpdatingItemId(itemId);
     // Optimistic — revert on failure.
@@ -511,6 +548,7 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
           <FeaturedItemsEditor
             items={items ?? []}
             onAdd={onAddItem}
+            onUpdate={onUpdateItem}
             onRemove={onRemoveItem}
             onChangeAvailability={onChangeAvailability}
             updatingItemId={updatingItemId}
@@ -573,60 +611,27 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
 
 /* --------------- Featured items editor --------------- */
 
+type ItemDraftInput = {
+  title: string;
+  description: string;
+  price: number | null;
+  category: string | null;
+  availability: BusinessAvailability;
+  file: File | null;
+};
+
 function FeaturedItemsEditor({
-  items, onAdd, onRemove, onChangeAvailability, updatingItemId,
+  items, onAdd, onUpdate, onRemove, onChangeAvailability, updatingItemId,
 }: {
   items: BusinessFeaturedItem[];
-  onAdd: (input: {
-    title: string;
-    description: string;
-    price: number | null;
-    category: string | null;
-    availability: BusinessAvailability;
-    file: File | null;
-  }) => Promise<void>;
+  onAdd: (input: ItemDraftInput) => Promise<void>;
+  onUpdate: (id: string, input: ItemDraftInput) => Promise<void>;
   onRemove: (id: string) => void;
   onChangeAvailability: (id: string, availability: BusinessAvailability) => void;
   updatingItemId: string | null;
 }) {
-  const [title, setTitle]             = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice]             = useState('');
-  const [category, setCategory]       = useState('');
-  const [availability, setAvailability] = useState<BusinessAvailability>('available');
-  const [file, setFile]               = useState<File | null>(null);
-  const [busy, setBusy]               = useState(false);
-  const [err, setErr]                 = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
+  const [editingId, setEditingId] = useState<string | null>(null);
   const atCap = items.length >= BUSINESS_FEATURED_ITEM_CAP;
-  const hasDraft = title.trim() || description.trim() || price.trim() || category.trim() || !!file;
-
-  const submit = async () => {
-    if (!title.trim()) { setErr('Item needs a title'); return; }
-    const priceNum = price.trim() ? Number(price) : null;
-    if (priceNum != null && (!Number.isFinite(priceNum) || priceNum < 0)) {
-      setErr('Price must be a positive number'); return;
-    }
-    setErr(null);
-    setBusy(true);
-    try {
-      await onAdd({
-        title: title.trim(),
-        description: description.trim(),
-        price: priceNum,
-        category: category.trim() || null,
-        availability,
-        file,
-      });
-      setTitle(''); setDescription(''); setPrice(''); setCategory('');
-      setAvailability('available'); setFile(null);
-    } catch (e: any) {
-      setErr(e?.message ?? 'Could not add item');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <div>
@@ -664,6 +669,9 @@ function FeaturedItemsEditor({
                     <option key={a} value={a}>{BUSINESS_AVAILABILITY_META[a].label}</option>
                   ))}
                 </select>
+                <button type="button" onClick={() => setEditingId(it.id)} style={s.itemEditBtn}>
+                  <Pencil size={12} /> Edit
+                </button>
               </div>
               <button onClick={() => onRemove(it.id)} style={s.itemRemove} aria-label="Remove">
                 <Trash2 size={12} />
@@ -673,87 +681,180 @@ function FeaturedItemsEditor({
         </div>
       )}
 
+      {/* Edit panel — appears when an existing item is being edited */}
+      {editingId && (() => {
+        const editing = items.find((i) => i.id === editingId);
+        if (!editing) return null;
+        return (
+          <ItemDraftForm
+            key={editing.id}
+            mode="edit"
+            initial={editing}
+            onSubmit={async (input) => { await onUpdate(editing.id, input); setEditingId(null); }}
+            onCancel={() => setEditingId(null)}
+          />
+        );
+      })()}
+
+      {/* Add panel */}
       {atCap ? (
         <p style={s.hint}>Maximum reached. Remove an item to add another.</p>
       ) : (
-        <div style={s.addItemBox}>
-          <p style={s.addItemHeading}>
-            Add a new item — fill in below, then click <strong>Add item</strong> to save it.
-          </p>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Item title"
-            style={s.input}
-            maxLength={80}
+        !editingId && (
+          <ItemDraftForm
+            mode="add"
+            onSubmit={async (input) => { await onAdd(input); }}
           />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (optional)"
-            rows={2}
-            style={{ ...s.input, resize: 'vertical', marginTop: 8 }}
-            maxLength={400}
-          />
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="Category (optional)"
-              style={{ ...s.input, flex: 1 }}
-              maxLength={40}
-            />
-            <input
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="Price"
-              inputMode="decimal"
-              style={{ ...s.input, width: 110 }}
-            />
-          </div>
-          <select
-            value={availability}
-            onChange={(e) => setAvailability(e.target.value as BusinessAvailability)}
-            style={{ ...s.input, marginTop: 8 }}
-          >
-            {(Object.keys(BUSINESS_AVAILABILITY_META) as BusinessAvailability[]).map((a) => (
-              <option key={a} value={a}>{BUSINESS_AVAILABILITY_META[a].label}</option>
-            ))}
-          </select>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-            <button type="button" onClick={() => fileRef.current?.click()} style={s.ghostBtn}>
-              <ImagePlus size={13} /> {file ? file.name.slice(0, 18) : 'Add photo'}
-            </button>
-            {file && (
-              <button type="button" onClick={() => setFile(null)} style={s.ghostBtn}>
-                <X size={13} /> Clear
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={submit}
-              disabled={busy}
-              style={{ ...s.addItemBtn, marginLeft: 'auto' }}
-            >
-              {busy ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
-              {busy ? 'Adding…' : 'Add item'}
-            </button>
-          </div>
-          {hasDraft && !busy && (
-            <p style={s.draftWarn}>
-              ⚠ You have an unsaved item draft. Click <strong>Add item</strong> above to save it.
-            </p>
-          )}
-          {err && <p style={s.itemErr}>{err}</p>}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ''; }}
-          />
+        )
+      )}
+    </div>
+  );
+}
+
+/** Shared add/edit form for a featured item. In "add" mode it resets after a
+ *  successful submit; in "edit" mode it pre-fills and shows Save/Cancel. */
+function ItemDraftForm({
+  mode, initial, onSubmit, onCancel,
+}: {
+  mode: 'add' | 'edit';
+  initial?: BusinessFeaturedItem;
+  onSubmit: (input: ItemDraftInput) => Promise<void>;
+  onCancel?: () => void;
+}) {
+  const [title, setTitle]             = useState(initial?.title ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [price, setPrice]             = useState(initial?.price != null ? String(initial.price) : '');
+  const [category, setCategory]       = useState(initial?.category ?? '');
+  const [availability, setAvailability] = useState<BusinessAvailability>(initial?.availability ?? 'available');
+  const [file, setFile]               = useState<File | null>(null);
+  const [busy, setBusy]               = useState(false);
+  const [err, setErr]                 = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const existingImage = initial?.thumb_url || initial?.image_url || null;
+  const hasDraft = mode === 'add' &&
+    (title.trim() || description.trim() || price.trim() || category.trim() || !!file);
+
+  const submit = async () => {
+    if (!title.trim()) { setErr('Item needs a title'); return; }
+    const priceNum = price.trim() ? Number(price) : null;
+    if (priceNum != null && (!Number.isFinite(priceNum) || priceNum < 0)) {
+      setErr('Price must be a positive number'); return;
+    }
+    setErr(null);
+    setBusy(true);
+    try {
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim(),
+        price: priceNum,
+        category: category.trim() || null,
+        availability,
+        file,
+      });
+      if (mode === 'add') {
+        setTitle(''); setDescription(''); setPrice(''); setCategory('');
+        setAvailability('available'); setFile(null);
+      }
+    } catch (e: any) {
+      setErr(e?.message ?? 'Could not save item');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={s.addItemBox}>
+      <p style={s.addItemHeading}>
+        {mode === 'add' ? (
+          <>Add a new item — fill in below, then click <strong>Add item</strong> to save it.</>
+        ) : (
+          <>Editing item — change any fields, then click <strong>Save changes</strong>.</>
+        )}
+      </p>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Item title"
+        style={s.input}
+        maxLength={80}
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description (optional)"
+        rows={2}
+        style={{ ...s.input, resize: 'vertical', marginTop: 8 }}
+        maxLength={400}
+      />
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <input
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="Category (optional)"
+          style={{ ...s.input, flex: 1 }}
+          maxLength={40}
+        />
+        <input
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          placeholder="Price"
+          inputMode="decimal"
+          style={{ ...s.input, width: 110 }}
+        />
+      </div>
+      <select
+        value={availability}
+        onChange={(e) => setAvailability(e.target.value as BusinessAvailability)}
+        style={{ ...s.input, marginTop: 8 }}
+      >
+        {(Object.keys(BUSINESS_AVAILABILITY_META) as BusinessAvailability[]).map((a) => (
+          <option key={a} value={a}>{BUSINESS_AVAILABILITY_META[a].label}</option>
+        ))}
+      </select>
+      {mode === 'edit' && existingImage && !file && (
+        <div style={s.editImgRow}>
+          <img src={existingImage} alt="" style={s.editImgThumb} />
+          <span style={s.hint}>Current photo — choose a new one to replace it.</span>
         </div>
       )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => fileRef.current?.click()} style={s.ghostBtn}>
+          <ImagePlus size={13} /> {file ? file.name.slice(0, 18) : (mode === 'edit' && existingImage ? 'Replace photo' : 'Add photo')}
+        </button>
+        {file && (
+          <button type="button" onClick={() => setFile(null)} style={s.ghostBtn}>
+            <X size={13} /> Clear
+          </button>
+        )}
+        {mode === 'edit' && onCancel && (
+          <button type="button" onClick={onCancel} disabled={busy} style={s.ghostBtn}>
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy}
+          style={{ ...s.addItemBtn, marginLeft: 'auto' }}
+        >
+          {busy ? <Loader2 size={14} className="spin" /> : (mode === 'add' ? <Plus size={14} /> : <Save size={14} />)}
+          {busy ? 'Saving…' : (mode === 'add' ? 'Add item' : 'Save changes')}
+        </button>
+      </div>
+      {hasDraft && !busy && (
+        <p style={s.draftWarn}>
+          ⚠ You have an unsaved item draft. Click <strong>Add item</strong> above to save it.
+        </p>
+      )}
+      {err && <p style={s.itemErr}>{err}</p>}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ''; }}
+      />
     </div>
   );
 }
@@ -879,6 +980,18 @@ const s: Record<string, React.CSSProperties> = {
     width: '100%', marginTop: 6, padding: '5px 6px', borderRadius: 8,
     border: '1px solid var(--color-neutral-300, #d1d5db)', fontSize: 12,
     background: 'var(--color-bg, #fff)',
+  },
+  itemEditBtn: {
+    width: '100%', marginTop: 6, padding: '5px 6px', borderRadius: 8,
+    border: '1px solid var(--color-neutral-300, #d1d5db)',
+    background: 'var(--color-bg, #fff)', color: 'var(--color-neutral-700, #374151)',
+    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+  },
+  editImgRow: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 },
+  editImgThumb: {
+    width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0,
+    border: '1px solid var(--color-neutral-200, #e5e7eb)',
   },
   itemRemove: {
     position: 'absolute', top: 6, right: 6,
