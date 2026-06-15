@@ -1,0 +1,55 @@
+tching app sources
+16s
+
+
+
+Showing the last 50 lines. Click this button to load the full log
+Resolving deltas:  68% (177/260)
+Resolving deltas:  69% (180/260)
+Resolving deltas:  70% (182/260)
+Resolving deltas:  71% (185/260)
+Resolving deltas:  72% (188/260)
+Resolving deltas:  73% (190/260)
+Resolving deltas:  74% (193/260)
+Resolving deltas:  75% (195/260)
+Resolving deltas:  76% (198/260)
+Resolving deltas:  77% (201/260)
+Resolving deltas:  78% (204/260)
+Resolving deltas:  79% (206/260)
+Resolving deltas:  80% (208/260)
+Resolving deltas:  81% (211/260)
+Resolving deltas:  82% (214/260)
+Resolving deltas:  83% (216/260)
+Resolving deltas:  84% (219/260)
+Resolving deltas:  85% (221/260)
+Resolving deltas:  86% (224/260)
+Resolving deltas:  87% (227/260)
+Resolving deltas:  88% (229/260)
+Resolving deltas:  89% (232/260)
+Resolving deltas:  90% (234/260)
+Resolving deltas:  91% (237/260)
+Resolving deltas:  92% (240/260)
+Resolving deltas:  93% (242/260)
+Resolving deltas:  94% (245/260)
+Resolving deltas:  95% (247/260)
+Resolving deltas:  96% (250/260)
+Resolving deltas:  97% (253/260)
+Resolving deltas:  98% (255/260)
+Resolving deltas:  99% (258/260)
+Resolving deltas: 100% (260/260)
+Resolving deltas: 100% (260/260), done.
+Downloading attached_assets/TreasureTrails_Video_886x1920_#5_1780438092738.mp4 (78 MB)
+Error downloading object: attached_assets/TreasureTrails_Video_886x1920_#5_1780438092738.mp4 (a641c12): Smudge error: Error downloading attached_assets/TreasureTrails_Video_886x1920_#5_1780438092738.mp4 (a641c12fd3eddfa0adf83aab4318f49028ae21c7d7b13fd04eef6ed53a713aa6): batch response: This repository exceeded its LFS budget. The account responsible for the budget should increase it to restore access.
+
+Errors logged to '/Users/builder/clone/.git/lfs/logs/20260615T164127.211169.log'.
+Use `git lfs logs last` to view the log.
+error: external filter 'git-lfs filter-process' failed
+fatal: attached_assets/TreasureTrails_Video_886x1920_#5_1780438092738.mp4: smudge filter lfs failed
+warning: Clone succeeded, but checkout failed.
+You can inspect what was checked out with 'git status'
+and retry with 'git restore --source=HEAD :/'
+
+
+
+Build failed :|
+Failed to clone repository

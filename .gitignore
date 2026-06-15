@@ -153,3 +153,8 @@ treasuretrail.zip
 treasuretrail-project.zip
 TreasureTrail-FullSource-20260611.zip
 exports/TreasureTrail-Complete-20260607.zip
+
+# Large source videos — were in Git LFS and broke Codemagic clones once the LFS
+# budget was exhausted (smudge filter failed -> clone failed). Not used by the
+# app. Keep them locally for editing, never commit them.
+attached_assets/*.mp4
