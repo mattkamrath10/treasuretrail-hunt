@@ -13,10 +13,12 @@ import {
 } from '../lib/events';
 import {
   fetchPublishedBusinesses,
+  fetchBusinessFeaturedItems,
   BUSINESS_CATEGORY_META,
   BUSINESS_CATEGORIES,
   type BusinessRow,
   type BusinessCategory,
+  type BusinessFeaturedItem,
 } from '../lib/businesses';
 import { describeRecurrence } from '../lib/recurrence';
 import {
@@ -213,6 +215,7 @@ export default function EventsMap() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
+  const [businessItems, setBusinessItems] = useState<BusinessFeaturedItem[]>([]);
 
   /* ----- Load published events + businesses once ----- */
   useEffect(() => {
@@ -400,6 +403,16 @@ export default function EventsMap() {
   }
 
   const selected = selectedId ? visible.find((e) => e.id === selectedId) ?? null : null;
+  useEffect(() => {
+    if (!selectedBusinessId) { setBusinessItems([]); return; }
+    let cancelled = false;
+    setBusinessItems([]);
+    fetchBusinessFeaturedItems(selectedBusinessId)
+      .then((rows) => { if (!cancelled) setBusinessItems(rows); })
+      .catch(() => { if (!cancelled) setBusinessItems([]); });
+    return () => { cancelled = true; };
+  }, [selectedBusinessId]);
+
   const selectedBusiness = selectedBusinessId
     ? visibleBusinesses.find((b) => b.id === selectedBusinessId) ?? null
     : null;
@@ -624,6 +637,25 @@ export default function EventsMap() {
                 <div style={s.cardMeta}>{businessLocationLabel(selectedBusiness)}</div>
               </div>
             </div>
+            {businessItems.length > 0 && (
+              <div style={s.itemPreviewRow}>
+                {businessItems.slice(0, 4).map((it) => (
+                  <div key={it.id} style={s.itemPreviewThumb}>
+                    <ImageWithFade
+                      src={(it.thumb_url || it.image_url) as string | null}
+                      alt={it.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      containerStyle={{ width: '100%', height: '100%' }}
+                      fallback={<MediaFallback kind="listing" seed={it.id} label={it.title?.slice(0, 10) || 'ITEM'} compact />}
+                    />
+                    {it.availability !== 'available' && <span style={s.itemPreviewDim} />}
+                  </div>
+                ))}
+                {businessItems.length > 4 && (
+                  <div style={{ ...s.itemPreviewThumb, ...s.itemPreviewMore }}>+{businessItems.length - 4}</div>
+                )}
+              </div>
+            )}
             <div style={s.cardActions}>
               <button onClick={() => navigate(`/business/${selectedBusiness.id}`)} style={s.detailsBtn}>
                 View Details <ChevronRight size={15} />
@@ -762,6 +794,19 @@ const s: Record<string, React.CSSProperties> = {
   cardMeta: { fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cardRepeat: { fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary-700, #1d4ed8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cardActions: { display: 'flex', gap: 8, marginTop: 'var(--space-3)' },
+  itemPreviewRow: { display: 'flex', gap: 6, marginTop: 'var(--space-3)' },
+  itemPreviewThumb: {
+    position: 'relative', width: 52, height: 52, borderRadius: 'var(--radius-md)',
+    overflow: 'hidden', background: '#f3f4f6', flexShrink: 0,
+  },
+  itemPreviewDim: {
+    position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.5)',
+  },
+  itemPreviewMore: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 13, fontWeight: 700, color: 'var(--color-neutral-600, #4b5563)',
+    background: 'var(--color-neutral-100, #f3f4f6)',
+  },
   detailsBtn: {
     flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2,
     background: 'var(--color-neutral-100)', color: 'var(--color-neutral-800)', border: 'none',

@@ -6,8 +6,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
-  fetchBusiness, BUSINESS_CATEGORY_META,
-  type BusinessRow,
+  fetchBusiness, fetchBusinessFeaturedItems,
+  BUSINESS_CATEGORY_META, BUSINESS_AVAILABILITY_META,
+  type BusinessRow, type BusinessFeaturedItem,
 } from '../lib/businesses';
 import { MediaFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
@@ -41,10 +42,12 @@ export default function BusinessDetail({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
 
   const [biz, setBiz] = useState<BusinessRow | null>(null);
+  const [items, setItems] = useState<BusinessFeaturedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [itemIdx, setItemIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -55,11 +58,20 @@ export default function BusinessDetail({ onBack }: { onBack: () => void }) {
     setBiz(null);
 
     console.log(LOG, 'load', { id });
-    fetchBusiness(id)
-      .then((b) => {
+    // Featured items degrade independently — a transient fetch failure must not
+    // take down the whole business page (table-missing already returns []).
+    Promise.all([
+      fetchBusiness(id),
+      fetchBusinessFeaturedItems(id).catch((e) => {
+        console.warn(LOG, 'featured items load failed (non-fatal)', e);
+        return [] as BusinessFeaturedItem[];
+      }),
+    ])
+      .then(([b, fItems]) => {
         if (cancelled) return;
         if (!b) { setNotFound(true); setLoading(false); return; }
         setBiz(b);
+        setItems(fItems);
         setLoading(false);
       })
       .catch((e: any) => {
@@ -250,6 +262,36 @@ export default function BusinessDetail({ onBack }: { onBack: () => void }) {
         </section>
       )}
 
+      {/* Featured items */}
+      {items.length > 0 && (
+        <section style={s.section}>
+          <h3 style={s.sectionTitle}>Featured items</h3>
+          <div style={s.itemGrid}>
+            {items.map((it, idx) => (
+              <button key={it.id} onClick={() => setItemIdx(idx)} style={s.featuredTile}>
+                <div style={{ ...s.itemThumb, ...(it.availability !== 'available' ? { opacity: 0.6 } : {}) }}>
+                  <ImageWithFade
+                    src={it.thumb_url || it.image_url || undefined}
+                    fallbackSrc={it.image_url}
+                    alt={it.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    fallback={<MediaFallback kind="listing" seed={it.id} label={it.title?.slice(0, 14) || 'ITEM'} compact />}
+                  />
+                  {it.availability !== 'available' && (
+                    <span style={s.availBadge}>{BUSINESS_AVAILABILITY_META[it.availability].label}</span>
+                  )}
+                </div>
+                <div style={s.itemBody}>
+                  <div style={s.itemTitle}>{it.title}</div>
+                  {it.category && <div style={s.itemCat}>{it.category}</div>}
+                  {it.price != null && <div style={s.itemPrice}>${Number(it.price).toFixed(2)}</div>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Hours */}
       {biz.hours?.trim() && (
         <section style={s.section}>
@@ -283,6 +325,11 @@ export default function BusinessDetail({ onBack }: { onBack: () => void }) {
       {/* Lightbox */}
       {lightboxIdx != null && biz.photos[lightboxIdx] && (
         <Lightbox photo={biz.photos[lightboxIdx]} alt={biz.name} onClose={() => setLightboxIdx(null)} />
+      )}
+
+      {/* Featured-item detail */}
+      {itemIdx != null && items[itemIdx] && (
+        <FeaturedItemModal item={items[itemIdx]} onClose={() => setItemIdx(null)} />
       )}
     </PageScroll>
   );
@@ -321,6 +368,50 @@ function Lightbox({ photo, alt, onClose }: { photo: { url: string }; alt: string
           style={s.lightboxImg}
           fallback={<MediaFallback kind="listing" seed={photo.url} label={alt} />}
         />
+      </div>
+    </div>
+  );
+}
+
+/* --------------- Featured item modal --------------- */
+
+function FeaturedItemModal({ item, onClose }: { item: BusinessFeaturedItem; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const availMeta = BUSINESS_AVAILABILITY_META[item.availability];
+
+  return (
+    <div style={s.lightboxOverlay} onClick={onClose}>
+      <button style={s.lightboxClose} onClick={onClose} aria-label="Close"><X size={22} /></button>
+      <div onClick={(e) => e.stopPropagation()} style={s.itemModalCard}>
+        {(item.image_url || item.thumb_url) && (
+          <div style={s.itemModalImgWrap}>
+            <ImageWithFade
+              src={item.image_url || item.thumb_url || undefined}
+              alt={item.title}
+              eager
+              style={s.itemModalImg}
+              fallback={<MediaFallback kind="listing" seed={item.id} label={item.title} />}
+            />
+          </div>
+        )}
+        <div style={s.itemModalBody}>
+          <div style={s.itemModalTopRow}>
+            <h3 style={s.itemModalTitle}>{item.title}</h3>
+            {item.price != null && <span style={s.itemModalPrice}>${Number(item.price).toFixed(2)}</span>}
+          </div>
+          <div style={s.itemModalMeta}>
+            {item.category && <span style={s.itemModalChip}>{item.category}</span>}
+            <span style={{ ...s.itemModalChip, ...(item.availability !== 'available' ? s.itemModalChipMuted : {}) }}>
+              {availMeta.label}
+            </span>
+          </div>
+          {item.description?.trim() && <p style={s.itemModalDesc}>{item.description}</p>}
+        </div>
       </div>
     </div>
   );
@@ -401,6 +492,43 @@ const s: Record<string, React.CSSProperties> = {
   itemThumb: {
     position: 'relative', width: '100%', aspectRatio: '1 / 1',
     background: '#f3f4f6', overflow: 'hidden', borderRadius: 12,
+  },
+  featuredTile: {
+    display: 'block', padding: 0, textAlign: 'left',
+    border: '1px solid var(--color-neutral-200, #e5e7eb)', background: 'var(--color-bg, #fff)',
+    cursor: 'pointer', borderRadius: 12, overflow: 'hidden',
+  },
+  availBadge: {
+    position: 'absolute', left: 6, top: 6,
+    padding: '2px 7px', borderRadius: 999,
+    background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10, fontWeight: 700,
+  },
+  itemBody: { padding: '8px 8px 10px' },
+  itemTitle: { fontSize: 13, fontWeight: 700, lineHeight: 1.25, color: 'var(--color-neutral-900, #111827)' },
+  itemCat: { fontSize: 11, color: 'var(--color-neutral-500)', marginTop: 2 },
+  itemPrice: { fontSize: 12, fontWeight: 700, color: 'var(--color-primary-600, #2563eb)', marginTop: 2 },
+  itemModalCard: {
+    width: 'min(94vw, 460px)', maxHeight: '88vh', overflowY: 'auto',
+    background: 'var(--color-bg, #fff)', borderRadius: 16, overflow: 'hidden',
+  },
+  itemModalImgWrap: {
+    width: '100%', aspectRatio: '4 / 3', background: '#0a0a0a',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  itemModalImg: { width: '100%', height: '100%', objectFit: 'contain' },
+  itemModalBody: { padding: 16 },
+  itemModalTopRow: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  itemModalTitle: { fontSize: 18, fontWeight: 800, margin: 0, lineHeight: 1.25 },
+  itemModalPrice: { fontSize: 16, fontWeight: 800, color: 'var(--color-primary-600, #2563eb)', whiteSpace: 'nowrap' },
+  itemModalMeta: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  itemModalChip: {
+    padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+    background: 'var(--color-neutral-100, #f3f4f6)', color: 'var(--color-neutral-700, #374151)',
+  },
+  itemModalChipMuted: { background: '#fef3c7', color: '#92400e' },
+  itemModalDesc: {
+    fontSize: 14, lineHeight: 1.6, color: 'var(--color-neutral-700, #374151)',
+    whiteSpace: 'pre-wrap', margin: '12px 0 0',
   },
   lightboxOverlay: {
     position: 'fixed', inset: 0, zIndex: 100,

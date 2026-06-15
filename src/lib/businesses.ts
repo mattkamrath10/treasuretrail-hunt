@@ -331,7 +331,18 @@ async function removeStorageImages(urls: (string | null | undefined)[]) {
 
 export async function deleteBusiness(id: string, ownerId: string): Promise<void> {
   // Collect image URLs first so we can purge storage after the row is gone.
+  // Featured-item ROWS are removed automatically by the ON DELETE CASCADE on
+  // business_featured_items.business_id, but their storage objects are NOT, so
+  // we gather them too while the rows still exist.
   const row = await fetchMyBusiness(id, ownerId);
+  let featuredImageUrls: (string | null | undefined)[] = [];
+  try {
+    const items = await fetchBusinessFeaturedItems(id);
+    featuredImageUrls = items.flatMap((it) => [it.image_url, it.thumb_url]);
+  } catch (e) {
+    console.warn(LOG, 'could not gather featured-item images before delete (continuing)', e);
+  }
+
   const { error } = await supabase
     .from('businesses')
     .delete()
@@ -341,12 +352,191 @@ export async function deleteBusiness(id: string, ownerId: string): Promise<void>
     console.error(LOG, 'deleteBusiness', error);
     throw error;
   }
-  if (row) {
-    const urls: (string | null | undefined)[] = [
-      row.logo_url, row.logo_thumb_url,
-      ...row.photos.flatMap((p) => [p.url, p.thumb_url]),
-    ];
-    await removeStorageImages(urls);
+  const urls: (string | null | undefined)[] = [
+    ...(row ? [row.logo_url, row.logo_thumb_url, ...row.photos.flatMap((p) => [p.url, p.thumb_url])] : []),
+    ...featuredImageUrls,
+  ];
+  await removeStorageImages(urls);
+}
+
+/* ---------------- Featured items (Phase 2) ----------------
+ * A small gallery of preview inventory per business. Mirrors
+ * event_featured_items but adds description, category, and availability.
+ * The table is created by the phase-2 migration; reads tolerate it being
+ * absent (42P01) so the app keeps working pre-migration. */
+
+export type BusinessAvailability = 'available' | 'sold' | 'unavailable';
+
+export const BUSINESS_AVAILABILITY_META: Record<
+  BusinessAvailability,
+  { label: string }
+> = {
+  available:   { label: 'Available'   },
+  sold:        { label: 'Sold'        },
+  unavailable: { label: 'Unavailable' },
+};
+
+/** Max featured items per business. Enforced client-side AND by a DB trigger. */
+export const BUSINESS_FEATURED_ITEM_CAP = 12;
+
+export interface BusinessFeaturedItem {
+  id: string;
+  business_id: string;
+  title: string;
+  description: string;
+  price: number | null;
+  category: string | null;
+  availability: BusinessAvailability;
+  image_url: string | null;
+  thumb_url: string | null;
+  position: number;
+  created_at: string;
+}
+
+export interface BusinessFeaturedItemInput {
+  title: string;
+  description?: string | null;
+  price?: number | null;
+  category?: string | null;
+  availability?: BusinessAvailability;
+  image_url?: string | null;
+  thumb_url?: string | null;
+  position?: number;
+}
+
+/** A featured item enriched with its parent business name/category, for search
+ *  results that surface an item and link back to its business. */
+export interface SearchableBusinessFeaturedItem extends BusinessFeaturedItem {
+  business_name: string;
+  business_category: BusinessCategory;
+}
+
+const FEATURED_ITEM_SELECT =
+  'id, business_id, title, description, price, category, availability, ' +
+  'image_url, thumb_url, position, created_at';
+
+/** True when the error means the business_featured_items table doesn't exist
+ *  yet (phase-2 migration not applied). Treated as "no items" so the rest of
+ *  the business UI keeps working. */
+function isFeaturedTableMissing(error: any): boolean {
+  return (
+    error?.code === '42P01' ||
+    /relation .*business_featured_items.* does not exist/i.test(error?.message ?? '')
+  );
+}
+
+function normalizeFeaturedItem(r: any): BusinessFeaturedItem {
+  const availability = (r.availability as BusinessAvailability) ?? 'available';
+  return {
+    id: r.id,
+    business_id: r.business_id,
+    title: r.title ?? '',
+    description: r.description ?? '',
+    price: r.price != null ? Number(r.price) : null,
+    category: r.category ?? null,
+    availability: availability in BUSINESS_AVAILABILITY_META ? availability : 'available',
+    image_url: r.image_url ?? null,
+    thumb_url: r.thumb_url ?? null,
+    position: r.position ?? 0,
+    created_at: r.created_at,
+  };
+}
+
+/** All featured items for a business, ordered by position. Returns [] if the
+ *  table doesn't exist yet. RLS hides items whose parent isn't published unless
+ *  the caller owns it. */
+export async function fetchBusinessFeaturedItems(businessId: string): Promise<BusinessFeaturedItem[]> {
+  const { data, error } = await supabase
+    .from('business_featured_items')
+    .select(FEATURED_ITEM_SELECT)
+    .eq('business_id', businessId)
+    .order('position', { ascending: true });
+  if (error) {
+    if (isFeaturedTableMissing(error)) {
+      console.warn(LOG, 'business_featured_items table missing — run the phase-2 migration. Returning [].');
+      return [];
+    }
+    console.error(LOG, 'fetchBusinessFeaturedItems', error);
+    throw error;
+  }
+  return (data ?? []).map(normalizeFeaturedItem);
+}
+
+/** Featured items across all PUBLISHED businesses, enriched with the parent
+ *  business name/category, for global search. Returns [] if the table is
+ *  missing or on any error (search must degrade gracefully). */
+export async function fetchPublishedBusinessFeaturedItems(): Promise<SearchableBusinessFeaturedItem[]> {
+  const { data, error } = await supabase
+    .from('business_featured_items')
+    .select(`${FEATURED_ITEM_SELECT}, businesses!inner(name, category, status)`)
+    .eq('businesses.status', 'published')
+    .order('created_at', { ascending: false });
+  if (error) {
+    if (isFeaturedTableMissing(error)) return [];
+    console.error(LOG, 'fetchPublishedBusinessFeaturedItems', error);
+    return [];
+  }
+  return (data ?? []).map((r: any) => ({
+    ...normalizeFeaturedItem(r),
+    business_name: r.businesses?.name ?? 'Business',
+    business_category: (r.businesses?.category ?? 'antique_store') as BusinessCategory,
+  }));
+}
+
+export async function addBusinessFeaturedItem(
+  businessId: string,
+  item: BusinessFeaturedItemInput,
+): Promise<BusinessFeaturedItem> {
+  const { data, error } = await supabase
+    .from('business_featured_items')
+    .insert({ business_id: businessId, ...item })
+    .select(FEATURED_ITEM_SELECT)
+    .single();
+  if (error) {
+    console.error(LOG, 'addBusinessFeaturedItem', error);
+    throw error;
+  }
+  return normalizeFeaturedItem(data);
+}
+
+export async function updateBusinessFeaturedItem(
+  id: string,
+  patch: Partial<BusinessFeaturedItemInput>,
+): Promise<BusinessFeaturedItem> {
+  const { data, error } = await supabase
+    .from('business_featured_items')
+    .update(patch)
+    .eq('id', id)
+    .select(FEATURED_ITEM_SELECT)
+    .single();
+  if (error) {
+    console.error(LOG, 'updateBusinessFeaturedItem', error);
+    throw error;
+  }
+  return normalizeFeaturedItem(data);
+}
+
+export async function deleteBusinessFeaturedItem(id: string): Promise<void> {
+  // Grab the item's images while the row still exists (mirrors events.ts).
+  let imageUrls: (string | null | undefined)[] = [];
+  try {
+    const { data } = await supabase
+      .from('business_featured_items')
+      .select('image_url, thumb_url')
+      .eq('id', id)
+      .maybeSingle();
+    if (data) imageUrls = [data.image_url, data.thumb_url];
+  } catch (e) {
+    console.warn(LOG, 'could not gather item image before delete (continuing)', e);
+  }
+
+  // Best-effort storage cleanup BEFORE the row delete (matches deletePost).
+  await removeStorageImages(imageUrls);
+
+  const { error } = await supabase.from('business_featured_items').delete().eq('id', id);
+  if (error) {
+    console.error(LOG, 'deleteBusinessFeaturedItem', error);
+    throw error;
   }
 }
 

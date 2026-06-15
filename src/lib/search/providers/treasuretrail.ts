@@ -19,7 +19,10 @@
 import { supabase } from '../../supabase';
 import { fetchCommunityPosts, fetchMarketplaceListings } from '../../database';
 import { fetchPublishedEvents } from '../../events';
-import { fetchPublishedBusinesses, BUSINESS_CATEGORY_META } from '../../businesses';
+import {
+  fetchPublishedBusinesses, fetchPublishedBusinessFeaturedItems,
+  BUSINESS_CATEGORY_META, BUSINESS_AVAILABILITY_META,
+} from '../../businesses';
 import type { SearchProvider, SearchResultItem, SearchResultKind } from '../types';
 
 /* ─────────────────────────── Field weights ─────────────────────────────── */
@@ -215,11 +218,12 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
   const q = term.trim().toLowerCase();
   if (!q) return [];
 
-  const [postsRaw, marketRaw, eventsRaw, businessesRaw, externalRaw] = await Promise.all([
+  const [postsRaw, marketRaw, eventsRaw, businessesRaw, bizItemsRaw, externalRaw] = await Promise.all([
     fetchCommunityPosts(100).catch(() => []),
     fetchMarketplaceListings(100).catch(() => []),
     fetchPublishedEvents({ limit: 100 }).catch(() => []),
     fetchPublishedBusinesses().catch(() => []),
+    fetchPublishedBusinessFeaturedItems().catch(() => []),
     supabase
       .from('external_listings')
       .select('*')
@@ -336,6 +340,37 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         category: catLabel || null,
         lat: numOrNull(b.lat),
         lng: numOrNull(b.lng),
+        relevanceScore: score,
+      });
+    }
+  }
+
+  // Business featured items — surface a specific item and link back to its
+  // business. These mirror event featured items but live on the Treasure Map.
+  for (const it of asArray<Record<string, unknown>>(bizItemsRaw)) {
+    const score = computeScore(q, {
+      title: it.title as string,
+      category: (it.category as string) ?? '',
+      description: (it.description as string) ?? '',
+      extra: (it.business_name as string) ?? '',
+    });
+    if (score > 0) {
+      const avail = (it.availability as keyof typeof BUSINESS_AVAILABILITY_META) ?? 'available';
+      const bizName = (it.business_name as string) || 'Business';
+      const subtitle =
+        avail === 'available'
+          ? bizName
+          : `${bizName} · ${BUSINESS_AVAILABILITY_META[avail]?.label ?? avail}`;
+      items.push({
+        id: `bizitem-${String(it.id)}`,
+        source: 'treasuretrail',
+        kind: 'business',
+        title: (it.title as string) || 'Item',
+        subtitle,
+        price: (it.price as number) ?? null,
+        imageUrl: (it.thumb_url as string) || (it.image_url as string) || null,
+        route: `/business/${it.business_id}`,
+        category: (it.category as string) ?? null,
         relevanceScore: score,
       });
     }

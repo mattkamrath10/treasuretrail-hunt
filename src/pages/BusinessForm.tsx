@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, ImagePlus, Loader2, Save, Trash2, X, Store,
+  ArrowLeft, ImagePlus, Loader2, Save, Trash2, X, Store, Plus,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchMyBusiness, createBusiness, updateBusiness, deleteBusiness,
+  fetchBusinessFeaturedItems, addBusinessFeaturedItem,
+  updateBusinessFeaturedItem, deleteBusinessFeaturedItem,
   BUSINESS_CATEGORY_META, BUSINESS_CATEGORIES,
+  BUSINESS_AVAILABILITY_META, BUSINESS_FEATURED_ITEM_CAP,
   type BusinessCategory, type BusinessStatus, type BusinessPhoto, type BusinessRow,
+  type BusinessFeaturedItem, type BusinessAvailability,
 } from '../lib/businesses';
 import { geocodeEventLocation } from '../lib/geocode';
 import { uploadCompressedImage } from '../lib/uploadImage';
@@ -79,6 +83,12 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting]     = useState(false);
 
+  // Featured items (edit only — needs an existing business row to attach to).
+  const [items, setItems]                     = useState<BusinessFeaturedItem[] | null>(null);
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<string | null>(null);
+  const [removingItem, setRemovingItem]       = useState(false);
+  const [updatingItemId, setUpdatingItemId]   = useState<string | null>(null);
+
   const logoInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -117,11 +127,20 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
     setLoading(true);
     setErr(null);
     console.log(LOG, 'load', { id, ownerId: user.id });
-    fetchMyBusiness(id, user.id)
-      .then((b) => {
+    // Featured items degrade independently — a transient fetch failure must not
+    // take down the whole edit page (the table-missing case already returns []).
+    Promise.all([
+      fetchMyBusiness(id, user.id),
+      fetchBusinessFeaturedItems(id).catch((e) => {
+        console.warn(LOG, 'featured items load failed (non-fatal)', e);
+        return [] as BusinessFeaturedItem[];
+      }),
+    ])
+      .then(([b, fItems]) => {
         if (cancelled) return;
         if (!b) { setErr("Business not found or you don't have access to edit it."); setLoading(false); return; }
         prefill(b);
+        setItems(fItems);
         setLoading(false);
       })
       .catch((e: any) => {
@@ -253,7 +272,9 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
       if (lat == null && (address.trim() || city.trim() || region.trim())) {
         flashToast("Couldn't pin this address — it won't show on the map yet");
       }
-      navigate(`/business/${saved.id}`);
+      // On create, hop to the edit page so the owner can add featured items
+      // (they need the row to exist first). On edit, go to the detail page.
+      navigate(isEdit ? `/business/${saved.id}` : `/business/${saved.id}/edit`, { replace: !isEdit });
     } catch (e: any) {
       console.error(LOG, 'save', e);
       setErr(e?.message ?? 'Failed to save business');
@@ -274,6 +295,83 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
       setErr(e?.message ?? 'Failed to delete business');
       setDeleting(false);
       setShowDelete(false);
+    }
+  };
+
+  /* ---------------- Featured-item operations (edit only) ---------------- */
+
+  const onAddItem = async (input: {
+    title: string;
+    description: string;
+    price: number | null;
+    category: string | null;
+    availability: BusinessAvailability;
+    file: File | null;
+  }) => {
+    if (!id || !user) throw new Error('Not ready — please reload the page');
+    if ((items?.length ?? 0) >= BUSINESS_FEATURED_ITEM_CAP) {
+      throw new Error(`Max ${BUSINESS_FEATURED_ITEM_CAP} featured items per business`);
+    }
+    let image_url: string | null = null;
+    let thumb_url: string | null = null;
+    if (input.file) {
+      const dataUrl = await fileToDataUrl(input.file);
+      const up = await uploadCompressedImage(dataUrl, { userId: user.id, folder: 'businesses' });
+      image_url = up.url;
+      thumb_url = up.thumbUrl;
+    }
+    try {
+      const row = await addBusinessFeaturedItem(id, {
+        title: input.title.trim(),
+        description: input.description.trim(),
+        price: input.price,
+        category: input.category,
+        availability: input.availability,
+        image_url,
+        thumb_url,
+        position: items?.length ?? 0,
+      });
+      setItems((prev) => [...(prev ?? []), row]);
+      flashToast('Item added', 'success');
+    } catch (e: any) {
+      console.error(LOG, 'addItem', e);
+      flashToast(`Couldn't add item: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+      throw e;
+    }
+  };
+
+  const onChangeAvailability = async (itemId: string, availability: BusinessAvailability) => {
+    setUpdatingItemId(itemId);
+    // Optimistic — revert on failure.
+    const prevItems = items;
+    setItems((prev) => (prev ?? []).map((i) => (i.id === itemId ? { ...i, availability } : i)));
+    try {
+      await updateBusinessFeaturedItem(itemId, { availability });
+    } catch (e: any) {
+      console.error(LOG, 'updateItemAvailability', e);
+      setItems(prevItems);
+      flashToast(`Couldn't update item: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+    } finally {
+      setUpdatingItemId(null);
+    }
+  };
+
+  const onRemoveItem = (itemId: string) => setPendingDeleteItem(itemId);
+
+  const confirmRemoveItem = async () => {
+    const itemId = pendingDeleteItem;
+    if (!itemId) return;
+    setRemovingItem(true);
+    try {
+      await deleteBusinessFeaturedItem(itemId);
+      setItems((prev) => (prev ?? []).filter((i) => i.id !== itemId));
+      setPendingDeleteItem(null);
+      flashToast('Item removed', 'success');
+    } catch (e: any) {
+      console.error(LOG, 'removeItem', e);
+      flashToast(`Couldn't remove item: ${e?.message ?? 'unknown error'}`, 'error', 4000);
+    } finally {
+      setRemovingItem(false);
     }
   };
 
@@ -403,6 +501,23 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
         <input ref={photoInputRef} type="file" accept="image/*" multiple onChange={onPickPhotos} style={{ display: 'none' }} />
       </section>
 
+      {/* Featured items — only after the business row exists (edit mode) */}
+      {isEdit && id && (
+        <section style={s.section}>
+          <h3 style={s.sectionTitle}>Featured items</h3>
+          <p style={s.hint}>
+            Up to {BUSINESS_FEATURED_ITEM_CAP} preview items shown on your business page, the map, and search.
+          </p>
+          <FeaturedItemsEditor
+            items={items ?? []}
+            onAdd={onAddItem}
+            onRemove={onRemoveItem}
+            onChangeAvailability={onChangeAvailability}
+            updatingItemId={updatingItemId}
+          />
+        </section>
+      )}
+
       {/* Visibility */}
       <section style={s.section}>
         <h3 style={s.sectionTitle}>Visibility</h3>
@@ -434,14 +549,212 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
       {showDelete && (
         <ConfirmDialog
           title="Delete this business?"
-          message="This permanently removes the business and its photos. This can't be undone."
+          message="This permanently removes the business, its photos, and its featured items. This can't be undone."
           confirmLabel="Delete"
           busy={deleting}
           onConfirm={onConfirmDelete}
           onCancel={() => setShowDelete(false)}
         />
       )}
+
+      {pendingDeleteItem && (
+        <ConfirmDialog
+          title="Delete this item?"
+          message="This item will be removed from your business."
+          confirmLabel="Delete"
+          busy={removingItem}
+          onConfirm={confirmRemoveItem}
+          onCancel={() => setPendingDeleteItem(null)}
+        />
+      )}
     </PageScroll>
+  );
+}
+
+/* --------------- Featured items editor --------------- */
+
+function FeaturedItemsEditor({
+  items, onAdd, onRemove, onChangeAvailability, updatingItemId,
+}: {
+  items: BusinessFeaturedItem[];
+  onAdd: (input: {
+    title: string;
+    description: string;
+    price: number | null;
+    category: string | null;
+    availability: BusinessAvailability;
+    file: File | null;
+  }) => Promise<void>;
+  onRemove: (id: string) => void;
+  onChangeAvailability: (id: string, availability: BusinessAvailability) => void;
+  updatingItemId: string | null;
+}) {
+  const [title, setTitle]             = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice]             = useState('');
+  const [category, setCategory]       = useState('');
+  const [availability, setAvailability] = useState<BusinessAvailability>('available');
+  const [file, setFile]               = useState<File | null>(null);
+  const [busy, setBusy]               = useState(false);
+  const [err, setErr]                 = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const atCap = items.length >= BUSINESS_FEATURED_ITEM_CAP;
+  const hasDraft = title.trim() || description.trim() || price.trim() || category.trim() || !!file;
+
+  const submit = async () => {
+    if (!title.trim()) { setErr('Item needs a title'); return; }
+    const priceNum = price.trim() ? Number(price) : null;
+    if (priceNum != null && (!Number.isFinite(priceNum) || priceNum < 0)) {
+      setErr('Price must be a positive number'); return;
+    }
+    setErr(null);
+    setBusy(true);
+    try {
+      await onAdd({
+        title: title.trim(),
+        description: description.trim(),
+        price: priceNum,
+        category: category.trim() || null,
+        availability,
+        file,
+      });
+      setTitle(''); setDescription(''); setPrice(''); setCategory('');
+      setAvailability('available'); setFile(null);
+    } catch (e: any) {
+      setErr(e?.message ?? 'Could not add item');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      {items.length > 0 && (
+        <div style={s.itemGrid}>
+          {items.map((it) => (
+            <div key={it.id} style={s.itemTile}>
+              <div style={{ ...s.itemThumb, ...(it.availability !== 'available' ? { opacity: 0.55 } : {}) }}>
+                {it.thumb_url || it.image_url ? (
+                  <ImageWithFade
+                    src={it.thumb_url || it.image_url || undefined}
+                    fallbackSrc={it.image_url}
+                    alt={it.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    fallback={<MediaFallback kind="listing" seed={it.id} label={it.title?.slice(0, 14) || 'ITEM'} compact />}
+                  />
+                ) : (
+                  <MediaFallback kind="listing" seed={it.id} label={it.title?.slice(0, 14) || 'ITEM'} compact />
+                )}
+                {it.availability !== 'available' && (
+                  <span style={s.availBadge}>{BUSINESS_AVAILABILITY_META[it.availability].label}</span>
+                )}
+              </div>
+              <div style={s.itemBody}>
+                <div style={s.itemTitle}>{it.title}</div>
+                {it.category && <div style={s.itemCat}>{it.category}</div>}
+                {it.price != null && <div style={s.itemPrice}>${Number(it.price).toFixed(2)}</div>}
+                <select
+                  value={it.availability}
+                  disabled={updatingItemId === it.id}
+                  onChange={(e) => onChangeAvailability(it.id, e.target.value as BusinessAvailability)}
+                  style={s.availSelect}
+                >
+                  {(Object.keys(BUSINESS_AVAILABILITY_META) as BusinessAvailability[]).map((a) => (
+                    <option key={a} value={a}>{BUSINESS_AVAILABILITY_META[a].label}</option>
+                  ))}
+                </select>
+              </div>
+              <button onClick={() => onRemove(it.id)} style={s.itemRemove} aria-label="Remove">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {atCap ? (
+        <p style={s.hint}>Maximum reached. Remove an item to add another.</p>
+      ) : (
+        <div style={s.addItemBox}>
+          <p style={s.addItemHeading}>
+            Add a new item — fill in below, then click <strong>Add item</strong> to save it.
+          </p>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Item title"
+            style={s.input}
+            maxLength={80}
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description (optional)"
+            rows={2}
+            style={{ ...s.input, resize: 'vertical', marginTop: 8 }}
+            maxLength={400}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <input
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="Category (optional)"
+              style={{ ...s.input, flex: 1 }}
+              maxLength={40}
+            />
+            <input
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="Price"
+              inputMode="decimal"
+              style={{ ...s.input, width: 110 }}
+            />
+          </div>
+          <select
+            value={availability}
+            onChange={(e) => setAvailability(e.target.value as BusinessAvailability)}
+            style={{ ...s.input, marginTop: 8 }}
+          >
+            {(Object.keys(BUSINESS_AVAILABILITY_META) as BusinessAvailability[]).map((a) => (
+              <option key={a} value={a}>{BUSINESS_AVAILABILITY_META[a].label}</option>
+            ))}
+          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <button type="button" onClick={() => fileRef.current?.click()} style={s.ghostBtn}>
+              <ImagePlus size={13} /> {file ? file.name.slice(0, 18) : 'Add photo'}
+            </button>
+            {file && (
+              <button type="button" onClick={() => setFile(null)} style={s.ghostBtn}>
+                <X size={13} /> Clear
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={submit}
+              disabled={busy}
+              style={{ ...s.addItemBtn, marginLeft: 'auto' }}
+            >
+              {busy ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
+              {busy ? 'Adding…' : 'Add item'}
+            </button>
+          </div>
+          {hasDraft && !busy && (
+            <p style={s.draftWarn}>
+              ⚠ You have an unsaved item draft. Click <strong>Add item</strong> above to save it.
+            </p>
+          )}
+          {err && <p style={s.itemErr}>{err}</p>}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ''; }}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -538,4 +851,55 @@ const s: Record<string, React.CSSProperties> = {
     border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b',
     fontWeight: 700, fontSize: 14, cursor: 'pointer',
   },
+
+  /* Featured-items editor */
+  itemGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10,
+    marginBottom: 12,
+  },
+  itemTile: {
+    position: 'relative', borderRadius: 12, overflow: 'hidden',
+    border: '1px solid var(--color-neutral-200, #e5e7eb)', background: 'var(--color-bg, #fff)',
+  },
+  itemThumb: {
+    position: 'relative', width: '100%', aspectRatio: '1 / 1',
+    background: '#f3f4f6', overflow: 'hidden',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  availBadge: {
+    position: 'absolute', left: 6, top: 6,
+    padding: '2px 7px', borderRadius: 999,
+    background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10, fontWeight: 700,
+  },
+  itemBody: { padding: '8px 8px 10px' },
+  itemTitle: { fontSize: 13, fontWeight: 700, lineHeight: 1.25 },
+  itemCat: { fontSize: 11, color: 'var(--color-neutral-500)', marginTop: 2 },
+  itemPrice: { fontSize: 12, fontWeight: 700, color: 'var(--color-primary-600, #2563eb)', marginTop: 2 },
+  availSelect: {
+    width: '100%', marginTop: 6, padding: '5px 6px', borderRadius: 8,
+    border: '1px solid var(--color-neutral-300, #d1d5db)', fontSize: 12,
+    background: 'var(--color-bg, #fff)',
+  },
+  itemRemove: {
+    position: 'absolute', top: 6, right: 6,
+    width: 26, height: 26, borderRadius: 999, border: 'none',
+    background: 'rgba(0,0,0,0.6)', color: '#fff', cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  },
+  addItemBox: {
+    border: '1px dashed var(--color-neutral-300, #d1d5db)', borderRadius: 12,
+    padding: 12, background: 'var(--color-neutral-50, #fafafa)',
+  },
+  addItemHeading: { fontSize: 12, color: 'var(--color-neutral-600)', margin: '0 0 8px' },
+  addItemBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '8px 14px', borderRadius: 10, border: 'none',
+    background: 'var(--color-primary-600, #2563eb)', color: '#fff',
+    fontWeight: 700, fontSize: 13, cursor: 'pointer',
+  },
+  draftWarn: {
+    fontSize: 12, color: '#92400e', background: '#fffbeb',
+    border: '1px solid #fde68a', borderRadius: 8, padding: '6px 8px', margin: '8px 0 0',
+  },
+  itemErr: { fontSize: 12, color: '#991b1b', margin: '8px 0 0' },
 };
