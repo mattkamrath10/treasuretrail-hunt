@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, ImagePlus, Loader2, Save, Trash2, X, Store, Plus, Pencil,
+  Sparkles, Camera, Globe, Link2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -13,6 +14,7 @@ import {
   type BusinessCategory, type BusinessStatus, type BusinessPhoto, type BusinessRow,
   type BusinessFeaturedItem, type BusinessAvailability,
 } from '../lib/businesses';
+import { analyzeBusinessCard, importBusinessFromUrl, type ImportedBusiness } from '../lib/businessImport';
 import { geocodeEventLocation } from '../lib/geocode';
 import { uploadCompressedImage } from '../lib/uploadImage';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -82,6 +84,15 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
 
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting]     = useState(false);
+
+  // AI-assisted import (Phase 3 — create flow only). The form below is always
+  // the source of truth; importing just pre-fills it and the user reviews/edits.
+  const [importMethod, setImportMethod] = useState<'website' | 'facebook' | null>(null);
+  const [importUrl, setImportUrl]       = useState('');
+  const [importing, setImporting]       = useState(false);
+  const [importKind, setImportKind]     = useState<'card' | 'url' | null>(null);
+  const [importMsg, setImportMsg]       = useState<string | null>(null);
+  const cardInputRef = useRef<HTMLInputElement>(null);
 
   // Featured items (edit only — needs an existing business row to attach to).
   const [items, setItems]                     = useState<BusinessFeaturedItem[] | null>(null);
@@ -209,6 +220,92 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
 
   const removePhoto = (url: string) => {
     setPhotos((prev) => prev.filter((p) => p.url !== url));
+  };
+
+  /* ---------------- AI-assisted import (create only) ---------------- */
+
+  // Pre-fill the form from an extraction. Only non-empty values overwrite, so a
+  // partial extraction never wipes a field the user already typed. Returns the
+  // number of fields filled so we can give honest feedback.
+  const applyImport = (d: ImportedBusiness): number => {
+    let n = 0;
+    if (d.name)        { setName(d.name.slice(0, 120)); n++; }
+    if (d.description) { setDescription(d.description.slice(0, 2000)); n++; }
+    if (d.category)    { setCategory(d.category); n++; }
+    if (d.address)     { setAddress(d.address); n++; }
+    if (d.city)        { setCity(d.city); n++; }
+    if (d.region)      { setRegion(d.region); n++; }
+    if (d.phone)       { setPhone(d.phone); n++; }
+    if (d.website)     { setWebsite(d.website); n++; }
+    if (d.facebook_url){ setFacebook(d.facebook_url); n++; }
+    if (d.hours)       { setHours(d.hours); n++; }
+    if (d.logo_url)    { setLogoUrl(d.logo_url); setLogoThumb(null); n++; }
+    return n;
+  };
+
+  const filledMsg = (n: number) =>
+    `Pre-filled ${n} field${n === 1 ? '' : 's'} — review everything below, then save.`;
+
+  const onPickCard = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || importing) return;
+    setImporting(true);
+    setImportKind('card');
+    setImportMsg(null);
+    setErr(null);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const d = await analyzeBusinessCard(dataUrl);
+      if (!d) { setImportMsg("We couldn't read that card — enter the details manually below."); return; }
+      // No dedicated email field on businesses — fold a detected email into the
+      // description so it isn't lost (mirrors how event import folds extra
+      // contact details into the description).
+      if (d.email && !d.description.toLowerCase().includes(d.email.toLowerCase())) {
+        d.description = d.description ? `${d.description}\nEmail: ${d.email}` : `Email: ${d.email}`;
+      }
+      const n = applyImport(d);
+      if (n === 0) setImportMsg("We couldn't read that card — enter the details manually below.");
+      else { setImportMsg(filledMsg(n)); flashToast('Business card scanned'); }
+    } catch (e: any) {
+      console.warn(LOG, 'card import failed', e);
+      setImportMsg('Card scan failed — enter the details manually below.');
+    } finally {
+      setImporting(false);
+      setImportKind(null);
+    }
+  };
+
+  const onImportUrl = async () => {
+    if (importing) return;
+    let u = importUrl.trim();
+    if (u && !/^https?:\/\//i.test(u)) u = `https://${u}`;
+    setImportMsg(null);
+    setErr(null);
+    if (!u) { setImportMsg('Paste a link first.'); return; }
+    try { new URL(u); } catch { setImportMsg('That link doesn\u2019t look valid. Check it and try again.'); return; }
+    setImporting(true);
+    setImportKind('url');
+    try {
+      const d = await importBusinessFromUrl(u);
+      if (!d) {
+        setImportMsg(
+          importMethod === 'facebook'
+            ? "We couldn't pull details from that Facebook page — it may block automated reads. Enter the details manually below."
+            : "We couldn't pull details from that link. Enter the details manually below.",
+        );
+        return;
+      }
+      const n = applyImport(d);
+      if (n === 0) setImportMsg("We couldn't pull details from that link. Enter the details manually below.");
+      else { setImportMsg(filledMsg(n)); flashToast('Details imported'); }
+    } catch (e: any) {
+      console.warn(LOG, 'url import failed', e);
+      setImportMsg('Import failed — enter the details manually below.');
+    } finally {
+      setImporting(false);
+      setImportKind(null);
+    }
   };
 
   const onSave = async () => {
@@ -426,6 +523,83 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
       <Header onBack={onBack} isEdit={isEdit} />
 
       {err && <div style={s.errorBanner}>{err}</div>}
+
+      {/* Quick start — AI-assisted pre-fill (create only). Manual entry is
+          always available via the form below; this just saves typing. */}
+      {!isEdit && (
+        <section style={s.section}>
+          <div style={s.importHead}>
+            <Sparkles size={16} style={{ color: 'var(--color-primary-600, #2563eb)' }} />
+            <h3 style={{ ...s.sectionTitle, margin: 0 }}>Quick start</h3>
+          </div>
+          <p style={s.hint}>
+            Optionally pre-fill from a business card, website, or Facebook page. You'll
+            review and can edit everything before saving.
+          </p>
+          <div style={s.importBtnRow}>
+            <button
+              type="button"
+              style={s.importBtn}
+              disabled={importing}
+              onClick={() => { setImportMethod(null); setImportMsg(null); cardInputRef.current?.click(); }}
+            >
+              {importing && importKind === 'card' ? <Loader2 size={16} className="spin" /> : <Camera size={16} />}
+              Scan business card
+            </button>
+            <button
+              type="button"
+              style={{ ...s.importBtn, ...(importMethod === 'website' ? s.importBtnActive : {}) }}
+              disabled={importing}
+              onClick={() => { setImportMethod('website'); setImportMsg(null); }}
+            >
+              <Globe size={16} /> From website
+            </button>
+            <button
+              type="button"
+              style={{ ...s.importBtn, ...(importMethod === 'facebook' ? s.importBtnActive : {}) }}
+              disabled={importing}
+              onClick={() => { setImportMethod('facebook'); setImportMsg(null); }}
+            >
+              <Link2 size={16} /> From Facebook
+            </button>
+            <button
+              type="button"
+              style={s.importBtn}
+              disabled={importing}
+              onClick={() => { setImportMethod(null); setImportUrl(''); setImportMsg('Just fill in the details below.'); }}
+            >
+              <Pencil size={16} /> Enter manually
+            </button>
+          </div>
+          {importMethod && (
+            <div style={s.importUrlRow}>
+              <input
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void onImportUrl(); } }}
+                placeholder={importMethod === 'facebook' ? 'facebook.com/yourshop' : 'yourshop.com'}
+                style={{ ...s.input, flex: 1, marginBottom: 0 }}
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <button type="button" onClick={() => void onImportUrl()} disabled={importing} style={s.importGoBtn}>
+                {importing && importKind === 'url' ? <Loader2 size={14} className="spin" /> : 'Import'}
+              </button>
+            </div>
+          )}
+          {importMsg && <p style={s.importMsg}>{importMsg}</p>}
+          <input
+            ref={cardInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={onPickCard}
+            style={{ display: 'none' }}
+          />
+        </section>
+      )}
 
       {/* Logo */}
       <section style={s.section}>
@@ -951,6 +1125,35 @@ const s: Record<string, React.CSSProperties> = {
     padding: '12px', borderRadius: 12,
     border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b',
     fontWeight: 700, fontSize: 14, cursor: 'pointer',
+  },
+
+  /* Quick-start AI import (create only) */
+  importHead: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 },
+  importBtnRow: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  importBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '9px 13px', borderRadius: 10,
+    border: '1px solid var(--color-neutral-300, #d1d5db)',
+    background: 'var(--color-bg, #fff)', color: 'var(--color-neutral-700, #374151)',
+    fontWeight: 600, fontSize: 13, cursor: 'pointer',
+  },
+  importBtnActive: {
+    borderColor: 'var(--color-primary-600, #2563eb)',
+    background: 'var(--color-primary-50, #eff6ff)',
+    color: 'var(--color-primary-700, #1d4ed8)',
+  },
+  importUrlRow: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 },
+  importGoBtn: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    minWidth: 76, padding: '10px 14px', borderRadius: 10, border: 'none',
+    background: 'var(--color-primary-600, #2563eb)', color: '#fff',
+    fontWeight: 700, fontSize: 13, cursor: 'pointer',
+  },
+  importMsg: {
+    fontSize: 12, color: 'var(--color-neutral-600, #4b5563)',
+    background: 'var(--color-neutral-50, #fafafa)',
+    border: '1px solid var(--color-neutral-200, #e5e7eb)',
+    borderRadius: 8, padding: '8px 10px', margin: '10px 0 0',
   },
 
   /* Featured-items editor */

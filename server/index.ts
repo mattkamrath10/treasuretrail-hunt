@@ -1251,6 +1251,297 @@ app.post('/api/events/import', async (req, res) => {
   }
 });
 
+// =====================================================================
+// Business import (Phase 3) — AI-assisted pre-fill for the create form
+// ---------------------------------------------------------------------
+// Two extraction paths, mirroring the app's existing AI tools:
+//   * POST /api/import/business-card — vision OCR of a business-card photo
+//     (mirrors /api/import/screenshot).
+//   * POST /api/business/import      — SSRF-protected URL fetch + OG/JSON-LD
+//     meta + LLM normalization (mirrors /api/events/import); used for BOTH a
+//     website and a Facebook page URL (Facebook usually blocks scraping, so it
+//     degrades to meta-only or nothing).
+// Both ONLY return a draft the user reviews/edits in the Phase-1 create form —
+// a business is never auto-created. Privileged verified/featured fields are
+// never produced here. Both consume the user's shared per-user AI scan quota
+// (claim_ai_scan_slot) and fail SOFT to manual entry.
+// =====================================================================
+
+const BUSINESS_CATEGORIES_SRV = [
+  'antique_store', 'thrift_store', 'pawn_shop', 'estate_sale_company',
+  'auction_house', 'consignment_store', 'flea_market', 'vintage_store',
+];
+function normalizeBusinessCategory(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return BUSINESS_CATEGORIES_SRV.includes(s) ? s : null;
+}
+
+// Reserve a slot in the shared per-user AI scan quota (same RPC + ai_scans_log
+// table used by AI Treasure Scan / smart import). Returns whether the slot was
+// granted plus the placeholder row id so a failed AI call can release it.
+async function claimAiSlot(
+  sb: ReturnType<typeof supabaseForUser>,
+  userId: string,
+): Promise<{ allowed: boolean; scanId: string | null }> {
+  try {
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('membership_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    const tier = profile?.membership_tier === 'pro' ? 'pro' : 'free';
+    const limit = tier === 'pro' ? PRO_DAILY_SOFT_CAP : FREE_DAILY_LIMIT;
+    const { data: claim, error } = await sb
+      .rpc('claim_ai_scan_slot', { p_limit: limit })
+      .single();
+    if (error || !claim) return { allowed: false, scanId: null };
+    const c = claim as { allowed: boolean; scan_id: string | null };
+    return { allowed: c.allowed, scanId: c.scan_id };
+  } catch {
+    return { allowed: false, scanId: null };
+  }
+}
+// Best-effort release of a reserved slot when the AI call fails, so a failed
+// extraction isn't charged against the user's daily quota.
+async function releaseAiSlot(sb: ReturnType<typeof supabaseForUser>, scanId: string | null) {
+  if (!scanId) return;
+  try { await sb.from('ai_scans_log').delete().eq('id', scanId); } catch { /* best effort */ }
+}
+
+const BUSINESS_CARD_PROMPT = `You read a photo of a BUSINESS CARD (or shop signage / storefront) for a second-hand / antiques / resale business and extract its details into a SINGLE JSON object matching the schema EXACTLY. No prose, no markdown fences.
+Read ALL visible text (OCR) and analyze the image.
+Schema:
+{ "name":"", "description":"", "category":"", "address":"", "city":"", "region":"", "phone":"", "email":"", "website":"", "confidenceScore":0 }
+Rules:
+- If a value is unknown or not visible, use an empty string "". NEVER invent data.
+- category MUST be one of: ${BUSINESS_CATEGORIES_SRV.join(', ')} — choose the closest fit, else "".
+- name: the business / shop name.
+- description: a concise 1-2 sentence summary if a tagline or services are shown, else "".
+- address: street address only. city and region (US state abbreviation when possible) separately.
+- phone: digits and standard separators only.
+- email: the contact email if present.
+- website: a domain or URL if present (no scheme is fine).
+- confidenceScore: integer 0-100 for overall extraction confidence.`;
+
+async function callOpenAIBusinessCard(dataUrl: string) {
+  const resp = await withTimeout(
+    openai.chat.completions.create({
+      model: MODEL,
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 600,
+      messages: [
+        { role: 'system', content: BUSINESS_CARD_PROMPT },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Extract this business card into the JSON schema.' },
+            { type: 'image_url', image_url: { url: dataUrl, detail: 'high' } },
+          ],
+        },
+      ],
+    }),
+    25000,
+  );
+  const raw = resp.choices[0]?.message?.content ?? '{}';
+  return JSON.parse(raw);
+}
+
+function sanitizeBusinessCard(out: any) {
+  if (!out || typeof out !== 'object') return null;
+  const card = {
+    name: clampImportStr(out.name, 120),
+    description: clampImportStr(out.description, 600),
+    category: normalizeBusinessCategory(out.category) ?? '',
+    address: clampImportStr(out.address, 160),
+    city: clampImportStr(out.city, 80),
+    region: clampImportStr(out.region, 40),
+    phone: clampImportStr(out.phone, 40),
+    email: clampImportStr(out.email, 120),
+    website: clampImportStr(out.website, 200),
+  };
+  // Require at least one identifying/contact field to count as usable.
+  if (!card.name && !card.phone && !card.website && !card.email && !card.address) return null;
+  return card;
+}
+
+app.post('/api/import/business-card', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const { imageDataUrl } = req.body as { imageDataUrl?: string };
+    if (typeof imageDataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp|gif|heic|heif);base64,/i.test(imageDataUrl)) {
+      return res.status(400).json({ error: 'invalid_image' });
+    }
+    if (imageDataUrl.length > 11_000_000) return res.status(413).json({ error: 'image_too_large' });
+
+    // Consume the shared per-user AI quota. Over limit => soft fallback.
+    const slot = await claimAiSlot(sb, userData.user.id);
+    if (!slot.allowed) return res.json({ fallback: true, limited: true });
+
+    let out: any;
+    try {
+      out = await callOpenAIBusinessCard(imageDataUrl);
+    } catch (e) {
+      await releaseAiSlot(sb, slot.scanId); // don't charge a failed call
+      throw e;
+    }
+
+    const card = sanitizeBusinessCard(out);
+    if (!card) { await releaseAiSlot(sb, slot.scanId); return res.json({ fallback: true }); }
+    return res.json({ data: card, source: 'ai' });
+  } catch (err: any) {
+    console.error('[import/business-card]', err?.message || err);
+    return res.json({ fallback: true });
+  }
+});
+
+const BUSINESS_IMPORT_PROMPT = `You extract a physical/online retail business's public profile from a web page's metadata and text, for a second-hand / antiques / resale directory. Return a SINGLE JSON object, no prose or markdown fences.
+Schema:
+{
+ "name": string|null,
+ "description": string|null,
+ "category": one of ["antique_store","thrift_store","pawn_shop","estate_sale_company","auction_house","consignment_store","flea_market","vintage_store"]|null,
+ "address": string|null,
+ "city": string|null,
+ "region": string|null,
+ "phone": string|null,
+ "website": string|null,
+ "hours": string|null,
+ "logo_image_url": string|null
+}
+Rules:
+- Use ONLY information present in the provided evidence. Never invent details. Use null when unknown.
+- name: the business name, concise (no tagline / no site-name suffix).
+- description: 1-2 plain sentences about what they sell. No URLs, no marketing fluff.
+- category: best fit from the list; if unsure use null.
+- region: US state abbreviation (e.g. "TX") when possible.
+- phone: a single primary phone.
+- website: the business's own website URL if evident.
+- hours: opening hours as a short plain string if stated, else null.
+- logo_image_url: an absolute http(s) image URL for the logo/storefront (prefer og:image), else null.`;
+
+app.post('/api/business/import', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ ok: false, error: 'Please sign in to import.' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ ok: false, error: 'Please sign in to import.' });
+
+    const { url } = req.body as { url?: string };
+    const raw = (typeof url === 'string' ? url : '').trim();
+    let parsed: URL;
+    try { parsed = new URL(raw); } catch { return res.status(400).json({ ok: false, error: 'Enter a valid http:// or https:// link.' }); }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return res.status(400).json({ ok: false, error: 'Only http and https links are supported.' });
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (isBlockedHost(host)) return res.status(400).json({ ok: false, error: 'That link is not allowed.' });
+    try {
+      const { address } = await dnsLookup(host);
+      if (isBlockedHost(address)) return res.status(400).json({ ok: false, error: 'That link is not allowed.' });
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Could not resolve that link. Check the URL and try again.' });
+    }
+
+    const cacheKey = `biz:${raw.slice(0, 300)}`;
+    const cached = aiCacheGet(cacheKey);
+    if (cached) return res.json({ ...(cached as object), cached: true });
+
+    const isFacebook = /(^|\.)facebook\.com$/i.test(host) || /(^|\.)fb\.com$/i.test(host) || /(^|\.)fb\.me$/i.test(host);
+
+    let html = '';
+    try { html = await fetchPageHtml(raw, 9000); }
+    catch (e: any) { console.warn('[business/import] fetch failed', host, e?.message); }
+
+    // Deterministic meta fallback (works even if the LLM call fails or is skipped).
+    const ogTitle = html ? (metaContent(html, 'og:title', 'property') || metaContent(html, 'twitter:title', 'name')) : null;
+    const ogDesc = html ? (metaContent(html, 'og:description', 'property') || metaContent(html, 'description', 'name') || metaContent(html, 'twitter:description', 'name')) : null;
+    const ogImage = html ? (metaContent(html, 'og:image', 'property') || metaContent(html, 'twitter:image', 'name')) : null;
+    const siteName = html ? metaContent(html, 'og:site_name', 'property') : null;
+    const titleTag = html ? (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? null) : null;
+
+    let data: any = {
+      name: ogTitle || (titleTag ? decodeEntities(titleTag) : null),
+      description: ogDesc,
+      category: null,
+      address: null,
+      city: null,
+      region: null,
+      phone: null,
+      website: isFacebook ? null : (parsed.origin || null),
+      facebook_url: isFacebook ? raw : null,
+      hours: null,
+      logo_url: ogImage && /^https?:\/\//i.test(ogImage) ? ogImage : null,
+    };
+    let source: 'ai' | 'meta' = 'meta';
+
+    if (html) {
+      const ldBlocks: string[] = [];
+      const ldRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+      let mm: RegExpExecArray | null;
+      while ((mm = ldRe.exec(html)) && ldBlocks.length < 4) ldBlocks.push(mm[1].trim().slice(0, 3000));
+      const visibleText = html
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 3500);
+      const evidence = [
+        `URL: ${raw}`,
+        `Host: ${host}`,
+        siteName ? `Site: ${siteName}` : '',
+        ogTitle ? `og:title: ${ogTitle}` : (titleTag ? `title: ${decodeEntities(titleTag)}` : ''),
+        ogDesc ? `og:description: ${ogDesc}` : '',
+        ogImage ? `og:image: ${ogImage}` : '',
+        ldBlocks.length ? `JSON-LD:\n${ldBlocks.join('\n')}` : '',
+        `Page text:\n${visibleText}`,
+      ].filter(Boolean).join('\n');
+
+      // Only consume an AI slot when we actually have content to normalize.
+      // Over limit => keep the free deterministic meta extraction (source 'meta').
+      const slot = await claimAiSlot(sb, userData.user.id);
+      if (slot.allowed) {
+        try {
+          const out = await callOpenAIJSON(BUSINESS_IMPORT_PROMPT, evidence, 600, 12000);
+          if (out && typeof out === 'object') {
+            data = {
+              name: pickStr(out.name) || data.name,
+              description: pickStr(out.description) || data.description,
+              category: normalizeBusinessCategory(out.category),
+              address: pickStr(out.address),
+              city: pickStr(out.city),
+              region: pickStr(out.region),
+              phone: pickStr(out.phone),
+              website: isFacebook ? pickHttpUrl(out.website) : (pickHttpUrl(out.website) || data.website),
+              facebook_url: data.facebook_url,
+              hours: pickStr(out.hours),
+              logo_url: pickHttpUrl(out.logo_image_url) || data.logo_url,
+            };
+            source = 'ai';
+          }
+        } catch (e: any) {
+          console.warn('[business/import] openai failed', e?.message);
+          await releaseAiSlot(sb, slot.scanId); // don't charge a failed call
+        }
+      }
+    }
+
+    const result = { ok: true, source, data: { ...data, site_name: siteName } };
+    if (data.name) aiCacheSet(cacheKey, result); // only cache useful extractions
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[business/import]', err?.message || err);
+    return res.status(200).json({ ok: false, error: 'Could not import from that link. Try a different one or enter details manually.' });
+  }
+});
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 // =====================================================================
