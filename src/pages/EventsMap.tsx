@@ -26,6 +26,8 @@ import {
 } from '../lib/geocode';
 import { isIOS } from '../lib/platform';
 import { getSavedLocation } from '../lib/userLocation';
+import { ImageWithFade } from '../components/ui/ImageWithFade';
+import { MediaFallback } from '../components/ui/MediaFallback';
 
 /* --------------------------------------------------------------------------
  * Interactive Event Map.
@@ -605,17 +607,14 @@ export default function EventsMap() {
               <X size={16} />
             </button>
             <div style={s.cardBody}>
-              {selectedBusiness.logo_thumb_url || selectedBusiness.logo_url ? (
-                <img
-                  src={(selectedBusiness.logo_thumb_url || selectedBusiness.logo_url) as string}
-                  alt=""
-                  style={s.cardImg}
-                />
-              ) : (
-                <div style={{ ...s.cardImg, ...s.cardImgFallback, background: businessCategoryMeta(selectedBusiness.category).color }}>
-                  <Store size={22} style={{ color: '#fff' }} />
-                </div>
-              )}
+              <ImageWithFade
+                src={(selectedBusiness.logo_thumb_url || selectedBusiness.logo_url) as string | null}
+                alt=""
+                eager
+                style={s.cardImg}
+                containerStyle={s.cardImg}
+                fallback={<MediaFallback kind="listing" seed={selectedBusiness.id} label={selectedBusiness.name} compact />}
+              />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={s.cardCat}>
                   <span style={{ ...s.catDot, background: businessCategoryMeta(selectedBusiness.category).color }} />

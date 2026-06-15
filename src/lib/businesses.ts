@@ -144,14 +144,45 @@ const SELECT_COLS =
   'phone, website, facebook_url, hours, logo_url, logo_thumb_url, photos, ' +
   'status, verified, featured, created_at, updated_at';
 
+// Minimal column set guaranteed to exist on the earliest businesses schema.
+// Used as a fallback select when a partial migration leaves optional columns
+// absent so reads degrade gracefully (a missing column otherwise 400s the whole
+// SELECT). normalizeRow defaults every absent field, so reduced rows are safe.
+const CORE_SELECT_COLS =
+  'id, owner_id, name, description, category, address, city, region, ' +
+  'status, created_at, updated_at';
+
+/** True when the error means a selected column doesn't exist yet (partial
+ *  migration). Raw Postgres returns 42703; PostgREST's schema cache returns
+ *  PGRST204. Either way we retry with the minimal column set. */
+function isColumnMissing(error: any): boolean {
+  return error?.code === '42703' || error?.code === 'PGRST204';
+}
+
+/** Run a businesses read built by `build(cols)`. On a column-missing error we
+ *  retry once with the minimal column set so a half-applied migration never
+ *  breaks the map/search/detail reads. */
+async function readWithColumnFallback(
+  build: (cols: string) => PromiseLike<{ data: any; error: any }>,
+): Promise<{ data: any; error: any }> {
+  let res = await build(SELECT_COLS);
+  if (res.error && isColumnMissing(res.error)) {
+    console.warn(LOG, 'optional businesses column(s) missing — retrying with core columns. Apply the migration to enable all fields.');
+    res = await build(CORE_SELECT_COLS);
+  }
+  return res;
+}
+
 /** All published businesses (for the map + search). Returns [] if the table
  *  doesn't exist yet. */
 export async function fetchPublishedBusinesses(): Promise<BusinessRow[]> {
-  const { data, error } = await supabase
-    .from('businesses')
-    .select(SELECT_COLS)
-    .eq('status', 'published')
-    .order('created_at', { ascending: false });
+  const { data, error } = await readWithColumnFallback((cols) =>
+    supabase
+      .from('businesses')
+      .select(cols)
+      .eq('status', 'published')
+      .order('created_at', { ascending: false }),
+  );
   if (error) {
     if (isTableMissing(error)) {
       console.warn(LOG, 'businesses table missing — run the migration. Returning [].');
@@ -166,11 +197,13 @@ export async function fetchPublishedBusinesses(): Promise<BusinessRow[]> {
 /** Single business by id (public detail page). Owner can see their own
  *  draft/cancelled rows via RLS. Returns null if missing. */
 export async function fetchBusiness(id: string): Promise<BusinessRow | null> {
-  const { data, error } = await supabase
-    .from('businesses')
-    .select(SELECT_COLS)
-    .eq('id', id)
-    .maybeSingle();
+  const { data, error } = await readWithColumnFallback((cols) =>
+    supabase
+      .from('businesses')
+      .select(cols)
+      .eq('id', id)
+      .maybeSingle(),
+  );
   if (error) {
     if (isTableMissing(error)) return null;
     console.error(LOG, 'fetchBusiness', error);
@@ -182,12 +215,14 @@ export async function fetchBusiness(id: string): Promise<BusinessRow | null> {
 /** Owner-scoped fetch for the edit form. Returns null when the row isn't the
  *  caller's (RLS) or doesn't exist. */
 export async function fetchMyBusiness(id: string, ownerId: string): Promise<BusinessRow | null> {
-  const { data, error } = await supabase
-    .from('businesses')
-    .select(SELECT_COLS)
-    .eq('id', id)
-    .eq('owner_id', ownerId)
-    .maybeSingle();
+  const { data, error } = await readWithColumnFallback((cols) =>
+    supabase
+      .from('businesses')
+      .select(cols)
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .maybeSingle(),
+  );
   if (error) {
     if (isTableMissing(error)) return null;
     console.error(LOG, 'fetchMyBusiness', error);
@@ -198,11 +233,13 @@ export async function fetchMyBusiness(id: string, ownerId: string): Promise<Busi
 
 /** All of a user's businesses (any status), for a future "my businesses" list. */
 export async function fetchMyBusinesses(ownerId: string): Promise<BusinessRow[]> {
-  const { data, error } = await supabase
-    .from('businesses')
-    .select(SELECT_COLS)
-    .eq('owner_id', ownerId)
-    .order('created_at', { ascending: false });
+  const { data, error } = await readWithColumnFallback((cols) =>
+    supabase
+      .from('businesses')
+      .select(cols)
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false }),
+  );
   if (error) {
     if (isTableMissing(error)) return [];
     console.error(LOG, 'fetchMyBusinesses', error);

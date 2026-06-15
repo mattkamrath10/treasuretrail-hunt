@@ -313,7 +313,15 @@ function Lightbox({ photo, alt, onClose }: { photo: { url: string }; alt: string
   return (
     <div style={s.lightboxOverlay} onClick={onClose}>
       <button style={s.lightboxClose} onClick={onClose} aria-label="Close"><X size={22} /></button>
-      <img src={photo.url} alt={alt} style={s.lightboxImg} onClick={(e) => e.stopPropagation()} />
+      <div onClick={(e) => e.stopPropagation()} style={s.lightboxImgWrap}>
+        <ImageWithFade
+          src={photo.url}
+          alt={alt}
+          eager
+          style={s.lightboxImg}
+          fallback={<MediaFallback kind="listing" seed={photo.url} label={alt} />}
+        />
+      </div>
     </div>
   );
 }
@@ -404,6 +412,10 @@ const s: Record<string, React.CSSProperties> = {
     width: 40, height: 40, borderRadius: 999, border: 'none',
     background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  },
+  lightboxImgWrap: {
+    maxWidth: '94vw', maxHeight: '88vh', display: 'flex',
+    alignItems: 'center', justifyContent: 'center',
   },
   lightboxImg: { maxWidth: '94vw', maxHeight: '88vh', objectFit: 'contain', borderRadius: 8 },
 };
