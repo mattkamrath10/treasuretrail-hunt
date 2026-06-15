@@ -154,6 +154,10 @@ treasuretrail-project.zip
 TreasureTrail-FullSource-20260611.zip
 exports/TreasureTrail-Complete-20260607.zip
 
+# Downloadable source backups served from public/ — generated on demand, never
+# commit them (they bloat the repo and broke Codemagic clones via LFS before).
+public/*.zip
+
 # Large source videos — were in Git LFS and broke Codemagic clones once the LFS
 # budget was exhausted (smudge filter failed -> clone failed). Not used by the
 # app. Keep them locally for editing, never commit them.
