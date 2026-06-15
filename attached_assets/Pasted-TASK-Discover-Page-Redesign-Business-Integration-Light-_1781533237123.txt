@@ -1,0 +1,192 @@
+TASK: Discover Page Redesign + Business Integration + Light Theme Conversion
+
+Overview
+
+Now that Businesses, Business Map Pins, Business Search, and AI-Assisted Business Import have been completed, I want to redesign the Discover experience to better support Events, Businesses, Flash Finds, and Wanted Posts while simplifying the UI and increasing the value of Boosts and Pro subscriptions.
+
+PART 1 – DISCOVER PAGE REDESIGN
+Replace the existing stacked carousels on the Discover page with a single featured slideshow.
+
+Current Goal:
+
+Instead of multiple horizontal carousels, use one large featured slideshow at the top of the Discover page.
+
+Section Title:
+
+“Featured Near You”
+
+Requirements:
+
+Auto-advance every 4 seconds.
+Users can manually swipe left or right.
+Touching or swiping pauses rotation.
+Rotation resumes after inactivity.
+Entire slide is clickable.
+Clicking opens the corresponding item detail page.
+Supported Content Types:
+
+Local Events
+Upcoming Events
+Businesses
+Flash Finds
+Wanted Posts
+Default Mode:
+
+Mix all content types together.
+
+Priority Order:
+
+Boosted Events
+Pro Businesses
+Boosted Flash Finds
+Boosted Wanted Posts
+Regular Content
+Secondary Sorting:
+
+Distance from user
+Freshness
+Active status
+PART 2 – FILTER CHIPS
+Directly below the slideshow add visible filter chips.
+
+Filters:
+
+All
+Events
+Businesses
+Flash Finds
+Wanted
+Behavior:
+
+ALL
+
+Shows all supported content types mixed together.
+EVENTS
+
+Shows both Live Events and Upcoming Events.
+BUSINESSES
+
+Shows businesses only.
+FLASH FINDS
+
+Shows Flash Finds only.
+WANTED
+
+Shows Wanted Posts only.
+Switching filters should instantly update the slideshow feed.
+
+Remember the user’s last selected filter.
+
+PART 3 – LOCATION & SEARCH
+Keep location functionality.
+
+Users must continue to:
+
+Use GPS
+Enter ZIP code
+Enter City, State
+All Discover content should remain localized.
+
+Example:
+
+A user in Tallahassee, Florida should not see local content from Eugene, Oregon.
+
+Keep existing search functionality.
+
+Search should continue supporting:
+
+Events
+Businesses
+Flash Finds
+Wanted Posts
+Search results should respect location settings.
+
+PART 4 – CREATE MENU UPDATE
+Businesses are now a first-class feature.
+
+Add a new option to the Create (+) menu.
+
+Current:
+
+Local Event
+Livestream Show
+Flash Find
+Wanted Post
+Add:
+
+🏪 Business Listing
+
+Description:
+
+“Antique stores, thrift stores, pawn shops, estate sale companies, auction houses, flea market vendors, and other treasure sources.”
+
+When selected:
+
+Open BusinessForm.
+
+Provide:
+
+Manual Entry
+Scan Business Card
+Import Website
+Import Facebook Page
+using the AI import system already implemented.
+
+PART 5 – LIGHT THEME CONVERSION
+Convert the primary app experience to a light theme.
+
+Target Theme:
+
+White backgrounds
+Orange accents
+Dark text
+Apply to:
+
+Discover
+Live
+Map
+Wanted
+Profile
+Search
+Business Pages
+Event Pages
+Detail Pages
+Keep Dark Theme ONLY for:
+
+Create Menu (+ button screen)
+Membership / Pro Plan screen
+These two screens should remain dark because they have a premium/control-center feel.
+
+All other screens should move to the white/orange theme.
+
+PART 6 – PERFORMANCE
+Ensure slideshow remains performant.
+
+Requirements:
+
+Lazy-load images.
+Avoid unnecessary re-renders.
+Smooth transitions.
+Mobile-friendly.
+No noticeable lag with large numbers of businesses, events, or listings.
+PART 7 – DELIVERABLES
+After implementation provide:
+
+Screens modified.
+Components modified.
+New components created.
+Theme changes applied.
+Slideshow architecture summary.
+Any remaining recommended follow-up work.
+Success Criteria:
+
+✓ Single Featured Near You slideshow replaces stacked carousels.
+✓ 4-second rotation.
+✓ Clickable slides.
+✓ Filter chips working.
+✓ Business Listing added to Create menu.
+✓ Location filtering preserved.
+✓ Search preserved.
+✓ Most app pages converted to white/orange theme.
+✓ Membership and Create Menu remain dark themed.
+✓ Boosted and Pro content receives prominent visibility.
