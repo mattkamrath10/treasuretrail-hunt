@@ -165,8 +165,8 @@ function wantedToSlide(w: WantedItemRow): FeaturedSlide {
     accent: FEATURED_KIND_ACCENT.wanted,
     badge: boosted ? 'Boosted' : null,
     to: `/wanted/${w.id}`,
-    lat: null,
-    lng: null,
+    lat: w.lat ?? null,
+    lng: w.lng ?? null,
     distanceMi: null,
     priority: boosted ? P_BOOSTED_WANTED : P_NORMAL,
     sortTime: ts(w.created_at),
@@ -176,11 +176,15 @@ function wantedToSlide(w: WantedItemRow): FeaturedSlide {
   };
 }
 
-function findToSlide(p: CommunityPost): FeaturedSlide {
+function findToSlide(
+  p: CommunityPost,
+  findCoords?: Map<string, { lat: number; lng: number }>,
+): FeaturedSlide {
   const boosted = isBoosted(p);
   const title = p.caption || 'Untitled find';
   const value = p.estimated_value != null ? `Est. $${Math.round(p.estimated_value)}` : null;
   const subtitle = [value, p.location].filter(Boolean).join(' · ') || 'Community find';
+  const pt = findCoords?.get(p.id) ?? null;
   return {
     id: `find:${p.id}`,
     kind: 'find',
@@ -192,8 +196,8 @@ function findToSlide(p: CommunityPost): FeaturedSlide {
     accent: FEATURED_KIND_ACCENT.find,
     badge: boosted ? 'Boosted' : null,
     to: `/find/${p.id}`,
-    lat: null,
-    lng: null,
+    lat: pt?.lat ?? null,
+    lng: pt?.lng ?? null,
     distanceMi: null,
     priority: boosted ? P_OTHER_FEATURED : P_NORMAL,
     sortTime: ts(p.created_at),
@@ -209,6 +213,9 @@ export interface BuildFeaturedInput {
   wanted: WantedItemRow[];
   finds: CommunityPost[];
   proHolders: Set<string>;
+  /** Read-time geocoded coords for finds (community posts have no coord
+   *  columns), keyed by post id. Lets finds be distance-filtered too. */
+  findCoords?: Map<string, { lat: number; lng: number }>;
   location: { lat: number; lng: number } | null;
   radiusMi: number;
   query: string;
@@ -216,18 +223,21 @@ export interface BuildFeaturedInput {
 }
 
 export function buildFeaturedSlides(input: BuildFeaturedInput): FeaturedSlide[] {
-  const { events, businesses, wanted, finds, proHolders, location, radiusMi, query, filter } = input;
+  const { events, businesses, wanted, finds, proHolders, findCoords, location, radiusMi, query, filter } = input;
 
   let slides: FeaturedSlide[] = [
     ...events.map((e) => eventToSlide(e, proHolders)),
     ...businesses.map((b) => businessToSlide(b, proHolders)),
     ...wanted.map((w) => wantedToSlide(w)),
-    ...finds.map((p) => findToSlide(p)),
+    ...finds.map((p) => findToSlide(p, findCoords)),
   ];
 
   // Location filtering: distance-stamp coord-bearing items and drop those
-  // beyond the radius. Items without coordinates (finds, location-less wanted)
-  // are always kept so the slideshow never hides them outright.
+  // beyond the radius. Events, businesses and wanted carry real coords;
+  // finds are geocoded at read time (findCoords). The only items kept without
+  // a distance check are those whose location genuinely can't be resolved
+  // (e.g. a find with a vague/blank location), so the area stays relevant
+  // without hiding content we simply can't pin.
   if (location) {
     slides = slides.filter((sl) => {
       if (sl.lat == null || sl.lng == null) return true;

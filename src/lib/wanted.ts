@@ -49,6 +49,11 @@ export interface WantedItemRow {
   priority_score?: number | null;
   is_hidden?: boolean | null;
   report_count?: number | null;
+  // Phase 3 Local-First Search — geocoded coords (migration-gated). Returned by
+  // select('*') when present; optional so callers typecheck before the migration.
+  lat?: number | null;
+  lng?: number | null;
+  travel_distance?: number | null;
   created_at: string;
   updated_at: string;
 }

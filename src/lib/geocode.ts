@@ -90,6 +90,57 @@ export async function geocodeLocation(
 }
 
 /**
+ * Cached variant of geocodeLocation for read-time, high-volume callers (e.g.
+ * distance-filtering many community finds on Discover). Resolved points AND
+ * "not found" results are memoized in-memory + localStorage keyed by the
+ * lowercased query, so a given location is only ever looked up once per
+ * device. Transient network errors are NOT cached, so they retry later.
+ *
+ * Returns the coordinate, or null when the text can't be resolved.
+ */
+const GEO_CACHE_KEY = 'tt_geo_cache_v1';
+type GeoCacheVal = GeoPoint | null;
+let geoMem: Record<string, GeoCacheVal> | null = null;
+
+function loadGeoCache(): Record<string, GeoCacheVal> {
+  if (geoMem) return geoMem;
+  try {
+    geoMem = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) ?? '{}') as Record<string, GeoCacheVal>;
+  } catch {
+    geoMem = {};
+  }
+  return geoMem;
+}
+
+function saveGeoCache(): void {
+  try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(geoMem ?? {})); } catch { /* ignore quota */ }
+}
+
+// Nominatim's usage policy asks for at most ~1 request/sec. Pace only the
+// actual network calls (cache hits skip this entirely) so a page geocoding
+// many finds stays a good API citizen.
+let lastFetchAt = 0;
+const MIN_FETCH_GAP_MS = 1100;
+async function paceFetch(): Promise<void> {
+  const wait = lastFetchAt + MIN_FETCH_GAP_MS - Date.now();
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastFetchAt = Date.now();
+}
+
+export async function geocodeCached(text: string): Promise<GeoPoint | null> {
+  const key = text.trim().toLowerCase();
+  if (!key) return null;
+  const cache = loadGeoCache();
+  if (key in cache) return cache[key];
+  await paceFetch();
+  const r = await geocodeLocation(text);
+  if (r.ok) { cache[key] = r.point; saveGeoCache(); return r.point; }
+  // Cache definitive misses; let transient 'error' results retry next time.
+  if (r.reason === 'not_found') { cache[key] = null; saveGeoCache(); }
+  return null;
+}
+
+/**
  * Geocode a local event's stored address parts to a coordinate so the event
  * can be matched by the Local Events location search (which filters on
  * lat/lng within a radius). We try the most specific string first and fall
