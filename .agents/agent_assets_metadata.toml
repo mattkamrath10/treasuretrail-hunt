@@ -221,3 +221,39 @@ id = "emYUetwAArxB0td9dIX-R"
 uri = "file://public/TreasureTrail-Source-20260612.zip"
 type = "unspecified"
 title = "TreasureTrail-Source-20260612.zip"
+
+[[outputs]]
+id = "dOOdVjiLCOpjgFlU2hbQw"
+uri = "file://screenshots/appstore/01-discover.png"
+type = "image"
+title = "Discover (Home feed)"
+
+[[outputs]]
+id = "4Ga_cUN_lIMidV1UHm__8"
+uri = "file://screenshots/appstore/03-map.png"
+type = "image"
+title = "Treasure Map"
+
+[[outputs]]
+id = "yXuyz_Fa7zrXwIiOK2-ss"
+uri = "file://screenshots/appstore/04-create.png"
+type = "image"
+title = "Create menu (with Business Listing)"
+
+[[outputs]]
+id = "DjJmnevnZOWYhS2Ec-YVM"
+uri = "file://screenshots/appstore/05-wanted.png"
+type = "image"
+title = "Wanted feed"
+
+[[outputs]]
+id = "tguIcMQI7-k2OUYtZMQF-"
+uri = "file://screenshots/appstore/02-live.png"
+type = "image"
+title = "Live (account-gated — sign-up wall)"
+
+[[outputs]]
+id = "n9p5zzcCdoxwX4gVPA6hx"
+uri = "file://screenshots/appstore/06-profile.png"
+type = "image"
+title = "Profile (account-gated — sign-up wall)"
