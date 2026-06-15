@@ -107,6 +107,32 @@ export async function saveZipLocation(zip: string, signal?: AbortSignal): Promis
   return { ok: true, location };
 }
 
+export type SaveTextResult =
+  | { ok: true; location: SavedLocation }
+  | { ok: false; reason: 'invalid' | 'not_found' | 'error' };
+
+/**
+ * Save a location from free text — either a 5-digit ZIP or a "City, State"
+ * string. Geocoded via geocodeLocation (ZIP -> zippopotam, text -> nominatim),
+ * so Discover's location filter accepts all three input styles (GPS, ZIP,
+ * City/State).
+ */
+export async function saveTextLocation(input: string, signal?: AbortSignal): Promise<SaveTextResult> {
+  const q = input.trim();
+  if (!q) return { ok: false, reason: 'invalid' };
+  const r = await geocodeLocation(q, signal);
+  if (!r.ok) return { ok: false, reason: r.reason };
+  const isZip = ZIP_RE.test(q);
+  const location = setSavedLocation({
+    lat: r.point.lat,
+    lng: r.point.lng,
+    zip: isZip ? q : null,
+    source: 'zip',
+    label: q,
+  });
+  return { ok: true, location };
+}
+
 export type GpsResult =
   | { ok: true; location: SavedLocation }
   | { ok: false; reason: 'unsupported' | 'denied' };

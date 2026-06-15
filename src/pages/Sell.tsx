@@ -1,6 +1,6 @@
 import { type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Radio, Sparkles, Search, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Calendar, Radio, Sparkles, Search, Store, ChevronRight } from 'lucide-react';
 import { PageScroll } from '../components/ui/PageScroll';
 import { monetizationHidden } from '../lib/platform';
 
@@ -45,6 +45,14 @@ const TILES: Tile[] = [
     desc: 'Tell sellers exactly what you\'re looking for.',
     accent: '#10b981',
     to: '/sell/wanted',
+  },
+  {
+    id: 'business',
+    icon: Store,
+    title: 'Business listing',
+    desc: 'List your antique shop, thrift store, or auction house.',
+    accent: '#22d3ee',
+    to: '/business/new',
   },
 ];
 
