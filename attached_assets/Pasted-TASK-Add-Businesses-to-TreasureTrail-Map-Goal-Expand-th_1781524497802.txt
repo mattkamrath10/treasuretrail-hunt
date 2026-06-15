@@ -1,0 +1,121 @@
+TASK: Add Businesses to TreasureTrail Map
+
+Goal:
+Expand the Event Map into a Treasure Map that includes businesses that regularly sell collectibles, antiques, secondhand goods, liquidation inventory, estate sale inventory, vintage items, and other treasure-hunting opportunities.
+
+Business Types:
+
+Antique Stores
+Thrift Stores
+Pawn Shops
+Estate Sale Companies
+Auction Houses
+Consignment Stores
+Flea Markets
+Vintage Stores
+Liquidation Stores
+Salvage Stores
+ReStores
+Collectible Shops
+Phase 1 - Business Listings
+
+Create a new Business entity with:
+
+Business Name
+Description
+Category
+Address
+Latitude
+Longitude
+Phone Number
+Website
+Facebook Page
+Business Hours
+Logo
+Photos
+Verified Status
+Featured Status
+Map Features:
+
+Display businesses as map pins.
+Allow filtering by business type.
+Tapping a pin opens a Business Detail page.
+Business detail page shows:
+
+Photos
+Address
+Website
+Phone
+Description
+Hours
+Featured Items
+Phase 2 - Featured Items
+
+Businesses can upload featured inventory.
+
+Each featured item includes:
+
+Photos
+Title
+Description
+Price
+Category
+Availability
+Featured items display:
+
+On business profile page
+On map popup
+In search results
+Phase 3 - AI Assisted Import
+
+Allow users to create businesses using:
+
+A. Manual Entry
+
+User fills out form manually.
+B. Business Card AI Import
+
+User uploads photo of business card.
+AI extracts:
+
+Business name
+Address
+Phone
+Website
+Email
+C. Website Import
+
+User pastes website URL.
+AI extracts publicly available business information and pre-fills fields.
+D. Facebook Page Import
+
+User pastes Facebook business page URL.
+AI extracts available business information and pre-fills fields.
+Workflow:
+
+User chooses import method.
+AI extracts available information.
+User reviews and edits.
+User submits listing.
+Listing appears on map.
+Future Monetization:
+
+Free Business:
+
+Map Pin
+Basic Profile
+Pro Business:
+
+Featured Items
+Priority Placement
+Analytics
+Promotional Visibility
+Founding Partner Benefits
+Success Criteria:
+
+✓ Businesses appear on map.
+✓ Search supports businesses.
+✓ Filters support business categories.
+✓ Featured items can be attached to businesses.
+✓ AI import reduces manual data entry.
+✓ Businesses become a year-round source of treasure hunting opportunities.
