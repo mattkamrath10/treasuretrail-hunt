@@ -50,7 +50,7 @@ const TILES: Tile[] = [
     id: 'business',
     icon: Store,
     title: 'Business listing',
-    desc: 'List your antique shop, thrift store, or auction house.',
+    desc: 'Antique stores, thrift stores, pawn shops, estate sale companies, auction houses, flea market vendors, and other treasure sources.',
     accent: '#22d3ee',
     to: '/business/new',
   },
