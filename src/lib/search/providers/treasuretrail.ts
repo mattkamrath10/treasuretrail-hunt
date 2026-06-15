@@ -19,6 +19,7 @@
 import { supabase } from '../../supabase';
 import { fetchCommunityPosts, fetchMarketplaceListings } from '../../database';
 import { fetchPublishedEvents } from '../../events';
+import { fetchPublishedBusinesses, BUSINESS_CATEGORY_META } from '../../businesses';
 import type { SearchProvider, SearchResultItem, SearchResultKind } from '../types';
 
 /* ─────────────────────────── Field weights ─────────────────────────────── */
@@ -214,10 +215,11 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
   const q = term.trim().toLowerCase();
   if (!q) return [];
 
-  const [postsRaw, marketRaw, eventsRaw, externalRaw] = await Promise.all([
+  const [postsRaw, marketRaw, eventsRaw, businessesRaw, externalRaw] = await Promise.all([
     fetchCommunityPosts(100).catch(() => []),
     fetchMarketplaceListings(100).catch(() => []),
     fetchPublishedEvents({ limit: 100 }).catch(() => []),
+    fetchPublishedBusinesses().catch(() => []),
     supabase
       .from('external_listings')
       .select('*')
@@ -304,6 +306,36 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         category: (e.category as string) ?? null,
         lat: numOrNull(e.lat),
         lng: numOrNull(e.lng),
+        relevanceScore: score,
+      });
+    }
+  }
+
+  // Businesses on the Treasure Map — businesses
+  for (const b of asArray<Record<string, unknown>>(businessesRaw)) {
+    const cat = b.category as keyof typeof BUSINESS_CATEGORY_META;
+    const catLabel = BUSINESS_CATEGORY_META[cat]?.label ?? '';
+    const score = computeScore(q, {
+      title: b.name as string,
+      category: catLabel,
+      description: b.description as string,
+      extra: [b.city, b.region, b.address].filter(Boolean).join(' '),
+    });
+    if (score > 0) {
+      const loc = [b.city, b.region].filter(Boolean).join(', ');
+      items.push({
+        id: String(b.id),
+        source: 'treasuretrail',
+        kind: 'business',
+        title: (b.name as string) || 'Business',
+        subtitle: loc || catLabel || null,
+        price: null,
+        imageUrl: (b.logo_thumb_url as string) || (b.logo_url as string) ||
+          ((b.photos as any[])?.[0]?.thumb_url) || ((b.photos as any[])?.[0]?.url) || null,
+        route: `/business/${b.id}`,
+        category: catLabel || null,
+        lat: numOrNull(b.lat),
+        lng: numOrNull(b.lng),
         relevanceScore: score,
       });
     }

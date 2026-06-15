@@ -5,12 +5,19 @@ import 'leaflet.markercluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import { MapPin, Search, LocateFixed, X, ChevronRight, Navigation, Repeat } from 'lucide-react';
+import { MapPin, Search, LocateFixed, X, ChevronRight, Navigation, Repeat, Store, Plus } from 'lucide-react';
 import {
   fetchPublishedEvents,
   type EventRow,
   type EventCategory,
 } from '../lib/events';
+import {
+  fetchPublishedBusinesses,
+  BUSINESS_CATEGORY_META,
+  BUSINESS_CATEGORIES,
+  type BusinessRow,
+  type BusinessCategory,
+} from '../lib/businesses';
 import { describeRecurrence } from '../lib/recurrence';
 import {
   geocodeLocation,
@@ -81,6 +88,26 @@ function pinIcon(color: string): L.DivIcon {
   });
 }
 
+/** Storefront pin (rounded marker w/ shop glyph) so businesses read as
+ *  distinct from teardrop event pins even at a glance. */
+function businessPinIcon(color: string): L.DivIcon {
+  const html = `
+    <div style="position:relative;width:32px;height:40px;transform:translate(-50%,-100%);">
+      <svg width="32" height="40" viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 40C16 40 31 26 31 15A15 15 0 1 0 1 15C1 26 16 40 16 40Z" fill="${color}"/>
+        <rect x="6.5" y="9" width="19" height="13" rx="2.5" fill="#ffffff"/>
+        <path d="M6.5 11.5L8.5 7h15l2 4.5z" fill="#ffffff"/>
+        <rect x="13" y="15" width="6" height="7" rx="1" fill="${color}"/>
+      </svg>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: 'tt-business-pin',
+    iconSize: [32, 40],
+    iconAnchor: [16, 40],
+  });
+}
+
 /** Branded cluster bubble showing the contained marker count. */
 function clusterIcon(count: number): L.DivIcon {
   const size = count < 10 ? 38 : count < 100 ? 46 : 54;
@@ -100,16 +127,48 @@ function clusterIcon(count: number): L.DivIcon {
   });
 }
 
-function directionsUrl(e: EventRow): string {
-  const dest = `${e.lat},${e.lng}`;
+/** Business cluster bubble — tinted teal so it reads apart from the amber
+ *  event clusters when both layers are on. */
+function businessClusterIcon(count: number): L.DivIcon {
+  const size = count < 10 ? 38 : count < 100 ? 46 : 54;
+  const html = `
+    <div style="
+      width:${size}px;height:${size}px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      background:rgba(13,148,136,0.92);color:#fff;font-weight:800;
+      font-size:${count < 100 ? 14 : 13}px;
+      border:3px solid rgba(255,255,255,0.95);
+      box-shadow:0 4px 12px rgba(13,148,136,0.45);
+    ">${count}</div>`;
+  return L.divIcon({
+    html,
+    className: 'tt-business-cluster',
+    iconSize: [size, size],
+  });
+}
+
+function coordDirectionsUrl(lat: number, lng: number): string {
+  const dest = `${lat},${lng}`;
   if (isIOS()) {
     return `https://maps.apple.com/?daddr=${encodeURIComponent(dest)}`;
   }
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}`;
 }
 
+function directionsUrl(e: EventRow): string {
+  return coordDirectionsUrl(e.lat as number, e.lng as number);
+}
+
 function eventLocationLabel(e: EventRow): string {
   return [e.address, e.city, e.region].filter(Boolean).join(', ') || 'Location on map';
+}
+
+function businessCategoryMeta(c: BusinessCategory | null | undefined) {
+  return BUSINESS_CATEGORY_META[(c ?? 'antique_store') as BusinessCategory] ?? BUSINESS_CATEGORY_META.antique_store;
+}
+
+function businessLocationLabel(b: BusinessRow): string {
+  return [b.address, b.city, b.region].filter(Boolean).join(', ') || 'Location on map';
 }
 
 function formatWhen(starts_at: string): string {
@@ -127,10 +186,17 @@ export default function EventsMap() {
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
+  const businessClusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const didFitRef = useRef(false);
 
   const [events, setEvents] = useState<EventRow[] | null>(null);
+  const [businesses, setBusinesses] = useState<BusinessRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Layer toggles + per-category business filter.
+  const [showEvents, setShowEvents] = useState(true);
+  const [showBusinesses, setShowBusinesses] = useState(true);
+  const [businessCats, setBusinessCats] = useState<Set<BusinessCategory>>(() => new Set(BUSINESS_CATEGORIES));
 
   const [query, setQuery] = useState('');
   // Default the map center to the user's saved location (set on Discover or in
@@ -144,13 +210,17 @@ export default function EventsMap() {
   const [locating, setLocating] = useState(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
 
-  /* ----- Load published events once ----- */
+  /* ----- Load published events + businesses once ----- */
   useEffect(() => {
     let cancelled = false;
     fetchPublishedEvents({ limit: 200 })
       .then((rows) => { if (!cancelled) setEvents(rows); })
       .catch((e: any) => { if (!cancelled) { setEvents([]); setLoadError(e?.message ?? 'Failed to load events'); } });
+    fetchPublishedBusinesses()
+      .then((rows) => { if (!cancelled) setBusinesses(rows); })
+      .catch(() => { if (!cancelled) setBusinesses([]); });
     return () => { cancelled = true; };
   }, []);
 
@@ -183,6 +253,21 @@ export default function EventsMap() {
     return mappable.filter((e) => haversineMiles(center, { lat: e.lat as number, lng: e.lng as number }) <= radiusMiles);
   }, [mappable, center, radiusMiles]);
 
+  /* ----- Businesses that can appear on the map (have coordinates) ----- */
+  const mappableBusinesses = useMemo(
+    () => (businesses ?? []).filter((b) => b.lat != null && b.lng != null),
+    [businesses],
+  );
+
+  /* ----- Apply category + radius filters to businesses ----- */
+  const visibleBusinesses = useMemo(() => {
+    let rows = mappableBusinesses.filter((b) => businessCats.has((b.category ?? 'antique_store') as BusinessCategory));
+    if (center && radiusMiles !== 'any') {
+      rows = rows.filter((b) => haversineMiles(center, { lat: b.lat as number, lng: b.lng as number }) <= radiusMiles);
+    }
+    return rows;
+  }, [mappableBusinesses, businessCats, center, radiusMiles]);
+
   /* ----- Create the Leaflet map once ----- */
   useEffect(() => {
     if (!mapElRef.current || mapRef.current) return;
@@ -204,8 +289,16 @@ export default function EventsMap() {
     });
     map.addLayer(cluster);
 
+    const businessCluster = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 50,
+      iconCreateFunction: (c) => businessClusterIcon(c.getChildCount()),
+    });
+    map.addLayer(businessCluster);
+
     mapRef.current = map;
     clusterRef.current = cluster;
+    businessClusterRef.current = businessCluster;
 
     // The page mounts inside a flex container; Leaflet may measure 0 height
     // until the layout settles, so force a re-measure on the next frame.
@@ -218,10 +311,11 @@ export default function EventsMap() {
       map.remove();
       mapRef.current = null;
       clusterRef.current = null;
+      businessClusterRef.current = null;
     };
   }, []);
 
-  /* ----- (Re)build markers whenever the visible set changes ----- */
+  /* ----- (Re)build event markers whenever the visible set / toggle changes ----- */
   useEffect(() => {
     const cluster = clusterRef.current;
     const map = mapRef.current;
@@ -229,13 +323,15 @@ export default function EventsMap() {
 
     cluster.clearLayers();
     const markers: L.Marker[] = [];
-    for (const e of visible) {
-      const m = L.marker([e.lat as number, e.lng as number], {
-        icon: pinIcon(categoryMeta(e.category).color),
-        title: e.title,
-      });
-      m.on('click', () => setSelectedId(e.id));
-      markers.push(m);
+    if (showEvents) {
+      for (const e of visible) {
+        const m = L.marker([e.lat as number, e.lng as number], {
+          icon: pinIcon(categoryMeta(e.category).color),
+          title: e.title,
+        });
+        m.on('click', () => { setSelectedBusinessId(null); setSelectedId(e.id); });
+        markers.push(m);
+      }
     }
     cluster.addLayers(markers);
 
@@ -244,7 +340,28 @@ export default function EventsMap() {
       didFitRef.current = true;
       map.fitBounds(cluster.getBounds().pad(0.2), { maxZoom: 11 });
     }
-  }, [visible, center]);
+  }, [visible, center, showEvents]);
+
+  /* ----- (Re)build business markers whenever the visible set / toggle changes ----- */
+  useEffect(() => {
+    const cluster = businessClusterRef.current;
+    const map = mapRef.current;
+    if (!cluster || !map) return;
+
+    cluster.clearLayers();
+    const markers: L.Marker[] = [];
+    if (showBusinesses) {
+      for (const b of visibleBusinesses) {
+        const m = L.marker([b.lat as number, b.lng as number], {
+          icon: businessPinIcon(businessCategoryMeta(b.category).color),
+          title: b.name,
+        });
+        m.on('click', () => { setSelectedId(null); setSelectedBusinessId(b.id); });
+        markers.push(m);
+      }
+    }
+    cluster.addLayers(markers);
+  }, [visibleBusinesses, showBusinesses]);
 
   /* ----- Recenter when the search center changes ----- */
   useEffect(() => {
@@ -281,6 +398,18 @@ export default function EventsMap() {
   }
 
   const selected = selectedId ? visible.find((e) => e.id === selectedId) ?? null : null;
+  const selectedBusiness = selectedBusinessId
+    ? visibleBusinesses.find((b) => b.id === selectedBusinessId) ?? null
+    : null;
+
+  function toggleBusinessCat(cat: BusinessCategory) {
+    setBusinessCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
 
   const statusMsg = (() => {
     if (geoStatus === 'searching') return 'Finding that location…';
@@ -295,10 +424,32 @@ export default function EventsMap() {
       <div style={s.header}>
         <div style={s.titleRow}>
           <MapPin size={20} style={{ color: 'var(--color-primary-600)' }} />
-          <span style={s.title}>Event Map</span>
-          <span style={s.count}>
-            {events == null ? '…' : `${visible.length} ${visible.length === 1 ? 'event' : 'events'}`}
-          </span>
+          <span style={s.title}>Treasure Map</span>
+          <button onClick={() => navigate('/business/new')} style={s.addBtn} aria-label="Add a business">
+            <Plus size={15} /> Business
+          </button>
+        </div>
+
+        {/* Layer toggles */}
+        <div style={s.layerRow}>
+          <button
+            onClick={() => setShowEvents((v) => !v)}
+            style={{ ...s.layerChip, ...(showEvents ? s.layerChipActiveEvent : {}) }}
+            aria-pressed={showEvents}
+          >
+            <MapPin size={14} />
+            Events
+            <span style={s.layerCount}>{events == null ? '…' : showEvents ? visible.length : 0}</span>
+          </button>
+          <button
+            onClick={() => setShowBusinesses((v) => !v)}
+            style={{ ...s.layerChip, ...(showBusinesses ? s.layerChipActiveBiz : {}) }}
+            aria-pressed={showBusinesses}
+          >
+            <Store size={14} />
+            Businesses
+            <span style={s.layerCount}>{businesses == null ? '…' : showBusinesses ? visibleBusinesses.length : 0}</span>
+          </button>
         </div>
 
         <div style={s.searchRow}>
@@ -338,6 +489,30 @@ export default function EventsMap() {
           })}
         </div>
 
+        {showBusinesses && (
+          <div style={s.radiusRow}>
+            {BUSINESS_CATEGORIES.map((cat) => {
+              const active = businessCats.has(cat);
+              const meta = BUSINESS_CATEGORY_META[cat];
+              return (
+                <button
+                  key={cat}
+                  onClick={() => toggleBusinessCat(cat)}
+                  style={{
+                    ...s.catChip,
+                    ...(active
+                      ? { background: meta.color, borderColor: meta.color, color: '#fff', fontWeight: 700 }
+                      : {}),
+                  }}
+                >
+                  <span style={{ ...s.catChipDot, background: active ? '#fff' : meta.color }} />
+                  {meta.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {statusMsg && <div style={s.status}>{statusMsg}</div>}
         {!center && radiusMiles !== 'any' && events != null && (
           <div style={s.hint}>Search a location or tap the locator to filter by distance.</div>
@@ -348,15 +523,31 @@ export default function EventsMap() {
       <div style={s.mapWrap}>
         <div ref={mapElRef} style={s.map} />
 
-        {loadError && (
-          <div style={s.overlayMsg}>Couldn't load events. {loadError}</div>
-        )}
-        {!loadError && events != null && mappable.length === 0 && (
-          <div style={s.overlayMsg}>No in-person events have a map location yet.</div>
-        )}
-        {!loadError && events != null && mappable.length > 0 && visible.length === 0 && (
-          <div style={s.overlayMsg}>No events within this distance. Try a wider radius.</div>
-        )}
+        {(() => {
+          if (loadError) {
+            return <div style={s.overlayMsg}>Couldn't load events. {loadError}</div>;
+          }
+          if (events == null || businesses == null) return null;
+
+          const eventsShown = showEvents ? visible.length : 0;
+          const bizShown = showBusinesses ? visibleBusinesses.length : 0;
+          if (eventsShown > 0 || bizShown > 0) return null;
+
+          // Nothing is on the map — tailor the message to what's toggled on and
+          // whether the underlying datasets are empty vs. filtered out.
+          if (!showEvents && !showBusinesses) {
+            return <div style={s.overlayMsg}>Turn on Events or Businesses to see pins.</div>;
+          }
+          const noEventData = !showBusinesses && mappable.length === 0;
+          const noBizData = !showEvents && mappableBusinesses.length === 0;
+          if (noEventData) {
+            return <div style={s.overlayMsg}>No in-person events have a map location yet.</div>;
+          }
+          if (noBizData) {
+            return <div style={s.overlayMsg}>No businesses have been added to the map yet.</div>;
+          }
+          return <div style={s.overlayMsg}>Nothing within this distance. Try a wider radius or adjust filters.</div>;
+        })()}
 
         {/* Selected event card */}
         {selected && (
@@ -406,6 +597,49 @@ export default function EventsMap() {
             </div>
           </div>
         )}
+
+        {/* Selected business card */}
+        {selectedBusiness && (
+          <div style={s.card}>
+            <button onClick={() => setSelectedBusinessId(null)} style={s.cardClose} aria-label="Close">
+              <X size={16} />
+            </button>
+            <div style={s.cardBody}>
+              {selectedBusiness.logo_thumb_url || selectedBusiness.logo_url ? (
+                <img
+                  src={(selectedBusiness.logo_thumb_url || selectedBusiness.logo_url) as string}
+                  alt=""
+                  style={s.cardImg}
+                />
+              ) : (
+                <div style={{ ...s.cardImg, ...s.cardImgFallback, background: businessCategoryMeta(selectedBusiness.category).color }}>
+                  <Store size={22} style={{ color: '#fff' }} />
+                </div>
+              )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={s.cardCat}>
+                  <span style={{ ...s.catDot, background: businessCategoryMeta(selectedBusiness.category).color }} />
+                  {businessCategoryMeta(selectedBusiness.category).label}
+                </div>
+                <div style={s.cardTitle}>{selectedBusiness.name}</div>
+                <div style={s.cardMeta}>{businessLocationLabel(selectedBusiness)}</div>
+              </div>
+            </div>
+            <div style={s.cardActions}>
+              <button onClick={() => navigate(`/business/${selectedBusiness.id}`)} style={s.detailsBtn}>
+                View Details <ChevronRight size={15} />
+              </button>
+              <a
+                href={coordDirectionsUrl(selectedBusiness.lat as number, selectedBusiness.lng as number)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={s.directionsBtn}
+              >
+                <Navigation size={15} /> Directions
+              </a>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -430,11 +664,37 @@ const s: Record<string, React.CSSProperties> = {
   },
   titleRow: { display: 'flex', alignItems: 'center', gap: 8 },
   title: { fontSize: 'var(--font-size-lg)', fontWeight: 800, color: 'var(--color-neutral-900)' },
-  count: {
-    marginLeft: 'auto', fontSize: 'var(--font-size-xs)', fontWeight: 700,
-    color: 'var(--color-neutral-500)', background: 'var(--color-neutral-100)',
-    padding: '3px 10px', borderRadius: 'var(--radius-full)',
+  addBtn: {
+    marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
+    border: '1px solid var(--color-primary-500)', background: 'var(--color-primary-500)',
+    color: '#fff', fontSize: 'var(--font-size-xs)', fontWeight: 700,
+    padding: '6px 12px', borderRadius: 'var(--radius-full)', cursor: 'pointer',
   },
+  layerRow: { display: 'flex', gap: 8 },
+  layerChip: {
+    flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    border: '1px solid var(--color-neutral-200)', background: 'var(--color-neutral-0)',
+    color: 'var(--color-neutral-500)', fontSize: 'var(--font-size-sm)', fontWeight: 700,
+    padding: '8px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+  },
+  layerChipActiveEvent: {
+    background: 'rgba(217,119,6,0.10)', borderColor: 'var(--color-primary-500)',
+    color: 'var(--color-primary-700, #b45309)',
+  },
+  layerChipActiveBiz: {
+    background: 'rgba(13,148,136,0.10)', borderColor: '#0d9488', color: '#0f766e',
+  },
+  layerCount: {
+    fontSize: 'var(--font-size-xs)', fontWeight: 800,
+    background: 'rgba(0,0,0,0.06)', padding: '1px 7px', borderRadius: 'var(--radius-full)',
+  },
+  catChip: {
+    flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6,
+    border: '1px solid var(--color-neutral-200)', background: 'var(--color-neutral-0)',
+    color: 'var(--color-neutral-600)', fontSize: 'var(--font-size-xs)', fontWeight: 600,
+    padding: '6px 12px', borderRadius: 'var(--radius-full)', cursor: 'pointer', whiteSpace: 'nowrap',
+  },
+  catChipDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
   searchRow: { display: 'flex', gap: 8, alignItems: 'center' },
   searchBox: {
     flex: 1, display: 'flex', alignItems: 'center', gap: 8,

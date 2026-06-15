@@ -37,6 +37,8 @@ const SellerEventForm = lazy(() => import('../pages/SellerEventForm'));
 const SellerAnalytics = lazy(() => import('../pages/SellerAnalytics'));
 const SellerDemand = lazy(() => import('../pages/SellerDemand'));
 const EventDetail = lazy(() => import('../pages/EventDetail'));
+const BusinessDetail = lazy(() => import('../pages/BusinessDetail'));
+const BusinessForm = lazy(() => import('../pages/BusinessForm'));
 const FindDetail = lazy(() => import('../pages/FindDetail'));
 const ListingDetail = lazy(() => import('../pages/ListingDetail'));
 const PublicProfile = lazy(() => import('../pages/PublicProfile'));
@@ -166,6 +168,16 @@ function SellerDemandPage() {
 function EventDetailPage() {
   const navigate = useNavigate();
   return <EventDetail onBack={() => navigate('/events')} />;
+}
+
+function BusinessDetailPage() {
+  const navigate = useNavigate();
+  return <BusinessDetail onBack={() => navigate('/map')} />;
+}
+
+function BusinessFormPage() {
+  const navigate = useNavigate();
+  return <BusinessForm onBack={() => navigate('/map')} />;
 }
 
 // Suspense fallback while a route chunk loads. Kept intentionally minimal
@@ -349,6 +361,9 @@ export default function AppShell() {
             <Route path="/seller/new" element={<SellerEventFormPage />} />
             <Route path="/seller/event/:id" element={<SellerEventFormPage />} />
             <Route path="/event/:id" element={<EventDetailPage />} />
+            <Route path="/business/new" element={<BusinessFormPage />} />
+            <Route path="/business/:id/edit" element={<BusinessFormPage />} />
+            <Route path="/business/:id" element={<BusinessDetailPage />} />
             <Route path="/live" element={<LiveHubPage />} />
             <Route path="/profile" element={<Profile />} />
             {/* Public profile by username — the existing /u/:username route in App.tsx is
