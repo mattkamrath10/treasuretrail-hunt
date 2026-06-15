@@ -124,6 +124,50 @@
      so fixed-position elements (FABs, toasts) can be offset to hug the
      content column instead of floating against the raw viewport edge. */
   --side-gutter: max(0px, calc((100vw - var(--max-width)) / 2));
+
+  /* ── Semantic theme tokens (single source of truth) ──────────────────
+     Default = LIGHT. Screens reference these instead of hardcoding
+     dark/light literals. A `[data-theme="dark"]` scope (below) flips the
+     same tokens back to the dark palette, so a component styled with
+     tokens renders correctly on both light pages and dark-scoped ones. */
+  --tt-bg: var(--color-neutral-50);            /* page background */
+  --tt-surface: var(--color-neutral-0);        /* cards / panels */
+  --tt-surface-2: var(--color-neutral-100);    /* inputs / subtle fills */
+  --tt-surface-3: var(--color-neutral-200);    /* pressed / stronger fill */
+  --tt-border: var(--color-neutral-200);       /* hairline borders */
+  --tt-border-strong: var(--color-neutral-300);
+  --tt-text: var(--color-neutral-900);         /* primary text */
+  --tt-text-muted: var(--color-neutral-500);   /* secondary text */
+  --tt-text-dim: var(--color-neutral-400);     /* tertiary / disabled */
+  --tt-header-bg: rgba(255, 255, 255, 0.92);   /* sticky header */
+  --tt-image-bg: var(--color-neutral-100);     /* media letterbox */
+  --tt-overlay: rgba(15, 23, 42, 0.78);        /* badge over image */
+
+  /* Orange accent ramp */
+  --tt-accent: #f97316;
+  --tt-accent-strong: #ea580c;
+  --tt-accent-contrast: #ffffff;
+  --tt-accent-soft: rgba(249, 115, 22, 0.12);
+  --tt-accent-border: rgba(249, 115, 22, 0.45);
+  --tt-accent-gradient: linear-gradient(135deg, #f97316, #ea580c);
+}
+
+/* Dark scope — opt a subtree in with `data-theme="dark"`. Overrides the
+   semantic tokens back to the app's original midnight palette. Used by
+   the Create menu / Membership screens and any shared component that must
+   stay correct inside a dark surface. Accent stays orange. */
+[data-theme="dark"] {
+  --tt-bg: #0b0b10;
+  --tt-surface: rgba(255, 255, 255, 0.04);
+  --tt-surface-2: rgba(255, 255, 255, 0.06);
+  --tt-surface-3: rgba(255, 255, 255, 0.12);
+  --tt-border: rgba(255, 255, 255, 0.08);
+  --tt-border-strong: rgba(255, 255, 255, 0.12);
+  --tt-text: #f5f5f7;
+  --tt-text-muted: rgba(245, 245, 247, 0.6);
+  --tt-text-dim: rgba(245, 245, 247, 0.45);
+  --tt-header-bg: rgba(11, 11, 16, 0.92);
+  --tt-image-bg: #15151a;
 }
 
 /* Tablet / iPad: widen the centered content column so the app uses the

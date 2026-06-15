@@ -234,7 +234,7 @@ export default function WantedDetail() {
     return (
       <PageScroll style={s.page}>
         <Header onBack={() => navigate(-1)} />
-        <div style={s.centerFill}><Loader2 size={28} className="spin" style={{ color: '#10b981' }} /></div>
+        <div style={s.centerFill}><Loader2 size={28} className="spin" style={{ color: 'var(--tt-accent)' }} /></div>
       </PageScroll>
     );
   }
@@ -245,7 +245,7 @@ export default function WantedDetail() {
         <Header onBack={() => navigate(-1)} />
         <div style={s.centerFill}>
           <div style={s.emptyCard}>
-            <Search size={32} style={{ color: 'rgba(245,245,247,0.5)', marginBottom: 10 }} />
+            <Search size={32} style={{ color: 'var(--tt-text-dim)', marginBottom: 10 }} />
             <h2 style={s.emptyTitle}>This wanted post is unavailable</h2>
             <p style={s.emptyBody}>It may have been removed or fulfilled.</p>
             <button onClick={() => navigate('/wanted')} style={s.primaryCta}>Browse wanted items</button>
@@ -341,7 +341,7 @@ export default function WantedDetail() {
             // signal where the hunt stands, an Edit action, plus the Boost CTA.
             <>
               <div style={s.ownerNote}>
-                <UserCircle2 size={14} style={{ color: 'rgba(245,245,247,0.55)' }} />
+                <UserCircle2 size={14} style={{ color: 'var(--tt-text-muted)' }} />
                 <span>This is your request</span>
               </div>
               <div style={s.statusControl}>
@@ -540,30 +540,30 @@ function AvatarFallback({ initial }: { initial: string }) {
     <div style={{
       width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(135deg, #10b981, #047857)',
-      color: '#fff', fontWeight: 800, fontSize: 16,
+      background: 'var(--tt-accent-gradient)',
+      color: 'var(--tt-accent-contrast)', fontWeight: 800, fontSize: 16,
     }}>{initial}</div>
   );
 }
 
 const s: Record<string, CSSProperties> = {
-  page: { background: '#0b0b10', color: '#f5f5f7', paddingBottom: 32 },
+  page: { background: 'var(--tt-bg)', color: 'var(--tt-text)', paddingBottom: 32 },
   header: {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '14px 16px',
     paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
-    background: 'rgba(11,11,16,0.92)',
+    background: 'var(--tt-header-bg)',
     backdropFilter: 'blur(10px)',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    borderBottom: '1px solid var(--tt-border)',
   },
   backBtn: {
     flexShrink: 0, width: 36, height: 36, borderRadius: 10,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
-    color: '#fff', cursor: 'pointer',
+    background: 'var(--tt-surface-2)', border: '1px solid var(--tt-border)',
+    color: 'var(--tt-text)', cursor: 'pointer',
   },
-  headerTitle: { margin: 0, fontSize: 16, fontWeight: 800, color: '#fff' },
+  headerTitle: { margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--tt-text)' },
   centerFill: {
     minHeight: '60vh',
     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
@@ -571,14 +571,14 @@ const s: Record<string, CSSProperties> = {
   emptyCard: {
     maxWidth: 360, width: '100%', textAlign: 'center',
     padding: 24, borderRadius: 16,
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'var(--tt-surface)',
+    border: '1px solid var(--tt-border)',
   },
-  emptyTitle: { margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#fff' },
-  emptyBody: { margin: '0 0 16px', fontSize: 13, color: 'rgba(245,245,247,0.6)' },
+  emptyTitle: { margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: 'var(--tt-text)' },
+  emptyBody: { margin: '0 0 16px', fontSize: 13, color: 'var(--tt-text-muted)' },
   hero: {
     position: 'relative', width: '100%', aspectRatio: '4 / 3',
-    background: '#15151a', overflow: 'hidden',
+    background: 'var(--tt-image-bg)', overflow: 'hidden',
   },
   heroBadges: {
     position: 'absolute', top: 12, left: 12,
@@ -586,38 +586,38 @@ const s: Record<string, CSSProperties> = {
   },
   wantedBadge: {
     padding: '4px 9px', borderRadius: 999,
-    background: 'linear-gradient(135deg, #10b981, #047857)',
-    color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: '0.06em',
+    background: 'var(--tt-accent-gradient)',
+    color: 'var(--tt-accent-contrast)', fontSize: 10, fontWeight: 800, letterSpacing: '0.06em',
   },
   catBadge: {
     padding: '4px 9px', borderRadius: 999,
-    background: 'rgba(15, 23, 42, 0.78)', color: '#fff',
+    background: 'var(--tt-overlay)', color: '#fff',
     fontSize: 10, fontWeight: 700,
   },
   budgetBadge: {
     position: 'absolute', top: 12, right: 12,
     padding: '4px 10px', borderRadius: 999,
-    background: 'rgba(15, 23, 42, 0.85)', color: '#fff',
+    background: 'var(--tt-overlay)', color: '#fff',
     fontSize: 11, fontWeight: 800,
   },
   section: { padding: '16px 16px 8px' },
-  title: { margin: 0, fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1.25 },
+  title: { margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--tt-text)', lineHeight: 1.25 },
   metaRow: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   metaChip: {
     display: 'inline-flex', alignItems: 'center', gap: 4,
     padding: '5px 10px', borderRadius: 999,
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    color: 'rgba(245,245,247,0.8)', fontSize: 11, fontWeight: 600,
+    background: 'var(--tt-surface-2)',
+    border: '1px solid var(--tt-border)',
+    color: 'var(--tt-text-muted)', fontSize: 11, fontWeight: 600,
   },
   desc: {
     margin: '14px 0 0', fontSize: 14, lineHeight: 1.55,
-    color: 'rgba(245,245,247,0.82)', whiteSpace: 'pre-wrap',
+    color: 'var(--tt-text)', whiteSpace: 'pre-wrap',
   },
   requesterCard: {
     padding: 12, borderRadius: 14,
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'var(--tt-surface)',
+    border: '1px solid var(--tt-border)',
     marginBottom: 12,
   },
   requesterRow: {
@@ -626,67 +626,67 @@ const s: Record<string, CSSProperties> = {
     background: 'transparent', border: 'none', cursor: 'pointer',
   },
   requesterName: {
-    fontSize: 14, fontWeight: 700, color: '#fff',
+    fontSize: 14, fontWeight: 700, color: 'var(--tt-text)',
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
-  requesterHandle: { fontSize: 12, color: '#10b981', fontWeight: 600 },
-  requesterHandleMuted: { fontSize: 12, color: 'rgba(245,245,247,0.5)' },
+  requesterHandle: { fontSize: 12, color: 'var(--tt-accent-strong)', fontWeight: 600 },
+  requesterHandleMuted: { fontSize: 12, color: 'var(--tt-text-dim)' },
   ctaRow: { display: 'flex', gap: 8, marginTop: 4 },
   primaryCta: {
     flex: 1, minHeight: 46,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     padding: '0 16px', borderRadius: 12,
-    background: 'linear-gradient(135deg, #10b981, #047857)',
-    color: '#fff', border: 'none',
+    background: 'var(--tt-accent-gradient)',
+    color: 'var(--tt-accent-contrast)', border: 'none',
     fontSize: 14, fontWeight: 800, cursor: 'pointer',
   },
   secondaryCta: {
     flex: 1, minHeight: 46,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     padding: '0 16px', borderRadius: 12,
-    background: 'rgba(255,255,255,0.06)',
-    color: '#fff', border: '1px solid rgba(255,255,255,0.12)',
+    background: 'var(--tt-surface-2)',
+    color: 'var(--tt-text)', border: '1px solid var(--tt-border-strong)',
     fontSize: 14, fontWeight: 700, cursor: 'pointer',
   },
   ownerNote: {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     minHeight: 46, padding: '0 16px', borderRadius: 12,
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px dashed rgba(255,255,255,0.12)',
-    color: 'rgba(245,245,247,0.7)', fontSize: 13, fontWeight: 600,
+    background: 'var(--tt-surface)',
+    border: '1px dashed var(--tt-border-strong)',
+    color: 'var(--tt-text-muted)', fontSize: 13, fontWeight: 600,
   },
   statusControl: { marginTop: 10 },
   statusLabel: {
     display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-    color: 'rgba(245,245,247,0.55)', textTransform: 'uppercase', marginBottom: 6,
+    color: 'var(--tt-text-muted)', textTransform: 'uppercase', marginBottom: 6,
   },
   statusBtnRow: { display: 'flex', gap: 8 },
   statusBtn: {
     flex: 1, minHeight: 40,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
     padding: '0 10px', borderRadius: 10,
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    color: 'rgba(245,245,247,0.85)', fontSize: 13, fontWeight: 700,
+    background: 'var(--tt-surface-2)',
+    border: '1px solid var(--tt-border-strong)',
+    color: 'var(--tt-text)', fontSize: 13, fontWeight: 700,
   },
   statusBtnActive: {
-    background: 'linear-gradient(135deg, #10b981, #047857)',
-    border: '1px solid rgba(16,185,129,0.6)', color: '#fff',
+    background: 'var(--tt-accent-gradient)',
+    border: '1px solid var(--tt-accent-border)', color: 'var(--tt-accent-contrast)',
   },
   composer: {
     marginTop: 4, padding: 12, borderRadius: 14,
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'var(--tt-surface)',
+    border: '1px solid var(--tt-border)',
   },
   composerLabel: {
     display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-    color: 'rgba(245,245,247,0.55)', textTransform: 'uppercase', margin: '10px 0 6px',
+    color: 'var(--tt-text-muted)', textTransform: 'uppercase', margin: '10px 0 6px',
   },
   composerTextarea: {
     width: '100%', boxSizing: 'border-box', resize: 'vertical',
     padding: '10px 12px', borderRadius: 10,
-    background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.12)',
-    color: '#f5f5f7', fontSize: 14, lineHeight: 1.5,
+    background: 'var(--tt-surface-2)', border: '1px solid var(--tt-border)',
+    color: 'var(--tt-text)', fontSize: 14, lineHeight: 1.5,
   },
   photoRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   photoThumb: { position: 'relative', width: 64, height: 64 },
@@ -700,27 +700,27 @@ const s: Record<string, CSSProperties> = {
   photoAdd: {
     width: 64, height: 64, borderRadius: 10,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px dashed rgba(255,255,255,0.2)',
-    color: 'rgba(245,245,247,0.7)', cursor: 'pointer',
+    background: 'var(--tt-surface-2)',
+    border: '1px dashed var(--tt-border-strong)',
+    color: 'var(--tt-text-muted)', cursor: 'pointer',
   },
   listingPicker: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   listingChip: {
     display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%',
     padding: '8px 12px', borderRadius: 999,
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    color: 'rgba(245,245,247,0.85)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    background: 'var(--tt-surface-2)',
+    border: '1px solid var(--tt-border-strong)',
+    color: 'var(--tt-text)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
   },
   listingChipActive: {
-    background: 'rgba(16,185,129,0.16)',
-    border: '1px solid rgba(16,185,129,0.5)', color: '#10b981',
+    background: 'var(--tt-accent-soft)',
+    border: '1px solid var(--tt-accent-border)', color: 'var(--tt-accent-strong)',
   },
   listingChipText: {
     maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   signinHint: {
-    margin: '12px 0 0', fontSize: 12, color: 'rgba(245,245,247,0.55)', textAlign: 'center',
+    margin: '12px 0 0', fontSize: 12, color: 'var(--tt-text-muted)', textAlign: 'center',
   },
   toast: {
     position: 'fixed', left: '50%', bottom: 96, transform: 'translateX(-50%)',
@@ -976,19 +976,19 @@ function OwnerEditForm({
 const editStyles: Record<string, CSSProperties> = {
   form: {
     marginTop: 4, padding: 12, borderRadius: 14,
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'var(--tt-surface)',
+    border: '1px solid var(--tt-border)',
     display: 'flex', flexDirection: 'column',
   },
   cover: {
     position: 'relative', width: '100%', aspectRatio: '16 / 9', overflow: 'hidden',
-    borderRadius: 12, cursor: 'pointer', background: '#15151a',
-    border: '1px dashed rgba(255,255,255,0.18)',
+    borderRadius: 12, cursor: 'pointer', background: 'var(--tt-image-bg)',
+    border: '1px dashed var(--tt-border-strong)',
   },
   coverPlaceholder: {
     width: '100%', height: '100%',
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-    color: 'rgba(245,245,247,0.55)', fontSize: 12,
+    color: 'var(--tt-text-muted)', fontSize: 12,
   },
   coverClear: {
     position: 'absolute', top: 8, right: 8,
@@ -998,12 +998,12 @@ const editStyles: Record<string, CSSProperties> = {
   },
   input: {
     width: '100%', boxSizing: 'border-box', minHeight: 44, padding: '10px 12px',
-    background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 10, color: '#f5f5f7', fontSize: 14, outline: 'none', fontFamily: 'inherit',
+    background: 'var(--tt-surface-2)', border: '1px solid var(--tt-border)',
+    borderRadius: 10, color: 'var(--tt-text)', fontSize: 14, outline: 'none', fontFamily: 'inherit',
   },
   err: {
     margin: '8px 0 0', padding: '10px 12px',
     background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)',
-    borderRadius: 10, color: '#fca5a5', fontSize: 12,
+    borderRadius: 10, color: 'var(--color-error-600)', fontSize: 12,
   },
 };
