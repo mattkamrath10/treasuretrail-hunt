@@ -159,10 +159,10 @@ export default function WantedForm({ onBack }: { onBack: () => void }) {
         </Field>
 
         <div style={s.row2}>
-          <Field label="Max budget ($)">
+          <Field label="Maximum Budget ($)">
             <input
               value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)}
-              placeholder="Optional"
+              placeholder="Enter your maximum budget"
               inputMode="decimal" style={s.input}
             />
           </Field>

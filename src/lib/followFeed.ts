@@ -171,7 +171,7 @@ function mapListing(l: MarketplaceListing): FollowFeedItem {
 }
 
 function mapWanted(w: WantedItemRow): FollowFeedItem {
-  const budget = typeof w.max_budget === 'number' ? `Up to $${w.max_budget.toLocaleString()}` : '';
+  const budget = typeof w.max_budget === 'number' ? `Budget: $${w.max_budget.toLocaleString()}` : '';
   return {
     key: `wanted:${w.id}`,
     kind: 'wanted',

@@ -152,7 +152,7 @@ function wantedToSlide(w: WantedItemRow): FeaturedSlide {
   const boosted = isBoosted(w);
   const category = WANTED_CATEGORY_LABEL[w.category] ?? 'Wanted';
   const place = placeLabel(w.city, w.region, 'Anywhere');
-  const budget = w.max_budget != null ? `Up to $${Math.round(w.max_budget)}` : null;
+  const budget = w.max_budget != null ? `Budget: $${Math.round(w.max_budget)}` : null;
   const subtitle = [budget, place].filter(Boolean).join(' · ') || place;
   return {
     id: `wanted:${w.id}`,

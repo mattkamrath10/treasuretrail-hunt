@@ -143,7 +143,7 @@ function WantedCard({ item }: { item: WantedItemWithRequester }) {
           </span>
         )}
         {item.max_budget != null && (
-          <span style={s.budgetBadge}>up to ${Math.round(item.max_budget)}</span>
+          <span style={s.budgetBadge}>Budget: ${Math.round(item.max_budget)}</span>
         )}
       </div>
       <div style={s.cardBody}>

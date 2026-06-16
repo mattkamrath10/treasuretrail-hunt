@@ -278,7 +278,7 @@ export default function WantedDetail() {
           <span style={s.catBadge}>{WANTED_CATEGORY_LABEL[item.category]}</span>
         </div>
         {item.max_budget != null && (
-          <span style={s.budgetBadge}>up to ${Math.round(item.max_budget)}</span>
+          <span style={s.budgetBadge}>Budget: ${Math.round(item.max_budget)}</span>
         )}
       </div>
 
@@ -291,6 +291,10 @@ export default function WantedDetail() {
           )}
           <span style={s.metaChip}><Calendar size={12} /> Posted {created}</span>
         </div>
+
+        {item.max_budget != null && (
+          <p style={s.budgetNote}>This amount represents the buyer's intended spending budget.</p>
+        )}
 
         {item.description && <p style={s.desc}>{item.description}</p>}
       </section>
@@ -613,6 +617,10 @@ const s: Record<string, CSSProperties> = {
   desc: {
     margin: '14px 0 0', fontSize: 14, lineHeight: 1.55,
     color: 'var(--tt-text)', whiteSpace: 'pre-wrap',
+  },
+  budgetNote: {
+    margin: '12px 0 0', fontSize: 12, lineHeight: 1.4,
+    color: 'var(--tt-text-muted)',
   },
   requesterCard: {
     padding: 12, borderRadius: 14,
@@ -944,11 +952,11 @@ function OwnerEditForm({
         ))}
       </select>
 
-      <label style={s.composerLabel}>Max budget ($)</label>
+      <label style={s.composerLabel}>Maximum Budget ($)</label>
       <input
         value={maxBudget}
         onChange={(e) => setMaxBudget(e.target.value)}
-        placeholder="Optional"
+        placeholder="Enter your maximum budget"
         inputMode="decimal"
         style={editStyles.input}
       />

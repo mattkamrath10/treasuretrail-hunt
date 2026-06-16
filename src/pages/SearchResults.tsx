@@ -412,10 +412,12 @@ export default function SearchResults() {
 }
 
 function ResultCard({ item, onOpen }: { item: SearchResultItem; onOpen: (to: string) => void }) {
-  const price = priceLabel(item.price);
+  const rawPrice = priceLabel(item.price);
   const dist = distanceLabel(item.distanceMiles);
   const isExternal = !!item.externalUrl;
   const isWanted = item.kind === 'wanted';
+  // A Wanted Request's amount is the buyer's budget, not a sale/appraisal price.
+  const price = rawPrice && isWanted ? `Budget: ${rawPrice}` : rawPrice;
 
   const inner = (
     <>

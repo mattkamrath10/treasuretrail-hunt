@@ -405,7 +405,7 @@ function WantedCard({ item, onClick }: { item: WantedItemRow; onClick: () => voi
           </span>
           {item.max_budget != null && (
             <span style={{ ...s.badge, background: 'rgba(15, 23, 42, 0.78)' }}>
-              up to ${Math.round(item.max_budget)}
+              Budget: ${Math.round(item.max_budget)}
             </span>
           )}
         </div>

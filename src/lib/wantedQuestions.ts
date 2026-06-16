@@ -59,10 +59,10 @@ const conditionQ: WizardQuestion = {
 const budgetQ: WizardQuestion = {
   id: 'budget',
   kind: 'number',
-  prompt: "What's your max budget?",
+  prompt: "What's your maximum budget?",
   summary: 'Budget',
-  label: 'Max budget ($)',
-  placeholder: 'Optional',
+  label: 'Maximum Budget ($)',
+  placeholder: 'Enter your maximum budget',
   optional: true,
   maps: 'budget',
   inputMode: 'decimal',
