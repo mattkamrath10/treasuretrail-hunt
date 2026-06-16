@@ -5,7 +5,7 @@ import 'leaflet.markercluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import { MapPin, Search, LocateFixed, X, ChevronRight, Navigation, Repeat, Store, Plus } from 'lucide-react';
+import { MapPin, Search, LocateFixed, X, ChevronRight, ChevronDown, Navigation, Repeat, Store, Plus } from 'lucide-react';
 import {
   fetchPublishedEvents,
   type EventRow,
@@ -200,7 +200,8 @@ export default function EventsMap() {
   // Layer toggles + per-category business filter.
   const [showEvents, setShowEvents] = useState(true);
   const [showBusinesses, setShowBusinesses] = useState(true);
-  const [businessCats, setBusinessCats] = useState<Set<BusinessCategory>>(() => new Set(BUSINESS_CATEGORIES));
+  // Single-select business-type filter. 'all' shows every category (default).
+  const [businessCat, setBusinessCat] = useState<BusinessCategory | 'all'>('all');
 
   const [query, setQuery] = useState('');
   // Default the map center to the user's saved location (set on Discover or in
@@ -266,12 +267,14 @@ export default function EventsMap() {
 
   /* ----- Apply category + radius filters to businesses ----- */
   const visibleBusinesses = useMemo(() => {
-    let rows = mappableBusinesses.filter((b) => businessCats.has((b.category ?? 'antique_store') as BusinessCategory));
+    let rows = businessCat === 'all'
+      ? mappableBusinesses
+      : mappableBusinesses.filter((b) => ((b.category ?? 'antique_store') as BusinessCategory) === businessCat);
     if (center && radiusMiles !== 'any') {
       rows = rows.filter((b) => haversineMiles(center, { lat: b.lat as number, lng: b.lng as number }) <= radiusMiles);
     }
     return rows;
-  }, [mappableBusinesses, businessCats, center, radiusMiles]);
+  }, [mappableBusinesses, businessCat, center, radiusMiles]);
 
   /* ----- Create the Leaflet map once ----- */
   useEffect(() => {
@@ -417,15 +420,6 @@ export default function EventsMap() {
     ? visibleBusinesses.find((b) => b.id === selectedBusinessId) ?? null
     : null;
 
-  function toggleBusinessCat(cat: BusinessCategory) {
-    setBusinessCats((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  }
-
   const statusMsg = (() => {
     if (geoStatus === 'searching') return 'Finding that location…';
     if (geoStatus === 'not_found') return "Couldn't find that place. Try a ZIP or \"City, State\".";
@@ -505,26 +499,22 @@ export default function EventsMap() {
         </div>
 
         {showBusinesses && (
-          <div style={s.radiusRow}>
-            {BUSINESS_CATEGORIES.map((cat) => {
-              const active = businessCats.has(cat);
-              const meta = BUSINESS_CATEGORY_META[cat];
-              return (
-                <button
-                  key={cat}
-                  onClick={() => toggleBusinessCat(cat)}
-                  style={{
-                    ...s.catChip,
-                    ...(active
-                      ? { background: meta.color, borderColor: meta.color, color: '#fff', fontWeight: 700 }
-                      : {}),
-                  }}
-                >
-                  <span style={{ ...s.catChipDot, background: active ? '#fff' : meta.color }} />
-                  {meta.label}
-                </button>
-              );
-            })}
+          <div style={s.bizFilterRow}>
+            <span
+              style={{ ...s.catChipDot, background: businessCat === 'all' ? 'var(--color-neutral-400)' : BUSINESS_CATEGORY_META[businessCat].color }}
+            />
+            <select
+              value={businessCat}
+              onChange={(e) => setBusinessCat(e.target.value as BusinessCategory | 'all')}
+              style={s.bizSelect}
+              aria-label="Filter by business type"
+            >
+              <option value="all">All Business Types</option>
+              {BUSINESS_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>{BUSINESS_CATEGORY_META[cat].label}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} style={s.bizSelectChevron} />
           </div>
         )}
 
@@ -719,12 +709,18 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 'var(--font-size-xs)', fontWeight: 800,
     background: 'rgba(0,0,0,0.06)', padding: '1px 7px', borderRadius: 'var(--radius-full)',
   },
-  catChip: {
-    flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6,
+  bizFilterRow: {
+    position: 'relative', display: 'flex', alignItems: 'center', gap: 8,
     border: '1px solid var(--color-neutral-200)', background: 'var(--color-neutral-0)',
-    color: 'var(--color-neutral-600)', fontSize: 'var(--font-size-xs)', fontWeight: 600,
-    padding: '6px 12px', borderRadius: 'var(--radius-full)', cursor: 'pointer', whiteSpace: 'nowrap',
+    borderRadius: 'var(--radius-md)', padding: '0 10px', height: 42,
   },
+  bizSelect: {
+    flex: 1, minWidth: 0, border: 'none', background: 'transparent', outline: 'none',
+    appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+    fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-neutral-900)',
+    cursor: 'pointer', paddingRight: 18,
+  },
+  bizSelectChevron: { color: 'var(--color-neutral-400)', flexShrink: 0, pointerEvents: 'none' },
   catChipDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
   searchRow: { display: 'flex', gap: 8, alignItems: 'center' },
   searchBox: {
