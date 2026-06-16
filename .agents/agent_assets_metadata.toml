@@ -257,3 +257,9 @@ id = "n9p5zzcCdoxwX4gVPA6hx"
 uri = "file://screenshots/appstore/06-profile.png"
 type = "image"
 title = "Profile (account-gated — sign-up wall)"
+
+[[outputs]]
+id = "TcZJUIc-eIc7jIpPiCwx-"
+uri = "file://AI_FEATURE_AUDIT.md"
+type = "text"
+title = "TreasureTrail AI Feature Audit"
