@@ -61,3 +61,7 @@ run = ["npm", "run", "start"]
 [userenv.shared]
 VITE_API_BASE = "https://treasuretrail-hunt.com"
 VITE_PUBLIC_WEB_URL = "https://treasuretrail-hunt.com"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
