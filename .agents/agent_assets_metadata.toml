@@ -226,19 +226,19 @@ title = "TreasureTrail-Source-20260612.zip"
 id = "dOOdVjiLCOpjgFlU2hbQw"
 uri = "file://screenshots/appstore/01-discover.png"
 type = "image"
-title = "Discover (Home feed)"
+title = "1. Discover"
 
 [[outputs]]
 id = "4Ga_cUN_lIMidV1UHm__8"
 uri = "file://screenshots/appstore/03-map.png"
 type = "image"
-title = "Treasure Map"
+title = "3. Treasure Map"
 
 [[outputs]]
 id = "yXuyz_Fa7zrXwIiOK2-ss"
 uri = "file://screenshots/appstore/04-create.png"
 type = "image"
-title = "Create menu (with Business Listing)"
+title = "4. Create"
 
 [[outputs]]
 id = "DjJmnevnZOWYhS2Ec-YVM"
@@ -263,3 +263,15 @@ id = "TcZJUIc-eIc7jIpPiCwx-"
 uri = "file://AI_FEATURE_AUDIT.md"
 type = "text"
 title = "TreasureTrail AI Feature Audit"
+
+[[outputs]]
+id = "evU-XqmzAon-XjQAkwvni"
+uri = "file://screenshots/appstore/02-events.png"
+type = "image"
+title = "2. Events"
+
+[[outputs]]
+id = "uWX97EonDzRcz_HxP6zJq"
+uri = "file://screenshots/appstore/05-profile.png"
+type = "image"
+title = "5. Profile"
