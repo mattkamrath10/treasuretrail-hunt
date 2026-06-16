@@ -221,6 +221,10 @@ export default function Discover() {
         <SlideshowSkeleton />
       )}
 
+      <div style={{ padding: '8px 0 4px' }}>
+        <HostEventCTA variant="home" />
+      </div>
+
       <div className="tt-hscroll" style={s.chips}>
         {FILTERS.map((f) => {
           const active = filter === f.key;
@@ -260,10 +264,6 @@ export default function Discover() {
           ))}
         </div>
       )}
-
-      <div style={{ padding: '8px 0 4px' }}>
-        <HostEventCTA variant="home" />
-      </div>
 
       {!monetizationHidden() && !isProUser(profile) && (
         <div style={{ padding: '4px 16px 8px' }}>
