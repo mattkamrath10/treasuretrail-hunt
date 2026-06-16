@@ -204,6 +204,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   content: {
     flex: 1,
+    minHeight: 0,
+    // Positioning context so a route can fill this bounded slot with
+    // `position:absolute; inset:0` instead of a `height:100%` percentage
+    // chain. iOS Safari does NOT reliably give an inner overflow:auto child
+    // a bounded height through nested percentage-height flex parents, so a
+    // sticky footer page (SellerEventForm) would grow past the viewport and
+    // only reveal its footer during rubber-band overscroll. Absolute-fill
+    // sidesteps that quirk; in-flow routes (PageScroll height:100%) are
+    // unaffected because this div still has a definite flex height.
+    position: 'relative',
     overflow: 'hidden',
   },
   fallback: {

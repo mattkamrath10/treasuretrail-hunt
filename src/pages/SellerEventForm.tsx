@@ -1403,7 +1403,14 @@ const s: Record<string, React.CSSProperties> = {
   // Cancel/Create-Event buttons pinned above the BottomNav and visible when the
   // webview resizes for the keyboard, on every screen size and orientation.
   page: {
-    height: '100%',
+    // Fill AppShell's bounded route slot (content is position:relative) via
+    // absolute-inset instead of height:100%. A percentage-height chain does
+    // NOT reliably give the inner scroll body a bounded height on iOS Safari,
+    // which let the whole form grow past the viewport so the Submit footer
+    // only appeared during rubber-band overscroll and snapped back on release.
+    // Absolute-fill gives the flex column a definite height, so the body
+    // scrolls normally and the footer stays pinned and tappable.
+    position: 'absolute', inset: 0,
     display: 'flex', flexDirection: 'column',
     backgroundColor: 'var(--color-neutral-50)',
   },
