@@ -27,6 +27,8 @@ function fallbackKind(kind: SearchResultKind): FallbackKind {
       return 'yard_sale';
     case 'auction':
       return 'auction';
+    case 'wanted':
+      return 'wanted';
     case 'listing':
     case 'external':
     default:
@@ -413,6 +415,7 @@ function ResultCard({ item, onOpen }: { item: SearchResultItem; onOpen: (to: str
   const price = priceLabel(item.price);
   const dist = distanceLabel(item.distanceMiles);
   const isExternal = !!item.externalUrl;
+  const isWanted = item.kind === 'wanted';
 
   const inner = (
     <>
@@ -423,6 +426,11 @@ function ResultCard({ item, onOpen }: { item: SearchResultItem; onOpen: (to: str
           style={s.cardImage}
           fallback={<MediaFallback kind={fallbackKind(item.kind)} category={item.category} seed={item.id} />}
         />
+        {isWanted && (
+          <span style={s.wantedBadge}>
+            <ClipboardList size={11} /> Wanted
+          </span>
+        )}
         {isExternal && (
           <span style={s.externalBadge}>
             <ExternalLink size={11} /> {item.subtitle || 'External'}
@@ -610,6 +618,22 @@ const s: Record<string, React.CSSProperties> = {
     padding: '3px 6px',
     borderRadius: 6,
     textTransform: 'capitalize',
+  },
+  wantedBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 3,
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: '0.04em',
+    color: '#fff',
+    backgroundColor: '#065f46',
+    padding: '3px 7px',
+    borderRadius: 6,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
   },
   cardBody: { display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 10px 10px' },
   cardTitle: {
