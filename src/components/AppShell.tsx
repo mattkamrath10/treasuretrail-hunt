@@ -133,7 +133,7 @@ function SellPage() {
 // a content type surfaced inside Discover (filter chip) + global search. The old
 // /wanted URL redirects to Discover pre-filtered to Wanted Requests so existing
 // links / deep-links keep working. Individual /wanted/:id detail pages remain.
-function WantedRedirect() {
+export function WantedRedirect() {
   const navigate = useNavigate();
   useEffect(() => {
     try { localStorage.setItem('tt_discover_filter', 'wanted'); } catch { /* ignore */ }
