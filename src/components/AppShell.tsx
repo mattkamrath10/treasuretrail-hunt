@@ -17,7 +17,6 @@ const Following = lazy(() => import('../pages/Following'));
 const Home = lazy(() => import('../pages/Home'));
 const FlashFinds = lazy(() => import('../pages/FlashFinds'));
 const Sell = lazy(() => import('../pages/Sell'));
-const Wanted = lazy(() => import('../pages/Wanted'));
 const WantedDetail = lazy(() => import('../pages/WantedDetail'));
 const WantedForm = lazy(() => import('../pages/WantedForm'));
 const RareRadar = lazy(() => import('../pages/RareRadar'));
@@ -130,9 +129,17 @@ function SellPage() {
   return <Sell onBack={() => navigate('/')} />;
 }
 
-function WantedPage() {
+// The dedicated Wanted list page was removed from the bottom nav. Wanted is now
+// a content type surfaced inside Discover (filter chip) + global search. The old
+// /wanted URL redirects to Discover pre-filtered to Wanted Requests so existing
+// links / deep-links keep working. Individual /wanted/:id detail pages remain.
+function WantedRedirect() {
   const navigate = useNavigate();
-  return <Wanted onBack={() => navigate('/')} />;
+  useEffect(() => {
+    try { localStorage.setItem('tt_discover_filter', 'wanted'); } catch { /* ignore */ }
+    navigate('/', { replace: true });
+  }, [navigate]);
+  return null;
 }
 
 function WantedFormPage() {
@@ -336,7 +343,7 @@ export default function AppShell() {
             <Route path="/flash-finds" element={<FlashFinds />} />
             <Route path="/sell" element={<SellPage />} />
             <Route path="/sell/wanted" element={<WantedFormPage />} />
-            <Route path="/wanted" element={<WantedPage />} />
+            <Route path="/wanted" element={<WantedRedirect />} />
             <Route path="/wanted/:id" element={<WantedDetail />} />
             <Route path="/rare-radar" element={<RareRadar />} />
             <Route path="/auctions" element={<AuctionsPage />} />

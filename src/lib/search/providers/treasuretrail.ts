@@ -23,6 +23,7 @@ import {
   fetchPublishedBusinesses, fetchPublishedBusinessFeaturedItems,
   BUSINESS_CATEGORY_META, BUSINESS_AVAILABILITY_META,
 } from '../../businesses';
+import { fetchOpenWantedItems, WANTED_CATEGORY_LABEL, type WantedCategory } from '../../wanted';
 import type { SearchProvider, SearchResultItem, SearchResultKind } from '../types';
 
 /* ─────────────────────────── Field weights ─────────────────────────────── */
@@ -218,12 +219,13 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
   const q = term.trim().toLowerCase();
   if (!q) return [];
 
-  const [postsRaw, marketRaw, eventsRaw, businessesRaw, bizItemsRaw, externalRaw] = await Promise.all([
+  const [postsRaw, marketRaw, eventsRaw, businessesRaw, bizItemsRaw, wantedRaw, externalRaw] = await Promise.all([
     fetchCommunityPosts(100).catch(() => []),
     fetchMarketplaceListings(100).catch(() => []),
     fetchPublishedEvents({ limit: 100 }).catch(() => []),
     fetchPublishedBusinesses().catch(() => []),
     fetchPublishedBusinessFeaturedItems().catch(() => []),
+    fetchOpenWantedItems({ limit: 100 }).catch(() => []),
     supabase
       .from('external_listings')
       .select('*')
@@ -257,6 +259,34 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         imageUrl: (p.image_url as string) ?? null,
         route: `/find/${p.id}`,
         category: (p.category as string) ?? null,
+        relevanceScore: score,
+      });
+    }
+  }
+
+  // Wanted Requests — wanted_items (open requests; routed to the detail page)
+  for (const w of asArray<Record<string, unknown>>(wantedRaw)) {
+    const cat = w.category as WantedCategory;
+    const score = computeScore(q, {
+      title: w.title as string,
+      category: WANTED_CATEGORY_LABEL[cat] ?? (w.category as string),
+      description: w.description as string,
+      extra: [w.city, w.region].filter(Boolean).join(' '),
+    });
+    if (score > 0) {
+      const loc = [w.city, w.region].filter(Boolean).join(', ');
+      items.push({
+        id: String(w.id),
+        source: 'treasuretrail',
+        kind: 'wanted',
+        title: (w.title as string) || 'Wanted Request',
+        subtitle: loc || null,
+        price: (w.max_budget as number) ?? null,
+        imageUrl: (w.thumb_url as string) || (w.image_url as string) || null,
+        route: `/wanted/${w.id}`,
+        category: (w.category as string) ?? null,
+        lat: numOrNull(w.lat),
+        lng: numOrNull(w.lng),
         relevanceScore: score,
       });
     }

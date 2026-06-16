@@ -44,7 +44,7 @@ const FILTERS: { key: FeaturedFilter; label: string }[] = [
   { key: 'event', label: 'Events' },
   { key: 'business', label: 'Businesses' },
   { key: 'find', label: 'Flash Finds' },
-  { key: 'wanted', label: 'Wanted' },
+  { key: 'wanted', label: 'Wanted Requests' },
 ];
 
 // Remember the last-selected chip across visits (spec: persisted locally).

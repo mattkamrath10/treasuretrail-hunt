@@ -13,6 +13,7 @@ export type SearchResultKind =
   | 'yard_sale'
   | 'flash_find'
   | 'business'
+  | 'wanted'
   | 'external';
 
 export interface SearchResultItem {

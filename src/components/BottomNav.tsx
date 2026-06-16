@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Radio, Search, Plus, User, Map } from 'lucide-react';
+import { Compass, Radio, Plus, User, Map } from 'lucide-react';
 
 interface NavItem {
   path: string;
@@ -10,11 +10,10 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/',        label: 'Discover', icon: Compass, match: (p) => p === '/' || p === '/flash-finds' || p === '/events' },
-  { path: '/live',    label: 'Live',     icon: Radio },
+  { path: '/',        label: 'Discover', icon: Compass, match: (p) => p === '/' || p === '/flash-finds' },
+  { path: '/live',    label: 'Events',   icon: Radio, match: (p) => p === '/live' || p === '/events' },
   { path: '/map',     label: 'Map',      icon: Map,   match: (p) => p === '/map' },
-  { path: '/sell',    label: 'Sell',     icon: Plus, primary: true, match: (p) => p.startsWith('/sell') || p.startsWith('/seller') },
-  { path: '/wanted',  label: 'Wanted',   icon: Search, match: (p) => p === '/wanted' || p.startsWith('/wanted/') },
+  { path: '/sell',    label: 'Create',   icon: Plus, primary: true, match: (p) => p.startsWith('/sell') || p.startsWith('/seller') },
   { path: '/profile', label: 'Profile',  icon: User,  match: (p) => p === '/profile' || p.startsWith('/profile/') },
 ];
 
