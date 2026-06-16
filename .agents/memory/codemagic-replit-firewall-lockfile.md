@@ -21,3 +21,11 @@ re-poison the lockfile. After adding/updating deps, re-check
 `grep -c package-firewall.replit.local package-lock.json` (must be 0) BEFORE
 pushing the branch Codemagic builds from. Do NOT run `npm install` to "verify"
 the fix — Replit's registry config rewrites the URLs straight back.
+
+**The post-merge setup script is a poisoning source too.** `scripts/post-merge.sh`
+runs `npm install` after every task merge, which re-poisons the lockfile. That
+script now appends the same `sed` rewrite right after the install so merges leave
+a buildable lockfile. Any post-merge script that runs `npm install` MUST keep that
+sed line, or Codemagic will start failing again after the next merge. The npm
+error can surface as `Exit handler never called!` on the Mac builder, not always
+a clean ENOTFOUND.
