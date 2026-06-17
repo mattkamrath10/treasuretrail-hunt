@@ -20,13 +20,14 @@ import { supabase } from './supabase';
 let lastToken: string | null = null;
 let listenersBound = false;
 
-// Native push is currently disabled: the @capacitor-firebase/messaging plugin is
-// intentionally NOT installed, so it is never compiled into the native build (it
-// crashes iOS on launch without a GoogleService-Info.plist). Importing via a
-// variable specifier + @vite-ignore keeps the web build from trying to resolve
-// the absent module; on a native device the import simply throws and is caught,
-// making push a clean no-op. Re-add the package to turn push back on.
-const PUSH_PLUGIN = '@capacitor-firebase/messaging';
+// Native push is enabled: the @capacitor-firebase/messaging plugin is installed
+// and linked into the iOS/Android builds. We load it via a normal dynamic import
+// of a LITERAL specifier so Vite bundles it as a lazy chunk that resolves at
+// runtime on a real device. The chunk is only ever fetched inside the
+// Capacitor.isNativePlatform() guard below, so the web build never loads it.
+// (Do NOT switch this back to a variable specifier + @vite-ignore — that leaves
+// a bare module name the device webview can't resolve, so the import throws,
+// gets swallowed, and push silently no-ops with no permission prompt.)
 
 function platform(): 'ios' | 'android' | 'web' | 'unknown' {
   const p = Capacitor.getPlatform();
@@ -76,7 +77,7 @@ async function upsertToken(token: string): Promise<void> {
 export async function registerPush(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    const { FirebaseMessaging } = await import(/* @vite-ignore */ PUSH_PLUGIN);
+    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
 
     const perm = await FirebaseMessaging.requestPermissions();
     if (perm.receive !== 'granted') {
@@ -89,8 +90,9 @@ export async function registerPush(): Promise<void> {
       await FirebaseMessaging.addListener('tokenReceived', (event: { token?: string }) => {
         if (event?.token) void upsertToken(event.token);
       });
-      await FirebaseMessaging.addListener('notificationActionPerformed', (event: { notification?: { data?: Record<string, unknown> } }) => {
-        const data = (event?.notification?.data ?? {}) as Record<string, unknown>;
+      await FirebaseMessaging.addListener('notificationActionPerformed', (event: { notification?: { data?: unknown } }) => {
+        const raw = event?.notification?.data;
+        const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
         const route = routeForPush(data);
         if (route) {
           // This handler only runs on native (Capacitor), where the app uses
@@ -121,7 +123,7 @@ export async function removePush(): Promise<void> {
     if (token) {
       await supabase.from('device_tokens').delete().eq('token', token);
     }
-    const { FirebaseMessaging } = await import(/* @vite-ignore */ PUSH_PLUGIN);
+    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
     await FirebaseMessaging.deleteToken();
     lastToken = null;
   } catch (err) {
