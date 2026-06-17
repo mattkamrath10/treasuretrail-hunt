@@ -275,3 +275,9 @@ id = "uWX97EonDzRcz_HxP6zJq"
 uri = "file://screenshots/appstore/05-profile.png"
 type = "image"
 title = "5. Profile"
+
+[[outputs]]
+id = "fwvtpNCfxLTBNFr_lLWlV"
+uri = "file://treasuretrail-hunt-main.zip"
+type = "unspecified"
+title = "TreasureTrail (latest — push fix + v1.0.7)"
