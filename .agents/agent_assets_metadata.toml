@@ -281,3 +281,57 @@ id = "fwvtpNCfxLTBNFr_lLWlV"
 uri = "file://treasuretrail-hunt-main.zip"
 type = "unspecified"
 title = "TreasureTrail (latest — push fix + v1.0.7)"
+
+[[outputs]]
+id = "YZqDvVeDssz2TKsmqkZs5"
+uri = "file://screenshots/promo/01-featured-near-you.png"
+type = "image"
+title = "Scene: Featured Near You feed"
+
+[[outputs]]
+id = "dP5Nh-johqFCMaFwxU99U"
+uri = "file://screenshots/promo/02-treasure-map.png"
+type = "image"
+title = "Scene: Map filled with pins"
+
+[[outputs]]
+id = "a93e3iYIE_-9NaeMMznQq"
+uri = "file://screenshots/promo/03-events.png"
+type = "image"
+title = "Scene: Live events / auctions / sales"
+
+[[outputs]]
+id = "eA94A987vdH7dD4ABaL4S"
+uri = "file://screenshots/promo/04-marketplace.png"
+type = "image"
+title = "Scene: Marketplace"
+
+[[outputs]]
+id = "5BqxQr_9kUjCtWRyilQ8z"
+uri = "file://screenshots/promo/05-ai-identify.png"
+type = "image"
+title = "Scene: AI identify item & value (Rare Radar)"
+
+[[outputs]]
+id = "Wg5bAW9aJgxGi69Y47vu5"
+uri = "file://screenshots/promo/06-smart-import.png"
+type = "image"
+title = "Scene: Import listing from screenshot (AI)"
+
+[[outputs]]
+id = "r-0gKsIh-tWr2Zwpi39XU"
+uri = "file://screenshots/promo/07-add-business.png"
+type = "image"
+title = "Scene: Scan business card / AI import"
+
+[[outputs]]
+id = "ziI_nuqSG14xQHZJwRPer"
+uri = "file://screenshots/promo/08-alerts.png"
+type = "image"
+title = "Scene: Get notified (Alerts)"
+
+[[outputs]]
+id = "hOeTti2AT9zk6gXDuwYfF"
+uri = "file://screenshots/promo/09-profile.png"
+type = "image"
+title = "Scene: Profile (reseller/collector)"
