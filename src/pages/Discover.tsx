@@ -27,6 +27,8 @@ import { useAuth } from '../context/AuthContext';
 import { FeaturedSlideshow } from '../components/discover/FeaturedSlideshow';
 import {
   buildFeaturedSlides,
+  buildRemoteBoostedSlides,
+  composeSlideshow,
   buildCategoryRows,
   type FeaturedFilter,
   type FeaturedSlide,
@@ -39,6 +41,13 @@ const NEAR_RADIUS_DEFAULT = 40;
 
 // Slides shown in the rotating hero. The grid below shows the full set.
 const SLIDESHOW_CAP = 8;
+// Hero positions reserved for boosted content from anywhere (Decision 2) so
+// paid/Pro promotion is seen even outside the viewer's local radius.
+const SLIDESHOW_REMOTE_RESERVE = 3;
+// How often the per-event collectible rotation advances (Decision 4) — a
+// 10-item event shows different collectibles across visits rather than the same
+// one forever.
+const SLIDESHOW_ROTATE_MS = 30 * 60 * 1000;
 
 const FILTERS: { key: FeaturedFilter; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -172,6 +181,39 @@ export default function Discover() {
     [base, filter],
   );
 
+  // Boosted content from OUTSIDE the local radius (Decision 2). Empty when no
+  // location is set. A few of these are mixed into the hero so a boosted
+  // out-of-area seller (e.g. Boise) is still seen from California — the grid
+  // below stays strictly local.
+  const remoteBoosted = useMemo(
+    () => buildRemoteBoostedSlides({
+      events, businesses, wanted, finds, eventItems, proHolders, findCoords,
+      location: savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null,
+      radiusMi: nearRadius,
+      query,
+      filter: 'all',
+    }),
+    [events, businesses, wanted, finds, eventItems, proHolders, findCoords, savedLocation, nearRadius, query],
+  );
+
+  // Rotation seed advances over time so multi-collectible events show different
+  // items across visits (Decision 4). Computed once per mount.
+  const rotation = useMemo(() => Math.floor(Date.now() / SLIDESHOW_ROTATE_MS), []);
+
+  // Hero slideshow: majority local + a few reserved out-of-radius boosts, with
+  // each event capped + collectibles rotated and no two adjacent slides from
+  // the same event (Decision 2 + 4).
+  const heroSlides = useMemo(() => {
+    const localF = filter === 'all' ? base : base.filter((sl) => sl.kind === filter);
+    const remoteF = filter === 'all' ? remoteBoosted : remoteBoosted.filter((sl) => sl.kind === filter);
+    return composeSlideshow(localF, remoteF, {
+      cap: SLIDESHOW_CAP,
+      reserveRemote: SLIDESHOW_REMOTE_RESERVE,
+      perGroupMax: 2,
+      rotation,
+    });
+  }, [base, remoteBoosted, filter, rotation]);
+
   // Themed sub-rows for the selected category (Auctions, Estate Sales, Hot
   // Wheels…). Built from the full ranked set so boosted items stay on top of
   // each row; empty rows are omitted by buildCategoryRows.
@@ -257,7 +299,7 @@ export default function Discover() {
 
       {loaded ? (
         <FeaturedSlideshow
-          slides={slides.slice(0, SLIDESHOW_CAP)}
+          slides={heroSlides}
           filterKey={filterKey}
           onOpen={(to) => navigate(to)}
         />

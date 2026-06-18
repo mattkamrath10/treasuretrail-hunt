@@ -77,14 +77,17 @@ const EVENT_CATEGORY_LABEL: Record<string, string> = {
 
 // Priority buckets (lower = shown first).
 //
-// Boost now floats to the very top across EVERY kind so paid/Pro promotion is
-// always meaningfully visible (audit fix): any actively boosted item — event,
-// flash find, wanted, or event collectible — outranks all non-boosted content
-// regardless of type. Below boosts, Pro/featured sellers sit above normal.
+// Boost floats to the very top across EVERY kind so paid/Pro promotion is
+// always meaningfully visible: any actively boosted item — event, flash find,
+// wanted, or event collectible — outranks all non-boosted content regardless of
+// type. Below boosts the order favors the most interesting content (Decision 6):
+// featured collectibles, then Pro/featured sellers & events, then everything
+// else, so high-quality items aren't trapped on event detail pages.
 const P_BOOST_PAID = 0; // active paid boost (any kind)
 const P_BOOST_PRO = 1; // active Pro-included boost (any kind)
-const P_FEATURED = 2; // Pro holders, verified/featured shops (no active boost)
-const P_NORMAL = 3; // everything else
+const P_FEATURED_ITEM = 2; // featured collectibles uploaded inside events (no active boost)
+const P_FEATURED = 3; // Pro holders, verified/featured shops & events (no active boost)
+const P_NORMAL = 4; // everything else
 
 /**
  * Bucket for an actively boosted row (paid above Pro), or null when the row
@@ -233,9 +236,8 @@ function findToSlide(
  * status, and link to the event. Modeled as `find` kind so they live under the
  * Flash Finds filter alongside other collectibles.
  */
-function eventItemToSlide(item: EventFeaturedItem, ev: EventRow, proHolders: Set<string>): FeaturedSlide {
+function eventItemToSlide(item: EventFeaturedItem, ev: EventRow): FeaturedSlide {
   const boosted = isBoosted(ev);
-  const pro = proHolders.has(ev.holder_id);
   const place = placeLabel(ev.city, ev.region, ev.address ?? 'Local event');
   const price = item.price != null ? `$${Math.round(item.price)}` : null;
   const subtitle = [price, `at ${ev.title}`].filter(Boolean).join(' · ') || place;
@@ -253,7 +255,7 @@ function eventItemToSlide(item: EventFeaturedItem, ev: EventRow, proHolders: Set
     lat: ev.lat,
     lng: ev.lng,
     distanceMi: null,
-    priority: boostBucket(ev) ?? (pro ? P_FEATURED : P_NORMAL),
+    priority: boostBucket(ev) ?? P_FEATURED_ITEM,
     sortTime: ts(item.created_at),
     fallbackKind: 'find',
     fallbackCategory: ev.category,
@@ -279,8 +281,13 @@ export interface BuildFeaturedInput {
   filter: FeaturedFilter;
 }
 
-export function buildFeaturedSlides(input: BuildFeaturedInput): FeaturedSlide[] {
-  const { events, businesses, wanted, finds, eventItems, proHolders, findCoords, location, radiusMi, query, filter } = input;
+/**
+ * Normalize every Discover source into a single slide list (no location/search/
+ * kind filtering, no ranking). Shared by the local feed builder and the
+ * remote-boosted slideshow builder so they stay in lockstep.
+ */
+function normalizeAll(input: BuildFeaturedInput): FeaturedSlide[] {
+  const { events, businesses, wanted, finds, eventItems, proHolders, findCoords } = input;
 
   // Resolve event collectibles against their parent (published) event so they
   // inherit its location/boost; items whose event isn't in the set are skipped.
@@ -288,23 +295,54 @@ export function buildFeaturedSlides(input: BuildFeaturedInput): FeaturedSlide[] 
   const itemSlides: FeaturedSlide[] = [];
   for (const it of eventItems ?? []) {
     const ev = eventById.get(it.event_id);
-    if (ev) itemSlides.push(eventItemToSlide(it, ev, proHolders));
+    if (ev) itemSlides.push(eventItemToSlide(it, ev));
   }
 
-  let slides: FeaturedSlide[] = [
+  return [
     ...events.map((e) => eventToSlide(e, proHolders)),
     ...businesses.map((b) => businessToSlide(b, proHolders)),
     ...wanted.map((w) => wantedToSlide(w)),
     ...finds.map((p) => findToSlide(p, findCoords)),
     ...itemSlides,
   ];
+}
+
+/**
+ * Apply the active search query then kind filter, then rank boost-first:
+ * priority bucket -> nearest-first (when located) -> newest. Sorts in place.
+ */
+function rankSlides(
+  slides: FeaturedSlide[],
+  query: string,
+  filter: FeaturedFilter,
+  located: boolean,
+): FeaturedSlide[] {
+  const q = query.trim().toLowerCase();
+  let out = q ? slides.filter((sl) => sl.searchText.includes(q)) : slides;
+  if (filter !== 'all') out = out.filter((sl) => sl.kind === filter);
+  out.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    if (located) {
+      const da = a.distanceMi ?? Infinity;
+      const db = b.distanceMi ?? Infinity;
+      if (da !== db) return da - db;
+    }
+    return b.sortTime - a.sortTime;
+  });
+  return out;
+}
+
+export function buildFeaturedSlides(input: BuildFeaturedInput): FeaturedSlide[] {
+  const { location, radiusMi, query, filter } = input;
+  let slides = normalizeAll(input);
 
   // Location filtering: distance-stamp coord-bearing items and drop those
-  // beyond the radius. Events, businesses and wanted carry real coords;
-  // finds are geocoded at read time (findCoords). The only items kept without
-  // a distance check are those whose location genuinely can't be resolved
-  // (e.g. a find with a vague/blank location), so the area stays relevant
-  // without hiding content we simply can't pin.
+  // beyond the radius. Events, businesses and wanted carry real coords; finds
+  // are geocoded at read time (findCoords). Items whose location genuinely
+  // can't be resolved (e.g. a blank-location find, or an online/no-address
+  // event) are kept so we never hide content we simply can't pin. The local
+  // feed always respects the radius — Decision 2 keeps the out-of-radius
+  // boosted exposure to the slideshow only (buildRemoteBoostedSlides).
   if (location) {
     slides = slides.filter((sl) => {
       if (sl.lat == null || sl.lng == null) return true;
@@ -313,25 +351,141 @@ export function buildFeaturedSlides(input: BuildFeaturedInput): FeaturedSlide[] 
     });
   }
 
-  // Search filter (#9).
-  const q = query.trim().toLowerCase();
-  if (q) slides = slides.filter((sl) => sl.searchText.includes(q));
+  return rankSlides(slides, query, filter, !!location);
+}
 
-  // Kind filter (#6/#7).
-  if (filter !== 'all') slides = slides.filter((sl) => sl.kind === filter);
+/** True when a slide sits in one of the actively-boosted priority buckets. */
+function isBoostBucket(sl: FeaturedSlide): boolean {
+  return sl.priority === P_BOOST_PAID || sl.priority === P_BOOST_PRO;
+}
 
-  // Rank: priority bucket, then nearest-first (when located), then newest.
-  slides.sort((a, b) => {
-    if (a.priority !== b.priority) return a.priority - b.priority;
-    if (location) {
-      const da = a.distanceMi ?? Infinity;
-      const db = b.distanceMi ?? Infinity;
-      if (da !== db) return da - db;
-    }
-    return b.sortTime - a.sortTime;
+/**
+ * Boosted slides that fall OUTSIDE the local radius — the ones the local feed
+ * drops by distance. Used to reserve a few hero positions for paid/Pro
+ * promotion from anywhere (Decision 2) so a boosted Boise seller is still seen
+ * from California. Returns [] when no location is set (nothing is "remote").
+ * Items with no resolvable coords are excluded here because the local feed
+ * already keeps them. Honors the active search + kind filter, ranked boost-first.
+ */
+export function buildRemoteBoostedSlides(input: BuildFeaturedInput): FeaturedSlide[] {
+  const { location, radiusMi, query, filter } = input;
+  if (!location) return [];
+  const slides = normalizeAll(input).filter((sl) => {
+    if (!isBoostBucket(sl)) return false;
+    if (sl.lat == null || sl.lng == null) return false; // kept by the local feed
+    sl.distanceMi = haversineMiles(location, { lat: sl.lat, lng: sl.lng });
+    return sl.distanceMi > radiusMi; // strictly beyond the local radius
   });
+  return rankSlides(slides, query, filter, true);
+}
 
-  return slides;
+/* ------------------------------------------------------------------ */
+/* Slideshow composition (Decision 2 + 4)                             */
+/* ------------------------------------------------------------------ */
+
+export interface SlideshowOptions {
+  /** Total hero slides. Default 8. */
+  cap?: number;
+  /** Max out-of-radius boosted slots reserved for promotion. Default 3. */
+  reserveRemote?: number;
+  /** Max slides one event contributes (the event + its collectibles share a
+   *  target). Default 2 so a single event can't monopolise the hero. */
+  perGroupMax?: number;
+  /** Rotates which collectibles an over-capacity event exposes, so multiple
+   *  items get visibility across visits/time. Default 0. */
+  rotation?: number;
+}
+
+/** An event slide and its collectibles share the same `/event/:id` target, so
+ *  `to` groups them for per-event capping and adjacency spacing. */
+function slideGroupKey(sl: FeaturedSlide): string {
+  return sl.to;
+}
+
+/**
+ * Cap how many slides each event contributes. Groups over the cap expose a
+ * rotating window (offset by `rotation`) so a 10-item Hot Wheels event shows
+ * different collectibles over time instead of always the same one. Original
+ * order is otherwise preserved; ids already in `seen` are skipped and added.
+ */
+function capPerGroup(
+  slides: FeaturedSlide[],
+  perGroupMax: number,
+  rotation: number,
+  seen: Set<string>,
+): FeaturedSlide[] {
+  const groups = new Map<string, FeaturedSlide[]>();
+  for (const sl of slides) {
+    const list = groups.get(slideGroupKey(sl));
+    if (list) list.push(sl);
+    else groups.set(slideGroupKey(sl), [sl]);
+  }
+  const allowed = new Set<string>();
+  for (const members of groups.values()) {
+    if (members.length <= perGroupMax) {
+      for (const m of members) allowed.add(m.id);
+    } else {
+      const start = rotation % members.length;
+      for (let i = 0; i < perGroupMax; i++) {
+        allowed.add(members[(start + i) % members.length].id);
+      }
+    }
+  }
+  const out: FeaturedSlide[] = [];
+  for (const sl of slides) {
+    if (!allowed.has(sl.id) || seen.has(sl.id)) continue;
+    seen.add(sl.id);
+    out.push(sl);
+  }
+  return out;
+}
+
+/** Greedily reorder so no two adjacent slides come from the same event, while
+ *  keeping the (priority-sorted) order as intact as possible. Caps to `cap`. */
+function spaceByGroup(slides: FeaturedSlide[], cap: number): FeaturedSlide[] {
+  const pool = [...slides];
+  const out: FeaturedSlide[] = [];
+  while (out.length < cap && pool.length) {
+    const lastKey = out.length ? slideGroupKey(out[out.length - 1]) : null;
+    let idx = pool.findIndex((sl) => slideGroupKey(sl) !== lastKey);
+    if (idx === -1) idx = 0; // only same-group slides left — accept it
+    out.push(pool.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
+/**
+ * Build the hero slideshow from the local (radius-respecting) ranked slides
+ * plus a few boosted-from-anywhere slides (Decision 2 + 4):
+ *  - majority stays local; up to `reserveRemote` positions go to remote boosts
+ *  - one event contributes at most `perGroupMax` slides (rotating window)
+ *  - no two adjacent slides come from the same event
+ * Both inputs must already be ranked boost-first (buildFeaturedSlides /
+ * buildRemoteBoostedSlides).
+ */
+export function composeSlideshow(
+  local: FeaturedSlide[],
+  remote: FeaturedSlide[],
+  opts: SlideshowOptions = {},
+): FeaturedSlide[] {
+  const cap = Math.max(0, opts.cap ?? 8);
+  if (cap === 0) return [];
+  const reserveRemote = Math.max(0, Math.min(opts.reserveRemote ?? 3, cap));
+  const perGroupMax = Math.max(1, opts.perGroupMax ?? 2);
+  const rotation = Math.max(0, Math.floor(opts.rotation ?? 0));
+
+  const seen = new Set<string>();
+  const localCapped = capPerGroup(local, perGroupMax, rotation, seen);
+  const remoteCapped = capPerGroup(remote, perGroupMax, rotation, seen).slice(0, reserveRemote);
+
+  // Majority local: leave room for the reserved remote slots.
+  const localCount = Math.max(0, cap - remoteCapped.length);
+  const chosen = [...localCapped.slice(0, localCount), ...remoteCapped];
+
+  // Stable re-sort keeps boost-first order (local precedes remote within a
+  // bucket since it was concatenated first), then space same-event slides apart.
+  chosen.sort((a, b) => a.priority - b.priority);
+  return spaceByGroup(chosen, cap);
 }
 
 /* ------------------------------------------------------------------ */

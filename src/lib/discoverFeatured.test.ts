@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildFeaturedSlides, type BuildFeaturedInput } from './discoverFeatured';
+import {
+  buildFeaturedSlides,
+  buildRemoteBoostedSlides,
+  composeSlideshow,
+  type BuildFeaturedInput,
+  type FeaturedSlide,
+} from './discoverFeatured';
 import type { EventRow, EventFeaturedItem } from './events';
 import type { BusinessRow } from './businesses';
 import type { WantedItemRow } from './wanted';
@@ -429,5 +435,114 @@ describe('buildFeaturedSlides — event collectibles resolution', () => {
 
     // Both are 'find' kind; the collectible inherits the paid boost so it leads.
     expect(slides.map((s) => s.id)).toEqual(['eventitem:col-1', 'find:find-normal']);
+  });
+
+  it('ranks non-boosted featured collectibles above pro/featured sellers and normal content (Decision 6)', () => {
+    const parent = makeEvent({ id: 'ev-parent', holder_id: 'plain' });
+    const proEvent = makeEvent({ id: 'ev-pro', holder_id: 'pro-holder' });
+    const normalFind = makeFind({ id: 'find-normal' });
+    const item = makeEventItem({ id: 'col-1', event_id: 'ev-parent' });
+
+    const slides = buildFeaturedSlides(
+      baseInput({
+        events: [parent, proEvent],
+        finds: [normalFind],
+        eventItems: [item],
+        proHolders: new Set(['pro-holder']),
+      }),
+    );
+
+    const ids = slides.map((s) => s.id);
+    // Featured collectible leads; the Pro event still beats the normal content.
+    expect(ids[0]).toBe('eventitem:col-1');
+    expect(ids.indexOf('event:ev-pro')).toBeLessThan(ids.indexOf('event:ev-parent'));
+    expect(ids.indexOf('event:ev-pro')).toBeLessThan(ids.indexOf('find:find-normal'));
+  });
+});
+
+describe('buildRemoteBoostedSlides — out-of-radius boosted exposure (Decision 2)', () => {
+  const LA = { lat: 34.05, lng: -118.24 };
+
+  it('returns [] when no location is set (nothing is "remote")', () => {
+    const boosted = makeEvent({ id: 'ev-b', lat: 43.6, lng: -116.2, boost_expires_at: FUTURE, boost_type: 'paid' });
+    expect(buildRemoteBoostedSlides(baseInput({ events: [boosted], location: null }))).toEqual([]);
+  });
+
+  it('keeps boosted items beyond the radius; drops in-radius, non-boosted and no-coords', () => {
+    const farBoost = makeEvent({ id: 'ev-far-boost', lat: 43.6, lng: -116.2, boost_expires_at: FUTURE, boost_type: 'paid' }); // Boise ~650mi
+    const nearBoost = makeEvent({ id: 'ev-near-boost', lat: 34.06, lng: -118.25, boost_expires_at: FUTURE, boost_type: 'paid' }); // in-radius
+    const farNormal = makeEvent({ id: 'ev-far-normal', lat: 43.6, lng: -116.2 }); // far but not boosted
+    const noCoordsBoost = makeEvent({ id: 'ev-nocoord-boost', lat: null, lng: null, boost_expires_at: FUTURE, boost_type: 'paid' });
+
+    const res = buildRemoteBoostedSlides(
+      baseInput({
+        events: [farBoost, nearBoost, farNormal, noCoordsBoost],
+        location: LA,
+        radiusMi: 50,
+      }),
+    );
+
+    expect(res.map((s) => s.id)).toEqual(['event:ev-far-boost']);
+  });
+});
+
+describe('composeSlideshow — hero composition (Decision 2 + 4)', () => {
+  function slide(over: Partial<FeaturedSlide> = {}): FeaturedSlide {
+    const id = over.id ?? uid('sl');
+    return {
+      id,
+      kind: 'find',
+      title: 't',
+      subtitle: '',
+      category: null,
+      image: null,
+      imageFull: null,
+      accent: '#000',
+      badge: null,
+      to: over.to ?? `/x/${id}`,
+      lat: null,
+      lng: null,
+      distanceMi: null,
+      priority: 4,
+      sortTime: 0,
+      fallbackKind: 'find',
+      fallbackCategory: null,
+      searchText: '',
+      online: false,
+      ...over,
+    };
+  }
+
+  it('reserves slots for remote boosted while keeping the majority local', () => {
+    const local = Array.from({ length: 8 }, (_, i) => slide({ id: `L${i}`, to: `/event/L${i}`, priority: 4 }));
+    const remote = Array.from({ length: 5 }, (_, i) => slide({ id: `R${i}`, to: `/event/R${i}`, priority: 0 }));
+
+    const hero = composeSlideshow(local, remote, { cap: 8, reserveRemote: 3, perGroupMax: 2 });
+
+    expect(hero).toHaveLength(8);
+    expect(hero.filter((s) => s.id.startsWith('R')).length).toBe(3);
+    expect(hero.filter((s) => s.id.startsWith('L')).length).toBe(5);
+  });
+
+  it('caps slides per event and never places two from the same event adjacently', () => {
+    const items = Array.from({ length: 5 }, (_, i) => slide({ id: `E${i}`, to: '/event/E', priority: 2 }));
+    const others = Array.from({ length: 3 }, (_, i) => slide({ id: `O${i}`, to: `/event/O${i}`, priority: 2 }));
+
+    const hero = composeSlideshow([...items, ...others], [], { cap: 8, perGroupMax: 2 });
+
+    expect(hero.filter((s) => s.to === '/event/E').length).toBe(2);
+    for (let i = 1; i < hero.length; i++) {
+      expect(hero[i].to).not.toBe(hero[i - 1].to);
+    }
+  });
+
+  it('rotates which collectibles from an over-capacity event appear', () => {
+    const items = Array.from({ length: 4 }, (_, i) => slide({ id: `E${i}`, to: '/event/E', priority: 2 }));
+
+    const r0 = composeSlideshow(items, [], { cap: 8, perGroupMax: 1, rotation: 0 }).map((s) => s.id);
+    const r1 = composeSlideshow(items, [], { cap: 8, perGroupMax: 1, rotation: 1 }).map((s) => s.id);
+
+    expect(r0).toEqual(['E0']);
+    expect(r1).toEqual(['E1']);
   });
 });

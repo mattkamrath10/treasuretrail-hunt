@@ -1,0 +1,145 @@
+IMPLEMENTATION DIRECTIVE – FINAL DISCOVER & VISIBILITY DECISIONS
+
+Planning is complete.
+
+The following decisions have been made based on real-world testing of TreasureTrail, including the Travis seller/event scenario. I am no longer asking for analysis or recommendations. I am directing implementation.
+
+Please implement the following decisions and commit the changes.
+
+=================================
+ DECISION 1 BOOSTED CONTENT MUST RECEIVE MEANINGFUL VISIBILITY
+Current ranking work is appreciated, but the product goal is simple:
+
+If a user pays for promotion, they must receive obvious visibility benefits.
+
+Implement the following:
+
+Boosted Events rank above non-boosted Events.
+Boosted Flash Finds rank above non-boosted Flash Finds.
+Boosted Businesses rank above non-boosted Businesses.
+This should be visible to the user and not merely theoretical.
+
+=================================
+ DECISION 2 BOOSTED CONTENT MAY APPEAR OUTSIDE LOCAL RADIUS
+The Travis test exposed a problem.
+
+A seller in Boise should not become invisible simply because a user is browsing from California.
+
+Implement:
+
+LOCAL DISCOVER FEED
+
+Continue respecting the local radius.
+FEATURED SLIDESHOWS
+
+Allow a limited number of boosted items to appear regardless of location.
+Suggested behavior:
+
+Majority of slideshow remains local.
+Reserve 1-3 slideshow positions for boosted content from anywhere.
+Goal:
+
+Users who pay for visibility should receive exposure beyond their immediate area.
+
+=================================
+ DECISION 3 FEATURED COLLECTIBLES ARE FIRST-CLASS CONTENT
+The Travis test showed that users often care more about the collectible than the event.
+
+Implement:
+
+Featured collectibles uploaded to an event should be treated as Discover-worthy content.
+
+Allow:
+
+Hot Wheels
+Sports Cards
+Antiques
+Coins
+Collectibles
+to appear directly in slideshows and Discover feeds.
+
+User flow:
+
+Collectible
+→ Opens Event
+
+instead of requiring:
+
+Event
+→ Then Collectible
+
+=================================
+ DECISION 4 MULTIPLE COLLECTIBLES FROM THE SAME EVENT MAY ROTATE
+Do not limit visibility to a single collectible.
+
+If an event contains multiple high-quality collectibles:
+
+Allow multiple items to become slideshow candidates.
+Rotate them over time.
+Prevent duplicate adjacent slides if necessary.
+Example:
+
+A seller uploads 10 collectible items.
+
+The system should be capable of showing more than one of them across the Discover experience.
+
+=================================
+ DECISION 5 ONLINE SELLERS ARE A SUPPORTED USE CASE
+The Travis test demonstrated that not all users are event hosts.
+
+TreasureTrail should explicitly support:
+
+eBay sellers
+Whatnot sellers
+Collectible dealers
+Online resellers
+Implementation options may vary, but the product should no longer assume every user fits a local-event model.
+
+This should influence future architecture and ranking decisions.
+
+=================================
+ DECISION 6 DISCOVER SHOULD SURFACE THE BEST CONTENT
+The objective of Discover is not merely to show events.
+
+The objective is to surface the most interesting content available.
+
+Priority should favor:
+
+Paid Boosts
+Pro Boosts
+High-quality Featured Collectibles
+Featured Events
+Standard Content
+The best content should not remain hidden inside event detail pages.
+
+=================================
+ DECISION 7 CATEGORY ROWS MUST BE PROTECTED
+Proceed with Task #42.
+
+Add tests and protection for:
+
+Auctions
+Estate Sales
+Flea Markets
+Live Shows
+Hot Wheels
+Sports Cards
+Antiques
+Coins
+Antique Stores
+Auction Houses
+Estate Sale Companies
+These rows are now a core Discover feature and should not be vulnerable to silent regressions.
+
+=================================
+ FINAL INSTRUCTION
+Do not create additional planning documents.
+
+Do not return recommendations.
+
+Implement the above decisions in code, commit the changes, run tests, verify behavior, and prepare the branch for push to GitHub.
+
+The planning phase is complete.
+
+This is now an implementation task.
+
