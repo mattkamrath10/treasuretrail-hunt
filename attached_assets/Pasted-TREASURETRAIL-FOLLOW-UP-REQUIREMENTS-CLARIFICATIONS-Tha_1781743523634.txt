@@ -1,0 +1,186 @@
+TREASURETRAIL FOLLOW-UP REQUIREMENTS & CLARIFICATIONS
+
+Thank you for completing the first roadmap items. After reviewing the implementation and testing with a real-world example (Travis’s seller/event page), there are still several areas that need clarification or additional work.
+
+=================================
+
+BOOST SYSTEM CLARIFICATION
+=================================
+The summary states that boosts affect Discover ranking and slideshows.
+
+However, I need exact details.
+
+Please explain:
+
+What is the current ranking formula?
+Does boosted content ALWAYS rank above non-boosted content within the same category?
+Can a boosted event still be buried below non-boosted events?
+Can a boosted Flash Find still be buried below non-boosted Flash Finds?
+Does engagement override boost status?
+Does location override boost status?
+I need a detailed explanation of how:
+
+Boost status
+Pro status
+Distance
+Recency
+Engagement
+all interact in the ranking system.
+
+My concern is that users paying for boosts should receive obvious visibility benefits.
+
+=================================
+ 2. TRAVIS TEST CASE REVIEW
+Please review this specific scenario.
+
+Test case:
+
+Event created for an eBay seller (Travis).
+Event contained approximately 10 collectible items.
+Mostly Hot Wheels and miscellaneous collectibles.
+Event was boosted.
+Event originally used Boise, Idaho as location.
+Event later had location removed.
+Event and collectibles did not immediately appear where expected.
+Questions:
+
+Would this event appear for users in California?
+Would the boost overcome location filtering?
+Would the collectibles appear in slideshows?
+Would all collectibles be eligible?
+How many featured items from one event can appear in a slideshow?
+Please explain exactly how this event would be ranked today.
+
+=================================
+ 3. FEATURED ITEM SLIDESHOW LOGIC
+I need clarification on how featured items are selected.
+
+Questions:
+
+How many featured items from a single event can appear?
+Does the system rotate them?
+Does it choose only one item?
+Does it prioritize the cover photo instead?
+Desired behavior:
+
+If a host uploads multiple high-quality featured collectibles, the system should have the ability to showcase more than one of them over time.
+
+Example:
+
+An event with 10 quality collectibles should not have only one item ever eligible for visibility.
+
+=================================
+ 4. ONLINE SELLER SHOWCASE CONCEPT
+The Travis test exposed a larger issue.
+
+Not every user is:
+
+Hosting a live show
+Hosting an estate sale
+Hosting an auction
+Some users are simply:
+
+eBay sellers
+Collectible dealers
+Whatnot sellers
+Marketplace resellers
+Currently these users must create an event to gain visibility.
+
+Please evaluate the future feasibility of:
+
+SELLER SHOWCASES
+
+Features:
+
+Cover image
+Profile image
+Bio
+External links
+Featured inventory
+Follow seller
+The current event model does not always fit these users.
+
+=================================
+ 5. DISCOVER FEED BEHAVIOR
+Please explain exactly what happens after a user selects a category.
+
+Example:
+
+User taps:
+
+FLASH FINDS
+
+Questions:
+
+Does slideshow update?
+Does feed update?
+Are boosted finds pinned first?
+Are featured items mixed into results?
+What determines ordering below the slideshow?
+Need exact behavior documented.
+
+=================================
+ 6. LOCATION FILTERING REVIEW
+Current summary indicates location remains a hard radius filter.
+
+Please clarify:
+
+If a boosted event exists outside the user’s radius:
+
+Does it appear in Discover?
+Does it appear in slideshows?
+Does it appear in search?
+I am concerned that boosted content may still be hidden because of distance.
+
+Potential future solution:
+
+Separate content types:
+
+LOCAL EVENTS
+
+Map-enabled
+Distance-based
+ONLINE EVENTS
+
+No address required
+No map requirement
+Discover eligible
+HYBRID EVENTS
+
+Both local and online
+=================================
+ 7. COLLECTIBLES-FIRST DISCOVERY
+One of the biggest findings from testing:
+
+Users often care more about the collectible than the event itself.
+
+Example:
+
+A rare Hot Wheels car may generate more interest than the event title.
+
+Please evaluate whether Discover should increasingly surface:
+
+Featured collectibles
+Flash Finds
+Rare items
+and then route users into the associated event.
+
+Current thought:
+
+Item -> Event
+
+may generate stronger engagement than:
+
+Event -> Item
+
+=================================
+ PRIMARY GOAL
+The Travis test should be treated as a real-world use case.
+
+The objective is to ensure that:
+
+Boosted content receives meaningful visibility.
+High-quality collectibles are surfaced.
+Online-only sellers are not disadvantaged.
+Discover highlights the best content available.
+Future monetization delivers obvious value to users paying for promotion.
