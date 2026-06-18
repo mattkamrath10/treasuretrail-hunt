@@ -1,0 +1,56 @@
+Yes, mark Task #36 complete.
+
+The test coverage sounds good and I appreciate the additional slideshow and ranking protection.
+
+However, before we move on, I want clarification on several real-world business scenarios that came up during testing.
+
+TRAVIS TEST CASE
+
+I created an event for an eBay seller (Travis) and uploaded approximately 10 collectibles, including Hot Wheels and miscellaneous collectible items.
+
+The event was boosted.
+
+Please explain exactly how the current system handles this scenario.
+
+Questions:
+
+If a boosted event is located in Boise, Idaho and I am browsing from California, will the boosted event appear in the Discover slideshow?
+Since location remains a hard radius filter, can boosted content still be completely hidden from users outside that radius?
+How many featured items from a single event are eligible for slideshow placement?
+Can multiple featured collectibles from the same event rotate through the slideshow, or is only one item eligible?
+If an event contains ten high-quality collectibles, how does the system decide which item appears?
+DISCOVER RANKING DOCUMENTATION
+
+Please provide the exact ranking logic used by buildFeaturedSlides.
+
+Specifically explain how the following factors interact:
+
+Boost status
+Pro status
+Distance
+Recency
+Engagement
+Featured status
+I want a plain-English explanation, not just test results.
+
+DISCOVER FEED BEHAVIOR
+
+When a user taps:
+
+FLASH FINDS
+
+Please explain:
+
+How the slideshow changes
+How the feed below changes
+Whether boosted finds are pinned
+Whether featured event items can appear
+What determines ordering
+FOLLOW-UP TASK REQUEST
+
+Please prioritize testing and documenting the buildCategoryRows logic as suggested in Task #42.
+
+Since those category rows are now a major part of the Discover experience, I want the same level of protection and documentation that buildFeaturedSlides now has.
+
+The goal is to make sure the Discover experience behaves exactly as intended before additional monetization work is introduced.
+
