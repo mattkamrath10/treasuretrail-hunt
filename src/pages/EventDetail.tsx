@@ -178,11 +178,15 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
     // deep-linked tab still produces a sharable URL (window.location.href
     // can include hash/query state that breaks the link unfurl).
     const url = publicWebUrl(`/event/${event.id}`);
+    // Share URL-only (no image File). The server now injects per-event OG
+    // tags at /event/:id, so iMessage/WhatsApp unfurl a SINGLE rich preview
+    // card from the link. Passing an image File here produced TWO previews
+    // (the attached photo + the unfurled URL card) in iMessage.
     const result = await shareWithImage({
       url,
       title: event.title,
       text: event.title,
-      imageUrl: event.cover_image_url || null,
+      imageUrl: null,
     });
     if (result.kind === 'copied') flashToast('Link copied');
     else if (result.kind === 'unsupported') window.prompt('Copy this link to share:', url);
@@ -285,6 +289,26 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  // Hero image slideshow: the cover photo first, then each featured-item image.
+  // Gives sparse events a richer top-of-page gallery without a separate upload.
+  const gallery: GalleryImage[] = [];
+  if (event.cover_image_url || event.cover_thumb_url) {
+    gallery.push({
+      thumb: event.cover_thumb_url || toThumbUrl(event.cover_image_url) || undefined,
+      full: event.cover_image_url,
+      alt: event.title,
+    });
+  }
+  for (const it of items) {
+    if (it.image_url || it.thumb_url) {
+      gallery.push({
+        thumb: toThumbUrl(it.thumb_url || it.image_url) ?? undefined,
+        full: it.image_url,
+        alt: it.title,
+      });
+    }
+  }
+
   return (
     <PageScroll style={s.container}>
       <Header onBack={onBack} />
@@ -297,38 +321,34 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {/* Cover — branded fallback (Whatnot tile for Whatnot shows,
-          warm gradient + icon otherwise) so this slot is never the
-          empty gray box users were seeing on expired streams. */}
-      <div style={s.cover}>
-        <ImageWithFade
-          src={event.cover_thumb_url || toThumbUrl(event.cover_image_url) || undefined}
-          fallbackSrc={event.cover_image_url}
-          alt={event.title}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          fallback={
-            isWhatnot ? (
-              <div style={{
-                position: 'absolute', inset: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: '#0a0a0a',
-              }}>
-                <WhatnotIcon size={96} style={{ borderRadius: 22 }} />
-              </div>
-            ) : (
-              <MediaFallback
-                kind={isOnline ? 'live' : 'event'}
-                seed={event.id}
-                label={event.title}
-              />
-            )
-          }
-        />
-      </div>
+      {/* Hero image slideshow — cover photo + each featured item. Branded
+          fallback (Whatnot tile / warm gradient) so this slot is never an
+          empty gray box on image-less events. */}
+      <EventGallery
+        images={gallery}
+        fallback={
+          isWhatnot ? (
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: '#0a0a0a',
+            }}>
+              <WhatnotIcon size={96} style={{ borderRadius: 22 }} />
+            </div>
+          ) : (
+            <MediaFallback
+              kind={isOnline ? 'live' : 'event'}
+              seed={event.id}
+              label={event.title}
+            />
+          )
+        }
+      />
 
-      {/* Title + meta block */}
+      {/* Title + badges + meta block */}
       <section style={s.section}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+        <h1 style={s.title}>{event.title}</h1>
+        <div style={{ display: 'flex', gap: 6, margin: '8px 0', flexWrap: 'wrap' }}>
           {platformMeta ? (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -376,7 +396,6 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
             <Badge variant="category">{SHOW_CATEGORY_LABELS[event.show_category]}</Badge>
           )}
         </div>
-        <h1 style={s.title}>{event.title}</h1>
 
         <div style={s.metaRow}>
           <Calendar size={14} style={{ color: 'var(--color-neutral-500)' }} />
@@ -583,6 +602,67 @@ function Header({ onBack }: { onBack: () => void }) {
   );
 }
 
+/* --------------- Hero gallery --------------- */
+
+interface GalleryImage {
+  thumb: string | undefined;
+  full: string | null;
+  alt: string;
+}
+
+function EventGallery({ images, fallback }: { images: GalleryImage[]; fallback: React.ReactNode }) {
+  const [active, setActive] = useState(0);
+
+  // No images at all → single branded fallback tile (Whatnot / gradient).
+  if (images.length === 0) {
+    return <div style={s.cover}>{fallback}</div>;
+  }
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    if (idx !== active) setActive(idx);
+  };
+
+  // One image → no scroller / dots needed.
+  if (images.length === 1) {
+    return (
+      <div style={s.cover}>
+        <ImageWithFade
+          src={images[0].thumb}
+          fallbackSrc={images[0].full ?? undefined}
+          alt={images[0].alt}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          fallback={fallback}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={s.galleryWrap}>
+      <div className="tt-hscroll" style={s.galleryScroll} onScroll={onScroll}>
+        {images.map((img, i) => (
+          <div key={i} style={s.gallerySlide}>
+            <ImageWithFade
+              src={img.thumb}
+              fallbackSrc={img.full ?? undefined}
+              alt={img.alt}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              fallback={fallback}
+            />
+          </div>
+        ))}
+      </div>
+      <div style={s.galleryDots}>
+        {images.map((_, i) => (
+          <span key={i} style={{ ...s.galleryDot, ...(i === active ? s.galleryDotActive : null) }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* --------------- Lightbox --------------- */
 
 function Lightbox({ item, onClose }: { item: EventFeaturedItem; onClose: () => void }) {
@@ -719,6 +799,29 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'var(--color-neutral-100)',
   },
+
+  galleryWrap: { position: 'relative', width: '100%' },
+  galleryScroll: {
+    display: 'flex', flexWrap: 'nowrap',
+    overflowX: 'auto', scrollSnapType: 'x mandatory',
+    width: '100%',
+  },
+  gallerySlide: {
+    position: 'relative', flex: '0 0 100%', width: '100%',
+    aspectRatio: '16 / 9', scrollSnapAlign: 'start',
+    backgroundColor: 'var(--color-neutral-100)',
+  },
+  galleryDots: {
+    position: 'absolute', left: 0, right: 0, bottom: 8,
+    display: 'flex', justifyContent: 'center', gap: 6,
+    pointerEvents: 'none',
+  },
+  galleryDot: {
+    width: 6, height: 6, borderRadius: 999,
+    background: 'rgba(255,255,255,0.55)',
+    boxShadow: '0 0 2px rgba(0,0,0,0.4)',
+  },
+  galleryDotActive: { background: '#fff', width: 18 },
 
   section: {
     margin: 'var(--space-3) var(--space-4) 0',

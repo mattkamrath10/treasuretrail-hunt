@@ -47,6 +47,8 @@ export interface FeaturedSlide {
   fallbackKind: 'event' | 'find' | 'wanted' | 'listing';
   fallbackCategory: string | null;
   searchText: string;
+  /** True for online/livestream events (used by the "Live Shows" row). */
+  online: boolean;
 }
 
 export const FEATURED_KIND_ACCENT: Record<FeaturedKind, string> = {
@@ -127,6 +129,7 @@ function eventToSlide(e: EventRow, proHolders: Set<string>): FeaturedSlide {
     fallbackKind: 'event',
     fallbackCategory: e.category,
     searchText: `${e.title} ${subtitle} ${category}`.toLowerCase(),
+    online: e.event_kind === 'online',
   };
 }
 
@@ -158,6 +161,7 @@ function businessToSlide(b: BusinessRow, proOwners: Set<string>): FeaturedSlide 
     fallbackKind: 'listing',
     fallbackCategory: b.category,
     searchText: `${b.name} ${subtitle} ${category}`.toLowerCase(),
+    online: false,
   };
 }
 
@@ -186,6 +190,7 @@ function wantedToSlide(w: WantedItemRow): FeaturedSlide {
     fallbackKind: 'wanted',
     fallbackCategory: w.category,
     searchText: `${w.title} ${subtitle} ${category}`.toLowerCase(),
+    online: false,
   };
 }
 
@@ -217,6 +222,7 @@ function findToSlide(
     fallbackKind: 'find',
     fallbackCategory: p.category,
     searchText: `${title} ${subtitle} ${p.category ?? ''}`.toLowerCase(),
+    online: false,
   };
 }
 
@@ -252,6 +258,7 @@ function eventItemToSlide(item: EventFeaturedItem, ev: EventRow, proHolders: Set
     fallbackKind: 'find',
     fallbackCategory: ev.category,
     searchText: `${item.title} ${ev.title} ${place}`.toLowerCase(),
+    online: ev.event_kind === 'online',
   };
 }
 
@@ -325,4 +332,76 @@ export function buildFeaturedSlides(input: BuildFeaturedInput): FeaturedSlide[] 
   });
 
   return slides;
+}
+
+/* ------------------------------------------------------------------ */
+/* Category-specific slideshow rows                                   */
+/* ------------------------------------------------------------------ */
+
+export interface CategoryRow {
+  key: string;
+  title: string;
+  slides: FeaturedSlide[];
+}
+
+/** Does the slide's free-text (title/subtitle/category) contain any keyword? */
+function kw(sl: FeaturedSlide, words: string[]): boolean {
+  return words.some((w) => sl.searchText.includes(w));
+}
+
+type RowDef = { key: string; title: string; match: (sl: FeaturedSlide) => boolean };
+
+// Themed sub-rows per category chip. Each row is built from the already-ranked,
+// location/search-filtered slide set, so boosted content still floats to the
+// front of every row. Rows that resolve to zero items are dropped by the
+// caller, so the UI only ever shows rows that actually have content — the
+// taxonomy (esp. Flash Finds) is keyword-driven and degrades gracefully as the
+// catalog grows.
+const CATEGORY_ROW_DEFS: Record<FeaturedFilter, RowDef[]> = {
+  all: [
+    { key: 'feat-events',  title: 'Featured Events',      match: (s) => s.kind === 'event' },
+    { key: 'feat-finds',   title: 'Featured Flash Finds', match: (s) => s.kind === 'find' },
+    { key: 'feat-biz',     title: 'Featured Businesses',  match: (s) => s.kind === 'business' },
+  ],
+  event: [
+    { key: 'auctions',     title: 'Auctions',     match: (s) => s.kind === 'event' && s.fallbackCategory === 'auction' },
+    { key: 'estate',       title: 'Estate Sales', match: (s) => s.kind === 'event' && s.fallbackCategory === 'estate_sale' },
+    { key: 'flea',         title: 'Flea Markets', match: (s) => s.kind === 'event' && s.fallbackCategory === 'flea_market' },
+    { key: 'live',         title: 'Live Shows',   match: (s) => s.kind === 'event' && s.online },
+    { key: 'garage',       title: 'Garage Sales', match: (s) => s.kind === 'event' && s.fallbackCategory === 'yard_sale' },
+  ],
+  find: [
+    { key: 'hotwheels',    title: 'Hot Wheels',    match: (s) => s.kind === 'find' && kw(s, ['hot wheel', 'hotwheel', 'matchbox', 'diecast', 'die-cast']) },
+    { key: 'sportscards',  title: 'Sports Cards',  match: (s) => s.kind === 'find' && kw(s, ['sports card', 'sportscard', 'baseball card', 'basketball card', 'football card', 'pokemon', 'trading card']) },
+    { key: 'antiques',     title: 'Antiques',      match: (s) => s.kind === 'find' && kw(s, ['antique', 'vintage']) },
+    { key: 'coins',        title: 'Coins',         match: (s) => s.kind === 'find' && kw(s, ['coin', 'currency', 'bullion', 'silver dollar']) },
+    { key: 'collectibles', title: 'Collectibles',  match: (s) => s.kind === 'find' && kw(s, ['collectible', 'figure', 'toy', 'comic']) },
+    { key: 'rare',         title: 'Rare Finds',    match: (s) => s.kind === 'find' && kw(s, ['rare', 'limited', 'one of a kind', 'first edition']) },
+  ],
+  business: [
+    { key: 'antique-stores',  title: 'Antique Stores',          match: (s) => s.kind === 'business' && s.fallbackCategory === 'antique_store' },
+    { key: 'auction-houses',  title: 'Auction Houses',          match: (s) => s.kind === 'business' && s.fallbackCategory === 'auction_house' },
+    { key: 'estate-cos',      title: 'Estate Sale Companies',   match: (s) => s.kind === 'business' && s.fallbackCategory === 'estate_sale_company' },
+    { key: 'dealers',         title: 'Collectible Dealers',     match: (s) => s.kind === 'business' && (s.fallbackCategory === 'consignment_store' || s.fallbackCategory === 'vintage_store' || s.fallbackCategory === 'pawn_shop') },
+  ],
+  wanted: [],
+};
+
+/**
+ * Build the themed slideshow rows for the selected category chip. Pass the
+ * full ranked slide set (the `all` build) — rows self-filter by kind/category,
+ * so they stay boost-ordered. Empty rows are omitted. `cap` limits each row.
+ */
+export function buildCategoryRows(
+  slides: FeaturedSlide[],
+  filter: FeaturedFilter,
+  cap = 12,
+): CategoryRow[] {
+  const defs = CATEGORY_ROW_DEFS[filter] ?? [];
+  const rows: CategoryRow[] = [];
+  for (const def of defs) {
+    const matched = slides.filter(def.match).slice(0, cap);
+    if (matched.length) rows.push({ key: def.key, title: def.title, slides: matched });
+  }
+  return rows;
 }

@@ -1574,6 +1574,84 @@ if (fs.existsSync(distDir)) {
       },
     })
   );
+  // --- Per-event Open Graph injection ----------------------------------
+  // A shared /event/:id link must unfurl into a rich preview (the event's
+  // own title + cover photo) on iMessage/WhatsApp/Slack/Facebook. Those
+  // crawlers never run our JS, so they only see whatever <meta> tags are in
+  // the served HTML. We rewrite the static OG/Twitter tags with the event's
+  // details before serving index.html. Humans still get the same SPA — the
+  // injected tags are inert to the React app.
+  const ogSupabase = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const SITE_ORIGIN = 'https://treasuretrail-hunt.com';
+  const DEFAULT_OG_IMAGE = `${SITE_ORIGIN}/og-image.jpg`;
+
+  const htmlEscape = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const injectEventMeta = (
+    html: string,
+    meta: { title: string; description: string; image: string; url: string },
+  ): string => {
+    const title = htmlEscape(meta.title);
+    const desc = htmlEscape(meta.description);
+    const image = htmlEscape(meta.image);
+    const url = htmlEscape(meta.url);
+    return html
+      .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
+      .replace(/(<meta name="title" content=")[^"]*(")/, `$1${title}$2`)
+      .replace(/(<meta name="description" content=")[^"]*(")/, `$1${desc}$2`)
+      .replace(/(<meta property="og:type" content=")[^"]*(")/, `$1article$2`)
+      .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${url}$2`)
+      .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${title}$2`)
+      .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${desc}$2`)
+      .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${image}$2`)
+      .replace(/(<meta property="og:image:alt" content=")[^"]*(")/, `$1${title}$2`)
+      .replace(/(<meta property="twitter:url" content=")[^"]*(")/, `$1${url}$2`)
+      .replace(/(<meta property="twitter:title" content=")[^"]*(")/, `$1${title}$2`)
+      .replace(/(<meta property="twitter:description" content=")[^"]*(")/, `$1${desc}$2`)
+      .replace(/(<meta property="twitter:image" content=")[^"]*(")/, `$1${image}$2`)
+      .replace(/(<meta property="twitter:image:alt" content=")[^"]*(")/, `$1${title}$2`)
+      .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${url}$2`);
+  };
+
+  app.get('/event/:id', async (req, res, next) => {
+    const id = req.params.id;
+    // Only handle UUID-shaped ids so we never intercept unrelated routes.
+    if (!/^[0-9a-fA-F-]{16,}$/.test(id)) return next();
+    try {
+      const { data: ev } = await ogSupabase
+        .from('events')
+        .select('id, title, description, cover_image_url, status, city, region')
+        .eq('id', id)
+        .eq('status', 'published')
+        .maybeSingle();
+
+      const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
+      if (!ev) return res.send(indexHtml); // unpublished/missing → default OG
+
+      const place = [ev.city, ev.region].filter(Boolean).join(', ');
+      const rawDesc = (ev.description || '').trim().replace(/\s+/g, ' ');
+      const description =
+        (rawDesc ? rawDesc.slice(0, 200) : `An event on TreasureTrail${place ? ` in ${place}` : ''}.`);
+      return res.send(
+        injectEventMeta(indexHtml, {
+          title: ev.title,
+          description,
+          image: ev.cover_image_url || DEFAULT_OG_IMAGE,
+          url: `${SITE_ORIGIN}/event/${ev.id}`,
+        }),
+      );
+    } catch (err) {
+      console.error('[ai-server] OG injection failed:', err);
+      return next(); // fall through to plain SPA fallback
+    }
+  });
+
   // SPA fallback: any non-API GET returns index.html so client-side routes
   // (BrowserRouter on web) resolve on hard refresh / deep link. Always served
   // with no-cache so the freshest entry point (and bundle) reaches the client.

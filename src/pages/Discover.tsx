@@ -27,6 +27,7 @@ import { useAuth } from '../context/AuthContext';
 import { FeaturedSlideshow } from '../components/discover/FeaturedSlideshow';
 import {
   buildFeaturedSlides,
+  buildCategoryRows,
   type FeaturedFilter,
   type FeaturedSlide,
 } from '../lib/discoverFeatured';
@@ -171,6 +172,14 @@ export default function Discover() {
     [base, filter],
   );
 
+  // Themed sub-rows for the selected category (Auctions, Estate Sales, Hot
+  // Wheels…). Built from the full ranked set so boosted items stay on top of
+  // each row; empty rows are omitted by buildCategoryRows.
+  const categoryRows = useMemo(
+    () => buildCategoryRows(base, filter),
+    [base, filter],
+  );
+
   const filterKey = `${filter}|${query.trim().toLowerCase()}|${savedLocation?.savedAt ?? ''}`;
   const canExpand = !!savedLocation && nearRadius < 250;
 
@@ -254,6 +263,19 @@ export default function Discover() {
         />
       ) : (
         <SlideshowSkeleton />
+      )}
+
+      {loaded && categoryRows.length > 0 && (
+        <div style={s.rowsWrap}>
+          {categoryRows.map((row) => (
+            <CategoryRowStrip
+              key={row.key}
+              title={row.title}
+              slides={row.slides}
+              onOpen={(to) => navigate(to)}
+            />
+          ))}
+        </div>
       )}
 
       <div style={{ padding: '8px 0 4px' }}>
@@ -418,6 +440,44 @@ function FeaturedGridCard({ slide, onClick }: { slide: FeaturedSlide; onClick: (
   );
 }
 
+/* ---------- Category row (horizontal themed strip) ---------- */
+
+function CategoryRowStrip({
+  title, slides, onOpen,
+}: { title: string; slides: FeaturedSlide[]; onOpen: (to: string) => void }) {
+  return (
+    <section style={s.row}>
+      <h3 style={s.rowTitle}>{title}</h3>
+      <div className="tt-hscroll" style={s.rowScroll}>
+        {slides.map((sl) => (
+          <button key={sl.id} style={s.rowCard} onClick={() => onOpen(sl.to)} aria-label={`Open ${sl.title}`}>
+            <div style={s.rowCardImg}>
+              <ImageWithFade
+                src={sl.image}
+                fallbackSrc={sl.imageFull}
+                alt={sl.title}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                fallback={
+                  <MediaFallback
+                    kind={sl.fallbackKind}
+                    category={sl.fallbackCategory ?? undefined}
+                    seed={sl.id}
+                  />
+                }
+              />
+              {sl.badge && <span style={s.rowCardBadge}>{sl.badge}</span>}
+            </div>
+            <div style={s.rowCardBody}>
+              <div style={s.rowCardTitle}>{sl.title}</div>
+              <div style={s.rowCardMeta}>{sl.subtitle}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function SlideshowSkeleton() {
   return (
     <div style={{ padding: '0 16px' }}>
@@ -548,6 +608,40 @@ const s: Record<string, CSSProperties> = {
     fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase',
     padding: '1px 6px', borderRadius: 999,
     background: 'var(--tt-surface-3)', color: 'var(--tt-text-muted)',
+  },
+
+  // Category rows (themed horizontal strips)
+  rowsWrap: { padding: '4px 0 0' },
+  row: { padding: '10px 0 2px' },
+  rowTitle: {
+    margin: '0 0 8px', padding: '0 16px',
+    fontSize: 15, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em',
+  },
+  rowScroll: {
+    display: 'flex', flexWrap: 'nowrap', gap: 12,
+    padding: '0 16px 4px', overflowX: 'auto',
+  },
+  rowCard: {
+    display: 'flex', flexDirection: 'column', textAlign: 'left', flexShrink: 0,
+    width: 150,
+    background: 'var(--tt-surface)', border: '1px solid var(--tt-border)',
+    borderRadius: 14, overflow: 'hidden', cursor: 'pointer', padding: 0,
+    color: 'var(--tt-text)', WebkitTapHighlightColor: 'transparent',
+  },
+  rowCardImg: { position: 'relative', width: '100%', aspectRatio: '4 / 3', background: 'var(--tt-image-bg)' },
+  rowCardBadge: {
+    position: 'absolute', top: 6, left: 6,
+    padding: '2px 7px', borderRadius: 999, fontSize: 9.5, fontWeight: 800,
+    background: 'rgba(249,115,22,0.95)', color: '#1a0c00',
+  },
+  rowCardBody: { padding: '8px 9px 10px' },
+  rowCardTitle: {
+    margin: 0, fontSize: 12.5, fontWeight: 800, color: 'var(--tt-text)', lineHeight: 1.25,
+    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+  },
+  rowCardMeta: {
+    margin: '3px 0 0', fontSize: 11, color: 'var(--tt-text-muted)',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
 
   // Grid
