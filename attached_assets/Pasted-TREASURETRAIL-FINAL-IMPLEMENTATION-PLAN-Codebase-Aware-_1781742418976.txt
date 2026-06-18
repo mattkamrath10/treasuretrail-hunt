@@ -1,0 +1,258 @@
+TREASURETRAIL FINAL IMPLEMENTATION PLAN
+(Codebase-Aware Version)
+
+Use the latest June 17 ZIP as the source of truth.
+
+Before implementing additional features, perform a full audit of the current Discover ranking, slideshow eligibility, boost system, and content surfacing logic.
+
+=================================
+PHASE 1 (HIGHEST PRIORITY)
+DISCOVER RANKING & BOOST AUDIT
+
+Audit all ranking logic currently used by:
+
+* Discover feed
+* Featured Near You slideshow
+* Category-specific slideshow datasets
+* Search ranking
+* Map visibility
+
+Document:
+
+* Exact scoring formula
+* Exact ranking order
+* Boost weight
+* Pro business weight
+* Featured weight
+* Location weight
+* Recency weight
+
+Verify whether current implementation matches documented behavior:
+
+Boosted Events
+→ Pro Businesses
+→ Boosted Wanted
+→ Featured Content
+→ Standard Content
+
+Questions requiring answers:
+
+1. Does boosting affect slideshow placement?
+2. Does boosting affect Discover feed ranking?
+3. Does boosting affect Flash Finds?
+4. Does boosting affect Businesses?
+5. Does boosting affect Featured Event Items?
+6. Does location filtering override boosts?
+7. Can a boosted item become invisible because of location logic?
+
+Expected behavior:
+
+Within the same category:
+
+Boosted content should always rank above non-boosted content.
+
+Users paying for promotion must receive meaningful visibility benefits.
+
+=================================
+PHASE 1A
+SLIDESHOW ELIGIBILITY AUDIT
+
+Current concern:
+
+Featured Event Items appear excluded from Discover visibility.
+
+Audit all slideshow data sources.
+
+Document exactly what content can currently appear.
+
+Verify inclusion of:
+
+* Events
+* Featured Event Items
+* Flash Finds
+* Businesses
+* Wanted Requests
+
+Expected behavior:
+
+The slideshow should surface the strongest visual content regardless of where it originated.
+
+Allow eligibility from:
+
+* Boosted Events
+* Featured Event Items
+* Flash Finds
+* Boosted Flash Finds
+* Featured Businesses
+
+Document current limitations.
+
+=================================
+PHASE 1B
+DISCOVER ANALYTICS AUDIT
+
+Verify tracking for:
+
+* Slide impressions
+* Slide clicks
+* Slide opens
+* Business opens
+* Event opens
+* Flash Find opens
+
+Document what is currently tracked and what is missing.
+
+Reason:
+
+Paid boosts require measurable exposure.
+
+=================================
+PHASE 1C
+DISCOVER REDESIGN
+
+Header:
+
+"What are you looking for today?"
+
+"Browse events, Flash Finds, businesses, and more."
+
+Category buttons:
+
+* All
+* Events
+* Flash Finds
+* Businesses
+* Sellers (future)
+
+Selected category must be visually highlighted.
+
+=================================
+PHASE 1D
+CATEGORY-SPECIFIC SLIDESHOWS
+
+ALL
+
+* Featured Events
+* Featured Flash Finds
+* Featured Businesses
+* Future Seller Profiles
+
+EVENTS
+
+* Auctions
+* Estate Sales
+* Flea Markets
+* Live Shows
+
+FLASH FINDS
+
+* Collectibles
+* Hot Wheels
+* Sports Cards
+* Antiques
+* Coins
+* Rare Finds
+
+BUSINESSES
+
+* Antique Stores
+* Auction Houses
+* Estate Sale Companies
+* Collectible Dealers
+
+SELLERS
+Future implementation.
+
+Slideshows should dynamically change when categories change.
+
+=================================
+PHASE 2
+EVENT DETAIL PAGE REDESIGN
+
+New order:
+
+1. Image slideshow
+2. Event title
+3. Event badges
+4. Event details
+5. Featured items
+6. Host information
+
+Badges:
+
+* Auction
+* Estate Sale
+* Flea Market
+* Live Show
+* Garage Sale
+
+=================================
+PHASE 3
+SHARING FIX
+
+Audit:
+
+* Open Graph metadata
+* Share URLs
+* Duplicate preview generation
+
+Goal:
+
+# One Event
+
+One Preview Card
+
+Containing:
+
+* Event image
+* Event title
+* Event description
+* TreasureTrail branding
+* Single link
+
+=================================
+PHASE 4
+SELLER PROFILES
+
+Future implementation.
+
+Support:
+
+* eBay sellers
+* Whatnot sellers
+* collectible dealers
+* online sellers
+
+Features:
+
+* profile image
+* cover image
+* bio
+* external links
+* featured inventory
+
+=================================
+LOCATION REVIEW
+
+Audit impact of location on:
+
+* Discover ranking
+* Boost visibility
+* Slideshow eligibility
+
+Support:
+
+* Local Events
+* Online Events
+* Hybrid Events
+
+Online-only content should not require physical coordinates.
+
+=================================
+PRIMARY OBJECTIVE
+
+When users open TreasureTrail, the strongest content should be surfaced immediately.
+
+Boosted content, featured inventory, businesses, Flash Finds, and high-quality collectibles should receive priority visibility across Discover and slideshow placements.
+
+Before implementing new functionality, produce a written audit documenting the current state of Discover ranking, boost behavior, slideshow eligibility, and location filtering.
