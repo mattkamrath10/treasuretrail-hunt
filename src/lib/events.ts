@@ -557,6 +557,27 @@ export async function fetchEventFeaturedItems(eventId: string) {
   return (data ?? []) as EventFeaturedItem[];
 }
 
+/**
+ * Fetch featured items for a set of events in one query. Used by Discover so
+ * collectibles uploaded INSIDE an event (Hot Wheels, sports cards, etc.) can
+ * surface in the slideshow/grid instead of being trapped on the event detail
+ * page. Best-effort: returns [] on error so Discover still renders.
+ */
+export async function fetchFeaturedItemsForEvents(eventIds: string[]): Promise<EventFeaturedItem[]> {
+  const ids = [...new Set(eventIds)].filter(Boolean);
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase
+    .from('event_featured_items')
+    .select('*')
+    .in('event_id', ids)
+    .order('position', { ascending: true });
+  if (error) {
+    console.warn('[EVENTS] fetchFeaturedItemsForEvents failed (continuing)', error.message);
+    return [];
+  }
+  return (data ?? []) as EventFeaturedItem[];
+}
+
 export async function addEventFeaturedItem(
   eventId: string,
   item: { title: string; price?: number | null; image_url?: string | null; thumb_url?: string | null; position?: number },

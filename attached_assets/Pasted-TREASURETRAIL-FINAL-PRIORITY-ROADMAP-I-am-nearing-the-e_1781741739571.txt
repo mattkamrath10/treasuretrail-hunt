@@ -1,0 +1,221 @@
+TREASURETRAIL FINAL PRIORITY ROADMAP
+
+I am nearing the end of my Replit Premium subscription and want to focus on the highest-impact improvements before working on additional features. Please review and implement in phases based on priority.
+
+=================================
+ PHASE 1 - DISCOVER PAGE & BOOST SYSTEM (HIGHEST PRIORITY)
+BOOST SYSTEM AUDIT
+Please audit the entire boost system.
+
+Current concern:
+
+I am a Pro subscriber.
+The UI indicates boosts are included with Pro.
+I boosted content but did not see a noticeable increase in visibility.
+Please verify:
+
+Does boosting affect Discover ranking?
+Does boosting affect slideshow placement?
+Does boosting affect Flash Finds ranking?
+Does boosting affect category-specific slideshows?
+Does location filtering override boosts?
+Expected behavior:
+
+Boosted content should always rank above non-boosted content within the same category.
+
+Users paying for promotion should receive meaningful visibility benefits.
+
+Please document the exact ranking logic currently being used.
+
+=================================
+
+DISCOVER PAGE REDESIGN
+At the top of Discover add:
+
+“What are you looking for today?”
+
+“Browse events, Flash Finds, businesses, and more.”
+
+Category buttons:
+
+All
+Events
+Flash Finds
+Businesses
+Sellers (future-ready)
+Selected category should be visually highlighted.
+
+=================================
+
+CATEGORY-SPECIFIC SLIDESHOWS
+Each category should have its own slideshow.
+
+ALL
+
+Shows:
+
+Featured Events
+Featured Flash Finds
+Featured Businesses
+Future Seller Profiles
+EVENTS
+
+Shows:
+
+Featured Events
+Auctions
+Estate Sales
+Flea Markets
+Live Shows
+FLASH FINDS
+
+Shows:
+
+Featured collectibles
+Hot Wheels
+Sports cards
+Antiques
+Coins
+Rare finds
+BUSINESSES
+
+Shows:
+
+Antique stores
+Auction houses
+Estate sale companies
+Collectible dealers
+SELLERS
+
+Future implementation.
+
+The slideshow should dynamically change when users switch categories.
+
+=================================
+
+FEATURED ITEM ELIGIBILITY
+Please audit slideshow eligibility.
+
+A major discovery during testing:
+
+Featured items uploaded inside events do not appear to be surfacing in Discover slideshows.
+
+Example:
+
+A test event contained approximately 10 collectible items (Hot Wheels and miscellaneous collectibles).
+
+These items were stronger visually than much of the existing Discover content but never appeared in the slideshow.
+
+Please allow Discover slideshows to pull from:
+
+Boosted Events
+Featured Event Items
+Flash Finds
+Boosted Flash Finds
+Featured Businesses
+The best content should be visible regardless of where it was uploaded.
+
+=================================
+ PHASE 2 - EVENT PAGE IMPROVEMENTS
+EVENT PAGE LAYOUT
+Reorganize Event pages:
+
+Current:
+
+Title
+Details
+Images
+
+Proposed:
+
+Image slideshow
+Event title
+Event badges
+Event details
+Featured items
+Host information
+
+Badges examples:
+
+Auction
+Estate Sale
+Flea Market
+Live Show
+Garage Sale
+This will create a more professional presentation.
+
+=================================
+ PHASE 3 - SHARING IMPROVEMENTS
+SHARE PREVIEW FIX
+When sharing an event via iMessage, multiple preview cards are being generated.
+
+Observed behavior:
+
+Duplicate TreasureTrail previews
+Multiple cards
+Cluttered appearance
+Expected behavior:
+
+One shared event should generate one rich preview card containing:
+
+Event image
+Event title
+Event description
+TreasureTrail branding
+Single clickable link
+Please audit:
+
+Open Graph metadata
+Share URL generation
+Duplicate preview generation
+Goal:
+
+One Event = One Preview Card
+
+Similar to Facebook Events, eBay listings, and YouTube shares.
+
+=================================
+ PHASE 4 - FUTURE ROADMAP
+ONLINE SELLER SUPPORT
+Testing exposed a gap:
+
+Some users are sellers but not event hosts.
+
+Examples:
+
+eBay sellers
+Whatnot sellers
+Collectible dealers
+Currently these users must create an event to gain visibility.
+
+Future solution:
+
+Dedicated Seller Profiles with:
+
+Profile image
+Cover image
+Bio
+External links
+Featured inventory
+=================================
+
+LOCATION & ONLINE CONTENT REVIEW
+Please review how location impacts:
+
+Discover ranking
+Boost visibility
+Slideshow eligibility
+Support:
+
+Local Events
+Online Events
+Hybrid Events
+Online-only content should not require a physical address or map pin.
+
+=================================
+
+PRIMARY OBJECTIVE
+
+The best content in TreasureTrail should be surfaced immediately when users open the app.
+
+Boosted content, featured inventory, Flash Finds, and high-quality collectibles should receive priority visibility across Discover and slideshow placements.

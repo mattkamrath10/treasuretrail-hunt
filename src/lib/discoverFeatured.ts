@@ -1,23 +1,27 @@
 /**
  * Discover "Featured Near You" data + ranking layer.
  *
- * Normalizes the four Discover content sources (events, businesses, wanted
- * posts, flash finds) into a single `FeaturedSlide` shape, then filters by
- * location/search/kind and ranks them per the product spec:
+ * Normalizes the Discover content sources (events, businesses, wanted posts,
+ * flash finds, and collectibles uploaded inside events) into a single
+ * `FeaturedSlide` shape, then filters by location/search/kind and ranks them
+ * boost-first so paid promotion is always meaningfully visible:
  *
- *   boosted events -> pro businesses -> boosted wanted -> other featured -> rest
+ *   boosted (paid) -> boosted (pro) -> pro/featured sellers -> everything else
+ *
+ * Boost outranks content KIND on purpose: a boosted flash find beats a
+ * non-boosted event, within and across categories.
  *
  * Kept as pure functions so the Discover page stays lean and this is easy to
  * reason about (and unit-test) in isolation.
  */
 
-import type { EventRow } from './events';
+import type { EventRow, EventFeaturedItem } from './events';
 import type { BusinessRow } from './businesses';
 import { BUSINESS_CATEGORY_META } from './businesses';
 import type { WantedItemRow } from './wanted';
 import { WANTED_CATEGORY_LABEL } from './wanted';
 import type { CommunityPost } from './supabase';
-import { isBoosted } from './boost';
+import { isBoosted, type BoostableRow } from './boost';
 import { haversineMiles } from './geocode';
 import { toThumbUrl } from './imageCompress';
 
@@ -69,12 +73,25 @@ const EVENT_CATEGORY_LABEL: Record<string, string> = {
   other: 'Event',
 };
 
-// Priority buckets (lower = shown first), per spec #11.
-const P_BOOSTED_EVENT = 0;
-const P_PRO_BUSINESS = 1;
-const P_BOOSTED_WANTED = 2;
-const P_OTHER_FEATURED = 3;
-const P_NORMAL = 4;
+// Priority buckets (lower = shown first).
+//
+// Boost now floats to the very top across EVERY kind so paid/Pro promotion is
+// always meaningfully visible (audit fix): any actively boosted item — event,
+// flash find, wanted, or event collectible — outranks all non-boosted content
+// regardless of type. Below boosts, Pro/featured sellers sit above normal.
+const P_BOOST_PAID = 0; // active paid boost (any kind)
+const P_BOOST_PRO = 1; // active Pro-included boost (any kind)
+const P_FEATURED = 2; // Pro holders, verified/featured shops (no active boost)
+const P_NORMAL = 3; // everything else
+
+/**
+ * Bucket for an actively boosted row (paid above Pro), or null when the row
+ * has no active boost. Lets every builder share one consistent boost rule.
+ */
+function boostBucket(row: BoostableRow | null | undefined): number | null {
+  if (!isBoosted(row)) return null;
+  return row?.boost_type === 'pro' ? P_BOOST_PRO : P_BOOST_PAID;
+}
 
 function ts(iso: string | null | undefined): number {
   if (!iso) return 0;
@@ -105,7 +122,7 @@ function eventToSlide(e: EventRow, proHolders: Set<string>): FeaturedSlide {
     lat: e.lat,
     lng: e.lng,
     distanceMi: null,
-    priority: boosted ? P_BOOSTED_EVENT : pro ? P_OTHER_FEATURED : P_NORMAL,
+    priority: boostBucket(e) ?? (pro ? P_FEATURED : P_NORMAL),
     sortTime: ts(e.starts_at),
     fallbackKind: 'event',
     fallbackCategory: e.category,
@@ -121,11 +138,7 @@ function businessToSlide(b: BusinessRow, proOwners: Set<string>): FeaturedSlide 
   const photo = b.photos?.[0];
   const image = photo?.thumb_url ?? photo?.url ?? b.logo_thumb_url ?? b.logo_url;
   const imageFull = photo?.url ?? b.logo_url ?? null;
-  const priority = pro
-    ? P_PRO_BUSINESS
-    : b.featured || b.verified
-      ? P_OTHER_FEATURED
-      : P_NORMAL;
+  const priority = pro || b.featured || b.verified ? P_FEATURED : P_NORMAL;
   return {
     id: `business:${b.id}`,
     kind: 'business',
@@ -168,7 +181,7 @@ function wantedToSlide(w: WantedItemRow): FeaturedSlide {
     lat: w.lat ?? null,
     lng: w.lng ?? null,
     distanceMi: null,
-    priority: boosted ? P_BOOSTED_WANTED : P_NORMAL,
+    priority: boostBucket(w) ?? P_NORMAL,
     sortTime: ts(w.created_at),
     fallbackKind: 'wanted',
     fallbackCategory: w.category,
@@ -199,11 +212,46 @@ function findToSlide(
     lat: pt?.lat ?? null,
     lng: pt?.lng ?? null,
     distanceMi: null,
-    priority: boosted ? P_OTHER_FEATURED : P_NORMAL,
+    priority: boostBucket(p) ?? P_NORMAL,
     sortTime: ts(p.created_at),
     fallbackKind: 'find',
     fallbackCategory: p.category,
     searchText: `${title} ${subtitle} ${p.category ?? ''}`.toLowerCase(),
+  };
+}
+
+/**
+ * Collectibles uploaded INSIDE an event (Hot Wheels, sports cards, antiques…)
+ * surfaced as their own Discover slide so the best content isn't trapped on the
+ * event detail page. They inherit the parent event's location, boost and Pro
+ * status, and link to the event. Modeled as `find` kind so they live under the
+ * Flash Finds filter alongside other collectibles.
+ */
+function eventItemToSlide(item: EventFeaturedItem, ev: EventRow, proHolders: Set<string>): FeaturedSlide {
+  const boosted = isBoosted(ev);
+  const pro = proHolders.has(ev.holder_id);
+  const place = placeLabel(ev.city, ev.region, ev.address ?? 'Local event');
+  const price = item.price != null ? `$${Math.round(item.price)}` : null;
+  const subtitle = [price, `at ${ev.title}`].filter(Boolean).join(' · ') || place;
+  return {
+    id: `eventitem:${item.id}`,
+    kind: 'find',
+    title: item.title || 'Featured item',
+    subtitle,
+    category: EVENT_CATEGORY_LABEL[ev.category] ?? 'Collectible',
+    image: item.thumb_url ?? toThumbUrl(item.image_url),
+    imageFull: item.image_url,
+    accent: FEATURED_KIND_ACCENT.find,
+    badge: boosted ? 'Boosted' : 'Featured',
+    to: `/event/${ev.id}`,
+    lat: ev.lat,
+    lng: ev.lng,
+    distanceMi: null,
+    priority: boostBucket(ev) ?? (pro ? P_FEATURED : P_NORMAL),
+    sortTime: ts(item.created_at),
+    fallbackKind: 'find',
+    fallbackCategory: ev.category,
+    searchText: `${item.title} ${ev.title} ${place}`.toLowerCase(),
   };
 }
 
@@ -212,6 +260,8 @@ export interface BuildFeaturedInput {
   businesses: BusinessRow[];
   wanted: WantedItemRow[];
   finds: CommunityPost[];
+  /** Featured collectibles uploaded inside events (surfaced individually). */
+  eventItems?: EventFeaturedItem[];
   proHolders: Set<string>;
   /** Read-time geocoded coords for finds (community posts have no coord
    *  columns), keyed by post id. Lets finds be distance-filtered too. */
@@ -223,13 +273,23 @@ export interface BuildFeaturedInput {
 }
 
 export function buildFeaturedSlides(input: BuildFeaturedInput): FeaturedSlide[] {
-  const { events, businesses, wanted, finds, proHolders, findCoords, location, radiusMi, query, filter } = input;
+  const { events, businesses, wanted, finds, eventItems, proHolders, findCoords, location, radiusMi, query, filter } = input;
+
+  // Resolve event collectibles against their parent (published) event so they
+  // inherit its location/boost; items whose event isn't in the set are skipped.
+  const eventById = new Map(events.map((e) => [e.id, e]));
+  const itemSlides: FeaturedSlide[] = [];
+  for (const it of eventItems ?? []) {
+    const ev = eventById.get(it.event_id);
+    if (ev) itemSlides.push(eventItemToSlide(it, ev, proHolders));
+  }
 
   let slides: FeaturedSlide[] = [
     ...events.map((e) => eventToSlide(e, proHolders)),
     ...businesses.map((b) => businessToSlide(b, proHolders)),
     ...wanted.map((w) => wantedToSlide(w)),
     ...finds.map((p) => findToSlide(p, findCoords)),
+    ...itemSlides,
   ];
 
   // Location filtering: distance-stamp coord-bearing items and drop those

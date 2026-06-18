@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import { Search, MapPin, Navigation, Users, X } from 'lucide-react';
-import { fetchPublishedEvents, fetchProHolderIds, type EventRow } from '../lib/events';
+import { fetchPublishedEvents, fetchProHolderIds, fetchFeaturedItemsForEvents, type EventRow, type EventFeaturedItem } from '../lib/events';
 import { fetchPublishedBusinesses, type BusinessRow } from '../lib/businesses';
 import { fetchOpenWantedItems, type WantedItemRow } from '../lib/wanted';
 import { fetchCommunityPosts } from '../lib/database';
@@ -42,9 +42,9 @@ const SLIDESHOW_CAP = 8;
 const FILTERS: { key: FeaturedFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'event', label: 'Events' },
-  { key: 'business', label: 'Businesses' },
   { key: 'find', label: 'Flash Finds' },
-  { key: 'wanted', label: 'Wanted Requests' },
+  { key: 'business', label: 'Businesses' },
+  { key: 'wanted', label: 'Wanted' },
 ];
 
 // Remember the last-selected chip across visits (spec: persisted locally).
@@ -68,6 +68,7 @@ export default function Discover() {
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
   const [wanted, setWanted] = useState<WantedItemRow[]>([]);
   const [finds, setFinds] = useState<CommunityPost[]>([]);
+  const [eventItems, setEventItems] = useState<EventFeaturedItem[]>([]);
   const [findCoords, setFindCoords] = useState<Map<string, { lat: number; lng: number }>>(new Map());
   const [proHolders, setProHolders] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
@@ -108,6 +109,13 @@ export default function Discover() {
       else console.warn(LOG, 'finds fetch failed', f.reason);
       setLoaded(true);
 
+      // Surface collectibles uploaded inside events (Hot Wheels, cards, etc.)
+      // as their own Discover slides. Best-effort — returns [] on error.
+      if (evs.length) {
+        const items = await fetchFeaturedItemsForEvents(evs.map((x) => x.id));
+        if (!cancelled) setEventItems(items);
+      }
+
       // Resolve which event holders / business owners are Pro so they get
       // priority placement. Best-effort — fetchProHolderIds swallows errors.
       const ownerIds = [...evs.map((x) => x.holder_id), ...bus.map((x) => x.owner_id)];
@@ -143,13 +151,13 @@ export default function Discover() {
   // filter this without re-ranking.
   const base = useMemo(
     () => buildFeaturedSlides({
-      events, businesses, wanted, finds, proHolders, findCoords,
+      events, businesses, wanted, finds, eventItems, proHolders, findCoords,
       location: savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null,
       radiusMi: nearRadius,
       query,
       filter: 'all',
     }),
-    [events, businesses, wanted, finds, proHolders, findCoords, savedLocation, nearRadius, query],
+    [events, businesses, wanted, finds, eventItems, proHolders, findCoords, savedLocation, nearRadius, query],
   );
 
   const counts = useMemo(() => {
@@ -198,32 +206,10 @@ export default function Discover() {
         </div>
       </header>
 
-      <section style={s.featuredHead}>
-        <div style={{ minWidth: 0 }}>
-          <h2 style={s.featuredTitle}>Featured Near You</h2>
-          <p style={s.featuredSub}>
-            {savedLocation
-              ? `Within ${nearRadius} miles of ${savedLocation.label ?? 'your location'}`
-              : 'Boosted events, top shops, wanted posts and finds'}
-          </p>
-        </div>
+      <section style={s.introHead}>
+        <h2 style={s.introTitle}>What are you looking for today?</h2>
+        <p style={s.introSub}>Browse events, Flash Finds, businesses, and more.</p>
       </section>
-
-      <LocationControl radius={nearRadius} />
-
-      {loaded ? (
-        <FeaturedSlideshow
-          slides={slides.slice(0, SLIDESHOW_CAP)}
-          filterKey={filterKey}
-          onOpen={(to) => navigate(to)}
-        />
-      ) : (
-        <SlideshowSkeleton />
-      )}
-
-      <div style={{ padding: '8px 0 4px' }}>
-        <HostEventCTA variant="home" />
-      </div>
 
       <div className="tt-hscroll" style={s.chips}>
         {FILTERS.map((f) => {
@@ -241,6 +227,37 @@ export default function Discover() {
             </button>
           );
         })}
+        <button style={{ ...s.chip, ...s.chipDisabled }} disabled aria-disabled="true" title="Seller profiles are coming soon">
+          Sellers
+          <span style={s.chipSoon}>Soon</span>
+        </button>
+      </div>
+
+      <LocationControl radius={nearRadius} />
+
+      <section style={s.featuredHead}>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={s.featuredTitle}>Featured Near You</h2>
+          <p style={s.featuredSub}>
+            {savedLocation
+              ? `Within ${nearRadius} miles of ${savedLocation.label ?? 'your location'}`
+              : 'Boosted events, top shops, wanted posts and finds'}
+          </p>
+        </div>
+      </section>
+
+      {loaded ? (
+        <FeaturedSlideshow
+          slides={slides.slice(0, SLIDESHOW_CAP)}
+          filterKey={filterKey}
+          onOpen={(to) => navigate(to)}
+        />
+      ) : (
+        <SlideshowSkeleton />
+      )}
+
+      <div style={{ padding: '8px 0 4px' }}>
+        <HostEventCTA variant="home" />
       </div>
 
       {loaded && slides.length === 0 ? (
@@ -457,6 +474,10 @@ const s: Record<string, CSSProperties> = {
     width: 24, height: 24, borderRadius: 999, flexShrink: 0,
     border: 'none', background: 'var(--tt-surface-3)', color: 'var(--tt-text)', cursor: 'pointer', padding: 0,
   },
+  introHead: { padding: '16px 16px 4px' },
+  introTitle: { margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },
+  introSub: { margin: '4px 0 0', fontSize: 13, color: 'var(--tt-text-muted)' },
+
   featuredHead: { padding: '18px 16px 10px' },
   featuredTitle: { margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },
   featuredSub: { margin: '3px 0 0', fontSize: 12, color: 'var(--tt-text-muted)' },
@@ -522,6 +543,12 @@ const s: Record<string, CSSProperties> = {
     background: 'var(--tt-surface-3)', color: 'var(--tt-text-muted)',
   },
   chipCountActive: { background: 'rgba(0,0,0,0.18)', color: 'var(--tt-accent-contrast)' },
+  chipDisabled: { opacity: 0.55, cursor: 'default' },
+  chipSoon: {
+    fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase',
+    padding: '1px 6px', borderRadius: 999,
+    background: 'var(--tt-surface-3)', color: 'var(--tt-text-muted)',
+  },
 
   // Grid
   grid: {
