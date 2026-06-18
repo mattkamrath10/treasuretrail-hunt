@@ -335,3 +335,15 @@ id = "hOeTti2AT9zk6gXDuwYfF"
 uri = "file://screenshots/promo/09-profile.png"
 type = "image"
 title = "Scene: Profile (reseller/collector)"
+
+[[outputs]]
+id = "ON3NjSDOAit1nQ6KUx08k"
+uri = "file://public/appstore/01-discover.png"
+type = "image"
+title = "iPhone 6.5\" — Discover (1242×2688)"
+
+[[outputs]]
+id = "biGFWXdVXqnl-HMPmD1Hf"
+uri = "file://public/ipad-1-discover.png"
+type = "image"
+title = "iPad 12.9\" — Discover (2048×2732)"
