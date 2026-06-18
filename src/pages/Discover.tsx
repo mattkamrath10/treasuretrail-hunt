@@ -35,7 +35,7 @@ import {
 const LOG = '[DISCOVER]';
 
 // Default radius (miles) for location filtering. Expands in steps when empty.
-const NEAR_RADIUS_DEFAULT = 75;
+const NEAR_RADIUS_DEFAULT = 40;
 
 // Slides shown in the rotating hero. The grid below shows the full set.
 const SLIDESHOW_CAP = 8;
