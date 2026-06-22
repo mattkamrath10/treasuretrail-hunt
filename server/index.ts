@@ -1400,6 +1400,103 @@ app.post('/api/import/business-card', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------
+// Event screenshot import — vision OCR of a flyer / poster / listing
+// screenshot into the SellerEventForm field shape (mirrors
+// /api/import/business-card). Returns a draft the user reviews/edits;
+// an event is never auto-created. Consumes the shared per-user AI scan
+// quota and fails SOFT to manual entry.
+// ---------------------------------------------------------------------
+function eventScreenshotPrompt(): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return `You read a SCREENSHOT or PHOTO of a flyer/poster/online listing for a sale or auction (estate sale, yard sale, flea market, auction, pop-up, collectibles show) and extract its details into a SINGLE JSON object matching the schema EXACTLY. No prose, no markdown fences.
+Read ALL visible text (OCR) and analyze the image. Today's date is ${today}.
+Schema:
+{ "title":"", "description":"", "category":"", "starts_at":"", "ends_at":"", "address":"", "city":"", "region":"", "confidenceScore":0 }
+Rules:
+- If a value is unknown or not visible, use an empty string "". NEVER invent data.
+- category MUST be one of: ${EVENT_CATEGORIES.join(', ')} — choose the closest fit, else "".
+- title: a short event name/headline (e.g. "Estate Sale" or the headline shown).
+- description: a concise 1-3 sentence summary of what's being sold or the highlights, if shown, else "".
+- starts_at / ends_at: local datetime in EXACT format "YYYY-MM-DDTHH:MM" (24-hour). Use a time only if one is clearly shown; if only a date is shown use "T09:00". If the year is missing, assume the next occurrence on/after today's date. If no date is determinable, "".
+- address: street address only. city and region (US state abbreviation when possible) separately.
+- confidenceScore: integer 0-100 for overall extraction confidence.`;
+}
+
+async function callOpenAIEventScreenshot(dataUrl: string) {
+  const resp = await withTimeout(
+    openai.chat.completions.create({
+      model: MODEL,
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 600,
+      messages: [
+        { role: 'system', content: eventScreenshotPrompt() },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Extract this event flyer/listing into the JSON schema.' },
+            { type: 'image_url', image_url: { url: dataUrl, detail: 'high' } },
+          ],
+        },
+      ],
+    }),
+    25000,
+  );
+  const raw = resp.choices[0]?.message?.content ?? '{}';
+  return JSON.parse(raw);
+}
+
+function sanitizeEventScreenshot(out: any) {
+  if (!out || typeof out !== 'object') return null;
+  const ev = {
+    title: clampImportStr(out.title, 120),
+    description: clampImportStr(out.description, 2000),
+    category: normalizeEventCategory(out.category) ?? '',
+    starts_at: clampImportStr(out.starts_at, 40),
+    ends_at: clampImportStr(out.ends_at, 40),
+    address: clampImportStr(out.address, 160),
+    city: clampImportStr(out.city, 80),
+    region: clampImportStr(out.region, 40),
+  };
+  // Require at least one substantive field to count as usable.
+  if (!ev.title && !ev.description && !ev.starts_at && !ev.address) return null;
+  return ev;
+}
+
+app.post('/api/import/event-screenshot', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const { imageDataUrl } = req.body as { imageDataUrl?: string };
+    if (typeof imageDataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp|gif|heic|heif);base64,/i.test(imageDataUrl)) {
+      return res.status(400).json({ error: 'invalid_image' });
+    }
+    if (imageDataUrl.length > 11_000_000) return res.status(413).json({ error: 'image_too_large' });
+
+    const slot = await claimAiSlot(sb, userData.user.id);
+    if (!slot.allowed) return res.json({ fallback: true, limited: true });
+
+    let out: any;
+    try {
+      out = await callOpenAIEventScreenshot(imageDataUrl);
+    } catch (e) {
+      await releaseAiSlot(sb, slot.scanId);
+      throw e;
+    }
+
+    const ev = sanitizeEventScreenshot(out);
+    if (!ev) { await releaseAiSlot(sb, slot.scanId); return res.json({ fallback: true }); }
+    return res.json({ data: ev, source: 'ai' });
+  } catch (err: any) {
+    console.error('[import/event-screenshot]', err?.message || err);
+    return res.json({ fallback: true });
+  }
+});
+
 const BUSINESS_IMPORT_PROMPT = `You extract a physical/online retail business's public profile from a web page's metadata and text, for a second-hand / antiques / resale directory. Return a SINGLE JSON object, no prose or markdown fences.
 Schema:
 {

@@ -13,6 +13,10 @@ export type EventCategory =
   | 'collectibles_show'
   | 'other';
 
+export const EVENT_CATEGORIES: readonly EventCategory[] = [
+  'estate_sale', 'yard_sale', 'flea_market', 'auction', 'pop_up', 'collectibles_show', 'other',
+];
+
 export type EventStatus = 'draft' | 'published' | 'cancelled';
 
 export type EventKind = 'local' | 'online';
@@ -478,6 +482,68 @@ export async function importEventFromUrl(url: string): Promise<ImportedEvent> {
     throw new Error(json?.error || 'Could not import this event. Try a different link or enter details manually.');
   }
   return json.data as ImportedEvent;
+}
+
+/** Draft fields extracted from an event flyer/listing screenshot. */
+export interface ImportedEventScreenshot {
+  title: string;
+  description: string;
+  category: EventCategory | '';
+  starts_at: string;
+  ends_at: string;
+  address: string;
+  city: string;
+  region: string;
+}
+
+const SCREENSHOT_TIMEOUT_MS = 30000;
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+/**
+ * Analyze a screenshot/photo of an event flyer or listing (data URL) into
+ * draft event fields via the vision endpoint (mirrors analyzeBusinessCard).
+ * Returns null on any failure (network, auth, timeout, over-quota, empty
+ * extraction) so the UI falls back to manual entry — never throws. Uses
+ * `apiUrl()` so it works inside the Capacitor native webview.
+ */
+export async function analyzeEventScreenshot(imageDataUrl: string): Promise<ImportedEventScreenshot | null> {
+  try {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) return null;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SCREENSHOT_TIMEOUT_MS);
+    const res = await fetch(apiUrl('/api/import/event-screenshot'), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(timer));
+
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => null)) as { data?: any; fallback?: boolean } | null;
+    if (!body || body.fallback || !body.data) return null;
+    const d = body.data;
+    const cat = str(d?.category);
+    const out: ImportedEventScreenshot = {
+      title: str(d?.title),
+      description: str(d?.description),
+      category: (EVENT_CATEGORIES as readonly string[]).includes(cat) ? (cat as EventCategory) : '',
+      starts_at: str(d?.starts_at),
+      ends_at: str(d?.ends_at),
+      address: str(d?.address),
+      city: str(d?.city),
+      region: str(d?.region),
+    };
+    const hasAny = !!(out.title || out.description || out.category || out.starts_at || out.address || out.city || out.region);
+    return hasAny ? out : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function updateEvent(id: string, patch: Partial<EventUpsert>) {

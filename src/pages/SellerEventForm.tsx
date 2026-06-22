@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   fetchMyEvent, createEvent, updateEvent, countActiveLocalEvents,
   fetchEventFeaturedItems, addEventFeaturedItem, deleteEventFeaturedItem,
-  deleteEvent, importEventFromUrl,
+  deleteEvent, importEventFromUrl, analyzeEventScreenshot,
   PLATFORM_META, SHOW_CATEGORY_LABELS,
   type EventCategory, type EventStatus, type EventUpsert, type EventFeaturedItem,
   type EventKind, type EventPlatform, type ShowCategory, type EventRow,
@@ -136,6 +136,9 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   const [importUrl, setImportUrl] = useState('');
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  // Import-from-screenshot (create flow only).
+  const [scanning, setScanning] = useState(false);
+  const screenshotRef = useRef<HTMLInputElement>(null);
 
   // featured items (edit only)
   const [items, setItems] = useState<EventFeaturedItem[] | null>(null);
@@ -391,6 +394,46 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       setImportMsg(e?.message ?? 'Import failed. Enter the event manually below.');
     } finally {
       setImporting(false);
+    }
+  };
+
+  // Pre-fill the form from a screenshot/photo of a flyer or online listing.
+  // Mirrors the business-card screenshot scanner: extraction is a best-effort
+  // draft the user reviews, and never auto-creates an event.
+  const onPickScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || scanning) return;
+    setErr(null);
+    setImportMsg(null);
+    setScanning(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const d = await analyzeEventScreenshot(dataUrl);
+      if (!d) {
+        setImportMsg("We couldn't read that screenshot — enter the event details manually below.");
+        return;
+      }
+      let filled = 0;
+      if (d.title) { setTitle(d.title.slice(0, 120)); filled++; }
+      if (d.description.trim()) { setDescription(d.description.trim().slice(0, 2000)); filled++; }
+      if (d.category) { setCategory(d.category); filled++; }
+      if (d.starts_at) { const v = toLocalInput(d.starts_at); if (v) { setStartsAt(v); filled++; } }
+      if (d.ends_at) { const v = toLocalInput(d.ends_at); if (v) setEndsAt(v); }
+      // A flyer/listing is a physical sale by default — fill the local-event fields.
+      if (d.address) { setAddress(d.address); filled++; }
+      if (d.city) { setCity(d.city); filled++; }
+      if (d.region) { setRegion(d.region); filled++; }
+      if (filled === 0) {
+        setImportMsg("We couldn't read that screenshot — enter the event details manually below.");
+      } else {
+        setImportMsg(`Filled ${filled} field${filled === 1 ? '' : 's'} from your screenshot — review everything below, then publish.`);
+        flashToast('Screenshot scanned — review & publish', 'success');
+      }
+    } catch {
+      setImportMsg('Screenshot scan failed — enter the event details manually below.');
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -749,6 +792,27 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
                 {importing ? <Loader2 size={15} className="spin" /> : <Zap size={15} />}
                 {importing ? 'Importing…' : 'Import Event'}
               </button>
+              <div style={s.importDivider}><span style={s.importDividerText}>or upload a screenshot</span></div>
+              <p style={s.importHint}>
+                Have a flyer, poster, or a screenshot of an online listing? Upload it and
+                we'll read the details for you.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setImportMsg(null); screenshotRef.current?.click(); }}
+                disabled={scanning || importing}
+                style={{ ...s.importBtn, opacity: (scanning || importing) ? 0.7 : 1 }}
+              >
+                {scanning ? <Loader2 size={15} className="spin" /> : <ImagePlus size={15} />}
+                {scanning ? 'Reading…' : 'Upload from a screenshot'}
+              </button>
+              <input
+                ref={screenshotRef}
+                type="file"
+                accept="image/*"
+                onChange={onPickScreenshot}
+                style={{ display: 'none' }}
+              />
               {importMsg && <p style={s.importMsg}>{importMsg}</p>}
               <div style={s.importDivider}><span style={s.importDividerText}>or create event manually</span></div>
             </section>
