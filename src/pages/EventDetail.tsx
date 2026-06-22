@@ -422,7 +422,13 @@ export default function EventDetail({ onBack }: { onBack: () => void }) {
 
         {/* Primary CTAs */}
         <div style={s.ctaRow}>
-          {isOnline && event.livestream_url && (
+          {/* "Open on <platform>" uses livestream_url and, once the show
+              window passes, falls back to the platform's generic storefront
+              (e.g. whatnot.com home) — the wrong place. When the event also
+              has an event_url we already render the reliable "Visit Event
+              Page" button below, so suppress this redundant CTA and only
+              keep it for pure livestream events that have no event page. */}
+          {isOnline && event.livestream_url && !eventUrlHref && (
             <button
               onClick={onJoinLiveShow}
               style={{ ...s.primaryBtnLg, background: platformMeta?.color, color: isWhatnot ? '#000' : '#fff' }}
