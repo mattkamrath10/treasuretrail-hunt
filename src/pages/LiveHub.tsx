@@ -1482,9 +1482,10 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
           <div style={{ marginTop: 12 }}>
             <SafetyReminder />
           </div>
-
-          {error && <p style={mo.errorText}>{error}</p>}
-          {success && <p style={mo.successText}>{success}</p>}
+        </div>
+        <div style={mo.footer}>
+          {error && <p style={{ ...mo.errorText, marginTop: 0 }}>{error}</p>}
+          {success && <p style={{ ...mo.successText, marginTop: 0 }}>{success}</p>}
           <button onClick={handleSubmit} disabled={saving || uploadingImg || !!success} style={{ ...mo.submitBtn, opacity: saving || uploadingImg || success ? 0.7 : 1 }}>
             {success ? 'Submitted' : saving ? 'Submitting…' : uploadingImg ? 'Uploading photo…' : 'Submit Event'}
           </button>
@@ -1737,6 +1738,7 @@ const mo: Record<string, React.CSSProperties> = {
   title: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
   closeBtn: { width: '32px', height: '32px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-500)' },
   body: { flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 'var(--space-4)', paddingBottom: 'calc(var(--space-4) + env(safe-area-inset-bottom, 0px))' },
+  footer: { flexShrink: 0, padding: 'var(--space-4)', paddingBottom: 'calc(var(--space-4) + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--color-neutral-100)', backgroundColor: 'var(--color-neutral-0)', display: 'flex', flexDirection: 'column', gap: '8px' },
   label: { display: 'flex', alignItems: 'center', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-600)', marginBottom: '5px', marginTop: 'var(--space-3)' },
   req: { color: 'var(--color-error-500)', marginLeft: '2px' },
   input: { width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)', backgroundColor: 'var(--color-neutral-0)', boxSizing: 'border-box' as const },
