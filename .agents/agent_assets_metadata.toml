@@ -347,3 +347,21 @@ id = "biGFWXdVXqnl-HMPmD1Hf"
 uri = "file://public/ipad-1-discover.png"
 type = "image"
 title = "iPad 12.9\" — Discover (2048×2732)"
+
+[[outputs]]
+id = "QNXe_-HDutqvST2pg8bku"
+uri = "file://appstore-screenshots-v1.1.0.zip"
+type = "unspecified"
+title = "All App Store screenshots (iPhone 6.5\" + iPad 12.9\") — v1.1.0"
+
+[[outputs]]
+id = "XrirNWduEFIfCqm6cCvct"
+uri = "file://appstore-screenshots-v1.1.0/iphone-6.5/03-event-detail.png"
+type = "image"
+title = "iPhone — Event page (button fix: single Visit Event Page)"
+
+[[outputs]]
+id = "EcIKtILNakfWrL20GZFm0"
+uri = "file://appstore-screenshots-v1.1.0/ipad-12.9/03-event-detail.png"
+type = "image"
+title = "iPad — Event page (button fix)"
