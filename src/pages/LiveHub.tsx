@@ -789,8 +789,8 @@ function EventDetailModal({ listing, onClose }: {
   };
 
   return (
-    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={mo.sheet}>
+    <div className="tt-modal-overlay" style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="tt-sheet" style={mo.sheet}>
         <div style={mo.handle} />
         <div style={mo.header}>
           <span style={mo.title}>Event Details</span>
@@ -956,8 +956,8 @@ function FilterDrawer({ dateFilter, setDateFilter, customDate, setCustomDate, so
   onClose: () => void; onReset: () => void;
 }) {
   return (
-    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={mo.sheet}>
+    <div className="tt-modal-overlay" style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="tt-sheet" style={mo.sheet}>
         <div style={mo.handle} />
         <div style={mo.header}>
           <span style={mo.title}>Filters &amp; Sort</span>
@@ -1276,8 +1276,8 @@ function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onC
   };
 
   return (
-    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={mo.sheet}>
+    <div className="tt-modal-overlay" style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="tt-sheet" style={mo.sheet}>
         <div style={mo.handle} />
         <div style={mo.header}>
           <span style={mo.title}>Upload Event</span>
@@ -1546,8 +1546,8 @@ function BoostPickerModal({ userId, onClose }: { userId: string; onClose: () => 
   };
 
   return (
-    <div style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={mo.sheet}>
+    <div className="tt-modal-overlay" style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="tt-sheet" style={mo.sheet}>
         <div style={mo.handle} />
         <div style={mo.header}>
           <span style={mo.title}>Boost an Event</span>
@@ -1730,13 +1730,13 @@ const fd: Record<string, React.CSSProperties> = {
 };
 
 const mo: Record<string, React.CSSProperties> = {
-  overlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.48)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' },
-  sheet: { width: '100%', maxHeight: '92vh', backgroundColor: 'var(--color-neutral-0)', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  overlay: { position: 'fixed', top: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' },
+  sheet: { width: '100%', backgroundColor: 'var(--color-neutral-0)', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
   handle: { width: '36px', height: '4px', borderRadius: '2px', backgroundColor: 'var(--color-neutral-200)', margin: '10px auto 0', flexShrink: 0 },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)', flexShrink: 0 },
   title: { fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
   closeBtn: { width: '32px', height: '32px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-neutral-500)' },
-  body: { flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 'var(--space-4)' },
+  body: { flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 'var(--space-4)', paddingBottom: 'calc(var(--space-4) + env(safe-area-inset-bottom, 0px))' },
   label: { display: 'flex', alignItems: 'center', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-600)', marginBottom: '5px', marginTop: 'var(--space-3)' },
   req: { color: 'var(--color-error-500)', marginLeft: '2px' },
   input: { width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-200)', fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)', backgroundColor: 'var(--color-neutral-0)', boxSizing: 'border-box' as const },
