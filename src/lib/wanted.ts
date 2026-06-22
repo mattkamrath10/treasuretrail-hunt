@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { geocodeLocation } from './geocode';
+import { apiUrl } from './apiBase';
 
 export type WantedCategory =
   | 'collectibles' | 'furniture' | 'electronics' | 'vintage' | 'cards'
@@ -231,4 +232,62 @@ export async function updateWantedItem(id: string, patch: Partial<WantedUpsert>)
 export async function deleteWantedItem(id: string) {
   const { error } = await supabase.from('wanted_items').delete().eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+/* -------------------------------------------------------------------------
+ * AI screenshot import (mirrors analyzeBusinessCard / analyzeEventScreenshot)
+ * Posts a photo/screenshot of an item the buyer wants to find to the vision
+ * endpoint and returns DRAFT fields the user reviews/edits — nothing is ever
+ * posted automatically. Returns null on ANY failure (network, auth, timeout,
+ * over-quota, empty extraction) so the UI falls back to manual entry — never
+ * throws. Goes through apiUrl() so it works inside the Capacitor webview.
+ * ----------------------------------------------------------------------- */
+export interface ImportedWantedScreenshot {
+  title: string;
+  description: string;
+  category: WantedCategory | '';
+  budget: string;
+}
+
+function coerceWantedCategory(v: unknown): WantedCategory | '' {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return (WANTED_CATEGORIES as string[]).includes(s) ? (s as WantedCategory) : '';
+}
+
+const WANTED_SCREENSHOT_TIMEOUT_MS = 30000;
+
+export async function analyzeWantedScreenshot(
+  imageDataUrl: string,
+): Promise<ImportedWantedScreenshot | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return null;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), WANTED_SCREENSHOT_TIMEOUT_MS);
+    const res = await fetch(apiUrl('/api/import/wanted-screenshot'), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(timer));
+
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => null)) as
+      | { data?: any; fallback?: boolean }
+      | null;
+    if (!body || body.fallback || !body.data) return null;
+
+    const out: ImportedWantedScreenshot = {
+      title: typeof body.data.title === 'string' ? body.data.title.trim() : '',
+      description: typeof body.data.description === 'string' ? body.data.description.trim() : '',
+      category: coerceWantedCategory(body.data.category),
+      budget: typeof body.data.budget === 'string' ? body.data.budget.trim() : '',
+    };
+    if (!out.title && !out.description) return null;
+    return out;
+  } catch {
+    return null;
+  }
 }

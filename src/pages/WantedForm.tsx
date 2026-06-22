@@ -1,8 +1,13 @@
-import { useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, X, Search } from 'lucide-react';
+import { ArrowLeft, Camera, X, Search, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { createWantedItem, WANTED_CATEGORY_LABEL, type WantedCategory } from '../lib/wanted';
+import {
+  createWantedItem,
+  analyzeWantedScreenshot,
+  WANTED_CATEGORY_LABEL,
+  type WantedCategory,
+} from '../lib/wanted';
 import { uploadCompressedImage } from '../lib/uploadImage';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
@@ -33,6 +38,9 @@ export default function WantedForm({ onBack }: { onBack: () => void }) {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
+  const screenshotRef = useRef<HTMLInputElement>(null);
 
   if (!user) {
     return (
@@ -57,6 +65,31 @@ export default function WantedForm({ onBack }: { onBack: () => void }) {
       setErr(`Image upload failed: ${e?.message ?? 'unknown'}`);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const onPickScreenshot = async (file: File) => {
+    setErr(null);
+    setScanNote(null);
+    setScanning(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const draft = await analyzeWantedScreenshot(dataUrl);
+      if (!draft) {
+        setScanNote("Couldn't read that screenshot — fill in the details below.");
+        return;
+      }
+      if (draft.title) setTitle(draft.title);
+      if (draft.description) setDescription(draft.description);
+      if (draft.category) setCategory(draft.category);
+      if (draft.budget) setMaxBudget(draft.budget);
+      setScanNote('Filled in from your screenshot — review and edit before posting.');
+      console.log(LOG, 'screenshot:ok');
+    } catch (e: any) {
+      console.error(LOG, 'screenshot:fail', e);
+      setScanNote("Couldn't read that screenshot — fill in the details below.");
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -99,6 +132,25 @@ export default function WantedForm({ onBack }: { onBack: () => void }) {
       </header>
 
       <form style={s.form} onSubmit={(e) => { e.preventDefault(); onSave(); }}>
+        {/* AI screenshot import */}
+        <button
+          type="button"
+          onClick={() => screenshotRef.current?.click()}
+          disabled={scanning}
+          style={s.aiBtn}
+        >
+          <Sparkles size={16} />
+          {scanning ? 'Reading screenshot…' : 'Upload from a screenshot'}
+        </button>
+        <input
+          ref={screenshotRef}
+          type="file" accept="image/*"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickScreenshot(f); e.target.value = ''; }}
+          style={{ display: 'none' }}
+          disabled={scanning}
+        />
+        {scanNote && <p style={s.scanNote}>{scanNote}</p>}
+
         {/* Image picker */}
         <label style={s.cover}>
           {imageUrl ? (
@@ -256,6 +308,19 @@ const s: Record<string, CSSProperties> = {
     color: 'var(--tt-accent-contrast)', border: 'none', borderRadius: 999,
     fontSize: 14, fontWeight: 800, cursor: 'pointer',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  aiBtn: {
+    width: '100%', minHeight: 48, padding: '12px 16px',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 12, cursor: 'pointer',
+    background: 'var(--tt-surface)', color: 'var(--tt-accent)',
+    border: '1px solid var(--tt-accent)',
+    fontSize: 14, fontWeight: 800,
+  },
+  scanNote: {
+    margin: 0, padding: '8px 12px',
+    background: 'var(--tt-surface-2)', border: '1px solid var(--tt-border)',
+    borderRadius: 10, color: 'var(--tt-text-muted)', fontSize: 12,
   },
   gate: { padding: 24, color: 'var(--tt-text)', textAlign: 'center' },
   gateBtn: { marginTop: 12, padding: '10px 16px', borderRadius: 10, background: 'var(--tt-surface-2)', color: 'var(--tt-text)', border: '1px solid var(--tt-border)', cursor: 'pointer' },

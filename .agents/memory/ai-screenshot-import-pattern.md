@@ -9,6 +9,7 @@ Two import surfaces share ONE pattern; copy it for any new "scan a photo to pre-
 - Business listing: `/api/import/business-card` + `analyzeBusinessCard` (src/lib/businessImport.ts) + BusinessForm.tsx
 - Event: `/api/import/event-screenshot` + `analyzeEventScreenshot` (src/lib/events.ts) + SellerEventForm.tsx (create flow only)
 - Marketplace listing (older sibling): `/api/import/screenshot` + screenshotImport.ts
+- Wanted ad: `/api/import/wanted-screenshot` + `analyzeWantedScreenshot` (src/lib/wanted.ts) + WantedForm.tsx; reuses the file's existing `WANTED_CATEGORIES`/`normalizeWantedCategory` (do NOT redeclare — collision), extracts title/description/category/budget (budget = digits-only suggested max).
 
 **Server contract (server/index.ts):** auth bearer -> `sb.auth.getUser()`; validate `imageDataUrl` regex `^data:image/(png|jpe?g|webp|gif|heic|heif);base64,` and `length <= 11_000_000` (else 413); `claimAiSlot` (shared per-user quota via `claim_ai_scan_slot` RPC + `ai_scans_log`, free=FREE_DAILY_LIMIT / pro=PRO_DAILY_SOFT_CAP keyed on `profiles.membership_tier`); call OpenAI `MODEL` vision (`response_format json_object`, `max_completion_tokens 600`, image detail high, withTimeout 25s); sanitize; on failed/empty extraction `releaseAiSlot` (don't charge) and return `{ fallback: true }`; over-quota returns `{ fallback:true, limited:true }`; success `{ data, source:'ai' }`. NEVER auto-creates the row — only returns a draft the user reviews.
 

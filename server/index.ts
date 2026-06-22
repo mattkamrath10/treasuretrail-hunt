@@ -1497,6 +1497,96 @@ app.post('/api/import/event-screenshot', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------
+// Wanted screenshot import — vision OCR of a photo/screenshot of an item
+// the user is looking for (another listing, a photo, a catalog page) into
+// the WantedForm field shape (mirrors /api/import/business-card). Returns
+// a draft the user reviews/edits; a wanted post is never auto-created.
+// Consumes the shared per-user AI scan quota and fails SOFT.
+// ---------------------------------------------------------------------
+const WANTED_SCREENSHOT_PROMPT = `You read a SCREENSHOT or PHOTO of an item that a buyer wants to find (e.g. a product listing from another site, a catalog page, or a photo of an object) and extract a "wanted" request into a SINGLE JSON object matching the schema EXACTLY. No prose, no markdown fences.
+Read ALL visible text (OCR) and analyze the image.
+Schema:
+{ "title":"", "description":"", "category":"", "budget":"", "confidenceScore":0 }
+Rules:
+- If a value is unknown or not visible, use an empty string "". NEVER invent data.
+- category MUST be one of: ${WANTED_CATEGORIES.join(', ')} — choose the closest fit, else "".
+- title: a short name of the item the buyer is looking for (brand + model/name when visible).
+- description: a concise 1-3 sentence summary of the item's key specifics (condition, era, color, size, edition) that help a seller find a match.
+- budget: if a price is clearly shown, the numeric amount as digits only (no currency symbol, no commas), else "". This becomes a suggested maximum budget.
+- confidenceScore: integer 0-100 for overall extraction confidence.`;
+
+async function callOpenAIWantedScreenshot(dataUrl: string) {
+  const resp = await withTimeout(
+    openai.chat.completions.create({
+      model: MODEL,
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 600,
+      messages: [
+        { role: 'system', content: WANTED_SCREENSHOT_PROMPT },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Extract this wanted item into the JSON schema.' },
+            { type: 'image_url', image_url: { url: dataUrl, detail: 'high' } },
+          ],
+        },
+      ],
+    }),
+    25000,
+  );
+  const raw = resp.choices[0]?.message?.content ?? '{}';
+  return JSON.parse(raw);
+}
+
+function sanitizeWantedScreenshot(out: any) {
+  if (!out || typeof out !== 'object') return null;
+  const budgetStr = clampImportStr(out.budget, 20).replace(/[^0-9.]/g, '');
+  const w = {
+    title: clampImportStr(out.title, 120),
+    description: clampImportStr(out.description, 2000),
+    category: normalizeWantedCategory(out.category) ?? '',
+    budget: budgetStr && Number.isFinite(Number(budgetStr)) ? budgetStr : '',
+  };
+  // Require at least one substantive field to count as usable.
+  if (!w.title && !w.description) return null;
+  return w;
+}
+
+app.post('/api/import/wanted-screenshot', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthenticated' });
+    const sb = supabaseForUser(auth.slice(7));
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData?.user) return res.status(401).json({ error: 'unauthenticated' });
+
+    const { imageDataUrl } = req.body as { imageDataUrl?: string };
+    if (typeof imageDataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp|gif|heic|heif);base64,/i.test(imageDataUrl)) {
+      return res.status(400).json({ error: 'invalid_image' });
+    }
+    if (imageDataUrl.length > 11_000_000) return res.status(413).json({ error: 'image_too_large' });
+
+    const slot = await claimAiSlot(sb, userData.user.id);
+    if (!slot.allowed) return res.json({ fallback: true, limited: true });
+
+    let out: any;
+    try {
+      out = await callOpenAIWantedScreenshot(imageDataUrl);
+    } catch (e) {
+      await releaseAiSlot(sb, slot.scanId);
+      throw e;
+    }
+
+    const w = sanitizeWantedScreenshot(out);
+    if (!w) { await releaseAiSlot(sb, slot.scanId); return res.json({ fallback: true }); }
+    return res.json({ data: w, source: 'ai' });
+  } catch (err: any) {
+    console.error('[import/wanted-screenshot]', err?.message || err);
+    return res.json({ fallback: true });
+  }
+});
+
 const BUSINESS_IMPORT_PROMPT = `You extract a physical/online retail business's public profile from a web page's metadata and text, for a second-hand / antiques / resale directory. Return a SINGLE JSON object, no prose or markdown fences.
 Schema:
 {
