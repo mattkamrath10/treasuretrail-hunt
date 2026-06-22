@@ -54,6 +54,8 @@ export interface BusinessRow {
   status: BusinessStatus;
   verified: boolean;
   featured: boolean;
+  founding_partner: boolean;
+  founding_partner_since: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -127,6 +129,8 @@ function normalizeRow(r: any): BusinessRow {
     status: r.status ?? 'published',
     verified: !!r.verified,
     featured: !!r.featured,
+    founding_partner: !!r.founding_partner,
+    founding_partner_since: r.founding_partner_since ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -142,7 +146,7 @@ function isTableMissing(error: any): boolean {
 const SELECT_COLS =
   'id, owner_id, name, description, category, address, city, region, lat, lng, ' +
   'phone, website, facebook_url, hours, logo_url, logo_thumb_url, photos, ' +
-  'status, verified, featured, created_at, updated_at';
+  'status, verified, featured, founding_partner, founding_partner_since, created_at, updated_at';
 
 // Minimal column set guaranteed to exist on the earliest businesses schema.
 // Used as a fallback select when a partial migration leaves optional columns
@@ -271,16 +275,21 @@ async function writeBusinessRow(
   mode: { kind: 'insert' } | { kind: 'update'; id: string; ownerId: string },
 ): Promise<BusinessRow> {
   let body = { ...payload };
-  for (let attempt = 0; attempt < OPTIONAL_WRITE_COLS.length + 1; attempt++) {
+  // The RETURNING select may name brand-new optional columns (e.g.
+  // founding_partner) that don't exist on a half-applied schema. Those aren't
+  // in `body`, so we can't strip them — instead we downgrade the select to the
+  // guaranteed core set. normalizeRow defaults every absent field.
+  let selectCols = SELECT_COLS;
+  for (let attempt = 0; attempt < OPTIONAL_WRITE_COLS.length + 2; attempt++) {
     const q =
       mode.kind === 'insert'
-        ? supabase.from('businesses').insert(body).select(SELECT_COLS).single()
+        ? supabase.from('businesses').insert(body).select(selectCols).single()
         : supabase
             .from('businesses')
             .update(body)
             .eq('id', mode.id)
             .eq('owner_id', mode.ownerId)
-            .select(SELECT_COLS)
+            .select(selectCols)
             .single();
     const { data, error } = await q;
     if (!error) return normalizeRow(data);
@@ -288,6 +297,13 @@ async function writeBusinessRow(
     if (miss && miss in body) {
       console.warn(LOG, `column '${miss}' missing — retrying without it`);
       delete body[miss];
+      continue;
+    }
+    // Column-missing error not tied to a payload field → it's a RETURNING-only
+    // column (new optional schema). Downgrade the select once and retry.
+    if (isColumnMissing(error) && selectCols !== CORE_SELECT_COLS) {
+      console.warn(LOG, 'optional businesses column(s) missing in RETURNING — retrying with core columns. Apply the migration to enable all fields.');
+      selectCols = CORE_SELECT_COLS;
       continue;
     }
     console.error(LOG, `writeBusinessRow:${mode.kind}`, error);

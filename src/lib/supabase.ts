@@ -24,6 +24,8 @@ export type Profile = {
   favorite_categories: string[];
   scout_verified: boolean;
   pro_member: boolean;
+  founding_partner: boolean;
+  founding_partner_since: string | null;
   role: 'user' | 'admin';
   membership_tier: 'free' | 'pro';
   follower_count: number;

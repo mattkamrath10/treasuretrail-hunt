@@ -107,6 +107,76 @@ export async function revokePro(userId: string): Promise<GrantResult<{ tier: 'fr
   return { ok: true, data: { tier: 'free' } };
 }
 
+// =====================================================================
+// Founding Partner program (invite-only recognition badge)
+// ---------------------------------------------------------------------
+// Privileged columns guarded at the DB level (founding_partner on profiles
+// and businesses), so the ONLY way to flip them is through this service-role
+// module. Every writer .select('id') and fails on 0 rows because PostgREST
+// treats a 0-row UPDATE as success — without it a bad id would silently
+// "succeed" and never grant the badge.
+// =====================================================================
+
+export async function grantFoundingPartner(
+  userId: string,
+): Promise<GrantResult<{ founding_partner: true }>> {
+  const { data, error } = await admin()
+    .from('profiles')
+    .update({ founding_partner: true, founding_partner_since: new Date().toISOString() })
+    .eq('id', userId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: `No profile matched id ${userId} for Founding Partner grant.` };
+  }
+  return { ok: true, data: { founding_partner: true } };
+}
+
+export async function revokeFoundingPartner(
+  userId: string,
+): Promise<GrantResult<{ founding_partner: false }>> {
+  const { data, error } = await admin()
+    .from('profiles')
+    .update({ founding_partner: false, founding_partner_since: null })
+    .eq('id', userId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: `No profile matched id ${userId} for Founding Partner revoke.` };
+  }
+  return { ok: true, data: { founding_partner: false } };
+}
+
+export async function grantBusinessFoundingPartner(
+  businessId: string,
+): Promise<GrantResult<{ founding_partner: true }>> {
+  const { data, error } = await admin()
+    .from('businesses')
+    .update({ founding_partner: true, founding_partner_since: new Date().toISOString() })
+    .eq('id', businessId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: `No business matched id ${businessId} for Founding Partner grant.` };
+  }
+  return { ok: true, data: { founding_partner: true } };
+}
+
+export async function revokeBusinessFoundingPartner(
+  businessId: string,
+): Promise<GrantResult<{ founding_partner: false }>> {
+  const { data, error } = await admin()
+    .from('businesses')
+    .update({ founding_partner: false, founding_partner_since: null })
+    .eq('id', businessId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: `No business matched id ${businessId} for Founding Partner revoke.` };
+  }
+  return { ok: true, data: { founding_partner: false } };
+}
+
 export async function applyBoost(args: {
   targetKind: BoostTargetKind;
   targetId: string;

@@ -10,6 +10,8 @@ import {
   BUSINESS_CATEGORY_META, BUSINESS_AVAILABILITY_META,
   type BusinessRow, type BusinessFeaturedItem,
 } from '../lib/businesses';
+import { FoundingPartnerBadge } from '../components/ui/FoundingPartnerBadge';
+import { setFoundingPartner } from '../lib/foundingPartner';
 import { MediaFallback } from '../components/ui/MediaFallback';
 import { PageScroll } from '../components/ui/PageScroll';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -39,9 +41,10 @@ function toHref(raw: string | null | undefined): string | null {
 export default function BusinessDetail({ onBack }: { onBack: () => void }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const [biz, setBiz] = useState<BusinessRow | null>(null);
+  const [fpBusy, setFpBusy] = useState(false);
   const [items, setItems] = useState<BusinessFeaturedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -82,6 +85,21 @@ export default function BusinessDetail({ onBack }: { onBack: () => void }) {
       });
     return () => { cancelled = true; };
   }, [id]);
+
+  const onToggleFoundingPartner = async () => {
+    if (!biz || fpBusy) return;
+    const grant = !biz.founding_partner;
+    setFpBusy(true);
+    try {
+      await setFoundingPartner({ kind: 'business', id: biz.id, action: grant ? 'grant' : 'revoke' });
+      setBiz((b) => (b ? { ...b, founding_partner: grant } : b));
+      flashToast(grant ? 'Founding Partner granted' : 'Founding Partner removed');
+    } catch (e: any) {
+      flashToast(e?.message ?? 'Could not update Founding Partner.');
+    } finally {
+      setFpBusy(false);
+    }
+  };
 
   const onShare = async () => {
     if (!biz) return;
@@ -204,6 +222,22 @@ export default function BusinessDetail({ onBack }: { onBack: () => void }) {
             }}>
               <Star size={12} /> Featured
             </span>
+          )}
+          {biz.founding_partner && <FoundingPartnerBadge />}
+          {isAdmin && (
+            <button
+              onClick={onToggleFoundingPartner}
+              disabled={fpBusy}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
+                border: '1px dashed #4f46e5', background: 'transparent',
+                color: '#4f46e5', fontSize: 11, fontWeight: 700,
+                opacity: fpBusy ? 0.6 : 1,
+              }}
+            >
+              {biz.founding_partner ? 'Remove Founding Partner' : 'Make Founding Partner'}
+            </button>
           )}
         </div>
         <h1 style={s.title}>{biz.name}</h1>

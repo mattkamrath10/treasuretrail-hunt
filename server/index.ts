@@ -9,6 +9,10 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import {
   grantPro,
   revokePro,
+  grantFoundingPartner,
+  revokeFoundingPartner,
+  grantBusinessFoundingPartner,
+  revokeBusinessFoundingPartner,
   applyBoost,
   removeBoost,
   deleteUserAccount,
@@ -313,6 +317,42 @@ app.post('/api/admin/pro', async (req, res) => {
   } catch (err: any) {
     console.error('[admin/pro]', err?.message || err);
     return res.status(500).json({ error: 'Grant failed.' });
+  }
+});
+
+// Founding Partner grant/revoke for a seller (kind 'user') or a business
+// (kind 'business'). Admin-gated; writes go through the trusted grant module.
+app.post('/api/admin/founding-partner', async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    const { kind, id, action } = req.body as {
+      kind?: 'user' | 'business';
+      id?: string;
+      action?: 'grant' | 'revoke';
+    };
+    if (kind !== 'user' && kind !== 'business') {
+      return res.status(400).json({ error: "kind must be 'user' or 'business'." });
+    }
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'id is required.' });
+    }
+    if (action !== 'grant' && action !== 'revoke') {
+      return res.status(400).json({ error: "action must be 'grant' or 'revoke'." });
+    }
+    const revoke = action === 'revoke';
+    let result;
+    if (kind === 'business') {
+      result = revoke
+        ? await revokeBusinessFoundingPartner(id)
+        : await grantBusinessFoundingPartner(id);
+    } else {
+      result = revoke ? await revokeFoundingPartner(id) : await grantFoundingPartner(id);
+    }
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    return res.json(result.data);
+  } catch (err: any) {
+    console.error('[admin/founding-partner]', err?.message || err);
+    return res.status(500).json({ error: 'Founding Partner grant failed.' });
   }
 });
 

@@ -29,3 +29,10 @@ update-only guard leaves an INSERT hole — a client can create a row already-bo
 or insert their own profile with `role='admin'`/`membership_tier='pro'` (which also
 defeats any admin-role-based server gate). On INSERT, force safe baselines (matching
 column DEFAULTs); on UPDATE, reset to OLD.
+
+**CREATE OR REPLACE drift trap:** When a NEW migration `CREATE OR REPLACE`s an
+existing escalation guard just to add one column, it must re-state EVERY line of
+the latest prior definition (grep all migrations for the function name and use the
+newest). Copying an OLD version silently drops later-added locks (e.g.
+`membership_tier`, INSERT safe-baselines) and re-opens the leak. The replacement
+is whole-body, not additive.
