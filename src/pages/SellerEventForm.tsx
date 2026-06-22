@@ -136,7 +136,7 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
   const [importUrl, setImportUrl] = useState('');
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
-  // Import-from-screenshot (create flow only).
+  // Import-from-screenshot (create flow + update an existing event on edit).
   const [scanning, setScanning] = useState(false);
   const screenshotRef = useRef<HTMLInputElement>(null);
 
@@ -409,9 +409,23 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
     setScanning(true);
     try {
       const dataUrl = await fileToDataUrl(file);
+      // Use the screenshot itself as the event's cover photo so the image
+      // updates too (the user is uploading a fresh shot of the event page).
+      // Non-fatal: a failed upload keeps the existing cover.
+      let coverUpdated = false;
+      if (user) {
+        try {
+          const up = await uploadCompressedImage(dataUrl, { userId: user.id, folder: 'events' });
+          setCoverUrl(up.url);
+          setCoverThumb(up.thumbUrl);
+          coverUpdated = true;
+        } catch { /* keep the existing cover */ }
+      }
       const d = await analyzeEventScreenshot(dataUrl);
       if (!d) {
-        setImportMsg("We couldn't read that screenshot — enter the event details manually below.");
+        setImportMsg(coverUpdated
+          ? "Updated the photo, but we couldn't read the text — edit the details below."
+          : "We couldn't read that screenshot — enter the event details manually below.");
         return;
       }
       let filled = 0;
@@ -424,11 +438,15 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       if (d.address) { setAddress(d.address); filled++; }
       if (d.city) { setCity(d.city); filled++; }
       if (d.region) { setRegion(d.region); filled++; }
+      const action = isEdit ? 'save' : 'publish';
       if (filled === 0) {
-        setImportMsg("We couldn't read that screenshot — enter the event details manually below.");
+        setImportMsg(coverUpdated
+          ? `Updated the photo — review the details below, then ${action}.`
+          : "We couldn't read that screenshot — enter the event details manually below.");
       } else {
-        setImportMsg(`Filled ${filled} field${filled === 1 ? '' : 's'} from your screenshot — review everything below, then publish.`);
-        flashToast('Screenshot scanned — review & publish', 'success');
+        const photoNote = coverUpdated ? ' and updated the photo' : '';
+        setImportMsg(`Filled ${filled} field${filled === 1 ? '' : 's'}${photoNote} from your screenshot — review everything below, then ${action}.`);
+        flashToast(`Screenshot scanned — review & ${action}`, 'success');
       }
     } catch {
       setImportMsg('Screenshot scan failed — enter the event details manually below.');
@@ -761,6 +779,35 @@ export default function SellerEventForm({ onBack }: { onBack: () => void }) {
       ) : (
         <>
           <PageScroll style={s.scrollBody}>
+          {/* Update-from-screenshot — edit flow (e.g. refresh a weekly event each week) */}
+          {isEdit && (
+            <section style={s.importCard}>
+              <h3 style={s.importTitle}>
+                <ImagePlus size={16} style={{ verticalAlign: -3, color: 'var(--color-primary-600, #d97706)' }} /> Update From a Screenshot
+              </h3>
+              <p style={s.importHint}>
+                Got a fresh screenshot of this week's event page? Upload it and we'll update the
+                photo, title, and description for you — review everything, then save.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setImportMsg(null); screenshotRef.current?.click(); }}
+                disabled={scanning || uploadingCover}
+                style={{ ...s.importBtn, opacity: (scanning || uploadingCover) ? 0.7 : 1 }}
+              >
+                {scanning ? <Loader2 size={15} className="spin" /> : <ImagePlus size={15} />}
+                {scanning ? 'Reading…' : 'Update from a screenshot'}
+              </button>
+              <input
+                ref={screenshotRef}
+                type="file"
+                accept="image/*"
+                onChange={onPickScreenshot}
+                style={{ display: 'none' }}
+              />
+              {importMsg && <p style={s.importMsg}>{importMsg}</p>}
+            </section>
+          )}
           {/* Import from URL — primary fast path (create flow only) */}
           {!isEdit && (
             <section style={s.importCard}>

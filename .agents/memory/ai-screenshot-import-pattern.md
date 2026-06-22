@@ -7,7 +7,7 @@ description: How "Upload from a screenshot" vision-OCR import features are wired
 
 Two import surfaces share ONE pattern; copy it for any new "scan a photo to pre-fill a create form":
 - Business listing: `/api/import/business-card` + `analyzeBusinessCard` (src/lib/businessImport.ts) + BusinessForm.tsx
-- Event: `/api/import/event-screenshot` + `analyzeEventScreenshot` (src/lib/events.ts) + SellerEventForm.tsx (create flow only)
+- Event: `/api/import/event-screenshot` + `analyzeEventScreenshot` (src/lib/events.ts) + SellerEventForm.tsx (create AND edit flow; edit-mode card lets a host refresh a recurring weekly event by re-uploading a screenshot — also sets the screenshot as the new cover via uploadCompressedImage, non-fatal)
 - Marketplace listing (older sibling): `/api/import/screenshot` + screenshotImport.ts
 - Wanted ad: `/api/import/wanted-screenshot` + `analyzeWantedScreenshot` (src/lib/wanted.ts) + WantedForm.tsx; reuses the file's existing `WANTED_CATEGORIES`/`normalizeWantedCategory` (do NOT redeclare — collision), extracts title/description/category/budget (budget = digits-only suggested max).
 
