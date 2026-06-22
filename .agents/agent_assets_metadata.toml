@@ -365,3 +365,9 @@ id = "EcIKtILNakfWrL20GZFm0"
 uri = "file://appstore-screenshots-v1.1.0/ipad-12.9/03-event-detail.png"
 type = "image"
 title = "iPad — Event page (button fix)"
+
+[[outputs]]
+id = "RGeSeAVkd0py743fJb96h"
+uri = "file://TreasureTrail-FullSource-20260622.zip"
+type = "unspecified"
+title = "TreasureTrail — Full Source Code (v1.1.0, builds 31–32)"
