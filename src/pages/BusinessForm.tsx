@@ -594,7 +594,6 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
             ref={cardInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={onPickCard}
             style={{ display: 'none' }}
           />
