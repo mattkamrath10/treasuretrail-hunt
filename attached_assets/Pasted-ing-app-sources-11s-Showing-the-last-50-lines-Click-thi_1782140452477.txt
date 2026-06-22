@@ -1,0 +1,55 @@
+ing app sources
+11s
+
+
+
+Showing the last 50 lines. Click this button to load the full log
+Resolving deltas:  67% (149/222)
+Resolving deltas:  68% (151/222)
+Resolving deltas:  69% (154/222)
+Resolving deltas:  70% (156/222)
+Resolving deltas:  71% (158/222)
+Resolving deltas:  72% (160/222)
+Resolving deltas:  73% (163/222)
+Resolving deltas:  74% (165/222)
+Resolving deltas:  75% (167/222)
+Resolving deltas:  76% (169/222)
+Resolving deltas:  77% (171/222)
+Resolving deltas:  78% (174/222)
+Resolving deltas:  79% (176/222)
+Resolving deltas:  80% (178/222)
+Resolving deltas:  81% (180/222)
+Resolving deltas:  82% (183/222)
+Resolving deltas:  83% (185/222)
+Resolving deltas:  84% (187/222)
+Resolving deltas:  85% (189/222)
+Resolving deltas:  86% (191/222)
+Resolving deltas:  88% (196/222)
+Resolving deltas:  89% (198/222)
+Resolving deltas:  90% (200/222)
+Resolving deltas:  91% (203/222)
+Resolving deltas:  92% (205/222)
+Resolving deltas:  93% (207/222)
+Resolving deltas:  94% (209/222)
+Resolving deltas:  95% (211/222)
+Resolving deltas:  96% (214/222)
+Resolving deltas:  97% (216/222)
+Resolving deltas:  98% (218/222)
+Resolving deltas:  99% (220/222)
+Resolving deltas: 100% (222/222)
+Resolving deltas: 100% (222/222), done.
+Downloading TreasureTrail-FullSource-20260622.zip (218 MB)
+Error downloading object: TreasureTrail-FullSource-20260622.zip (be6925e): Smudge error: Error downloading TreasureTrail-FullSource-20260622.zip (be6925e54e987a270f0eb24530d458ac45f70cf3f8458d0f14c714453180ec49): batch response: This repository exceeded its LFS budget. The account responsible for the budget should increase it to restore access.
+
+Errors logged to '/Users/builder/clone/.git/lfs/logs/20260622T150037.021902.log'.
+Use `git lfs logs last` to view the log.
+error: external filter 'git-lfs filter-process' failed
+fatal: TreasureTrail-FullSource-20260622.zip: smudge filter lfs failed
+warning: Clone succeeded, but checkout failed.
+You can inspect what was checked out with 'git status'
+and retry with 'git restore --source=HEAD :/'
+
+
+
+Build failed :|
+Failed to clone repository

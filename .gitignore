@@ -162,3 +162,9 @@ public/*.zip
 # budget was exhausted (smudge filter failed -> clone failed). Not used by the
 # app. Keep them locally for editing, never commit them.
 attached_assets/*.mp4
+
+# Source/build archive zips — these repeatedly got committed (some via LFS) and
+# broke Codemagic clones by exhausting the LFS budget. NEVER commit zips. They
+# are build artifacts / backups, not source. Keep them locally only.
+*.zip
+dist-downloads/
