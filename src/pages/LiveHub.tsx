@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
 import {
   ArrowLeft, Gavel, X, Clock, ExternalLink,
-  Upload, ToggleLeft, ToggleRight, ChevronDown,
+  Upload,
   Search, SlidersHorizontal, MapPin, Calendar,
   Truck, Package, ChevronRight,
   Zap, Bell, BellOff, Loader2,
@@ -13,10 +13,7 @@ import { supabase } from '../lib/supabase';
 import { useLiveFeed } from '../hooks/useLiveFeed';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback, type FallbackPlatform } from '../components/ui/MediaFallback';
-import LocationFields, { isValidGeneralLocation, type LocationValue } from '../components/listing/LocationFields';
 import { HostEventCTA } from '../components/HostEventCTA';
-import PickupTypeChips from '../components/listing/PickupTypeChips';
-import MarketplaceFoundSelect from '../components/listing/MarketplaceFoundSelect';
 import SafetyReminder from '../components/listing/SafetyReminder';
 import LogisticsBlock from '../components/listing/LogisticsBlock';
 import ReportListingButton from '../components/listing/ReportListingButton';
@@ -24,7 +21,6 @@ import { GuestOverlay } from '../components/GuestGate';
 import { PageScroll } from '../components/ui/PageScroll';
 import { fetchMyEvents, fetchPublishedEvents } from '../lib/events';
 import type { EventRow } from '../lib/events';
-import { uploadCompressedImage } from '../lib/uploadImage';
 import { startBoostPurchase, startProBoost } from '../lib/payments';
 import { isBoosted, boostExpiresInLabel } from '../lib/boost';
 import { isProUser } from '../lib/entitlements';
@@ -310,16 +306,8 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
 
   // UI state
   const [showFilters,      setShowFilters]      = useState(false);
-  const [showUploadEvent,  setShowUploadEvent]  = useState(false);
   const [showBoost,        setShowBoost]        = useState(false);
   const [selectedListing,  setSelectedListing]  = useState<ExternalListing | null>(null);
-  const [uploadBanner,     setUploadBanner]     = useState(false);
-
-  useEffect(() => {
-    if (!uploadBanner) return;
-    const t = setTimeout(() => setUploadBanner(false), 3000);
-    return () => clearTimeout(t);
-  }, [uploadBanner]);
 
   // Resume a post-auth "Boost Event" intent: AppShell routes here with
   // state.openBoost=true after a logged-out/guest user signs in. Open the
@@ -498,7 +486,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           (it lives in the non-scrolling region, never gets pushed off-screen
           as the feed fills up). */}
       <div style={st.actionArea}>
-        <button onClick={() => setShowUploadEvent(true)} style={st.actionBtnPrimary}>
+        <button onClick={() => navigate('/seller/new')} style={st.actionBtnPrimary}>
           <Upload size={16} style={{ color: '#fff' }} />
           <span style={st.actionBtnLabel}>Upload Event</span>
         </button>
@@ -531,13 +519,6 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           </div>
         )}
       </div>
-
-      {/* ── Success banner after upload ── */}
-      {uploadBanner && (
-        <div style={st.successBanner} role="status" aria-live="polite">
-          Event uploaded successfully — it's now live in the feed.
-        </div>
-      )}
 
       {/* ── Results count ── */}
       {!loading && (
@@ -573,7 +554,7 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
             <p style={st.emptyText}>
               Be the first to upload an auction, estate sale, yard sale, or marketplace listing.
             </p>
-            <button onClick={() => setShowUploadEvent(true)} style={st.emptyBtn}>
+            <button onClick={() => navigate('/seller/new')} style={st.emptyBtn}>
               <Upload size={13} />Upload an Event
             </button>
           </div>
@@ -618,37 +599,6 @@ export default function LiveHub({ onBack }: { onBack: () => void }) {
           locationQuery={locationQuery} setLocationQuery={setLocationQuery}
           onClose={() => setShowFilters(false)}
           onReset={() => { setDateFilter('all'); setCustomDate(''); setSortBy('live_now'); setLocationQuery(''); }}
-        />
-      )}
-      {showUploadEvent && (
-        <UploadEventModal
-          userId={user?.id}
-          onClose={() => setShowUploadEvent(false)}
-          onSuccess={(created) => {
-            setShowUploadEvent(false);
-            // Optimistically prepend so the new event shows up instantly,
-            // even before the refetch round-trips. De-dupe by id when the
-            // refetch lands.
-            if (created) {
-              setListings((prev) => {
-                if (prev.some((l) => l.id === created.id)) return prev;
-                return [created, ...prev];
-              });
-            }
-            // Reset filters/sort so an active filter can't hide the new event.
-            setTypeFilter('all');
-            setSearchQuery('');
-            setDateFilter('all');
-            setCustomDate('');
-            setSortBy('live_now');
-            setLocationQuery('');
-            // Background reconciliation with the server — silent so the
-            // optimistic prepend stays visible during the round-trip.
-            fetchListings({ silent: true });
-            // Retrigger banner timer on rapid successive uploads.
-            setUploadBanner(false);
-            setTimeout(() => setUploadBanner(true), 0);
-          }}
         />
       )}
       {showBoost && user && (
@@ -1026,468 +976,6 @@ function FilterDrawer({ dateFilter, setDateFilter, customDate, setCustomDate, so
 
           <button onClick={onClose} style={{ ...mo.submitBtn, marginTop: 'var(--space-5)' }}>
             Apply Filters
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Read a File into a base64 data URL for the image-compression pipeline. */
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result as string);
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(file);
-  });
-}
-
-// ─── Upload Event modal ───────────────────────────────────────────────────────
-
-interface EventForm {
-  title: string; platform: string; listing_type: string; external_url: string;
-  price_display: string; category: string; image_url: string;
-  start_date: string; start_time: string;
-  end_date: string;   end_time: string;
-  same_day: boolean; multi_day: boolean; no_end_time: boolean;
-  ships_available: boolean;
-}
-
-function UploadEventModal({ userId, onClose, onSuccess }: { userId?: string; onClose: () => void; onSuccess: (created?: ExternalListing) => void }) {
-  const [form, setForm] = useState<EventForm>({
-    title: '', platform: 'other', listing_type: 'auction', external_url: '',
-    price_display: '', category: '', image_url: '',
-    start_date: '', start_time: '', end_date: '', end_time: '',
-    same_day: true, multi_day: false, no_end_time: false,
-    ships_available: false,
-  });
-  const [loc, setLoc] = useState<LocationValue>({
-    general_location: '', exact_address_private: '', address_reveal_policy: 'on_contact',
-  });
-  const [pickupType, setPickupType] = useState<string[]>([]);
-  const [meetupNotes, setMeetupNotes] = useState('');
-  const [marketplaceKey, setMarketplaceKey] = useState('');
-  const [marketplaceCustom, setMarketplaceCustom] = useState('');
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState('');
-  const [success, setSuccess] = useState('');
-  const [uploadingImg, setUploadingImg] = useState(false);
-  const imgInputRef = useRef<HTMLInputElement>(null);
-  const set = (k: keyof EventForm, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
-
-  // Upload a photo from the user's device/camera and store it in Supabase,
-  // then drop the resulting public URL into form.image_url. This is the
-  // primary way to add an event photo — pasting an Image URL is the manual
-  // fallback for users who already have a hosted image link.
-  const onPickImage = async (file: File) => {
-    if (!userId) {
-      setError('Please sign in to upload a photo. Guest mode is read-only.');
-      return;
-    }
-    setError('');
-    setUploadingImg(true);
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      const up = await uploadCompressedImage(dataUrl, { userId, folder: 'events' });
-      set('image_url', up.url);
-    } catch (e: any) {
-      setError(`Photo upload failed: ${e?.message ?? 'unknown error'}`);
-    } finally {
-      setUploadingImg(false);
-    }
-  };
-
-  // Toggle helpers — Same-Day / Multi-Day / No End Time are mutually exclusive
-  // in spirit. Same-Day auto-mirrors end_date to start_date as the user types.
-  const setSameDay = (v: boolean) => setForm((f) => ({
-    ...f, same_day: v,
-    multi_day: v ? false : f.multi_day,
-    no_end_time: v ? false : f.no_end_time,
-    end_date: v ? f.start_date : f.end_date,
-  }));
-  const setMultiDay = (v: boolean) => setForm((f) => ({
-    ...f, multi_day: v,
-    same_day: v ? false : f.same_day,
-    no_end_time: v ? false : f.no_end_time,
-  }));
-  const setNoEndTime = (v: boolean) => setForm((f) => ({
-    ...f, no_end_time: v,
-    same_day: v ? false : f.same_day,
-    multi_day: v ? false : f.multi_day,
-    end_date: v ? '' : f.end_date,
-    end_time: v ? '' : f.end_time,
-  }));
-
-  // Keep end_date synced to start_date when Same-Day is on.
-  const setStartDate = (v: string) => setForm((f) => ({
-    ...f, start_date: v,
-    end_date: f.same_day ? v : f.end_date,
-  }));
-
-  function buildIso(date: string, time: string): string | null {
-    if (!date) return null;
-    const t = time || '00:00';
-    const local = new Date(`${date}T${t}`);
-    return Number.isNaN(local.getTime()) ? null : local.toISOString();
-  }
-
-  const handleSubmit = async () => {
-    setError(''); setSuccess('');
-
-    if (!userId) {
-      setError('Please sign in to upload events. Guest mode is read-only.');
-      return;
-    }
-    if (!form.title.trim())                      { setError('Title is required.'); return; }
-    if (!form.external_url.trim())               { setError('External URL is required.'); return; }
-    if (!isValidHttpUrl(form.external_url.trim())) {
-      setError('Please enter a valid http or https URL (e.g. https://www.ebay.com/…).');
-      return;
-    }
-    if (form.image_url.trim() && !isValidHttpUrl(form.image_url.trim())) {
-      setError('Image URL must be a valid http or https link.');
-      return;
-    }
-    if (!isValidGeneralLocation(loc.general_location)) {
-      setError('Add a general location — ZIP or "City, ST" — so attendees can filter.');
-      return;
-    }
-    if (marketplaceKey === 'other' && !marketplaceCustom.trim()) {
-      setError('Please enter the marketplace name, or pick a different option.');
-      return;
-    }
-
-    // Schedule validation
-    if (!form.start_date) {
-      setError('Start date is required.'); return;
-    }
-    const startIso = buildIso(form.start_date, form.start_time);
-    if (!startIso) { setError('Please enter a valid start date and time.'); return; }
-    let endIso: string | null = null;
-    if (!form.no_end_time) {
-      if (!form.end_date) { setError('End date is required (or turn on "No End Time").'); return; }
-      endIso = buildIso(form.end_date, form.end_time);
-      if (!endIso) { setError('Please enter a valid end date and time.'); return; }
-      if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
-        setError('End must be after the start time.'); return;
-      }
-    }
-
-    setSaving(true);
-
-    // Defensive: re-verify the session is still valid right before the
-    // insert. On mobile we have seen cases where the cached userId prop
-    // outlives the actual Supabase JWT (token refresh failed silently
-    // in the background, app was backgrounded for a long time, etc.).
-    // If we hit RLS with a stale/missing session the row never makes it
-    // into the table — and the user thinks it worked because we never
-    // surfaced the error loudly enough. Catching it here lets us show
-    // a precise, actionable message.
-    const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-    const liveSession = sessionData?.session;
-    if (sessionErr || !liveSession || liveSession.user.id !== userId) {
-      setSaving(false);
-      console.error('[UPLOAD_EVENT] session check failed', {
-        hasSession: !!liveSession, sessionErr, userId,
-        sessionUserId: liveSession?.user.id,
-      });
-      setError('Your sign-in has expired. Please sign out and back in, then try uploading again.');
-      return;
-    }
-
-    const marketplaceValue = marketplaceKey === 'other' && marketplaceCustom.trim()
-      ? `custom:${marketplaceCustom.trim()}`
-      : marketplaceKey || null;
-    const shipping = form.ships_available || pickupType.includes('shipping_available') || pickupType.includes('nationwide_shipping');
-    // Return the inserted row so the parent can optimistically render it
-    // before (or in addition to) the refetch completing.
-    const payload = {
-      user_id: userId,
-      title: form.title.trim(),
-      platform: form.platform,
-      listing_type: form.listing_type,
-      external_url: form.external_url.trim(),
-      price_display: form.price_display.trim() || '',
-      category: form.category.trim() || 'other',
-      image_url: form.image_url.trim() || null,
-      start_at: startIso,
-      ends_at: endIso,
-      ships_available: shipping,
-      local_pickup: pickupType.includes('local_pickup') || !shipping,
-      status: 'active',
-      location: loc.general_location,
-      general_location: loc.general_location,
-      exact_address_private: loc.exact_address_private.trim() || null,
-      address_reveal_policy: loc.address_reveal_policy,
-      pickup_type: pickupType,
-      meetup_notes: meetupNotes.trim() || null,
-      marketplace_found: marketplaceValue,
-    };
-    const { data: inserted, error: err } = await supabase
-      .from('external_listings')
-      .insert(payload)
-      .select('*')
-      .single();
-    if (err) {
-      setSaving(false);
-      console.error('[UPLOAD_EVENT] insert failed', { err, payload });
-      const msg = err.message?.includes('row-level security')
-        ? 'You do not have permission to submit events. Please sign in again.'
-        : err.message || 'Failed to submit. Please try again.';
-      setError(msg);
-      // Mobile users can scroll past an inline red banner without seeing
-      // it. A native alert is impossible to miss — it's the difference
-      // between "I uploaded an event and it didn't show up" (thinking it
-      // worked) and "the app told me exactly why it failed".
-      try { window.alert(`Event upload failed:\n\n${msg}`); } catch {}
-      return;
-    }
-    if (!inserted) {
-      setSaving(false);
-      console.error('[UPLOAD_EVENT] insert returned no row', { payload });
-      const msg = 'Upload may not have completed. Please refresh and check the feed.';
-      setError(msg);
-      try { window.alert(msg); } catch {}
-      return;
-    }
-
-    // Post-insert verification: re-read the row we just wrote, by id,
-    // to confirm it really landed (and is visible to us). If this read
-    // comes back empty, something silently dropped the write — surface
-    // it loudly instead of letting the success toast lie.
-    const insertedRow = inserted as ExternalListing;
-    const { data: verify, error: vErr } = await supabase
-      .from('external_listings')
-      .select('id,status')
-      .eq('id', insertedRow.id)
-      .maybeSingle();
-    setSaving(false);
-    if (vErr || !verify) {
-      console.error('[UPLOAD_EVENT] post-insert verify failed', { vErr, insertedId: insertedRow.id });
-      const msg = 'Event saved but could not be read back. It may not appear in the feed. Please refresh and check.';
-      setError(msg);
-      try { window.alert(msg); } catch {}
-      return;
-    }
-
-    setSuccess('Event uploaded successfully.');
-    setTimeout(() => onSuccess(insertedRow), 900);
-  };
-
-  return (
-    <div className="tt-modal-overlay" style={mo.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="tt-sheet" style={mo.sheet}>
-        <div style={mo.handle} />
-        <div style={mo.header}>
-          <span style={mo.title}>Upload Event</span>
-          <button onClick={onClose} style={mo.closeBtn}><X size={18} /></button>
-        </div>
-        <div data-scroll-lock-allow style={mo.body}>
-          <label style={mo.label}>Title <span style={mo.req}>*</span></label>
-          <input style={mo.input} placeholder="e.g. Estate Sale — Phoenix, AZ" value={form.title} onChange={(e) => set('title', e.target.value)} />
-          <div style={mo.row}>
-            <div style={{ flex: 1 }}>
-              <label style={mo.label}>Platform</label>
-              <div style={mo.selectWrap}>
-                <select style={mo.select} value={form.platform} onChange={(e) => set('platform', e.target.value)}>
-                  <option value="whatnot">Whatnot</option>
-                  <option value="poshmark">Poshmark</option>
-                  <option value="ebay">eBay</option>
-                  <option value="hibid">HiBid</option>
-                  <option value="maxsold">MaxSold</option>
-                  <option value="estatesales">EstateSales.net</option>
-                  <option value="facebook">Facebook</option>
-                  <option value="other">Other</option>
-                </select>
-                <ChevronDown size={13} style={mo.selectIcon} />
-              </div>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={mo.label}>Event Type</label>
-              <div style={mo.selectWrap}>
-                <select style={mo.select} value={form.listing_type} onChange={(e) => set('listing_type', e.target.value)}>
-                  <option value="auction">Auction</option>
-                  <option value="live_stream">Live Stream</option>
-                  <option value="estate_sale">Estate Sale</option>
-                  <option value="yard_sale">Yard Sale</option>
-                  <option value="flea_market">Flea Market</option>
-                  <option value="storage_auction">Storage Auction</option>
-                  <option value="fixed_price">For Sale</option>
-                </select>
-                <ChevronDown size={13} style={mo.selectIcon} />
-              </div>
-            </div>
-          </div>
-          <label style={mo.label}>External URL <span style={mo.req}>*</span></label>
-          <input style={mo.input} placeholder="https://…" type="url" value={form.external_url} onChange={(e) => set('external_url', e.target.value)} />
-          <div style={mo.row}>
-            <div style={{ flex: 1 }}>
-              <label style={mo.label}>Starting Price</label>
-              <input style={mo.input} placeholder="e.g. $25 or Free" value={form.price_display} onChange={(e) => set('price_display', e.target.value)} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={mo.label}>Category</label>
-              <input style={mo.input} placeholder="e.g. Antiques" value={form.category} onChange={(e) => set('category', e.target.value)} />
-            </div>
-          </div>
-          {/* ── Event Start ── */}
-          <p style={{ ...mo.label, marginTop: 'var(--space-4)', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.06em', color: 'var(--color-neutral-500)' }}>Event Start <span style={mo.req}>*</span></p>
-          <div style={mo.row}>
-            <div style={{ flex: 1 }}>
-              <label style={mo.label}>Start Date</label>
-              <input style={{ ...mo.input, minHeight: 44 }} type="date" value={form.start_date} onChange={(e) => setStartDate(e.target.value)} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={mo.label}>Start Time</label>
-              <input style={{ ...mo.input, minHeight: 44 }} type="time" value={form.start_time} onChange={(e) => set('start_time', e.target.value)} />
-            </div>
-          </div>
-
-          {/* Schedule toggles */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginTop: 'var(--space-3)' }}>
-            {([
-              { key: 'same_day' as const,    label: 'Same-Day Event',   on: form.same_day,    setter: setSameDay },
-              { key: 'multi_day' as const,   label: 'Multi-Day Event',  on: form.multi_day,   setter: setMultiDay },
-              { key: 'no_end_time' as const, label: 'No End Time',      on: form.no_end_time, setter: setNoEndTime },
-            ]).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => t.setter(!t.on)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  minHeight: 44, padding: '8px 14px',
-                  borderRadius: 'var(--radius-full)',
-                  backgroundColor: t.on ? 'var(--color-primary-50)' : 'var(--color-neutral-100)',
-                  border: `1.5px solid ${t.on ? 'var(--color-primary-400)' : 'var(--color-neutral-200)'}`,
-                  fontSize: 'var(--font-size-xs)', fontWeight: 600,
-                  color: t.on ? 'var(--color-primary-700)' : 'var(--color-neutral-600)',
-                  cursor: 'pointer',
-                }}
-              >
-                {t.on ? <ToggleRight size={16} style={{ color: 'var(--color-primary-500)' }} /> : <ToggleLeft size={16} style={{ color: 'var(--color-neutral-400)' }} />}
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {/* ── Event End ── */}
-          {!form.no_end_time && (
-            <>
-              <p style={{ ...mo.label, marginTop: 'var(--space-4)', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.06em', color: 'var(--color-neutral-500)' }}>Event End <span style={mo.req}>*</span></p>
-              <div style={mo.row}>
-                <div style={{ flex: 1 }}>
-                  <label style={mo.label}>End Date</label>
-                  <input
-                    style={{ ...mo.input, minHeight: 44, opacity: form.same_day ? 0.6 : 1 }}
-                    type="date"
-                    value={form.end_date}
-                    onChange={(e) => set('end_date', e.target.value)}
-                    disabled={form.same_day}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={mo.label}>End Time</label>
-                  <input style={{ ...mo.input, minHeight: 44 }} type="time" value={form.end_time} onChange={(e) => set('end_time', e.target.value)} />
-                </div>
-              </div>
-              {form.same_day && (
-                <p style={{ fontSize: '10px', color: 'var(--color-neutral-400)', marginTop: 4 }}>End date auto-matches the start date.</p>
-              )}
-            </>
-          )}
-
-          <label style={mo.label}>Event Photo</label>
-          {form.image_url.trim() ? (
-            <div style={{ position: 'relative', marginBottom: 8 }}>
-              <ImageWithFade
-                src={form.image_url}
-                alt="Event photo"
-                style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 'var(--radius-md)', background: 'var(--color-neutral-100)' }}
-              />
-              <button
-                type="button"
-                onClick={() => set('image_url', '')}
-                style={{
-                  position: 'absolute', top: 8, right: 8,
-                  width: 28, height: 28, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', cursor: 'pointer',
-                }}
-                aria-label="Remove photo"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => imgInputRef.current?.click()}
-              disabled={uploadingImg}
-              style={{
-                width: '100%', minHeight: 88,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-                border: '1px dashed var(--color-neutral-300)', borderRadius: 'var(--radius-md)',
-                background: 'var(--color-neutral-50)', color: 'var(--color-neutral-600)',
-                cursor: uploadingImg ? 'default' : 'pointer', marginBottom: 8,
-              }}
-            >
-              {uploadingImg ? <Loader2 size={20} className="spin" /> : <Upload size={20} />}
-              <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
-                {uploadingImg ? 'Uploading…' : 'Upload a photo'}
-              </span>
-            </button>
-          )}
-          {!form.image_url.trim() && (
-            <>
-              <p style={{ ...mo.label, marginTop: 0, color: 'var(--color-neutral-400)' }}>or paste an image link</p>
-              <input style={mo.input} placeholder="https://…" value={form.image_url} onChange={(e) => set('image_url', e.target.value)} />
-            </>
-          )}
-          <input
-            ref={imgInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickImage(f); e.target.value = ''; }}
-          />
-
-          <div style={{ marginTop: 12 }}>
-            <LocationFields value={loc} onChange={setLoc} />
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <MarketplaceFoundSelect
-              value={marketplaceKey}
-              customValue={marketplaceCustom}
-              onChange={(key, custom) => { setMarketplaceKey(key); setMarketplaceCustom(custom); }}
-              label="Marketplace / Source (optional)"
-            />
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <PickupTypeChips value={pickupType} onChange={setPickupType} />
-          </div>
-
-          <label style={{ ...mo.label, marginTop: 12 }}>Meetup Notes (optional)</label>
-          <textarea
-            style={{ ...mo.input, minHeight: 60, fontFamily: 'inherit' as const, resize: 'vertical' as const }}
-            placeholder="Parking, gate codes, best times…"
-            value={meetupNotes}
-            onChange={(e) => setMeetupNotes(e.target.value)}
-            rows={2}
-          />
-
-          <div style={{ marginTop: 12 }}>
-            <SafetyReminder />
-          </div>
-        </div>
-        <div style={mo.footer}>
-          {error && <p style={{ ...mo.errorText, marginTop: 0 }}>{error}</p>}
-          {success && <p style={{ ...mo.successText, marginTop: 0 }}>{success}</p>}
-          <button onClick={handleSubmit} disabled={saving || uploadingImg || !!success} style={{ ...mo.submitBtn, opacity: saving || uploadingImg || success ? 0.7 : 1 }}>
-            {success ? 'Submitted' : saving ? 'Submitting…' : uploadingImg ? 'Uploading photo…' : 'Submit Event'}
           </button>
         </div>
       </div>
