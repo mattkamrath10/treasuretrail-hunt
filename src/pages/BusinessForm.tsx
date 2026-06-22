@@ -257,7 +257,7 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
     try {
       const dataUrl = await fileToDataUrl(file);
       const d = await analyzeBusinessCard(dataUrl);
-      if (!d) { setImportMsg("We couldn't read that card — enter the details manually below."); return; }
+      if (!d) { setImportMsg("We couldn't read that screenshot — enter the details manually below."); return; }
       // No dedicated email field on businesses — fold a detected email into the
       // description so it isn't lost (mirrors how event import folds extra
       // contact details into the description).
@@ -265,11 +265,11 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
         d.description = d.description ? `${d.description}\nEmail: ${d.email}` : `Email: ${d.email}`;
       }
       const n = applyImport(d);
-      if (n === 0) setImportMsg("We couldn't read that card — enter the details manually below.");
-      else { setImportMsg(filledMsg(n)); flashToast('Business card scanned'); }
+      if (n === 0) setImportMsg("We couldn't read that screenshot — enter the details manually below.");
+      else { setImportMsg(filledMsg(n)); flashToast('Screenshot scanned'); }
     } catch (e: any) {
       console.warn(LOG, 'card import failed', e);
-      setImportMsg('Card scan failed — enter the details manually below.');
+      setImportMsg('Screenshot scan failed — enter the details manually below.');
     } finally {
       setImporting(false);
       setImportKind(null);
@@ -533,7 +533,7 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
             <h3 style={{ ...s.sectionTitle, margin: 0 }}>Quick start</h3>
           </div>
           <p style={s.hint}>
-            Optionally pre-fill from a business card, website, or Facebook page. You'll
+            Optionally pre-fill from a screenshot, website, or Facebook page. You'll
             review and can edit everything before saving.
           </p>
           <div style={s.importBtnRow}>
@@ -544,7 +544,7 @@ export default function BusinessForm({ onBack }: { onBack: () => void }) {
               onClick={() => { setImportMethod(null); setImportMsg(null); cardInputRef.current?.click(); }}
             >
               {importing && importKind === 'card' ? <Loader2 size={16} className="spin" /> : <Camera size={16} />}
-              Scan business card
+              Upload from a screenshot
             </button>
             <button
               type="button"
