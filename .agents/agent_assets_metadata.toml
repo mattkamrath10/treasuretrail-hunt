@@ -377,3 +377,9 @@ id = "m-i2qXpq2-AeJjPbHwMK1"
 uri = "file://downloads/treasuretrail-source.tar.gz"
 type = "unspecified"
 title = "TreasureTrail source (v1.1.5) — for Android Studio"
+
+[[outputs]]
+id = "sLvCgFA9YGF6tODJ53BWA"
+uri = "file://downloads/TreasureTrail-v1.1.5-20260623.tar.gz"
+type = "unspecified"
+title = "TreasureTrail-v1.1.5-20260623.tar.gz"
