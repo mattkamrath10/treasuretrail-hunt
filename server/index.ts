@@ -17,6 +17,7 @@ import {
   removeBoost,
   deleteUserAccount,
   hasServiceRole,
+  getServiceClient,
   verifyBoostOwnership,
   webhookEventSeen,
   recordWebhookEvent,
@@ -380,6 +381,149 @@ app.post('/api/admin/boost', async (req, res) => {
   } catch (err: any) {
     console.error('[admin/boost]', err?.message || err);
     return res.status(500).json({ error: 'Boost grant failed.' });
+  }
+});
+
+// =====================================================================
+// Blog / SEO content engine (admin-only, AI-assisted)
+// ---------------------------------------------------------------------
+// Two surfaces, both gated behind requireAdmin (profiles.role='admin'):
+//   * /api/blog/generate → calls the model to draft a full article as JSON.
+//     Returns a draft ONLY; nothing is persisted. The OpenAI key never
+//     leaves the server.
+//   * /api/blog/save → writes a draft/published row via the service-role
+//     client (bypasses RLS; the blog_posts table has no end-user write
+//     policy). Upserts by slug so re-saving edits an existing post.
+// =====================================================================
+const BLOG_CATEGORY_SLUGS = [
+  'estate-sales', 'garage-sales', 'flea-markets', 'auctions', 'collectibles',
+  'hot-wheels', 'vintage-toys', 'reselling', 'treasure-hunting', 'event-hosting',
+];
+
+const BLOG_SYSTEM_PROMPT = `You are an expert SEO content writer for TreasureTrail, an app for finding estate sales, garage sales, flea markets, auctions, and collectibles. You write helpful, accurate, genuinely useful articles for treasure hunters and resellers, with a primary geographic focus on California's Central Valley (Madera, Fresno, Kings, Tulare, and Kern counties) when a location is provided.
+
+Write in a warm, practical, expert tone. Use real, actionable advice — no fluff, no keyword stuffing. Target ~900-1300 words. Use markdown for the body (## and ### headings, short paragraphs, bullet lists). Naturally encourage readers to use TreasureTrail to find local events, but do not be salesy.
+
+Return a SINGLE JSON object matching this schema exactly. No prose, no markdown fences:
+{
+  "title": string,            // compelling, specific H1 (<= 65 chars ideal)
+  "slug": string,             // url-safe kebab-case, lowercase, no stop-word filler
+  "seo_title": string,        // <= 60 chars, includes primary keyword
+  "meta_description": string, // 140-160 chars, compelling, includes location if given
+  "excerpt": string,          // 1-2 sentence summary for the article card
+  "body_md": string,          // the full article in markdown (## headings, lists)
+  "tags": string[],           // 4-8 lowercase topical tags
+  "faq": [ { "q": string, "a": string } ]  // 3-5 relevant Q&As
+}`;
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80);
+}
+
+app.post('/api/blog/generate', async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    const { topic, category, county, city } = req.body as {
+      topic?: string; category?: string; county?: string; city?: string;
+    };
+    if (!topic || typeof topic !== 'string' || topic.trim().length < 3) {
+      return res.status(400).json({ error: 'A topic is required.' });
+    }
+    const cat = category && BLOG_CATEGORY_SLUGS.includes(category) ? category : 'treasure-hunting';
+    const locParts = [city, county].filter(Boolean).join(', ');
+    const userPrompt =
+      `Topic: ${topic.trim()}\n` +
+      `Category (slug): ${cat}\n` +
+      (locParts ? `Location focus: ${locParts}, California Central Valley\n` : '') +
+      `Write the article now as the JSON object.`;
+
+    const resp = await openai.chat.completions.create({
+      model: MODEL,
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 3500,
+      messages: [
+        { role: 'system', content: BLOG_SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt },
+      ],
+    });
+    const raw = resp.choices[0]?.message?.content ?? '{}';
+    let draft: any;
+    try {
+      draft = JSON.parse(raw);
+    } catch {
+      return res.status(502).json({ error: 'Model returned malformed JSON. Try again.' });
+    }
+    // Normalize + guarantee a valid slug and category.
+    draft.slug = slugify(draft.slug || draft.title || topic);
+    draft.category = cat;
+    draft.county = county || null;
+    draft.city = city || null;
+    if (!Array.isArray(draft.tags)) draft.tags = [];
+    if (!Array.isArray(draft.faq)) draft.faq = [];
+    const words = String(draft.body_md || '').trim().split(/\s+/).filter(Boolean).length;
+    draft.read_minutes = Math.max(1, Math.round(words / 200));
+    return res.json({ draft });
+  } catch (err: any) {
+    console.error('[blog/generate]', err?.message || err);
+    return res.status(500).json({ error: 'Article generation failed. Please try again.' });
+  }
+});
+
+app.post('/api/blog/save', async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    if (!hasServiceRole()) {
+      return res.status(503).json({ error: 'Blog service is not configured.' });
+    }
+    const p = (req.body?.post ?? {}) as Record<string, any>;
+    const title = typeof p.title === 'string' ? p.title.trim() : '';
+    if (!title) return res.status(400).json({ error: 'title is required.' });
+    const category = BLOG_CATEGORY_SLUGS.includes(p.category) ? p.category : 'treasure-hunting';
+    const status = p.status === 'published' ? 'published' : 'draft';
+    const slug = slugify(p.slug || title);
+    if (!slug) return res.status(400).json({ error: 'A valid slug is required.' });
+
+    const row: Record<string, any> = {
+      slug,
+      title,
+      seo_title: p.seo_title ?? null,
+      meta_description: p.meta_description ?? null,
+      excerpt: p.excerpt ?? null,
+      body_md: typeof p.body_md === 'string' ? p.body_md : '',
+      category,
+      tags: Array.isArray(p.tags) ? p.tags : [],
+      cover_image_url: p.cover_image_url ?? null,
+      cover_thumb_url: p.cover_thumb_url ?? null,
+      county: p.county ?? null,
+      city: p.city ?? null,
+      faq: Array.isArray(p.faq) ? p.faq : [],
+      author: typeof p.author === 'string' && p.author.trim() ? p.author.trim() : 'TreasureTrail',
+      read_minutes: typeof p.read_minutes === 'number' ? p.read_minutes : null,
+      status,
+      published_at: status === 'published' ? (p.published_at || new Date().toISOString()) : null,
+    };
+
+    const sb = getServiceClient();
+    const { data, error } = await sb
+      .from('blog_posts')
+      .upsert(row, { onConflict: 'slug' })
+      .select('id, slug, status')
+      .maybeSingle();
+    if (error) {
+      console.error('[blog/save] db error:', error.message);
+      return res.status(500).json({ error: error.message });
+    }
+    return res.json({ post: data });
+  } catch (err: any) {
+    console.error('[blog/save]', err?.message || err);
+    return res.status(500).json({ error: 'Saving the article failed.' });
   }
 });
 
@@ -1877,6 +2021,93 @@ if (fs.existsSync(distDir)) {
       console.error('[ai-server] OG injection failed:', err);
       return next(); // fall through to plain SPA fallback
     }
+  });
+
+  // Per-article Open Graph injection for /blog/:slug — same crawler-unfurl
+  // technique as /event/:id, but keyed on the post slug.
+  app.get('/blog/:slug', async (req, res, next) => {
+    const slug = req.params.slug;
+    // Skip the category index and any non-slug segment so we never intercept
+    // /blog/category/... (handled by the SPA fallback).
+    if (!slug || slug === 'category' || !/^[a-z0-9-]+$/.test(slug)) return next();
+    try {
+      const { data: post } = await ogSupabase
+        .from('blog_posts')
+        .select('slug, title, seo_title, meta_description, excerpt, cover_image_url')
+        .eq('slug', slug)
+        .eq('status', 'published')
+        .maybeSingle();
+
+      const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      if (!post) return res.send(indexHtml);
+
+      const description = (post.meta_description || post.excerpt || 'A treasure-hunting guide on TreasureTrail.')
+        .trim()
+        .slice(0, 200);
+      return res.send(
+        injectEventMeta(indexHtml, {
+          title: post.seo_title || post.title,
+          description,
+          image: post.cover_image_url || DEFAULT_OG_IMAGE,
+          url: `${SITE_ORIGIN}/blog/${post.slug}`,
+        }),
+      );
+    } catch (err) {
+      console.error('[ai-server] blog OG injection failed:', err);
+      return next();
+    }
+  });
+
+  // Dynamic sitemap.xml — static routes + every published blog post and
+  // category. Registered here (after the static index handlers but this route
+  // is defined BEFORE the express.static call below at module level via order)
+  // so it always wins over any stale public/sitemap.xml.
+  app.get('/sitemap.xml', async (_req, res) => {
+    const BLOG_CATEGORY_SLUGS = [
+      'estate-sales', 'garage-sales', 'flea-markets', 'auctions', 'collectibles',
+      'hot-wheels', 'vintage-toys', 'reselling', 'treasure-hunting', 'event-hosting',
+    ];
+    // Stable public routes. Mirrors (and supersedes) the old static
+    // public/sitemap.xml so deleting that file doesn't drop crawl coverage.
+    const STATIC_ROUTES = [
+      '/', '/home', '/events', '/map', '/marketplace', '/auctions',
+      '/community', '/pro', '/safety', '/privacy', '/terms', '/guidelines',
+      '/live', '/blog',
+    ];
+    const urls: { loc: string; lastmod?: string }[] = [
+      ...STATIC_ROUTES.map((r) => ({ loc: `${SITE_ORIGIN}${r === '/' ? '/' : r}` })),
+      ...BLOG_CATEGORY_SLUGS.map((c) => ({ loc: `${SITE_ORIGIN}/blog/category/${c}` })),
+    ];
+    try {
+      const { data: posts } = await ogSupabase
+        .from('blog_posts')
+        .select('slug, updated_at')
+        .eq('status', 'published')
+        .order('published_at', { ascending: false })
+        .limit(2000);
+      for (const p of posts ?? []) {
+        urls.push({ loc: `${SITE_ORIGIN}/blog/${p.slug}`, lastmod: p.updated_at });
+      }
+    } catch (err) {
+      console.error('[ai-server] sitemap blog query failed:', err);
+    }
+    const body =
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      urls
+        .map(
+          (u) =>
+            `  <url><loc>${htmlEscape(u.loc)}</loc>` +
+            (u.lastmod ? `<lastmod>${new Date(u.lastmod).toISOString().slice(0, 10)}</lastmod>` : '') +
+            `</url>`,
+        )
+        .join('\n') +
+      `\n</urlset>\n`;
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(body);
   });
 
   // SPA fallback: any non-API GET returns index.html so client-side routes

@@ -24,6 +24,11 @@ export function hasServiceRole(): boolean {
   return Boolean(SUPABASE_URL && SERVICE_ROLE_KEY);
 }
 
+/** Service-role Supabase client (bypasses RLS). Callers MUST gate access. */
+export function getServiceClient(): SupabaseClient {
+  return admin();
+}
+
 function admin(): SupabaseClient {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     throw new Error(

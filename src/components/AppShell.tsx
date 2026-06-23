@@ -51,6 +51,9 @@ const NotificationSettings = lazy(() => import('../pages/NotificationSettings'))
 const SearchResults = lazy(() => import('../pages/SearchResults'));
 const LocationSettings = lazy(() => import('../pages/LocationSettings'));
 const SmartScreenshotImport = lazy(() => import('../pages/SmartScreenshotImport'));
+const Blog = lazy(() => import('../pages/Blog'));
+const BlogArticle = lazy(() => import('../pages/BlogArticle'));
+const BlogCategory = lazy(() => import('../pages/BlogCategory'));
 
 function AuctionsPage() {
   const navigate = useNavigate();
@@ -82,6 +85,21 @@ function SafetyPage() {
 function BlockedUsersPage() {
   const navigate = useNavigate();
   return <BlockedUsers onBack={() => navigate('/profile')} />;
+}
+
+function BlogPage() {
+  const navigate = useNavigate();
+  return <Blog onBack={() => navigate('/')} />;
+}
+
+function BlogArticlePage() {
+  const navigate = useNavigate();
+  return <BlogArticle onBack={() => navigate('/blog')} />;
+}
+
+function BlogCategoryPage() {
+  const navigate = useNavigate();
+  return <BlogCategory onBack={() => navigate('/blog')} />;
 }
 
 function PrivacyPolicyPage() {
@@ -361,6 +379,11 @@ export default function AppShell() {
             <Route path="/notifications" element={<NotificationSettings />} />
             <Route path="/location-settings" element={<LocationSettings />} />
             <Route path="/import-screenshot" element={<SmartScreenshotImport />} />
+            {/* Blog / SEO content. /blog/category/:cat must precede /blog/:slug
+                so the literal "category" segment isn't swallowed as a slug. */}
+            <Route path="/blog" element={<BlogPage />} />
+            <Route path="/blog/category/:cat" element={<BlogCategoryPage />} />
+            <Route path="/blog/:slug" element={<BlogArticlePage />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsOfServicePage />} />
             <Route path="/guidelines" element={<CommunityGuidelinesPage />} />

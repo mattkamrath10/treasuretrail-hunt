@@ -24,6 +24,9 @@ const PUBLIC_SHARE_PREFIXES = [
   // Play Store listing URLs and in-review reviewers can open them directly.
   '/privacy',
   '/terms',
+  // Blog / SEO content is public so search engines, shared links, and guests
+  // can open articles and category pages without signing in.
+  '/blog',
 ];
 function isPublicSharePath(pathname: string): boolean {
   return PUBLIC_SHARE_PREFIXES.some((p) => pathname.startsWith(p));

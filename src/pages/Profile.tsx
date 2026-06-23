@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Camera, Heart, Upload, LogOut, Shield, ShieldOff, Users, CircleCheck as CheckCircle, Loader, Share2, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle, Bell, MapPin } from 'lucide-react';
+import { Camera, Heart, Upload, LogOut, Shield, ShieldOff, Users, CircleCheck as CheckCircle, Loader, Share2, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle, Bell, MapPin, BookOpen } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
@@ -203,6 +203,11 @@ export default function Profile() {
             <button onClick={() => navigate('/blocked')} style={settingsStyles.linkRow}>
               <ShieldOff size={16} style={{ color: 'var(--color-neutral-500)' }} />
               <span style={settingsStyles.linkText}>Blocked Users</span>
+              <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+            </button>
+            <button onClick={() => navigate('/blog')} style={settingsStyles.linkRow}>
+              <BookOpen size={16} style={{ color: 'var(--color-neutral-500)' }} />
+              <span style={settingsStyles.linkText}>Guides & Articles</span>
               <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
             </button>
             <button onClick={() => navigate('/review-mode')} style={settingsStyles.linkRow}>
