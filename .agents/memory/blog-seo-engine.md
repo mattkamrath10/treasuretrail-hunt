@@ -14,7 +14,7 @@ crawlable SEO surface.
 There is intentionally NO end-user insert/update/delete policy. All writes go
 through the server (`/api/blog/save`) using the service-role client
 (`getServiceClient()` in `server/grants.ts`), gated by `requireAdmin`
-(`profiles.role='admin'`, user "matt"). `/api/blog/generate` drafts an article
+(`profiles.role='admin'`). `/api/blog/generate` drafts an article
 with OpenAI and returns JSON only (never persists; key stays server-side).
 **Why:** content is curated, not user-generated, so the simplest secure model is
 "no self-serve write path" rather than per-row authoring RLS.

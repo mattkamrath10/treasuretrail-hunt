@@ -222,6 +222,13 @@ export default function Profile() {
                 <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
               </button>
             )}
+            {isAdmin && (
+              <button onClick={() => navigate('/admin/blog')} style={settingsStyles.linkRow}>
+                <BookOpen size={16} style={{ color: 'var(--color-neutral-500)' }} />
+                <span style={settingsStyles.linkText}>Article Composer</span>
+                <ChevronRight size={14} style={{ color: 'var(--color-neutral-400)', marginLeft: 'auto' }} />
+              </button>
+            )}
           </div>
           <button onClick={() => setShowDelete(true)} style={settingsStyles.deleteRow}>
             <Trash2 size={16} style={{ color: 'var(--color-error-600)' }} />

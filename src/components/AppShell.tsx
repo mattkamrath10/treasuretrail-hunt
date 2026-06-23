@@ -46,6 +46,7 @@ const TermsOfService = lazy(() => import('../pages/TermsOfService'));
 const CommunityGuidelines = lazy(() => import('../pages/CommunityGuidelines'));
 const ReviewMode = lazy(() => import('../pages/ReviewMode'));
 const AdminModeration = lazy(() => import('../pages/AdminModeration'));
+const AdminBlog = lazy(() => import('../pages/AdminBlog'));
 const BlockedUsers = lazy(() => import('../pages/BlockedUsers'));
 const NotificationSettings = lazy(() => import('../pages/NotificationSettings'));
 const SearchResults = lazy(() => import('../pages/SearchResults'));
@@ -125,6 +126,11 @@ function ReviewModePage() {
 function AdminModerationPage() {
   const navigate = useNavigate();
   return <AdminModeration onBack={() => navigate('/profile')} />;
+}
+
+function AdminBlogPage() {
+  const navigate = useNavigate();
+  return <AdminBlog onBack={() => navigate('/profile')} />;
 }
 
 function CommunityPage() {
@@ -389,6 +395,7 @@ export default function AppShell() {
             <Route path="/guidelines" element={<CommunityGuidelinesPage />} />
             <Route path="/review-mode" element={<ReviewModePage />} />
             <Route path="/admin/moderation" element={<AdminModerationPage />} />
+            <Route path="/admin/blog" element={<AdminBlogPage />} />
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/map" element={<EventsMap />} />

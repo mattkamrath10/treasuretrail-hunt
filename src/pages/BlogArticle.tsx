@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, ChevronRight } from 'lucide-react';
-import { fetchPostBySlug, categoryLabel, type BlogPost } from '../lib/blog';
+import { fetchPostBySlug, fetchRelatedPosts, categoryLabel, type BlogPost } from '../lib/blog';
 import { MobileDetailPage } from '../components/ui/MobileDetailPage';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { MediaFallback } from '../components/ui/MediaFallback';
@@ -21,13 +21,21 @@ export default function BlogArticle({ onBack }: { onBack: () => void }) {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [post, setPost] = useState<BlogPost | null>(null);
+  const [related, setRelated] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setRelated([]);
     fetchPostBySlug(slug ?? '')
-      .then((p) => active && setPost(p))
+      .then((p) => {
+        if (!active) return;
+        setPost(p);
+        if (p) {
+          fetchRelatedPosts(p.category, p.slug, 3).then((r) => active && setRelated(r));
+        }
+      })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
@@ -135,7 +143,7 @@ export default function BlogArticle({ onBack }: { onBack: () => void }) {
         ) : null}
 
         <div style={st.body}>
-          <Markdown source={post.body_md} />
+          <Markdown source={post.body_md} onNavigate={(p) => navigate(p)} />
         </div>
 
         {post.faq.length ? (
@@ -157,6 +165,25 @@ export default function BlogArticle({ onBack }: { onBack: () => void }) {
             See events <ChevronRight size={16} />
           </button>
         </div>
+
+        {related.length ? (
+          <section style={st.relatedSection}>
+            <h2 style={st.relatedHeading}>Related guides</h2>
+            <div style={st.relatedList}>
+              {related.map((r) => (
+                <button
+                  key={r.id}
+                  style={st.relatedItem}
+                  onClick={() => navigate(`/blog/${r.slug}`)}
+                >
+                  <span style={st.relatedCat}>{categoryLabel(r.category)}</span>
+                  <span style={st.relatedTitle}>{r.title}</span>
+                  <ChevronRight size={16} style={{ color: 'var(--color-neutral-400)', flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </article>
     </MobileDetailPage>
   );
@@ -231,4 +258,14 @@ const st: Record<string, CSSProperties> = {
     background: 'var(--color-primary-600, #c2410c)', color: '#fff',
     fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
   },
+  relatedSection: { borderTop: '1px solid var(--color-neutral-100)', paddingTop: 'var(--space-5)', marginTop: 'var(--space-6)' },
+  relatedHeading: { fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)', margin: '0 0 var(--space-3)' },
+  relatedList: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' },
+  relatedItem: {
+    display: 'flex', alignItems: 'center', gap: 'var(--space-2)', textAlign: 'left', width: '100%',
+    padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-100)', background: 'var(--color-neutral-0)', cursor: 'pointer',
+  },
+  relatedCat: { fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-primary-600, #c2410c)', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 },
+  relatedTitle: { fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-neutral-800)', lineHeight: 1.3, flex: 1, minWidth: 0 },
 };

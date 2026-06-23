@@ -150,6 +150,34 @@ export async function fetchPostBySlug(slug: string): Promise<BlogPost | null> {
   }
 }
 
+/** Other published posts in the same category (for internal linking). */
+export async function fetchRelatedPosts(
+  category: string,
+  excludeSlug: string,
+  limit = 3,
+): Promise<BlogPost[]> {
+  try {
+    const { data, error } = await supabase
+      .from('blog_posts')
+      .select(SELECT_COLS)
+      .eq('status', 'published')
+      .eq('category', category)
+      .neq('slug', excludeSlug)
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) {
+      if (isMissingSchema(error)) return [];
+      console.warn('[blog] fetchRelatedPosts failed:', error.message);
+      return [];
+    }
+    return (data ?? []).map(normalize);
+  } catch (e: any) {
+    console.warn('[blog] fetchRelatedPosts threw:', e?.message);
+    return [];
+  }
+}
+
 /** Estimate read time from markdown body (~200 wpm). */
 export function estimateReadMinutes(body: string): number {
   const words = (body || '').trim().split(/\s+/).filter(Boolean).length;

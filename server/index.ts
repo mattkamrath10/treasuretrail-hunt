@@ -1927,6 +1927,30 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 // =====================================================================
 const distDir = path.resolve(process.cwd(), 'dist');
 if (fs.existsSync(distDir)) {
+  // Google Search Console verification (HTML-tag method). When the
+  // GOOGLE_SITE_VERIFICATION secret is set we serve the homepage with the
+  // verification <meta> injected — registered BEFORE express.static so it
+  // wins over the raw index.html for `/`. (DNS TXT verification also works
+  // and needs no code; this is the convenience path.)
+  const GSC_VERIFICATION = (process.env.GOOGLE_SITE_VERIFICATION || '').trim();
+  if (GSC_VERIFICATION) {
+    const safe = GSC_VERIFICATION.replace(/"/g, '&quot;');
+    app.get('/', (_req, res, next) => {
+      try {
+        const html = fs
+          .readFileSync(path.join(distDir, 'index.html'), 'utf8')
+          .replace(
+            '</head>',
+            `<meta name="google-site-verification" content="${safe}" />\n</head>`,
+          );
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.send(html);
+      } catch {
+        return next();
+      }
+    });
+  }
   // Content-hashed assets (the JS/CSS/images Vite emits under /assets) are
   // immutable — their filename changes whenever their content does — so cache
   // them aggressively. index.html, by contrast, MUST never be cached: it is the

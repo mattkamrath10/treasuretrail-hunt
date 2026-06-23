@@ -10,7 +10,11 @@ import { type CSSProperties, type ReactNode, Fragment } from 'react';
  * Supported: # / ## / ### headings, paragraphs, `-`/`*` bullet lists,
  * `1.` ordered lists, blockquotes (`>`), **bold**, *italic*, [text](url) links.
  */
-function renderInline(text: string, keyBase: string): ReactNode[] {
+function renderInline(
+  text: string,
+  keyBase: string,
+  onNavigate?: (path: string) => void,
+): ReactNode[] {
   const nodes: ReactNode[] = [];
   // Tokenize on bold, italic, and links in one pass.
   const re = /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(\[([^\]]+)\]\(([^)\s]+)\))/g;
@@ -26,12 +30,24 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
     } else if (m[5]) {
       const href = m[7];
       const external = /^https?:\/\//i.test(href);
+      // Internal links (/path) navigate via the SPA router when a handler is
+      // provided — a plain <a href="/x"> would hard-reload, which breaks the
+      // Capacitor (HashRouter) webview. External links open in a new tab.
+      const internal = !external && href.startsWith('/');
       nodes.push(
         <a
           key={`${keyBase}-a${i}`}
           href={href}
           style={linkStyle}
           {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+          {...(internal && onNavigate
+            ? {
+                onClick: (e: React.MouseEvent) => {
+                  e.preventDefault();
+                  onNavigate(href);
+                },
+              }
+            : {})}
         >
           {m[6]}
         </a>,
@@ -44,7 +60,14 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
   return nodes;
 }
 
-export function Markdown({ source }: { source: string }) {
+export function Markdown({
+  source,
+  onNavigate,
+}: {
+  source: string;
+  onNavigate?: (path: string) => void;
+}) {
+  const inline = (text: string, keyBase: string) => renderInline(text, keyBase, onNavigate);
   const lines = (source || '').replace(/\r\n/g, '\n').split('\n');
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -62,7 +85,7 @@ export function Markdown({ source }: { source: string }) {
     const h = /^(#{1,3})\s+(.*)$/.exec(line);
     if (h) {
       const level = h[1].length;
-      const content = renderInline(h[2], `h${key}`);
+      const content = inline(h[2], `h${key}`);
       if (level === 1) blocks.push(<h2 key={key} style={h2Style}>{content}</h2>);
       else if (level === 2) blocks.push(<h3 key={key} style={h3Style}>{content}</h3>);
       else blocks.push(<h4 key={key} style={h4Style}>{content}</h4>);
@@ -81,7 +104,7 @@ export function Markdown({ source }: { source: string }) {
       blocks.push(
         <ul key={key} style={ulStyle}>
           {items.map((it, idx) => (
-            <li key={idx} style={liStyle}>{renderInline(it, `ul${key}-${idx}`)}</li>
+            <li key={idx} style={liStyle}>{inline(it, `ul${key}-${idx}`)}</li>
           ))}
         </ul>,
       );
@@ -99,7 +122,7 @@ export function Markdown({ source }: { source: string }) {
       blocks.push(
         <ol key={key} style={ulStyle}>
           {items.map((it, idx) => (
-            <li key={idx} style={liStyle}>{renderInline(it, `ol${key}-${idx}`)}</li>
+            <li key={idx} style={liStyle}>{inline(it, `ol${key}-${idx}`)}</li>
           ))}
         </ol>,
       );
@@ -116,7 +139,7 @@ export function Markdown({ source }: { source: string }) {
       }
       blocks.push(
         <blockquote key={key} style={quoteStyle}>
-          {renderInline(quote.join(' '), `q${key}`)}
+          {inline(quote.join(' '), `q${key}`)}
         </blockquote>,
       );
       key += 1;
@@ -137,7 +160,7 @@ export function Markdown({ source }: { source: string }) {
       i += 1;
     }
     blocks.push(
-      <p key={key} style={pStyle}>{renderInline(para.join(' '), `p${key}`)}</p>,
+      <p key={key} style={pStyle}>{inline(para.join(' '), `p${key}`)}</p>,
     );
     key += 1;
   }
