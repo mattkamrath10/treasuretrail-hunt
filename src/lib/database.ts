@@ -185,6 +185,116 @@ export async function fetchMarketplaceListings(limit = 20): Promise<MarketplaceL
   return withProfiles as MarketplaceListing[];
 }
 
+function normalizeSeoToken(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizePublicHandle(value: string): string {
+  return value
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export async function fetchPublicProfileByHandle(handle: string): Promise<Profile | null> {
+  const username = normalizePublicHandle(handle);
+  if (!username) return null;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .ilike('username', username)
+    .maybeSingle();
+  if (error) {
+    console.warn('[SUPABASE_QUERY_FAIL] table=profiles source=fetchPublicProfileByHandle', error.code, error.message);
+    return null;
+  }
+  return (data ?? null) as Profile | null;
+}
+
+export async function fetchMarketplaceListingById(id: string): Promise<MarketplaceListing | null> {
+  const normalized = id.trim();
+  if (!normalized) return null;
+  const { data, error } = await supabase
+    .from('marketplace_listings')
+    .select('*')
+    .eq('id', normalized)
+    .maybeSingle();
+  if (error) {
+    console.warn('[SUPABASE_QUERY_FAIL] table=marketplace_listings source=fetchMarketplaceListingById', error.code, error.message);
+    return null;
+  }
+  if (!data) return null;
+  const [withProfile] = await attachProfiles([data as Record<string, unknown>], 'seller_id');
+  return withProfile as MarketplaceListing;
+}
+
+export async function fetchMarketplaceListingsBySellerHandle(handle: string, limit = 12): Promise<MarketplaceListing[]> {
+  const profile = await fetchPublicProfileByHandle(handle);
+  if (!profile) return [];
+
+  const build = (withHidden: boolean) => {
+    let q = supabase
+      .from('marketplace_listings')
+      .select('*')
+      .eq('seller_id', profile.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (withHidden) q = q.eq('is_hidden', false);
+    return q;
+  };
+
+  let { data, error } = await build(true);
+  if (error?.code === '42703' && /is_hidden/i.test(error.message ?? '')) {
+    ({ data, error } = await build(false));
+  }
+  if (error) {
+    console.warn('[SUPABASE_QUERY_FAIL] table=marketplace_listings source=fetchMarketplaceListingsBySellerHandle', error.code, error.message);
+    return [];
+  }
+
+  const withProfiles = await attachProfiles(data ?? [], 'seller_id');
+  return withProfiles as MarketplaceListing[];
+}
+
+export async function fetchMarketplaceListingsByTerms(terms: string[], limit = 8): Promise<MarketplaceListing[]> {
+  const normalizedTerms = Array.from(new Set(terms.map(normalizeSeoToken).filter((term) => term.length > 1)));
+  if (normalizedTerms.length === 0) return [];
+
+  const listings = await fetchMarketplaceListings(Math.max(50, limit * 8));
+  return listings
+    .map((listing) => {
+      const haystack = normalizeSeoToken([
+        listing.title,
+        listing.description,
+        listing.category,
+        listing.condition,
+        listing.general_location,
+        listing.marketplace_found,
+        listing.profiles?.username,
+      ].filter(Boolean).join(' '));
+      const score = normalizedTerms.reduce((sum, term) => sum + (haystack.includes(term) ? 1 : 0), 0);
+      return { listing, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((item) => item.listing);
+}
+
+export async function fetchWantedMatches(terms: string[], limit = 8): Promise<MarketplaceListing[]> {
+  return fetchMarketplaceListingsByTerms(terms, limit);
+}
+
 export async function createMarketplaceListing(listing: {
   seller_id: string;
   title: string;

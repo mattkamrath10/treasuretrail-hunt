@@ -1,0 +1,145 @@
+{
+  "counties": [
+    {
+      "name": "Fresno County",
+      "slug": "fresno-county",
+      "cities": [
+        { "name": "Fresno", "slug": "fresno" },
+        { "name": "Clovis", "slug": "clovis" },
+        { "name": "Madera", "slug": "madera" }
+      ]
+    },
+    {
+      "name": "Tulare County",
+      "slug": "tulare-county",
+      "cities": [
+        { "name": "Visalia", "slug": "visalia" },
+        { "name": "Porterville", "slug": "porterville" },
+        { "name": "Tulare", "slug": "tulare" },
+        { "name": "Dinuba", "slug": "dinuba" }
+      ]
+    },
+    {
+      "name": "Kings County",
+      "slug": "kings-county",
+      "cities": [
+        { "name": "Hanford", "slug": "hanford" },
+        { "name": "Lemoore", "slug": "lemoore" }
+      ]
+    },
+    {
+      "name": "Kern County",
+      "slug": "kern-county",
+      "cities": [
+        { "name": "Bakersfield", "slug": "bakersfield" },
+        { "name": "Delano", "slug": "delano" }
+      ]
+    }
+  ],
+  "categories": [
+    { "slug": "estate-sales", "label": "Estate Sales" },
+    { "slug": "garage-sales", "label": "Garage Sales" },
+    { "slug": "yard-sales", "label": "Yard Sales" },
+    { "slug": "flea-markets", "label": "Flea Markets" },
+    { "slug": "auctions", "label": "Auctions" },
+    { "slug": "swap-meets", "label": "Swap Meets" },
+    { "slug": "collectibles", "label": "Collectibles" },
+    { "slug": "vintage-toys", "label": "Vintage Toys" },
+    { "slug": "hot-wheels", "label": "Hot Wheels" },
+    { "slug": "antiques", "label": "Antiques" },
+    { "slug": "reselling", "label": "Reselling" },
+    { "slug": "treasure-hunting", "label": "Treasure Hunting" }
+  ],
+  "seoPages": {
+    "wanted": [
+      {
+        "slug": "hot-wheels",
+        "countySlug": "fresno-county",
+        "citySlug": "fresno",
+        "categorySlug": "hot-wheels",
+        "similarSlugs": ["vintage-toys", "pyrex"]
+      },
+      {
+        "slug": "vintage-toys",
+        "countySlug": "fresno-county",
+        "citySlug": "clovis",
+        "categorySlug": "vintage-toys",
+        "similarSlugs": ["hot-wheels", "pyrex"]
+      },
+      {
+        "slug": "pyrex",
+        "countySlug": "tulare-county",
+        "citySlug": "visalia",
+        "categorySlug": "collectibles",
+        "similarSlugs": ["cast-iron", "antique-furniture"]
+      },
+      {
+        "slug": "cast-iron",
+        "countySlug": "kings-county",
+        "citySlug": "hanford",
+        "categorySlug": "antiques",
+        "similarSlugs": ["pyrex", "antique-furniture"]
+      },
+      {
+        "slug": "antique-furniture",
+        "countySlug": "kern-county",
+        "citySlug": "bakersfield",
+        "categorySlug": "antiques",
+        "similarSlugs": ["cast-iron", "pyrex"]
+      }
+    ],
+    "sellers": [
+      {
+        "slug": "johns-vintage-toys",
+        "countySlug": "fresno-county",
+        "citySlug": "fresno",
+        "categorySlugs": ["vintage-toys", "collectibles"],
+        "eventSlugs": ["fresno-estate-sale-weekend"]
+      },
+      {
+        "slug": "central-valley-picker",
+        "countySlug": "tulare-county",
+        "citySlug": "visalia",
+        "categorySlugs": ["antiques", "collectibles"],
+        "eventSlugs": ["visalia-auction-market"]
+      },
+      {
+        "slug": "fresno-collectibles",
+        "countySlug": "fresno-county",
+        "citySlug": "clovis",
+        "categorySlugs": ["collectibles", "antiques"],
+        "eventSlugs": ["fresno-estate-sale-weekend"]
+      }
+    ],
+    "events": [
+      {
+        "slug": "fresno-estate-sale-weekend",
+        "countySlug": "fresno-county",
+        "citySlug": "fresno",
+        "categorySlugs": ["estate-sales", "collectibles"],
+        "relatedEventSlugs": ["bakersfield-garage-sale-fair"]
+      },
+      {
+        "slug": "bakersfield-garage-sale-fair",
+        "countySlug": "kern-county",
+        "citySlug": "bakersfield",
+        "categorySlugs": ["garage-sales", "yard-sales"],
+        "relatedEventSlugs": ["kern-county-swap-meet"]
+      },
+      {
+        "slug": "visalia-auction-market",
+        "countySlug": "tulare-county",
+        "citySlug": "visalia",
+        "categorySlugs": ["auctions", "estate-sales"],
+        "relatedEventSlugs": ["kern-county-swap-meet"]
+      },
+      {
+        "slug": "kern-county-swap-meet",
+        "countySlug": "kern-county",
+        "citySlug": "bakersfield",
+        "categorySlugs": ["swap-meets", "collectibles"],
+        "relatedEventSlugs": ["bakersfield-garage-sale-fair"]
+      }
+    ]
+  }
+}

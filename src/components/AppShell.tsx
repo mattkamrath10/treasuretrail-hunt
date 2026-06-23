@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import BottomNav from './BottomNav';
 import OfflineBanner from './OfflineBanner';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +51,14 @@ const NotificationSettings = lazy(() => import('../pages/NotificationSettings'))
 const SearchResults = lazy(() => import('../pages/SearchResults'));
 const LocationSettings = lazy(() => import('../pages/LocationSettings'));
 const SmartScreenshotImport = lazy(() => import('../pages/SmartScreenshotImport'));
+const SeoPreview = lazy(() => import('../pages/SeoPreview'));
+const PublicSeoRoute = lazy(() => import('../pages/PublicSeoRoute'));
+
+const UUID_ROUTE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuidRoute(value?: string) {
+  return !!value && UUID_ROUTE_RE.test(value);
+}
 
 function AuctionsPage() {
   const navigate = useNavigate();
@@ -147,6 +155,11 @@ function WantedFormPage() {
   return <WantedForm onBack={() => navigate('/sell')} />;
 }
 
+function WantedHybridPage() {
+  const { id } = useParams<{ id: string }>();
+  return isUuidRoute(id) ? <WantedDetail /> : <PublicSeoRoute kind="wanted" />;
+}
+
 function LiveHubPage() {
   const navigate = useNavigate();
   return <LiveHub onBack={() => navigate('/')} />;
@@ -175,6 +188,35 @@ function SellerDemandPage() {
 function EventDetailPage() {
   const navigate = useNavigate();
   return <EventDetail onBack={() => navigate('/events')} />;
+}
+
+function EventHybridPage() {
+  const { id } = useParams<{ id: string }>();
+  return isUuidRoute(id) ? <EventDetailPage /> : <PublicSeoRoute kind="event" />;
+}
+
+function SeoPreviewPage() {
+  return <SeoPreview />;
+}
+
+function CountySeoPage() {
+  return <PublicSeoRoute kind="county" />;
+}
+
+function CitySeoPage() {
+  return <PublicSeoRoute kind="city" />;
+}
+
+function CityCategorySeoPage() {
+  return <PublicSeoRoute kind="cityCategory" />;
+}
+
+function CategorySeoPage() {
+  return <PublicSeoRoute kind="category" />;
+}
+
+function SellerSeoPage() {
+  return <PublicSeoRoute kind="seller" />;
 }
 
 function BusinessDetailPage() {
@@ -344,7 +386,12 @@ export default function AppShell() {
             <Route path="/sell" element={<SellPage />} />
             <Route path="/sell/wanted" element={<WantedFormPage />} />
             <Route path="/wanted" element={<WantedRedirect />} />
-            <Route path="/wanted/:id" element={<WantedDetail />} />
+            <Route path="/wanted/:id" element={<WantedHybridPage />} />
+            <Route path="/seo-preview" element={<SeoPreviewPage />} />
+            <Route path="/ca/:county" element={<CountySeoPage />} />
+            <Route path="/ca/:county/:city" element={<CitySeoPage />} />
+            <Route path="/ca/:county/:city/:category" element={<CityCategorySeoPage />} />
+            <Route path="/category/:category" element={<CategorySeoPage />} />
             <Route path="/rare-radar" element={<RareRadar />} />
             <Route path="/auctions" element={<AuctionsPage />} />
             <Route path="/messages" element={<MessagesPage />} />
@@ -377,7 +424,8 @@ export default function AppShell() {
             <Route path="/seller/demand" element={monetizationHidden() ? <Navigate to="/seller" replace /> : <SellerDemandPage />} />
             <Route path="/seller/new" element={<SellerEventFormPage />} />
             <Route path="/seller/event/:id" element={<SellerEventFormPage />} />
-            <Route path="/event/:id" element={<EventDetailPage />} />
+            <Route path="/seller/:handle" element={<SellerSeoPage />} />
+            <Route path="/event/:id" element={<EventHybridPage />} />
             <Route path="/business/new" element={<BusinessFormPage />} />
             <Route path="/business/:id/edit" element={<BusinessFormPage />} />
             <Route path="/business/:id" element={<BusinessDetailPage />} />
