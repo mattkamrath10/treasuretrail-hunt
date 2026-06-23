@@ -383,3 +383,9 @@ id = "sLvCgFA9YGF6tODJ53BWA"
 uri = "file://downloads/TreasureTrail-v1.1.5-20260623.tar.gz"
 type = "unspecified"
 title = "TreasureTrail-v1.1.5-20260623.tar.gz"
+
+[[outputs]]
+id = "3aEx9IolknbjRkOeO0ApU"
+uri = "file://downloads/TreasureTrail-Android-v1.1.5.zip"
+type = "unspecified"
+title = "TreasureTrail-Android-v1.1.5.zip"
