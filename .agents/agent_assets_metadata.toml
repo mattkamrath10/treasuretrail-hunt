@@ -371,3 +371,9 @@ id = "RGeSeAVkd0py743fJb96h"
 uri = "file://TreasureTrail-FullSource-20260622.zip"
 type = "unspecified"
 title = "TreasureTrail Full Source v1.1.3 (Android-ready, June 22) — includes synced web files"
+
+[[outputs]]
+id = "m-i2qXpq2-AeJjPbHwMK1"
+uri = "file://downloads/treasuretrail-source.tar.gz"
+type = "unspecified"
+title = "TreasureTrail source (v1.1.5) — for Android Studio"
