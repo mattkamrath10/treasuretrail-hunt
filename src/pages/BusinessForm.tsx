@@ -1055,7 +1055,7 @@ const s: Record<string, React.CSSProperties> = {
   header: {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 14px 12px',
+    padding: '12px 14px',
     background: 'var(--color-bg, #fff)',
     borderBottom: '1px solid var(--color-neutral-200, #e5e7eb)',
   },

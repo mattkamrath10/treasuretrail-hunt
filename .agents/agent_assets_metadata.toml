@@ -371,9 +371,3 @@ id = "RGeSeAVkd0py743fJb96h"
 uri = "file://TreasureTrail-FullSource-20260622.zip"
 type = "unspecified"
 title = "TreasureTrail Full Source v1.1.3 (Android-ready, June 22) — includes synced web files"
-
-[[outputs]]
-id = "5DpRdfbVuPXl00JoKLqSM"
-uri = "file://TreasureTrail-CurrentSource-20260623.zip"
-type = "unspecified"
-title = "TreasureTrail CURRENT Source (for Codex) — June 23, no secrets"

@@ -15,9 +15,6 @@ import { readPendingIntent } from './lib/pendingIntent';
 // listed here already tolerates a null `user` and handles its own
 // "Sign in to …" prompts for write actions.
 const PUBLIC_SHARE_PREFIXES = [
-  '/seo-preview',
-  '/ca/',
-  '/category/',
   '/u/', '/profile/',
   '/event/',
   '/wanted/',
@@ -28,20 +25,7 @@ const PUBLIC_SHARE_PREFIXES = [
   '/privacy',
   '/terms',
 ];
-const PRIVATE_SELLER_PREFIXES = [
-  '/seller/analytics',
-  '/seller/demand',
-  '/seller/new',
-  '/seller/event',
-];
 function isPublicSharePath(pathname: string): boolean {
-  if (pathname.startsWith('/seller/')) {
-    // Match on whole path segments so a public handle that merely *starts*
-    // with a private word (e.g. `/seller/new-deals`) is not wrongly gated.
-    return !PRIVATE_SELLER_PREFIXES.some(
-      (p) => pathname === p || pathname.startsWith(p + '/'),
-    );
-  }
   return PUBLIC_SHARE_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
