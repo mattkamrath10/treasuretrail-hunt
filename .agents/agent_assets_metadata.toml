@@ -389,3 +389,9 @@ id = "3aEx9IolknbjRkOeO0ApU"
 uri = "file://downloads/TreasureTrail-Android-v1.1.5.zip"
 type = "unspecified"
 title = "TreasureTrail-Android-v1.1.5.zip"
+
+[[outputs]]
+id = "ABRceDrTy8Nk6xG3UicOu"
+uri = "file://downloads/TreasureTrail-PlayStore-Icon-512.png"
+type = "image"
+title = "TreasureTrail Play Store Icon (512×512)"
