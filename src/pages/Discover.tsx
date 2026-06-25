@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
-import { Search, MapPin, Navigation, Users, X, Home, Tag, Gavel, Shirt, Armchair, DollarSign, Tv, ShoppingBag, Radio, ExternalLink, type LucideIcon } from 'lucide-react';
+import { Search, MapPin, Navigation, Users, X, Home, Tag, Gavel, Shirt, Armchair, DollarSign, type LucideIcon } from 'lucide-react';
 import { fetchPublishedEvents, fetchProHolderIds, fetchFeaturedItemsForEvents, type EventRow, type EventFeaturedItem } from '../lib/events';
 import { fetchPublishedBusinesses, type BusinessRow } from '../lib/businesses';
 import { fetchOpenWantedItems, type WantedItemRow } from '../lib/wanted';
@@ -28,6 +28,7 @@ import { FeaturedSlideshow } from '../components/discover/FeaturedSlideshow';
 import {
   buildFeaturedSlides,
   buildRemoteBoostedSlides,
+  buildFlashFindsCarousel,
   composeSlideshow,
   buildCategoryRows,
   type FeaturedFilter,
@@ -196,6 +197,20 @@ export default function Discover() {
     [events, businesses, wanted, finds, eventItems, proHolders, findCoords, savedLocation, nearRadius, query],
   );
 
+  // Flash Finds carousel shown in the hub: find-kind slides (community finds +
+  // featured collectibles), boost-first, location-area first then everything
+  // else (never hard-dropped by radius). Independent of the search box/chips.
+  const flashFinds = useMemo(
+    () => buildFlashFindsCarousel({
+      events, businesses, wanted, finds, eventItems, proHolders, findCoords,
+      location: savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null,
+      radiusMi: nearRadius,
+      query: '',
+      filter: 'all',
+    }),
+    [events, businesses, wanted, finds, eventItems, proHolders, findCoords, savedLocation, nearRadius],
+  );
+
   // Rotation seed advances over time so multi-collectible events show different
   // items across visits (Decision 4). Computed once per mount.
   const rotation = useMemo(() => Math.floor(Date.now() / SLIDESHOW_ROTATE_MS), []);
@@ -264,7 +279,7 @@ export default function Discover() {
 
       <LocationControl radius={nearRadius} />
 
-      <CategoryHub />
+      <CategoryHub findSlides={flashFinds} onOpen={(to) => navigate(to)} />
 
       <div className="tt-hscroll" style={s.chips}>
         {FILTERS.map((f) => {
@@ -448,7 +463,7 @@ function LocationControl({ radius }: { radius: number }) {
 
 /* ---------- Browse-by-category hub ---------- */
 
-type BrowseItem = { label: string; icon: LucideIcon; q?: string; url?: string };
+type BrowseItem = { label: string; icon: LucideIcon; q?: string };
 
 const EVENT_BROWSE: BrowseItem[] = [
   { label: 'Estate Sales', q: 'estate sale', icon: Home },
@@ -460,29 +475,16 @@ const BUSINESS_BROWSE: BrowseItem[] = [
   { label: 'Antique Shops', q: 'antique', icon: Armchair },
   { label: 'Pawn Shops', q: 'pawn shop', icon: DollarSign },
 ];
-const LIVE_SHOWS: BrowseItem[] = [
-  { label: 'Whatnot', url: 'https://www.whatnot.com', icon: Tv },
-  { label: 'Poshmark Live', url: 'https://poshmark.com/posh-shows', icon: ShoppingBag },
-  { label: 'eBay Live', url: 'https://www.ebay.com/live', icon: Radio },
-];
 
-function openExternal(url: string) {
-  try {
-    const u = new URL(url);
-    if (u.protocol === 'http:' || u.protocol === 'https:') {
-      window.open(u.toString(), '_blank', 'noopener,noreferrer');
-    }
-  } catch { /* ignore malformed url */ }
-}
-
-function CategoryHub() {
+function CategoryHub({
+  findSlides, onOpen,
+}: { findSlides: FeaturedSlide[]; onOpen: (to: string) => void }) {
   const goSearch = useGlobalSearch();
 
-  const renderGroup = (title: string, items: BrowseItem[], live?: boolean) => (
+  const renderGroup = (title: string, items: BrowseItem[]) => (
     <div style={s.hubGroup} key={title}>
       <div style={s.hubGroupHead}>
         <span style={s.hubGroupTitle}>{title}</span>
-        {live && <span style={s.hubLiveTag}>External</span>}
       </div>
       <div style={s.hubGrid}>
         {items.map((it) => {
@@ -490,13 +492,12 @@ function CategoryHub() {
           return (
             <button
               key={it.label}
-              style={{ ...s.hubCard, ...(live ? s.hubCardLive : null) }}
-              onClick={() => (it.url ? openExternal(it.url) : goSearch(it.q ?? it.label))}
-              aria-label={it.url ? `Open ${it.label}` : `Browse ${it.label}`}
+              style={s.hubCard}
+              onClick={() => goSearch(it.q ?? it.label)}
+              aria-label={`Browse ${it.label}`}
             >
               <span style={s.hubIcon}><Icon size={18} /></span>
               <span style={s.hubLabel}>{it.label}</span>
-              {it.url && <ExternalLink size={11} style={s.hubExt} />}
             </button>
           );
         })}
@@ -509,7 +510,49 @@ function CategoryHub() {
       <h2 style={s.hubTitle}>What are you looking for?</h2>
       {renderGroup('Local events', EVENT_BROWSE)}
       {renderGroup('Local businesses', BUSINESS_BROWSE)}
-      {renderGroup('Live shows', LIVE_SHOWS, true)}
+      {findSlides.length > 0 && (
+        <div style={s.hubGroup}>
+          <div style={s.hubGroupHead}>
+            <span style={s.hubGroupTitle}>Flash Finds</span>
+          </div>
+          <div className="tt-hscroll" style={s.hubFindScroll}>
+            {findSlides.map((sl) => (
+              <button
+                key={sl.id}
+                style={s.rowCard}
+                onClick={() => onOpen(sl.to)}
+                aria-label={`Open ${sl.title}`}
+              >
+                <div style={s.rowCardImg}>
+                  <ImageWithFade
+                    src={sl.image}
+                    fallbackSrc={sl.imageFull}
+                    alt={sl.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    fallback={
+                      <MediaFallback
+                        kind={sl.fallbackKind}
+                        category={sl.fallbackCategory ?? undefined}
+                        seed={sl.id}
+                      />
+                    }
+                  />
+                  {sl.badge && <span style={s.rowCardBadge}>{sl.badge}</span>}
+                  {sl.distanceMi != null && (
+                    <span style={s.cardDistance}>
+                      <Navigation size={9} /> {sl.distanceMi < 10 ? sl.distanceMi.toFixed(1) : Math.round(sl.distanceMi)} mi
+                    </span>
+                  )}
+                </div>
+                <div style={s.rowCardBody}>
+                  <div style={s.rowCardTitle}>{sl.title}</div>
+                  <div style={s.rowCardMeta}>{sl.subtitle}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -659,11 +702,11 @@ const s: Record<string, CSSProperties> = {
     fontSize: 12, fontWeight: 800, color: 'var(--tt-text-muted)',
     textTransform: 'uppercase', letterSpacing: '0.05em',
   },
-  hubLiveTag: {
-    fontSize: 10, fontWeight: 800, color: 'var(--tt-accent)',
-    background: 'var(--tt-accent-soft)', padding: '2px 8px', borderRadius: 999,
-  },
   hubGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 },
+  hubFindScroll: {
+    display: 'flex', flexWrap: 'nowrap', gap: 12,
+    paddingBottom: 4, overflowX: 'auto',
+  },
   hubCard: {
     position: 'relative',
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -672,14 +715,12 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer', textAlign: 'center', color: 'var(--tt-text)',
     WebkitTapHighlightColor: 'transparent',
   },
-  hubCardLive: { background: 'var(--tt-surface-2)' },
   hubIcon: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     width: 40, height: 40, borderRadius: 12,
     background: 'var(--tt-accent-soft)', color: 'var(--tt-accent)',
   },
   hubLabel: { fontSize: 12, fontWeight: 700, color: 'var(--tt-text)', lineHeight: 1.2 },
-  hubExt: { position: 'absolute', top: 8, right: 8, color: 'var(--tt-text-dim)' },
 
   featuredHead: { padding: '18px 16px 10px' },
   featuredTitle: { margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },

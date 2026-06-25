@@ -379,6 +379,39 @@ export function buildRemoteBoostedSlides(input: BuildFeaturedInput): FeaturedSli
   return rankSlides(slides, query, filter, true);
 }
 
+/**
+ * Flash Finds carousel for the Discover hub. Returns only `find`-kind slides
+ * (community flash finds plus featured collectibles uploaded inside events),
+ * ranked boost-first (boosted → featured → everything else). Unlike
+ * buildFeaturedSlides this does NOT hard-drop items beyond the radius: when a
+ * location is set, in-area finds float to the front within each priority bucket
+ * and all other finds follow, so the carousel always has content to scroll.
+ */
+export function buildFlashFindsCarousel(input: BuildFeaturedInput, cap = 20): FeaturedSlide[] {
+  const { location, radiusMi } = input;
+  const slides = normalizeAll(input).filter((sl) => sl.kind === 'find');
+  if (location) {
+    for (const sl of slides) {
+      if (sl.lat != null && sl.lng != null) {
+        sl.distanceMi = haversineMiles(location, { lat: sl.lat, lng: sl.lng });
+      }
+    }
+  }
+  slides.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    if (location) {
+      const aNear = a.distanceMi != null && a.distanceMi <= radiusMi ? 0 : 1;
+      const bNear = b.distanceMi != null && b.distanceMi <= radiusMi ? 0 : 1;
+      if (aNear !== bNear) return aNear - bNear;
+      const da = a.distanceMi ?? Infinity;
+      const db = b.distanceMi ?? Infinity;
+      if (da !== db) return da - db;
+    }
+    return b.sortTime - a.sortTime;
+  });
+  return slides.slice(0, cap);
+}
+
 /* ------------------------------------------------------------------ */
 /* Slideshow composition (Decision 2 + 4)                             */
 /* ------------------------------------------------------------------ */
