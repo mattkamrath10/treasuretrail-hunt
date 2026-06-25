@@ -371,3 +371,9 @@ id = "RGeSeAVkd0py743fJb96h"
 uri = "file://TreasureTrail-FullSource-20260622.zip"
 type = "unspecified"
 title = "TreasureTrail Full Source v1.1.3 (Android-ready, June 22) — includes synced web files"
+
+[[outputs]]
+id = "5wSSRRC95zqHegIa1pyr6"
+uri = "file://exports/TreasureTrail_Monthly_Cost_Summary_May_2026.pdf"
+type = "pdf"
+title = "TreasureTrail Monthly Cost Summary (May 2026)"
