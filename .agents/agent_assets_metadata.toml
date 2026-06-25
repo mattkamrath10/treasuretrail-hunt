@@ -377,3 +377,9 @@ id = "5wSSRRC95zqHegIa1pyr6"
 uri = "file://exports/TreasureTrail_Monthly_Cost_Summary_May_2026.pdf"
 type = "pdf"
 title = "Download: TreasureTrail Monthly Cost Summary (May 2026)"
+
+[[outputs]]
+id = "FdcVR5K3q_jxPPhHe_bIK"
+uri = "file://exports/TreasureTrail_Promo_2026.mp4"
+type = "video"
+title = "TreasureTrail Promo Video (32s)"
