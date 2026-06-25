@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
-import { Search, MapPin, Navigation, Users, X, Home, Tag, Gavel, Shirt, Armchair, DollarSign, type LucideIcon } from 'lucide-react';
+import { Search, MapPin, Navigation, Users, X } from 'lucide-react';
 import { fetchPublishedEvents, fetchProHolderIds, fetchFeaturedItemsForEvents, type EventRow, type EventFeaturedItem } from '../lib/events';
 import { fetchPublishedBusinesses, type BusinessRow } from '../lib/businesses';
 import { fetchOpenWantedItems, type WantedItemRow } from '../lib/wanted';
@@ -28,7 +28,6 @@ import { FeaturedSlideshow } from '../components/discover/FeaturedSlideshow';
 import {
   buildFeaturedSlides,
   buildRemoteBoostedSlides,
-  buildFlashFindsCarousel,
   composeSlideshow,
   buildCategoryRows,
   type FeaturedFilter,
@@ -197,20 +196,6 @@ export default function Discover() {
     [events, businesses, wanted, finds, eventItems, proHolders, findCoords, savedLocation, nearRadius, query],
   );
 
-  // Flash Finds carousel shown in the hub: find-kind slides (community finds +
-  // featured collectibles), boost-first, location-area first then everything
-  // else (never hard-dropped by radius). Independent of the search box/chips.
-  const flashFinds = useMemo(
-    () => buildFlashFindsCarousel({
-      events, businesses, wanted, finds, eventItems, proHolders, findCoords,
-      location: savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null,
-      radiusMi: nearRadius,
-      query: '',
-      filter: 'all',
-    }),
-    [events, businesses, wanted, finds, eventItems, proHolders, findCoords, savedLocation, nearRadius],
-  );
-
   // Rotation seed advances over time so multi-collectible events show different
   // items across visits (Decision 4). Computed once per mount.
   const rotation = useMemo(() => Math.floor(Date.now() / SLIDESHOW_ROTATE_MS), []);
@@ -273,13 +258,9 @@ export default function Discover() {
       </header>
 
       <section style={s.introHead}>
-        <h2 style={s.introTitle}>Find treasure near you</h2>
-        <p style={s.introSub}>Give us your location to find events and items close to you.</p>
+        <h2 style={s.introTitle}>What are you looking for today?</h2>
+        <p style={s.introSub}>Browse events, Flash Finds, businesses, and more.</p>
       </section>
-
-      <LocationControl radius={nearRadius} />
-
-      <CategoryHub findSlides={flashFinds} onOpen={(to) => navigate(to)} />
 
       <div className="tt-hscroll" style={s.chips}>
         {FILTERS.map((f) => {
@@ -302,6 +283,8 @@ export default function Discover() {
           <span style={s.chipSoon}>Soon</span>
         </button>
       </div>
+
+      <LocationControl radius={nearRadius} />
 
       <section style={s.featuredHead}>
         <div style={{ minWidth: 0 }}>
@@ -461,102 +444,6 @@ function LocationControl({ radius }: { radius: number }) {
   );
 }
 
-/* ---------- Browse-by-category hub ---------- */
-
-type BrowseItem = { label: string; icon: LucideIcon; q?: string };
-
-const EVENT_BROWSE: BrowseItem[] = [
-  { label: 'Estate Sales', q: 'estate sale', icon: Home },
-  { label: 'Yard Sales', q: 'yard sale', icon: Tag },
-  { label: 'Online Auctions', q: 'auction', icon: Gavel },
-];
-const BUSINESS_BROWSE: BrowseItem[] = [
-  { label: 'Thrift Stores', q: 'thrift store', icon: Shirt },
-  { label: 'Antique Shops', q: 'antique', icon: Armchair },
-  { label: 'Pawn Shops', q: 'pawn shop', icon: DollarSign },
-];
-
-function CategoryHub({
-  findSlides, onOpen,
-}: { findSlides: FeaturedSlide[]; onOpen: (to: string) => void }) {
-  const goSearch = useGlobalSearch();
-
-  const renderGroup = (title: string, items: BrowseItem[]) => (
-    <div style={s.hubGroup} key={title}>
-      <div style={s.hubGroupHead}>
-        <span style={s.hubGroupTitle}>{title}</span>
-      </div>
-      <div style={s.hubGrid}>
-        {items.map((it) => {
-          const Icon = it.icon;
-          return (
-            <button
-              key={it.label}
-              style={s.hubCard}
-              onClick={() => goSearch(it.q ?? it.label)}
-              aria-label={`Browse ${it.label}`}
-            >
-              <span style={s.hubIcon}><Icon size={18} /></span>
-              <span style={s.hubLabel}>{it.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  return (
-    <section style={s.hub}>
-      <h2 style={s.hubTitle}>What are you looking for?</h2>
-      {renderGroup('Local events', EVENT_BROWSE)}
-      {renderGroup('Local businesses', BUSINESS_BROWSE)}
-      {findSlides.length > 0 && (
-        <div style={s.hubGroup}>
-          <div style={s.hubGroupHead}>
-            <span style={s.hubGroupTitle}>Flash Finds</span>
-          </div>
-          <div className="tt-hscroll" style={s.hubFindScroll}>
-            {findSlides.map((sl) => (
-              <button
-                key={sl.id}
-                style={s.rowCard}
-                onClick={() => onOpen(sl.to)}
-                aria-label={`Open ${sl.title}`}
-              >
-                <div style={s.rowCardImg}>
-                  <ImageWithFade
-                    src={sl.image}
-                    fallbackSrc={sl.imageFull}
-                    alt={sl.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    fallback={
-                      <MediaFallback
-                        kind={sl.fallbackKind}
-                        category={sl.fallbackCategory ?? undefined}
-                        seed={sl.id}
-                      />
-                    }
-                  />
-                  {sl.badge && <span style={s.rowCardBadge}>{sl.badge}</span>}
-                  {sl.distanceMi != null && (
-                    <span style={s.cardDistance}>
-                      <Navigation size={9} /> {sl.distanceMi < 10 ? sl.distanceMi.toFixed(1) : Math.round(sl.distanceMi)} mi
-                    </span>
-                  )}
-                </div>
-                <div style={s.rowCardBody}>
-                  <div style={s.rowCardTitle}>{sl.title}</div>
-                  <div style={s.rowCardMeta}>{sl.subtitle}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
 /* ---------- Grid card ---------- */
 
 function FeaturedGridCard({ slide, onClick }: { slide: FeaturedSlide; onClick: () => void }) {
@@ -692,35 +579,6 @@ const s: Record<string, CSSProperties> = {
   introHead: { padding: '16px 16px 4px' },
   introTitle: { margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },
   introSub: { margin: '4px 0 0', fontSize: 13, color: 'var(--tt-text-muted)' },
-
-  // Browse-by-category hub
-  hub: { padding: '6px 16px 4px' },
-  hubTitle: { margin: '6px 0 12px', fontSize: 18, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },
-  hubGroup: { marginBottom: 14 },
-  hubGroupHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  hubGroupTitle: {
-    fontSize: 12, fontWeight: 800, color: 'var(--tt-text-muted)',
-    textTransform: 'uppercase', letterSpacing: '0.05em',
-  },
-  hubGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 },
-  hubFindScroll: {
-    display: 'flex', flexWrap: 'nowrap', gap: 12,
-    paddingBottom: 4, overflowX: 'auto',
-  },
-  hubCard: {
-    position: 'relative',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-    padding: '14px 8px', minHeight: 88,
-    background: 'var(--tt-surface)', border: '1px solid var(--tt-border)', borderRadius: 14,
-    cursor: 'pointer', textAlign: 'center', color: 'var(--tt-text)',
-    WebkitTapHighlightColor: 'transparent',
-  },
-  hubIcon: {
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    width: 40, height: 40, borderRadius: 12,
-    background: 'var(--tt-accent-soft)', color: 'var(--tt-accent)',
-  },
-  hubLabel: { fontSize: 12, fontWeight: 700, color: 'var(--tt-text)', lineHeight: 1.2 },
 
   featuredHead: { padding: '18px 16px 10px' },
   featuredTitle: { margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },

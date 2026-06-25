@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { GuestOverlay } from '../components/GuestGate';
 import { PageScroll } from '../components/ui/PageScroll';
 import { supabase } from '../lib/supabase';
-import { compressImage, toThumbUrl } from '../lib/imageCompress';
+import { compressImage } from '../lib/imageCompress';
 import { ProBadge } from '../components/ui/ProBadge';
 import { UpgradeProCard } from '../components/ui/UpgradeProCard';
 import { isProUser } from '../lib/entitlements';
@@ -516,8 +516,7 @@ function ActivitySection() {
                 >
                   <div style={styles.savedThumb}>
                     <ImageWithFade
-                      src={toThumbUrl(item.imageUrl) ?? item.imageUrl}
-                      fallbackSrc={item.imageUrl}
+                      src={item.imageUrl}
                       alt={item.title}
                       fallback={<MediaFallback kind={fbKind} seed={item.id} compact />}
                     />
