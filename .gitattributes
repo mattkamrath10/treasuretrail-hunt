@@ -1,2 +1,0 @@
-downloads/treasuretrail-source.tar.gz filter=lfs diff=lfs merge=lfs -text
-downloads/TreasureTrail-v1.1.5-20260623.tar.gz filter=lfs diff=lfs merge=lfs -text

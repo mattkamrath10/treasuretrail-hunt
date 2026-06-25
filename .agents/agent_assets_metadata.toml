@@ -371,27 +371,3 @@ id = "RGeSeAVkd0py743fJb96h"
 uri = "file://TreasureTrail-FullSource-20260622.zip"
 type = "unspecified"
 title = "TreasureTrail Full Source v1.1.3 (Android-ready, June 22) — includes synced web files"
-
-[[outputs]]
-id = "m-i2qXpq2-AeJjPbHwMK1"
-uri = "file://downloads/treasuretrail-source.tar.gz"
-type = "unspecified"
-title = "TreasureTrail source (v1.1.5) — for Android Studio"
-
-[[outputs]]
-id = "sLvCgFA9YGF6tODJ53BWA"
-uri = "file://downloads/TreasureTrail-v1.1.5-20260623.tar.gz"
-type = "unspecified"
-title = "TreasureTrail-v1.1.5-20260623.tar.gz"
-
-[[outputs]]
-id = "3aEx9IolknbjRkOeO0ApU"
-uri = "file://downloads/TreasureTrail-Android-v1.1.5.zip"
-type = "unspecified"
-title = "TreasureTrail-Android-v1.1.5.zip"
-
-[[outputs]]
-id = "ABRceDrTy8Nk6xG3UicOu"
-uri = "file://downloads/TreasureTrail-PlayStore-Icon-512.png"
-type = "image"
-title = "TreasureTrail Play Store Icon (512×512)"
