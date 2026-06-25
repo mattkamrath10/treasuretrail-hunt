@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
-import { Search, MapPin, Navigation, Users, X } from 'lucide-react';
+import { Search, MapPin, Navigation, Users, X, Home, Tag, Gavel, Shirt, Armchair, DollarSign, Tv, ShoppingBag, Radio, ExternalLink, type LucideIcon } from 'lucide-react';
 import { fetchPublishedEvents, fetchProHolderIds, fetchFeaturedItemsForEvents, type EventRow, type EventFeaturedItem } from '../lib/events';
 import { fetchPublishedBusinesses, type BusinessRow } from '../lib/businesses';
 import { fetchOpenWantedItems, type WantedItemRow } from '../lib/wanted';
@@ -258,9 +258,13 @@ export default function Discover() {
       </header>
 
       <section style={s.introHead}>
-        <h2 style={s.introTitle}>What are you looking for today?</h2>
-        <p style={s.introSub}>Browse events, Flash Finds, businesses, and more.</p>
+        <h2 style={s.introTitle}>Find treasure near you</h2>
+        <p style={s.introSub}>Give us your location to find events and items close to you.</p>
       </section>
+
+      <LocationControl radius={nearRadius} />
+
+      <CategoryHub />
 
       <div className="tt-hscroll" style={s.chips}>
         {FILTERS.map((f) => {
@@ -283,8 +287,6 @@ export default function Discover() {
           <span style={s.chipSoon}>Soon</span>
         </button>
       </div>
-
-      <LocationControl radius={nearRadius} />
 
       <section style={s.featuredHead}>
         <div style={{ minWidth: 0 }}>
@@ -444,6 +446,74 @@ function LocationControl({ radius }: { radius: number }) {
   );
 }
 
+/* ---------- Browse-by-category hub ---------- */
+
+type BrowseItem = { label: string; icon: LucideIcon; q?: string; url?: string };
+
+const EVENT_BROWSE: BrowseItem[] = [
+  { label: 'Estate Sales', q: 'estate sale', icon: Home },
+  { label: 'Yard Sales', q: 'yard sale', icon: Tag },
+  { label: 'Online Auctions', q: 'auction', icon: Gavel },
+];
+const BUSINESS_BROWSE: BrowseItem[] = [
+  { label: 'Thrift Stores', q: 'thrift store', icon: Shirt },
+  { label: 'Antique Shops', q: 'antique', icon: Armchair },
+  { label: 'Pawn Shops', q: 'pawn shop', icon: DollarSign },
+];
+const LIVE_SHOWS: BrowseItem[] = [
+  { label: 'Whatnot', url: 'https://www.whatnot.com', icon: Tv },
+  { label: 'Poshmark Live', url: 'https://poshmark.com/posh-shows', icon: ShoppingBag },
+  { label: 'eBay Live', url: 'https://www.ebay.com/live', icon: Radio },
+];
+
+function openExternal(url: string) {
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'http:' || u.protocol === 'https:') {
+      window.open(u.toString(), '_blank', 'noopener,noreferrer');
+    }
+  } catch { /* ignore malformed url */ }
+}
+
+function CategoryHub() {
+  const goSearch = useGlobalSearch();
+
+  const renderGroup = (title: string, items: BrowseItem[], live?: boolean) => (
+    <div style={s.hubGroup} key={title}>
+      <div style={s.hubGroupHead}>
+        <span style={s.hubGroupTitle}>{title}</span>
+        {live && <span style={s.hubLiveTag}>External</span>}
+      </div>
+      <div style={s.hubGrid}>
+        {items.map((it) => {
+          const Icon = it.icon;
+          return (
+            <button
+              key={it.label}
+              style={{ ...s.hubCard, ...(live ? s.hubCardLive : null) }}
+              onClick={() => (it.url ? openExternal(it.url) : goSearch(it.q ?? it.label))}
+              aria-label={it.url ? `Open ${it.label}` : `Browse ${it.label}`}
+            >
+              <span style={s.hubIcon}><Icon size={18} /></span>
+              <span style={s.hubLabel}>{it.label}</span>
+              {it.url && <ExternalLink size={11} style={s.hubExt} />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <section style={s.hub}>
+      <h2 style={s.hubTitle}>What are you looking for?</h2>
+      {renderGroup('Local events', EVENT_BROWSE)}
+      {renderGroup('Local businesses', BUSINESS_BROWSE)}
+      {renderGroup('Live shows', LIVE_SHOWS, true)}
+    </section>
+  );
+}
+
 /* ---------- Grid card ---------- */
 
 function FeaturedGridCard({ slide, onClick }: { slide: FeaturedSlide; onClick: () => void }) {
@@ -579,6 +649,37 @@ const s: Record<string, CSSProperties> = {
   introHead: { padding: '16px 16px 4px' },
   introTitle: { margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },
   introSub: { margin: '4px 0 0', fontSize: 13, color: 'var(--tt-text-muted)' },
+
+  // Browse-by-category hub
+  hub: { padding: '6px 16px 4px' },
+  hubTitle: { margin: '6px 0 12px', fontSize: 18, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },
+  hubGroup: { marginBottom: 14 },
+  hubGroupHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  hubGroupTitle: {
+    fontSize: 12, fontWeight: 800, color: 'var(--tt-text-muted)',
+    textTransform: 'uppercase', letterSpacing: '0.05em',
+  },
+  hubLiveTag: {
+    fontSize: 10, fontWeight: 800, color: 'var(--tt-accent)',
+    background: 'var(--tt-accent-soft)', padding: '2px 8px', borderRadius: 999,
+  },
+  hubGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 },
+  hubCard: {
+    position: 'relative',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: '14px 8px', minHeight: 88,
+    background: 'var(--tt-surface)', border: '1px solid var(--tt-border)', borderRadius: 14,
+    cursor: 'pointer', textAlign: 'center', color: 'var(--tt-text)',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  hubCardLive: { background: 'var(--tt-surface-2)' },
+  hubIcon: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 40, height: 40, borderRadius: 12,
+    background: 'var(--tt-accent-soft)', color: 'var(--tt-accent)',
+  },
+  hubLabel: { fontSize: 12, fontWeight: 700, color: 'var(--tt-text)', lineHeight: 1.2 },
+  hubExt: { position: 'absolute', top: 8, right: 8, color: 'var(--tt-text-dim)' },
 
   featuredHead: { padding: '18px 16px 10px' },
   featuredTitle: { margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--tt-text)', letterSpacing: '-0.01em' },
