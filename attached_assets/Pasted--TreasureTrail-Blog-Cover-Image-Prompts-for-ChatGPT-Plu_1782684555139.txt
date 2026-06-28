@@ -1,0 +1,51 @@
+# TreasureTrail Blog — Cover Image Prompts for ChatGPT Plus
+
+These prompts generate one cover image for each of your 25 published blog articles.
+Generate them in **ChatGPT Plus** (it uses OpenAI image generation) so it doesn't
+use your Replit usage.
+
+---
+
+## HOW TO USE (read first)
+
+1. **Paste the STYLE BLOCK below once** at the start of a new ChatGPT chat and send it.
+   This keeps all 25 covers looking like one cohesive set.
+2. Then **paste the prompts one at a time** (one per message). After each image,
+   say "next" and paste the next prompt.
+3. For every image, if ChatGPT asks about size, choose **landscape / 16:9 (wide)**.
+4. **Download each image** and rename the file to the exact **"Save as"** name listed
+   under each prompt (for example `estate-sales-fresno-county-guide.png`). The name is
+   how I match each image to the right article.
+5. When you have all 25, **send them back to me here** and I'll upload them and attach
+   each one to its article automatically — no further work for you.
+
+> Tip: If an image accidentally contains text or letters, just reply "remove all text
+> and regenerate." The style block already asks for no text.
+
+---
+
+## STYLE BLOCK — paste this first (once)
+
+> You are my image generator for a blog about treasure hunting, estate sales, garage
+> sales, flea markets, auctions, and collectibles in California's Central Valley.
+> I will send you a series of scene prompts. For EVERY image, use this exact style:
+>
+> - Photorealistic editorial photograph, **16:9 landscape** orientation.
+> - Warm, natural golden-hour lighting; inviting, authentic, hopeful "treasure
+>   hunting" mood; warm amber, gold, and earthy tones.
+> - Clean, uncluttered composition with some negative space; shallow depth of field;
+>   magazine / lifestyle-photography quality; rich detail; natural colors.
+> - **NO people, NO hands, NO faces. NO text, words, letters, numbers, signs with
+>   writing, logos, brand names, or watermarks.** Subjects are objects, scenes, and
+>   settings only.
+> - Keep all 25 images visually consistent, like one photo series.
+>
+> Reply "Ready" and I'll send the first scene.
+
+---
+
+## THE 25 PROMPTS
+
+### 1. Estate Sales — Fresno County (guide)
+Create the cover image: A welcoming suburban driveway estate sale in Fresno County — tables of antiques, lamps, books, and dishware neatly arranged, a blank A-frame sign at the curb (no lettering), tree-lined California street, warm morning sunlight.
+**Save as:** `estate-sales-fresno-county-guide.png`
