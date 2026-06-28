@@ -383,3 +383,9 @@ id = "FdcVR5K3q_jxPPhHe_bIK"
 uri = "file://exports/TreasureTrail_Promo_2026.mp4"
 type = "video"
 title = "TreasureTrail Promo Video (32s)"
+
+[[outputs]]
+id = "27raaSR96BZmdisjrNyq-"
+uri = "file://exports/ChatGPT_Cover_Image_Prompts.md"
+type = "text"
+title = "ChatGPT Plus — 25 Blog Cover Image Prompts"
