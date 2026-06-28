@@ -39,6 +39,8 @@ use your Replit usage.
 >   writing, logos, brand names, or watermarks.** Subjects are objects, scenes, and
 >   settings only.
 > - Keep all 25 images visually consistent, like one photo series.
+> - Avoid any readable text, license plates, labels, watermarks, or recognizable
+>   trademarks. Use generic, unbranded objects only.
 >
 > Reply "Ready" and I'll send the first scene.
 
