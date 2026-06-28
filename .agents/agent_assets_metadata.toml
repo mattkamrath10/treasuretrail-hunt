@@ -389,3 +389,9 @@ id = "27raaSR96BZmdisjrNyq-"
 uri = "file://exports/ChatGPT_Cover_Image_Prompts.md"
 type = "text"
 title = "ChatGPT Plus — 25 Blog Cover Image Prompts"
+
+[[outputs]]
+id = "RiiI2lJmFkakWu25zvdSe"
+uri = "file://exports/TreasureTrail_Facebook_Group_Plan.md"
+type = "text"
+title = "Facebook Group Starter Kit & Posting Plan"
