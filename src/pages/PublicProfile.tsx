@@ -17,6 +17,7 @@ import { AvatarFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
 import { FoundingPartnerBadge } from '../components/ui/FoundingPartnerBadge';
 import { setFoundingPartner } from '../lib/foundingPartner';
+import { setProMembership } from '../lib/proMembership';
 import { flashToast } from '../lib/toast';
 
 export default function PublicProfile() {
@@ -25,6 +26,7 @@ export default function PublicProfile() {
   const { user, profile: meProfile, isAdmin } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [fpBusy, setFpBusy] = useState(false);
+  const [proBusy, setProBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [following, setFollowing] = useState(false);
@@ -186,6 +188,23 @@ export default function PublicProfile() {
     }
   };
 
+  const onTogglePro = async () => {
+    if (!profile?.id || proBusy) return;
+    const grant = !(profile.membership_tier === 'pro' || profile.pro_member === true);
+    setProBusy(true);
+    try {
+      await setProMembership({ userId: profile.id, action: grant ? 'grant' : 'revoke' });
+      setProfile((p: any) =>
+        p ? { ...p, membership_tier: grant ? 'pro' : 'free', pro_member: grant } : p,
+      );
+      flashToast(grant ? 'Pro granted' : 'Pro removed');
+    } catch (e: any) {
+      flashToast(e?.message ?? 'Could not update Pro membership.');
+    } finally {
+      setProBusy(false);
+    }
+  };
+
   const joinDate = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : null;
@@ -246,19 +265,41 @@ export default function PublicProfile() {
             </div>
           )}
           {isAdmin && (
-            <button
-              onClick={onToggleFoundingPartner}
-              disabled={fpBusy}
+            <div
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
-                border: '1px dashed #4f46e5', background: 'transparent',
-                color: '#4f46e5', fontSize: 11, fontWeight: 700,
-                marginBottom: 'var(--space-2)', opacity: fpBusy ? 0.6 : 1,
+                display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center',
+                marginBottom: 'var(--space-2)',
               }}
             >
-              {profile.founding_partner ? 'Remove Founding Partner' : 'Make Founding Partner'}
-            </button>
+              <button
+                onClick={onToggleFoundingPartner}
+                disabled={fpBusy}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                  border: '1px dashed #4f46e5', background: 'transparent',
+                  color: '#4f46e5', fontSize: 11, fontWeight: 700,
+                  opacity: fpBusy ? 0.6 : 1,
+                }}
+              >
+                {profile.founding_partner ? 'Remove Founding Partner' : 'Make Founding Partner'}
+              </button>
+              <button
+                onClick={onTogglePro}
+                disabled={proBusy}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                  border: '1px dashed #b45309', background: 'transparent',
+                  color: '#b45309', fontSize: 11, fontWeight: 700,
+                  opacity: proBusy ? 0.6 : 1,
+                }}
+              >
+                {profile.membership_tier === 'pro' || profile.pro_member === true
+                  ? 'Remove Pro'
+                  : 'Make Pro'}
+              </button>
+            </div>
           )}
           {profile.bio && <p style={s.bio}>{profile.bio}</p>}
 

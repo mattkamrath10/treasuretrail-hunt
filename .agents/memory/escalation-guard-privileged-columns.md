@@ -36,3 +36,21 @@ the latest prior definition (grep all migrations for the function name and use t
 newest). Copying an OLD version silently drops later-added locks (e.g.
 `membership_tier`, INSERT safe-baselines) and re-opens the leak. The replacement
 is whole-body, not additive.
+
+**CORRECTION — service-role does NOT bypass the jwt-claims check:** The comments
+above (and in the migrations) claim "service-role / no-JWT connections bypass the
+guard." That is FALSE for the supabase-js service-role client: the service_role
+KEY is itself a JWT, so PostgREST sets `request.jwt.claims` (role=service_role)
+and the `IF current_setting('request.jwt.claims') IS NOT NULL` guard FIRES,
+silently reverting `role`/`founding_partner`/`membership_tier` writes. Confirmed
+empirically: `admin().from('profiles').update({founding_partner:true})` returns
+the row via `.select('id')` (looks like success) but the value stays false. So
+the in-app admin "Make Founding Partner" / "Make Pro" buttons (server grants via
+service-role) are SILENT NO-OPS on the live DB.
+**Fix:** change the guard condition from "jwt.claims is non-empty" to "jwt role =
+'authenticated'" (mirroring `prevent_business_field_escalation`, which already
+does `IF v_role IS DISTINCT FROM 'authenticated' THEN RETURN NEW`). Then only
+real logged-in users are restricted; service_role (server) and no-JWT (SQL
+editor) pass through. Agent CANNOT apply this DDL — user pastes it in the
+Supabase SQL editor. The SQL editor itself has no JWT, so a plain
+`UPDATE profiles SET role='admin'` there works even WITHOUT the fix.
