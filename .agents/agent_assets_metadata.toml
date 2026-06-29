@@ -395,3 +395,9 @@ id = "RiiI2lJmFkakWu25zvdSe"
 uri = "file://exports/TreasureTrail_Facebook_Group_Plan.md"
 type = "text"
 title = "Facebook Group Starter Kit & Posting Plan"
+
+[[outputs]]
+id = "yPb7ZgI_Eey126Z5P80V8"
+uri = "file://exports/ChatGPT_Share_Image_Prompts.md"
+type = "text"
+title = "ChatGPT Prompts — 4 Share Images"
