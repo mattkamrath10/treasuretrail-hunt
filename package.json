@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "start": "tsx server/index.ts",
-    "blog:autopublish": "tsx scripts/autopublishBlog.ts"
+    "blog:autopublish": "tsx scripts/autopublishBlog.ts",
+    "blog:image": "tsx scripts/generateBlogImage.ts"
   },
   "keywords": [],
   "author": "",
