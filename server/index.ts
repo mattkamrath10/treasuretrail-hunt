@@ -1987,17 +1987,18 @@ if (fs.existsSync(distDir)) {
 
   const injectEventMeta = (
     html: string,
-    meta: { title: string; description: string; image: string; url: string },
+    meta: { title: string; description: string; image: string; url: string; type?: string },
   ): string => {
     const title = htmlEscape(meta.title);
     const desc = htmlEscape(meta.description);
     const image = htmlEscape(meta.image);
     const url = htmlEscape(meta.url);
+    const ogType = htmlEscape(meta.type || 'article');
     return html
       .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
       .replace(/(<meta name="title" content=")[^"]*(")/, `$1${title}$2`)
       .replace(/(<meta name="description" content=")[^"]*(")/, `$1${desc}$2`)
-      .replace(/(<meta property="og:type" content=")[^"]*(")/, `$1article$2`)
+      .replace(/(<meta property="og:type" content=")[^"]*(")/, `$1${ogType}$2`)
       .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${url}$2`)
       .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${title}$2`)
       .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${desc}$2`)
@@ -2132,6 +2133,71 @@ if (fs.existsSync(distDir)) {
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(body);
+  });
+
+  // Per-section Open Graph for the main landing pages. Without this, sharing
+  // /blog, /events, /marketplace, etc. all unfurl with the generic homepage
+  // preview. Each entry gives that section its own title/description (and an
+  // optional image, defaulting to the site OG image). og:type stays "website"
+  // since these are section indexes, not individual articles.
+  const STATIC_PAGE_META: Record<string, { title: string; description: string; image?: string }> = {
+    '/blog': {
+      title: 'TreasureTrail Blog — Treasure-Hunting Guides & Tips',
+      description: 'Local guides to estate sales, garage sales, flea markets, auctions, and reselling — plus tips for spotting valuable finds.',
+    },
+    '/events': {
+      title: 'Events — Estate Sales, Garage Sales & Auctions Near You | TreasureTrail',
+      description: 'Browse upcoming estate sales, garage sales, swap meets, and auctions happening near you on TreasureTrail.',
+    },
+    '/map': {
+      title: 'Treasure Map — Find Sales & Shops Near You | TreasureTrail',
+      description: 'See estate sales, garage sales, auctions, and local shops on an interactive map of treasure-hunting spots near you.',
+    },
+    '/marketplace': {
+      title: 'Marketplace — Buy & Sell Local Finds | TreasureTrail',
+      description: 'Browse and post local marketplace listings — collectibles, vintage finds, and reseller deals on TreasureTrail.',
+    },
+    '/auctions': {
+      title: 'Auctions — Live & Online Bidding | TreasureTrail',
+      description: 'Discover live and online auctions for collectibles, estate items, and rare finds on TreasureTrail.',
+    },
+    '/live': {
+      title: 'Live — Watch Live Selling Shows | TreasureTrail',
+      description: 'Tune into live selling shows and auctions for collectibles, rare finds, and reseller deals on TreasureTrail.',
+    },
+    '/community': {
+      title: 'Community — Share Your Finds | TreasureTrail',
+      description: 'A community for collectors, flippers, and scouts to share finds, swap tips, and connect with local treasure hunters.',
+    },
+    '/pro': {
+      title: 'TreasureTrail Pro — Tools for Sellers & Scouts',
+      description: 'Unlock boosts, reach analytics, and seller tools to grow your finds and sales with TreasureTrail Pro.',
+    },
+  };
+
+  app.get(Object.keys(STATIC_PAGE_META), (req, res, next) => {
+    // Express (non-strict routing) matches both /blog and /blog/, so normalize
+    // a trailing slash before the lookup or "/blog/" would miss the map.
+    const routePath = req.path !== '/' ? req.path.replace(/\/+$/, '') : req.path;
+    const meta = STATIC_PAGE_META[routePath];
+    if (!meta) return next();
+    try {
+      const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(
+        injectEventMeta(indexHtml, {
+          title: meta.title,
+          description: meta.description,
+          image: meta.image || DEFAULT_OG_IMAGE,
+          url: `${SITE_ORIGIN}${routePath}`,
+          type: 'website',
+        }),
+      );
+    } catch (err) {
+      console.error('[ai-server] section OG injection failed:', err);
+      return next();
+    }
   });
 
   // SPA fallback: any non-API GET returns index.html so client-side routes
