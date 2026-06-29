@@ -10,6 +10,7 @@
  */
 
 import { supabase } from './supabase';
+import { isNative } from './platform';
 
 export type AnalyticsKind =
   | 'view'
@@ -51,4 +52,60 @@ export async function trackAnalyticsEvent(args: TrackArgs): Promise<{ ok: boolea
     console.warn('[analytics] threw', (e as Error).message);
     return { ok: false };
   }
+}
+
+// =====================================================================
+// Web analytics (Google Analytics 4) — privacy-light, opt-in by env
+// ---------------------------------------------------------------------
+// Separate from Analytics Lite above (which tracks in-app engagement to
+// Supabase). This is the SITE-traffic tracker for SEO/growth: how many people
+// land on pages, from where, on what device. Completely inert until
+// VITE_GA_MEASUREMENT_ID (a "G-XXXXXXX" id) is set at build time. We load gtag
+// with send_page_view disabled and fire a manual page_view on every
+// client-side route change, since this is a single-page app and the browser
+// only does one real navigation. Web-only: we skip the native Capacitor shell
+// so the iOS/Android apps don't ship a web tracker.
+// =====================================================================
+const GA_MEASUREMENT_ID = (import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined)?.trim();
+
+declare global {
+  interface Window {
+    dataLayer?: unknown[];
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+let gaStarted = false;
+
+export function analyticsEnabled(): boolean {
+  return Boolean(GA_MEASUREMENT_ID) && !isNative();
+}
+
+// Loads the GA4 script once. Safe to call repeatedly.
+export function initAnalytics(): void {
+  if (gaStarted || !analyticsEnabled() || typeof document === 'undefined') return;
+  gaStarted = true;
+
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
+  document.head.appendChild(s);
+
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function gtag(...args: unknown[]) {
+    window.dataLayer!.push(args);
+  };
+  window.gtag('js', new Date());
+  // We send page_view manually on route change for accurate SPA tracking.
+  window.gtag('config', GA_MEASUREMENT_ID, { send_page_view: false });
+}
+
+// Records a single virtual pageview for the given path.
+export function trackPageview(path: string): void {
+  if (!analyticsEnabled() || !window.gtag) return;
+  window.gtag('event', 'page_view', {
+    page_path: path,
+    page_location: window.location.origin + path,
+    page_title: document.title,
+  });
 }

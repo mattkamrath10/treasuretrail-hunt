@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BottomNav from './BottomNav';
 import OfflineBanner from './OfflineBanner';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +7,7 @@ import { readPendingIntent, clearPendingIntent } from '../lib/pendingIntent';
 import { getOrCreateConversation } from '../lib/messaging';
 import { registerPush, removePush } from '../lib/push';
 import { monetizationHidden } from '../lib/platform';
+import { initAnalytics, trackPageview } from '../lib/analytics';
 
 // Route-level code splitting — each page becomes its own chunk so the
 // initial bundle only includes Home + the shell. Other pages stream in
@@ -352,9 +353,22 @@ function usePushRegistration() {
   }, [user]);
 }
 
+// Fires a GA4 virtual pageview on every client-side route change. No-ops
+// entirely unless VITE_GA_MEASUREMENT_ID is configured (see lib/analytics).
+function usePageviewTracking() {
+  const location = useLocation();
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+  useEffect(() => {
+    trackPageview(location.pathname + location.search);
+  }, [location.pathname, location.search]);
+}
+
 export default function AppShell() {
   useResumePendingIntent();
   usePushRegistration();
+  usePageviewTracking();
   return (
     <div style={styles.container}>
       <OfflineBanner />

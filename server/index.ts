@@ -35,6 +35,7 @@ import {
   type RevenueCatEvent,
 } from './revenuecat';
 import { sendGoLivePush, sendNotificationPush, hasPush } from './push';
+import { generateBlogDraft, saveBlogPost } from './blogGen';
 
 // Deployment (Autoscale/VM) injects PORT; bind it in production. In dev the
 // server keeps using AI_SERVER_PORT (3001) so the Vite /api proxy resolves.
@@ -395,38 +396,6 @@ app.post('/api/admin/boost', async (req, res) => {
 //     client (bypasses RLS; the blog_posts table has no end-user write
 //     policy). Upserts by slug so re-saving edits an existing post.
 // =====================================================================
-const BLOG_CATEGORY_SLUGS = [
-  'estate-sales', 'garage-sales', 'flea-markets', 'auctions', 'collectibles',
-  'hot-wheels', 'vintage-toys', 'reselling', 'treasure-hunting', 'event-hosting',
-];
-
-const BLOG_SYSTEM_PROMPT = `You are an expert SEO content writer for TreasureTrail, an app for finding estate sales, garage sales, flea markets, auctions, and collectibles. You write helpful, accurate, genuinely useful articles for treasure hunters and resellers, with a primary geographic focus on California's Central Valley (Madera, Fresno, Kings, Tulare, and Kern counties) when a location is provided.
-
-Write in a warm, practical, expert tone. Use real, actionable advice — no fluff, no keyword stuffing. Target ~900-1300 words. Use markdown for the body (## and ### headings, short paragraphs, bullet lists). Naturally encourage readers to use TreasureTrail to find local events, but do not be salesy.
-
-Return a SINGLE JSON object matching this schema exactly. No prose, no markdown fences:
-{
-  "title": string,            // compelling, specific H1 (<= 65 chars ideal)
-  "slug": string,             // url-safe kebab-case, lowercase, no stop-word filler
-  "seo_title": string,        // <= 60 chars, includes primary keyword
-  "meta_description": string, // 140-160 chars, compelling, includes location if given
-  "excerpt": string,          // 1-2 sentence summary for the article card
-  "body_md": string,          // the full article in markdown (## headings, lists)
-  "tags": string[],           // 4-8 lowercase topical tags
-  "faq": [ { "q": string, "a": string } ]  // 3-5 relevant Q&As
-}`;
-
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .slice(0, 80);
-}
-
 app.post('/api/blog/generate', async (req, res) => {
   try {
     if (!(await requireAdmin(req, res))) return;
@@ -436,42 +405,15 @@ app.post('/api/blog/generate', async (req, res) => {
     if (!topic || typeof topic !== 'string' || topic.trim().length < 3) {
       return res.status(400).json({ error: 'A topic is required.' });
     }
-    const cat = category && BLOG_CATEGORY_SLUGS.includes(category) ? category : 'treasure-hunting';
-    const locParts = [city, county].filter(Boolean).join(', ');
-    const userPrompt =
-      `Topic: ${topic.trim()}\n` +
-      `Category (slug): ${cat}\n` +
-      (locParts ? `Location focus: ${locParts}, California Central Valley\n` : '') +
-      `Write the article now as the JSON object.`;
-
-    const resp = await openai.chat.completions.create({
-      model: MODEL,
-      response_format: { type: 'json_object' },
-      max_completion_tokens: 3500,
-      messages: [
-        { role: 'system', content: BLOG_SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-    });
-    const raw = resp.choices[0]?.message?.content ?? '{}';
-    let draft: any;
-    try {
-      draft = JSON.parse(raw);
-    } catch {
-      return res.status(502).json({ error: 'Model returned malformed JSON. Try again.' });
-    }
-    // Normalize + guarantee a valid slug and category.
-    draft.slug = slugify(draft.slug || draft.title || topic);
-    draft.category = cat;
-    draft.county = county || null;
-    draft.city = city || null;
-    if (!Array.isArray(draft.tags)) draft.tags = [];
-    if (!Array.isArray(draft.faq)) draft.faq = [];
-    const words = String(draft.body_md || '').trim().split(/\s+/).filter(Boolean).length;
-    draft.read_minutes = Math.max(1, Math.round(words / 200));
+    const draft = await generateBlogDraft(openai, MODEL, { topic, category, county, city });
     return res.json({ draft });
   } catch (err: any) {
-    console.error('[blog/generate]', err?.message || err);
+    const msg = err?.message || String(err);
+    console.error('[blog/generate]', msg);
+    if (msg === 'A topic is required.') return res.status(400).json({ error: msg });
+    if (msg === 'Model returned malformed JSON.') {
+      return res.status(502).json({ error: 'Model returned malformed JSON. Try again.' });
+    }
     return res.status(500).json({ error: 'Article generation failed. Please try again.' });
   }
 });
@@ -483,46 +425,14 @@ app.post('/api/blog/save', async (req, res) => {
       return res.status(503).json({ error: 'Blog service is not configured.' });
     }
     const p = (req.body?.post ?? {}) as Record<string, any>;
-    const title = typeof p.title === 'string' ? p.title.trim() : '';
-    if (!title) return res.status(400).json({ error: 'title is required.' });
-    const category = BLOG_CATEGORY_SLUGS.includes(p.category) ? p.category : 'treasure-hunting';
-    const status = p.status === 'published' ? 'published' : 'draft';
-    const slug = slugify(p.slug || title);
-    if (!slug) return res.status(400).json({ error: 'A valid slug is required.' });
-
-    const row: Record<string, any> = {
-      slug,
-      title,
-      seo_title: p.seo_title ?? null,
-      meta_description: p.meta_description ?? null,
-      excerpt: p.excerpt ?? null,
-      body_md: typeof p.body_md === 'string' ? p.body_md : '',
-      category,
-      tags: Array.isArray(p.tags) ? p.tags : [],
-      cover_image_url: p.cover_image_url ?? null,
-      cover_thumb_url: p.cover_thumb_url ?? null,
-      county: p.county ?? null,
-      city: p.city ?? null,
-      faq: Array.isArray(p.faq) ? p.faq : [],
-      author: typeof p.author === 'string' && p.author.trim() ? p.author.trim() : 'TreasureTrail',
-      read_minutes: typeof p.read_minutes === 'number' ? p.read_minutes : null,
-      status,
-      published_at: status === 'published' ? (p.published_at || new Date().toISOString()) : null,
-    };
-
-    const sb = getServiceClient();
-    const { data, error } = await sb
-      .from('blog_posts')
-      .upsert(row, { onConflict: 'slug' })
-      .select('id, slug, status')
-      .maybeSingle();
-    if (error) {
-      console.error('[blog/save] db error:', error.message);
-      return res.status(500).json({ error: error.message });
-    }
-    return res.json({ post: data });
+    const post = await saveBlogPost(getServiceClient(), p);
+    return res.json({ post });
   } catch (err: any) {
-    console.error('[blog/save]', err?.message || err);
+    const msg = err?.message || String(err);
+    console.error('[blog/save]', msg);
+    if (msg === 'title is required.' || msg === 'A valid slug is required.') {
+      return res.status(400).json({ error: msg });
+    }
     return res.status(500).json({ error: 'Saving the article failed.' });
   }
 });
@@ -1938,6 +1848,36 @@ if (fs.existsSync(distDir)) {
   // image here and leave the default brand title/description intact.
   const GSC_VERIFICATION = (process.env.GOOGLE_SITE_VERIFICATION || '').trim();
   const DISCOVER_OG_IMAGE = `${SUPABASE_URL}/storage/v1/object/public/avatars/og/discover.jpg`;
+
+  // --- Structured data (schema.org JSON-LD) ---------------------------
+  // Crawlers and AI/answer engines (Google rich results, ChatGPT, Perplexity)
+  // read JSON-LD from the served HTML — they don't run our React app — so we
+  // inject it server-side. jsonLdScript escapes `<` so a stray </script> in
+  // any field can't break out of the tag.
+  const ORIGIN = 'https://treasuretrail-hunt.com';
+  const jsonLdScript = (obj: unknown) =>
+    `<script type="application/ld+json">${JSON.stringify(obj).replace(/</g, '\\u003c')}</script>`;
+  const injectJsonLd = (html: string, blocks: unknown[]): string =>
+    blocks.length
+      ? html.replace('</head>', `${blocks.map(jsonLdScript).join('\n')}\n</head>`)
+      : html;
+
+  const ORGANIZATION_SCHEMA = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'TreasureTrail',
+    url: `${ORIGIN}/`,
+    logo: `${ORIGIN}/icon-512.png`,
+    description:
+      'A community app for finding estate sales, garage sales, flea markets, auctions, and collectible finds near you.',
+  };
+  const WEBSITE_SCHEMA = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'TreasureTrail',
+    url: `${ORIGIN}/`,
+  };
+
   app.get('/', (_req, res, next) => {
     try {
       const imgEsc = DISCOVER_OG_IMAGE.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
@@ -1952,6 +1892,7 @@ if (fs.existsSync(distDir)) {
           `<meta name="google-site-verification" content="${safe}" />\n</head>`,
         );
       }
+      html = injectJsonLd(html, [ORGANIZATION_SCHEMA, WEBSITE_SCHEMA]);
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.send(html);
@@ -2027,7 +1968,7 @@ if (fs.existsSync(distDir)) {
     try {
       const { data: ev } = await ogSupabase
         .from('events')
-        .select('id, title, description, cover_image_url, status, city, region')
+        .select('id, title, description, cover_image_url, status, city, region, starts_at, ends_at')
         .eq('id', id)
         .eq('status', 'published')
         .maybeSingle();
@@ -2042,14 +1983,31 @@ if (fs.existsSync(distDir)) {
       const rawDesc = (ev.description || '').trim().replace(/\s+/g, ' ');
       const description =
         (rawDesc ? rawDesc.slice(0, 200) : `An event on TreasureTrail${place ? ` in ${place}` : ''}.`);
-      return res.send(
+      const eventUrl = `${SITE_ORIGIN}/event/${ev.id}`;
+      // Event structured data so this listing can appear as a Google rich
+      // result / be cited by AI answer engines.
+      const eventSchema: Record<string, unknown> = {
+        '@context': 'https://schema.org',
+        '@type': 'Event',
+        name: ev.title,
+        description,
+        url: eventUrl,
+        organizer: { '@type': 'Organization', name: 'TreasureTrail', url: `${ORIGIN}/` },
+      };
+      if (ev.cover_image_url) eventSchema.image = ev.cover_image_url;
+      if (ev.starts_at) eventSchema.startDate = ev.starts_at;
+      if (ev.ends_at) eventSchema.endDate = ev.ends_at;
+      if (place) eventSchema.location = { '@type': 'Place', name: place, address: place };
+      const eventHtml = injectJsonLd(
         injectEventMeta(indexHtml, {
           title: ev.title,
           description,
           image: ev.cover_image_url || DEFAULT_OG_IMAGE,
-          url: `${SITE_ORIGIN}/event/${ev.id}`,
+          url: eventUrl,
         }),
+        [eventSchema],
       );
+      return res.send(eventHtml);
     } catch (err) {
       console.error('[ai-server] OG injection failed:', err);
       return next(); // fall through to plain SPA fallback
@@ -2066,7 +2024,7 @@ if (fs.existsSync(distDir)) {
     try {
       const { data: post } = await ogSupabase
         .from('blog_posts')
-        .select('slug, title, seo_title, meta_description, excerpt, cover_image_url')
+        .select('slug, title, seo_title, meta_description, excerpt, cover_image_url, published_at, updated_at, author, faq')
         .eq('slug', slug)
         .eq('status', 'published')
         .maybeSingle();
@@ -2079,14 +2037,51 @@ if (fs.existsSync(distDir)) {
       const description = (post.meta_description || post.excerpt || 'A treasure-hunting guide on TreasureTrail.')
         .trim()
         .slice(0, 200);
-      return res.send(
+      const postUrl = `${SITE_ORIGIN}/blog/${post.slug}`;
+      // Article structured data (+ FAQ when present) so the post can win a
+      // Google rich result and be cited by AI answer engines.
+      const articleSchema: Record<string, unknown> = {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: post.title,
+        description,
+        mainEntityOfPage: postUrl,
+        url: postUrl,
+        author: { '@type': 'Organization', name: post.author || 'TreasureTrail' },
+        publisher: {
+          '@type': 'Organization',
+          name: 'TreasureTrail',
+          logo: { '@type': 'ImageObject', url: `${ORIGIN}/icon-512.png` },
+        },
+      };
+      if (post.cover_image_url) articleSchema.image = post.cover_image_url;
+      if (post.published_at) articleSchema.datePublished = post.published_at;
+      if (post.updated_at) articleSchema.dateModified = post.updated_at;
+      const blogBlocks: Record<string, unknown>[] = [articleSchema];
+      const faqItems = Array.isArray(post.faq)
+        ? post.faq.filter((f: any) => f && f.q && f.a)
+        : [];
+      if (faqItems.length) {
+        blogBlocks.push({
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faqItems.map((f: any) => ({
+            '@type': 'Question',
+            name: String(f.q),
+            acceptedAnswer: { '@type': 'Answer', text: String(f.a) },
+          })),
+        });
+      }
+      const blogHtml = injectJsonLd(
         injectEventMeta(indexHtml, {
           title: post.seo_title || post.title,
           description,
           image: post.cover_image_url || DEFAULT_OG_IMAGE,
-          url: `${SITE_ORIGIN}/blog/${post.slug}`,
+          url: postUrl,
         }),
+        blogBlocks,
       );
+      return res.send(blogHtml);
     } catch (err) {
       console.error('[ai-server] blog OG injection failed:', err);
       return next();
@@ -2139,6 +2134,54 @@ if (fs.existsSync(distDir)) {
         .join('\n') +
       `\n</urlset>\n`;
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(body);
+  });
+
+  // llms.txt — a plain-language map of the site for AI / answer engines
+  // (ChatGPT, Perplexity, Claude, Gemini). It's the GEO equivalent of a
+  // sitemap: a concise, link-rich summary they can ingest to understand and
+  // cite TreasureTrail. Lists the latest published guides so it stays fresh.
+  app.get('/llms.txt', async (_req, res) => {
+    let postLines = '';
+    try {
+      const { data: posts } = await ogSupabase
+        .from('blog_posts')
+        .select('slug, title, excerpt')
+        .eq('status', 'published')
+        .order('published_at', { ascending: false })
+        .limit(50);
+      postLines = (posts ?? [])
+        .map(
+          (p: any) =>
+            `- [${p.title}](${SITE_ORIGIN}/blog/${p.slug})` +
+            (p.excerpt ? `: ${String(p.excerpt).replace(/\s+/g, ' ').slice(0, 160)}` : ''),
+        )
+        .join('\n');
+    } catch (err) {
+      console.error('[ai-server] llms.txt blog query failed:', err);
+    }
+    const body = `# TreasureTrail
+
+> TreasureTrail is a community app for finding estate sales, garage sales, flea markets, auctions, live selling shows, and collectible "finds" near you — with a primary focus on California's Central Valley (Fresno, Madera, Kings, Tulare, and Kern counties). Collectors, flippers, and resellers use it to discover local events on a map, post and browse marketplace listings, share their finds, and host their own sales.
+
+## Key pages
+- [Home / Discover](${SITE_ORIGIN}/): featured events, finds, and listings near you
+- [Events](${SITE_ORIGIN}/events): upcoming estate sales, garage sales, swap meets, and auctions
+- [Treasure Map](${SITE_ORIGIN}/map): an interactive map of sales and local shops
+- [Marketplace](${SITE_ORIGIN}/marketplace): buy and sell local collectibles and vintage finds
+- [Auctions](${SITE_ORIGIN}/auctions): live and online bidding
+- [Live](${SITE_ORIGIN}/live): live selling shows
+- [Community](${SITE_ORIGIN}/community): shared finds and tips
+- [Pro](${SITE_ORIGIN}/pro): seller tools, boosts, and reach analytics
+- [Blog](${SITE_ORIGIN}/blog): guides on estate sales, reselling, and spotting valuable finds
+
+## Guides${postLines ? `\n${postLines}` : '\n(See the blog for the latest guides.)'}
+
+## More
+- Sitemap: ${SITE_ORIGIN}/sitemap.xml
+`;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(body);
   });
