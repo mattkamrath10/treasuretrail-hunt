@@ -1932,25 +1932,33 @@ if (fs.existsSync(distDir)) {
   // verification <meta> injected — registered BEFORE express.static so it
   // wins over the raw index.html for `/`. (DNS TXT verification also works
   // and needs no code; this is the convenience path.)
+  // Homepage `/` is the Discover page. It's served by express.static below, so
+  // to give it its own share image (and the optional GSC verification tag) we
+  // register a `/` handler BEFORE express.static. We swap only the og/twitter
+  // image here and leave the default brand title/description intact.
   const GSC_VERIFICATION = (process.env.GOOGLE_SITE_VERIFICATION || '').trim();
-  if (GSC_VERIFICATION) {
-    const safe = GSC_VERIFICATION.replace(/"/g, '&quot;');
-    app.get('/', (_req, res, next) => {
-      try {
-        const html = fs
-          .readFileSync(path.join(distDir, 'index.html'), 'utf8')
-          .replace(
-            '</head>',
-            `<meta name="google-site-verification" content="${safe}" />\n</head>`,
-          );
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return res.send(html);
-      } catch {
-        return next();
+  const DISCOVER_OG_IMAGE = `${SUPABASE_URL}/storage/v1/object/public/avatars/og/discover.jpg`;
+  app.get('/', (_req, res, next) => {
+    try {
+      const imgEsc = DISCOVER_OG_IMAGE.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      let html = fs
+        .readFileSync(path.join(distDir, 'index.html'), 'utf8')
+        .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${imgEsc}$2`)
+        .replace(/(<meta property="twitter:image" content=")[^"]*(")/, `$1${imgEsc}$2`);
+      if (GSC_VERIFICATION) {
+        const safe = GSC_VERIFICATION.replace(/"/g, '&quot;');
+        html = html.replace(
+          '</head>',
+          `<meta name="google-site-verification" content="${safe}" />\n</head>`,
+        );
       }
-    });
-  }
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(html);
+    } catch {
+      return next();
+    }
+  });
   // Content-hashed assets (the JS/CSS/images Vite emits under /assets) are
   // immutable — their filename changes whenever their content does — so cache
   // them aggressively. index.html, by contrast, MUST never be cached: it is the
@@ -2140,14 +2148,23 @@ if (fs.existsSync(distDir)) {
   // preview. Each entry gives that section its own title/description (and an
   // optional image, defaulting to the site OG image). og:type stays "website"
   // since these are section indexes, not individual articles.
+  const ogSectionImage = (name: string) =>
+    `${SUPABASE_URL}/storage/v1/object/public/avatars/og/${name}.jpg`;
   const STATIC_PAGE_META: Record<string, { title: string; description: string; image?: string }> = {
     '/blog': {
       title: 'TreasureTrail Blog — Treasure-Hunting Guides & Tips',
       description: 'Local guides to estate sales, garage sales, flea markets, auctions, and reselling — plus tips for spotting valuable finds.',
+      image: ogSectionImage('blog'),
     },
     '/events': {
       title: 'Events — Estate Sales, Garage Sales & Auctions Near You | TreasureTrail',
       description: 'Browse upcoming estate sales, garage sales, swap meets, and auctions happening near you on TreasureTrail.',
+      image: ogSectionImage('events'),
+    },
+    '/flash-finds': {
+      title: 'Flash Finds — Today’s Best Local Scores & Deals | TreasureTrail',
+      description: 'See the latest treasure scores and flash deals shared by the community — rare finds at great prices near you.',
+      image: ogSectionImage('flash-finds'),
     },
     '/map': {
       title: 'Treasure Map — Find Sales & Shops Near You | TreasureTrail',
