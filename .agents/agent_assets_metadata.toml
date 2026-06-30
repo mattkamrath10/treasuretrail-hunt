@@ -407,3 +407,9 @@ id = "PNb_ckLRComLEeWz62uHW"
 uri = "file://treasuretrail-android-1.1.6.tar.gz"
 type = "unspecified"
 title = "TreasureTrail Android Source v1.1.6"
+
+[[outputs]]
+id = "PvkDDIOA59qp0WIdwk0UI"
+uri = "file://treasuretrail-android-1.1.6.zip"
+type = "unspecified"
+title = "TreasureTrail Android Source v1.1.6 (ZIP)"
