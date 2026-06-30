@@ -21,11 +21,12 @@ import { BUSINESS_CATEGORY_META } from './businesses';
 import type { WantedItemRow } from './wanted';
 import { WANTED_CATEGORY_LABEL } from './wanted';
 import type { CommunityPost } from './supabase';
+import { categoryLabel, type BlogPost } from './blog';
 import { isBoosted, type BoostableRow } from './boost';
 import { haversineMiles } from './geocode';
 import { toThumbUrl } from './imageCompress';
 
-export type FeaturedKind = 'event' | 'business' | 'find' | 'wanted';
+export type FeaturedKind = 'event' | 'business' | 'find' | 'wanted' | 'blog';
 export type FeaturedFilter = 'all' | FeaturedKind;
 
 export interface FeaturedSlide {
@@ -44,7 +45,7 @@ export interface FeaturedSlide {
   distanceMi: number | null;
   priority: number;
   sortTime: number;
-  fallbackKind: 'event' | 'find' | 'wanted' | 'listing';
+  fallbackKind: 'event' | 'find' | 'wanted' | 'listing' | 'generic';
   fallbackCategory: string | null;
   searchText: string;
   /** True for online/livestream events (used by the "Live Shows" row). */
@@ -56,6 +57,7 @@ export const FEATURED_KIND_ACCENT: Record<FeaturedKind, string> = {
   business: '#22d3ee',
   find: '#8b5cf6',
   wanted: '#f97316',
+  blog: '#34d399',
 };
 
 export const FEATURED_KIND_LABEL: Record<FeaturedKind, string> = {
@@ -63,6 +65,7 @@ export const FEATURED_KIND_LABEL: Record<FeaturedKind, string> = {
   business: 'Business',
   find: 'Flash Find',
   wanted: 'Wanted',
+  blog: 'Article',
 };
 
 const EVENT_CATEGORY_LABEL: Record<string, string> = {
@@ -264,6 +267,54 @@ function eventItemToSlide(item: EventFeaturedItem, ev: EventRow): FeaturedSlide 
   };
 }
 
+/**
+ * Blog / article post -> Discover slide. Blogs have no location or boost, so
+ * they sit at P_NORMAL and are surfaced explicitly (a random pick in the hero +
+ * a dedicated "From the Blog" row) rather than mixed into the ranked feed/grid.
+ */
+function blogToSlide(p: BlogPost): FeaturedSlide {
+  const category = categoryLabel(p.category) || 'Article';
+  const read = p.read_minutes ? `${p.read_minutes} min read` : null;
+  const subtitle =
+    p.excerpt?.trim() ||
+    [read, category].filter(Boolean).join(' · ') ||
+    'From the TreasureTrail blog';
+  return {
+    id: `blog:${p.id}`,
+    kind: 'blog',
+    title: p.title,
+    subtitle,
+    category,
+    image: p.cover_thumb_url ?? p.cover_image_url,
+    imageFull: p.cover_image_url,
+    accent: FEATURED_KIND_ACCENT.blog,
+    badge: null,
+    to: `/blog/${p.slug}`,
+    lat: null,
+    lng: null,
+    distanceMi: null,
+    priority: P_NORMAL,
+    sortTime: ts(p.published_at ?? p.created_at),
+    fallbackKind: 'generic',
+    fallbackCategory: p.category,
+    searchText: `${p.title} ${p.excerpt ?? ''} ${category}`.toLowerCase(),
+    online: false,
+  };
+}
+
+/**
+ * Build blog slides (newest first), honoring the active search query. Kept
+ * separate from `buildFeaturedSlides` so blogs never affect the location/boost
+ * ranking, chip counts, or the main grid — they're shown only where intended.
+ */
+export function buildBlogSlides(blogs: BlogPost[], query = '', cap = 12): FeaturedSlide[] {
+  const q = query.trim().toLowerCase();
+  let slides = blogs.map(blogToSlide);
+  if (q) slides = slides.filter((sl) => sl.searchText.includes(q));
+  slides.sort((a, b) => b.sortTime - a.sortTime);
+  return slides.slice(0, cap);
+}
+
 export interface BuildFeaturedInput {
   events: EventRow[];
   businesses: BusinessRow[];
@@ -357,6 +408,36 @@ export function buildFeaturedSlides(input: BuildFeaturedInput): FeaturedSlide[] 
 /** True when a slide sits in one of the actively-boosted priority buckets. */
 function isBoostBucket(sl: FeaturedSlide): boolean {
   return sl.priority === P_BOOST_PAID || sl.priority === P_BOOST_PRO;
+}
+
+/**
+ * Slot a single (non-promoted) blog slide into an already-composed hero list
+ * WITHOUT breaking the boost-first contract:
+ *  - never inserted ahead of an actively-boosted slide,
+ *  - never evicts a boosted slide (only a tail non-boost slide is dropped when
+ *    the hero is already at `cap`), so promoted exposure is preserved,
+ *  - `seed` (0..1) randomizes the slot within the non-boosted segment so the
+ *    blog appears in a different position across visits.
+ * Returns the hero unchanged (capped) when `blog` is null. If every hero slot
+ * is boosted, the blog is omitted from the hero (it still lives in its own row).
+ */
+export function injectBlogIntoHero(
+  hero: FeaturedSlide[],
+  blog: FeaturedSlide | null,
+  seed: number,
+  cap: number,
+): FeaturedSlide[] {
+  if (!blog) return hero.slice(0, cap);
+  const out = hero.filter((sl) => sl.id !== blog.id);
+  let firstNonBoost = out.findIndex((sl) => !isBoostBucket(sl));
+  if (firstNonBoost === -1) firstNonBoost = out.length; // all boosted
+  const s = Number.isFinite(seed) ? Math.min(0.999999, Math.max(0, seed)) : 0;
+  // Keep the blog inside the visible window so the cap-trim never drops it
+  // (and only ever trims a tail non-boost slide, never a boosted one).
+  const maxPos = Math.max(firstNonBoost, Math.min(out.length, cap - 1));
+  const pos = firstNonBoost + Math.floor(s * (maxPos - firstNonBoost + 1));
+  out.splice(pos, 0, blog);
+  return out.slice(0, cap);
 }
 
 /**
@@ -539,6 +620,7 @@ const CATEGORY_ROW_DEFS: Record<FeaturedFilter, RowDef[]> = {
     { key: 'dealers',         title: 'Collectible Dealers',     match: (s) => s.kind === 'business' && (s.fallbackCategory === 'consignment_store' || s.fallbackCategory === 'vintage_store' || s.fallbackCategory === 'pawn_shop') },
   ],
   wanted: [],
+  blog: [],
 };
 
 /**

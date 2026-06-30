@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   buildFeaturedSlides,
   buildRemoteBoostedSlides,
+  buildBlogSlides,
+  injectBlogIntoHero,
   composeSlideshow,
   type BuildFeaturedInput,
   type FeaturedSlide,
 } from './discoverFeatured';
+import type { BlogPost } from './blog';
 import type { EventRow, EventFeaturedItem } from './events';
 import type { BusinessRow } from './businesses';
 import type { WantedItemRow } from './wanted';
@@ -544,5 +547,104 @@ describe('composeSlideshow — hero composition (Decision 2 + 4)', () => {
 
     expect(r0).toEqual(['E0']);
     expect(r1).toEqual(['E1']);
+  });
+});
+
+describe('buildBlogSlides + injectBlogIntoHero (blog surfacing)', () => {
+  function blog(over: Partial<BlogPost> = {}): BlogPost {
+    const id = over.id ?? uid('blog');
+    return {
+      id,
+      slug: over.slug ?? `slug-${id}`,
+      title: 'Test Article',
+      seo_title: null,
+      meta_description: null,
+      excerpt: null,
+      body_md: '',
+      category: 'reselling',
+      tags: [],
+      cover_image_url: null,
+      cover_thumb_url: null,
+      county: null,
+      city: null,
+      faq: [],
+      author: 'TreasureTrail',
+      read_minutes: 5,
+      status: 'published',
+      published_at: '2026-01-01T00:00:00.000Z',
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+      ...over,
+    };
+  }
+
+  function slide(over: Partial<FeaturedSlide> = {}): FeaturedSlide {
+    const id = over.id ?? uid('sl');
+    return {
+      id, kind: 'find', title: 't', subtitle: '', category: null,
+      image: null, imageFull: null, accent: '#000', badge: null,
+      to: over.to ?? `/x/${id}`, lat: null, lng: null, distanceMi: null,
+      priority: 4, sortTime: 0, fallbackKind: 'find', fallbackCategory: null,
+      searchText: '', online: false, ...over,
+    };
+  }
+
+  it('maps blogs to blog-kind slides linking to /blog/:slug, newest first', () => {
+    const older = blog({ id: 'a', slug: 'a', title: 'Older', published_at: '2026-01-01T00:00:00.000Z' });
+    const newer = blog({ id: 'b', slug: 'b', title: 'Newer', published_at: '2026-02-01T00:00:00.000Z' });
+    const out = buildBlogSlides([older, newer]);
+    expect(out.map((s) => s.id)).toEqual(['blog:b', 'blog:a']);
+    expect(out[0].kind).toBe('blog');
+    expect(out[0].to).toBe('/blog/b');
+  });
+
+  it('honors the search query', () => {
+    const a = blog({ id: 'a', title: 'Hot Wheels hauls' });
+    const b = blog({ id: 'b', title: 'Estate sale pricing' });
+    expect(buildBlogSlides([a, b], 'hot wheels').map((s) => s.id)).toEqual(['blog:a']);
+  });
+
+  it('never places a blog ahead of boosted slides', () => {
+    const hero = [
+      slide({ id: 'B0', priority: 0 }),
+      slide({ id: 'B1', priority: 1 }),
+      slide({ id: 'N0', priority: 4 }),
+      slide({ id: 'N1', priority: 4 }),
+    ];
+    const pick = buildBlogSlides([blog({ id: 'z' })])[0];
+    // seed 0 -> earliest allowed slot (right after the boosted segment)
+    const out = injectBlogIntoHero(hero, pick, 0, 8);
+    const blogIdx = out.findIndex((s) => s.id === 'blog:z');
+    expect(blogIdx).toBe(2); // after both boosted slides
+    expect(out[0].id).toBe('B0');
+    expect(out[1].id).toBe('B1');
+  });
+
+  it('never evicts a boosted slide when the hero is at cap', () => {
+    const hero = [
+      slide({ id: 'B0', priority: 0 }),
+      slide({ id: 'B1', priority: 1 }),
+      ...Array.from({ length: 6 }, (_, i) => slide({ id: `N${i}`, priority: 4 })),
+    ];
+    const pick = buildBlogSlides([blog({ id: 'z' })])[0];
+    const out = injectBlogIntoHero(hero, pick, 0.999, 8);
+    expect(out).toHaveLength(8);
+    expect(out.some((s) => s.id === 'blog:z')).toBe(true);
+    // Both boosted slides survive the cap trim.
+    expect(out.some((s) => s.id === 'B0')).toBe(true);
+    expect(out.some((s) => s.id === 'B1')).toBe(true);
+  });
+
+  it('omits the blog (keeps hero) when every capped slot is boosted', () => {
+    const hero = Array.from({ length: 8 }, (_, i) => slide({ id: `B${i}`, priority: 0 }));
+    const pick = buildBlogSlides([blog({ id: 'z' })])[0];
+    const out = injectBlogIntoHero(hero, pick, 0, 8);
+    expect(out).toHaveLength(8);
+    expect(out.some((s) => s.id === 'blog:z')).toBe(false);
+  });
+
+  it('returns the capped hero unchanged when no blog is provided', () => {
+    const hero = Array.from({ length: 10 }, (_, i) => slide({ id: `N${i}` }));
+    expect(injectBlogIntoHero(hero, null, 0.5, 8)).toHaveLength(8);
   });
 });

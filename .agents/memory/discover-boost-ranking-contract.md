@@ -47,3 +47,8 @@ be trapped on the event detail page. `fetchFeaturedItemsForEvents(eventIds)`
 inherit the parent event's location/boost/Pro and link to `/event/:id`. Items
 whose parent event isn't in the published set are skipped. IDs namespaced
 `eventitem:${id}`.
+
+## Blogs in Discover (hero + dedicated row)
+Blogs are deliberately kept OUT of buildFeaturedSlides/normalizeAll so they never affect chip counts, location/boost ranking, or the main grid. They surface only via `buildBlogSlides` (separate) in two spots: one random blog slotted into the hero, and a dedicated "From the Blog" row inserted right after `feat-events`.
+**Why:** a blog is non-located + non-boosted (P_NORMAL); mixing it into the ranked feed would distort counts/grid and let a normal item ride the boost-ordered set.
+**How to apply:** hero injection MUST go through `injectBlogIntoHero` — it never inserts ahead of a boosted slide and never evicts a boosted slot on the cap-trim (drops a tail non-boost slide instead; omits the blog entirely if all capped slots are boosted). Don't re-add naive splice+slice injection (that regression: blog could outrank boosts and drop a promoted slide).

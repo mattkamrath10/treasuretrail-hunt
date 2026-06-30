@@ -6,6 +6,7 @@ import { fetchPublishedEvents, fetchProHolderIds, fetchFeaturedItemsForEvents, t
 import { fetchPublishedBusinesses, type BusinessRow } from '../lib/businesses';
 import { fetchOpenWantedItems, type WantedItemRow } from '../lib/wanted';
 import { fetchCommunityPosts } from '../lib/database';
+import { fetchPublishedPosts, type BlogPost } from '../lib/blog';
 import type { CommunityPost } from '../lib/supabase';
 import { geocodeCached } from '../lib/geocode';
 import {
@@ -29,6 +30,8 @@ import { FeaturedProfilesStrip } from '../components/profile/FeaturedProfilesStr
 import {
   buildFeaturedSlides,
   buildRemoteBoostedSlides,
+  buildBlogSlides,
+  injectBlogIntoHero,
   composeSlideshow,
   buildCategoryRows,
   type FeaturedFilter,
@@ -79,6 +82,7 @@ export default function Discover() {
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
   const [wanted, setWanted] = useState<WantedItemRow[]>([]);
   const [finds, setFinds] = useState<CommunityPost[]>([]);
+  const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [eventItems, setEventItems] = useState<EventFeaturedItem[]>([]);
   const [findCoords, setFindCoords] = useState<Map<string, { lat: number; lng: number }>>(new Map());
   const [proHolders, setProHolders] = useState<Set<string>>(new Set());
@@ -106,7 +110,8 @@ export default function Discover() {
       fetchPublishedBusinesses(),
       fetchOpenWantedItems({ limit: 40 }),
       fetchCommunityPosts(24),
-    ]).then(async ([e, b, w, f]) => {
+      fetchPublishedPosts({ limit: 12 }),
+    ]).then(async ([e, b, w, f, bl]) => {
       if (cancelled) return;
       let evs: EventRow[] = [];
       let bus: BusinessRow[] = [];
@@ -118,6 +123,8 @@ export default function Discover() {
       else console.warn(LOG, 'wanted fetch failed', w.reason);
       if (f.status === 'fulfilled') setFinds(f.value);
       else console.warn(LOG, 'finds fetch failed', f.reason);
+      if (bl.status === 'fulfilled') setBlogs(bl.value);
+      else console.warn(LOG, 'blog fetch failed', bl.reason);
       setLoaded(true);
 
       // Surface collectibles uploaded inside events (Hot Wheels, cards, etc.)
@@ -172,7 +179,7 @@ export default function Discover() {
   );
 
   const counts = useMemo(() => {
-    const c = { all: base.length, event: 0, business: 0, find: 0, wanted: 0 };
+    const c = { all: base.length, event: 0, business: 0, find: 0, wanted: 0, blog: 0 };
     for (const sl of base) c[sl.kind] += 1;
     return c;
   }, [base]);
@@ -222,6 +229,32 @@ export default function Discover() {
     () => buildCategoryRows(base, filter),
     [base, filter],
   );
+
+  // Blog/article slides (newest first, search-aware). Kept separate from the
+  // ranked feed so they only surface where intended: a random pick in the hero
+  // and a dedicated "From the Blog" row — never the chip counts or main grid.
+  const blogSlides = useMemo(() => buildBlogSlides(blogs, query), [blogs, query]);
+
+  // Per-visit random seed so the hero blog pick + its slot vary across visits.
+  const blogSeed = useMemo(() => Math.random(), []);
+
+  // Slot one random blog into the hero rotation (only on the "All" view).
+  const heroWithBlog = useMemo(() => {
+    if (filter !== 'all' || blogSlides.length === 0) return heroSlides;
+    const pick = blogSlides[Math.floor(blogSeed * blogSlides.length)] ?? blogSlides[0];
+    return injectBlogIntoHero(heroSlides, pick, blogSeed, SLIDESHOW_CAP);
+  }, [heroSlides, blogSlides, filter, blogSeed]);
+
+  // Dedicated "From the Blog" carousel, inserted right under the events row on
+  // the "All" view so articles get their own prominent section.
+  const displayRows = useMemo(() => {
+    if (filter !== 'all' || blogSlides.length === 0) return categoryRows;
+    const blogRow = { key: 'blog', title: 'From the Blog', slides: blogSlides };
+    const idx = categoryRows.findIndex((r) => r.key === 'feat-events');
+    const out = [...categoryRows];
+    out.splice(idx >= 0 ? idx + 1 : 0, 0, blogRow);
+    return out;
+  }, [categoryRows, blogSlides, filter]);
 
   const filterKey = `${filter}|${query.trim().toLowerCase()}|${savedLocation?.savedAt ?? ''}`;
   const canExpand = !!savedLocation && nearRadius < 250;
@@ -306,7 +339,7 @@ export default function Discover() {
 
       {loaded ? (
         <FeaturedSlideshow
-          slides={heroSlides}
+          slides={heroWithBlog}
           filterKey={filterKey}
           onOpen={(to) => navigate(to)}
         />
@@ -314,9 +347,9 @@ export default function Discover() {
         <SlideshowSkeleton />
       )}
 
-      {loaded && categoryRows.length > 0 && (
+      {loaded && displayRows.length > 0 && (
         <div style={s.rowsWrap}>
-          {categoryRows.map((row) => (
+          {displayRows.map((row) => (
             <CategoryRowStrip
               key={row.key}
               title={row.title}
