@@ -6,7 +6,8 @@ import { fetchPublishedEvents, fetchProHolderIds, fetchFeaturedItemsForEvents, t
 import { fetchPublishedBusinesses, type BusinessRow } from '../lib/businesses';
 import { fetchOpenWantedItems, type WantedItemRow } from '../lib/wanted';
 import { fetchCommunityPosts } from '../lib/database';
-import type { CommunityPost } from '../lib/supabase';
+import { fetchSellerProfiles } from '../lib/profiles';
+import type { CommunityPost, Profile } from '../lib/supabase';
 import { geocodeCached } from '../lib/geocode';
 import {
   useSavedLocation,
@@ -55,6 +56,7 @@ const FILTERS: { key: FeaturedFilter; label: string }[] = [
   { key: 'event', label: 'Events' },
   { key: 'find', label: 'Flash Finds' },
   { key: 'business', label: 'Businesses' },
+  { key: 'seller', label: 'Sellers' },
   { key: 'wanted', label: 'Wanted' },
 ];
 
@@ -79,6 +81,7 @@ export default function Discover() {
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
   const [wanted, setWanted] = useState<WantedItemRow[]>([]);
   const [finds, setFinds] = useState<CommunityPost[]>([]);
+  const [sellers, setSellers] = useState<Profile[]>([]);
   const [eventItems, setEventItems] = useState<EventFeaturedItem[]>([]);
   const [findCoords, setFindCoords] = useState<Map<string, { lat: number; lng: number }>>(new Map());
   const [proHolders, setProHolders] = useState<Set<string>>(new Set());
@@ -106,7 +109,8 @@ export default function Discover() {
       fetchPublishedBusinesses(),
       fetchOpenWantedItems({ limit: 40 }),
       fetchCommunityPosts(24),
-    ]).then(async ([e, b, w, f]) => {
+      fetchSellerProfiles(24),
+    ]).then(async ([e, b, w, f, sp]) => {
       if (cancelled) return;
       let evs: EventRow[] = [];
       let bus: BusinessRow[] = [];
@@ -118,6 +122,8 @@ export default function Discover() {
       else console.warn(LOG, 'wanted fetch failed', w.reason);
       if (f.status === 'fulfilled') setFinds(f.value);
       else console.warn(LOG, 'finds fetch failed', f.reason);
+      if (sp.status === 'fulfilled') setSellers(sp.value);
+      else console.warn(LOG, 'sellers fetch failed', sp.reason);
       setLoaded(true);
 
       // Surface collectibles uploaded inside events (Hot Wheels, cards, etc.)
@@ -162,17 +168,17 @@ export default function Discover() {
   // filter this without re-ranking.
   const base = useMemo(
     () => buildFeaturedSlides({
-      events, businesses, wanted, finds, eventItems, proHolders, findCoords,
+      events, businesses, wanted, finds, sellers, eventItems, proHolders, findCoords,
       location: savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null,
       radiusMi: nearRadius,
       query,
       filter: 'all',
     }),
-    [events, businesses, wanted, finds, eventItems, proHolders, findCoords, savedLocation, nearRadius, query],
+    [events, businesses, wanted, finds, sellers, eventItems, proHolders, findCoords, savedLocation, nearRadius, query],
   );
 
   const counts = useMemo(() => {
-    const c = { all: base.length, event: 0, business: 0, find: 0, wanted: 0 };
+    const c = { all: base.length, event: 0, business: 0, find: 0, wanted: 0, seller: 0 };
     for (const sl of base) c[sl.kind] += 1;
     return c;
   }, [base]);
@@ -188,13 +194,13 @@ export default function Discover() {
   // below stays strictly local.
   const remoteBoosted = useMemo(
     () => buildRemoteBoostedSlides({
-      events, businesses, wanted, finds, eventItems, proHolders, findCoords,
+      events, businesses, wanted, finds, sellers, eventItems, proHolders, findCoords,
       location: savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null,
       radiusMi: nearRadius,
       query,
       filter: 'all',
     }),
-    [events, businesses, wanted, finds, eventItems, proHolders, findCoords, savedLocation, nearRadius, query],
+    [events, businesses, wanted, finds, sellers, eventItems, proHolders, findCoords, savedLocation, nearRadius, query],
   );
 
   // Rotation seed advances over time so multi-collectible events show different
@@ -472,7 +478,7 @@ function FeaturedGridCard({ slide, onClick }: { slide: FeaturedSlide; onClick: (
         />
         <div style={s.cardOverlay} />
         <div style={s.cardBadges}>
-          <span style={{ ...s.cardKind, background: slide.accent }}>{slide.kind === 'find' ? 'Find' : slide.kind === 'business' ? 'Shop' : slide.kind === 'wanted' ? 'Wanted' : 'Event'}</span>
+          <span style={{ ...s.cardKind, background: slide.accent }}>{slide.kind === 'find' ? 'Find' : slide.kind === 'business' ? 'Shop' : slide.kind === 'wanted' ? 'Wanted' : slide.kind === 'seller' ? 'Seller' : 'Event'}</span>
           {slide.badge && <span style={s.cardBadge}>{slide.badge}</span>}
         </div>
         {slide.distanceMi != null && (

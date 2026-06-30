@@ -1,6 +1,6 @@
 import { type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Radio, Sparkles, Search, Store, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Calendar, Radio, Sparkles, Search, Store, UserRound, ChevronRight } from 'lucide-react';
 import { PageScroll } from '../components/ui/PageScroll';
 import { monetizationHidden } from '../lib/platform';
 
@@ -53,6 +53,14 @@ const TILES: Tile[] = [
     desc: 'Antique stores, thrift stores, pawn shops, estate sale companies, auction houses, flea market vendors, and other treasure sources.',
     accent: '#22d3ee',
     to: '/business/new',
+  },
+  {
+    id: 'seller',
+    icon: UserRound,
+    title: 'Seller profile',
+    desc: 'Showcase yourself as a seller — link your Whatnot, eBay, Poshmark and Facebook shops and your listed items in one place.',
+    accent: '#ec4899',
+    to: '/profile',
   },
 ];
 
