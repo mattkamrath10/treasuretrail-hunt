@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Clock, ChevronRight, Share2, Copy, Check, Code2 } from 'lucide-react';
 import { fetchPostBySlug, fetchRelatedPosts, categoryLabel, type BlogPost } from '../lib/blog';
 import { MobileDetailPage } from '../components/ui/MobileDetailPage';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
@@ -166,6 +166,8 @@ export default function BlogArticle({ onBack }: { onBack: () => void }) {
           </button>
         </div>
 
+        <ShareSection post={post} />
+
         {related.length ? (
           <section style={st.relatedSection}>
             <h2 style={st.relatedHeading}>Related guides</h2>
@@ -186,6 +188,84 @@ export default function BlogArticle({ onBack }: { onBack: () => void }) {
         ) : null}
       </article>
     </MobileDetailPage>
+  );
+}
+
+function ShareSection({ post }: { post: BlogPost }) {
+  const url = publicWebUrl(`/blog/${post.slug}`);
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const embed = `<a href="${escapeHtml(url)}">${escapeHtml(post.title)} — featured on TreasureTrail</a>`;
+  const [shareMsg, setShareMsg] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedEmbed, setCopiedEmbed] = useState(false);
+
+  async function copy(text: string, which: 'link' | 'embed') {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(ta);
+    }
+    if (which === 'link') {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 1800);
+    } else {
+      setCopiedEmbed(true);
+      setTimeout(() => setCopiedEmbed(false), 1800);
+    }
+  }
+
+  async function share() {
+    const data = { title: post.title, text: post.excerpt || post.title, url };
+    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    if (nav.share) {
+      try {
+        await nav.share(data);
+        return;
+      } catch {
+        // user cancelled or unsupported — fall through to copy
+      }
+    }
+    await copy(url, 'link');
+    setShareMsg('Link copied — paste it anywhere');
+    setTimeout(() => setShareMsg(''), 2200);
+  }
+
+  return (
+    <section style={st.shareSection}>
+      <h2 style={st.shareHeading}>Share this guide</h2>
+      <div style={st.shareRow}>
+        <button style={st.shareBtn} onClick={share}>
+          <Share2 size={16} /> Share
+        </button>
+        <button style={st.shareBtnAlt} onClick={() => copy(url, 'link')}>
+          {copiedLink ? <Check size={16} /> : <Copy size={16} />}
+          {copiedLink ? 'Copied' : 'Copy link'}
+        </button>
+      </div>
+      {shareMsg ? <span style={st.shareNote}>{shareMsg}</span> : null}
+
+      <div style={st.embedCard}>
+        <span style={st.embedLabel}>
+          <Code2 size={14} /> Featured here? Link back to us
+        </span>
+        <span style={st.embedSub}>
+          Paste this on your website to link to this page — it helps both of us show up on Google.
+        </span>
+        <code style={st.embedCode}>{embed}</code>
+        <button style={st.embedBtn} onClick={() => copy(embed, 'embed')}>
+          {copiedEmbed ? <Check size={16} /> : <Copy size={16} />}
+          {copiedEmbed ? 'Copied' : 'Copy link code'}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -257,6 +337,42 @@ const st: Record<string, CSSProperties> = {
     padding: '10px 16px', borderRadius: 'var(--radius-md)', border: 'none',
     background: 'var(--color-primary-600, #c2410c)', color: '#fff',
     fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
+  },
+  shareSection: { borderTop: '1px solid var(--color-neutral-100)', paddingTop: 'var(--space-5)', marginTop: 'var(--space-6)' },
+  shareHeading: { fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)', margin: '0 0 var(--space-3)' },
+  shareRow: { display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' },
+  shareBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '10px 16px', borderRadius: 'var(--radius-md)', border: 'none',
+    background: 'var(--color-primary-600, #c2410c)', color: '#fff',
+    fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
+  },
+  shareBtnAlt: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '10px 16px', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)', background: 'var(--color-neutral-0)',
+    color: 'var(--color-neutral-800)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
+  },
+  shareNote: { display: 'block', marginTop: 'var(--space-2)', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' },
+  embedCard: {
+    display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', alignItems: 'flex-start',
+    marginTop: 'var(--space-4)', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)',
+    background: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-100)',
+  },
+  embedLabel: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)' },
+  embedSub: { fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-600)', lineHeight: 1.5 },
+  embedCode: {
+    display: 'block', width: '100%', boxSizing: 'border-box',
+    padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+    background: 'var(--color-neutral-0)', border: '1px solid var(--color-neutral-200)',
+    fontFamily: 'monospace', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-700)',
+    wordBreak: 'break-all', whiteSpace: 'pre-wrap',
+  },
+  embedBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '8px 14px', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-neutral-200)', background: 'var(--color-neutral-0)',
+    color: 'var(--color-neutral-800)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
   },
   relatedSection: { borderTop: '1px solid var(--color-neutral-100)', paddingTop: 'var(--space-5)', marginTop: 'var(--space-6)' },
   relatedHeading: { fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-neutral-900)', margin: '0 0 var(--space-3)' },
