@@ -1055,7 +1055,9 @@ const s: Record<string, React.CSSProperties> = {
   header: {
     position: 'sticky', top: 0, zIndex: 10,
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '12px 14px',
+    // Top inset keeps the title clear of the iOS status bar / clock.
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+    paddingRight: 14, paddingBottom: 12, paddingLeft: 14,
     background: 'var(--color-bg, #fff)',
     borderBottom: '1px solid var(--color-neutral-200, #e5e7eb)',
   },

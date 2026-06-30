@@ -181,6 +181,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     backgroundColor: 'var(--color-neutral-0)',
     padding: 'var(--space-6)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-6))',
   },
   progress: {
     display: 'flex',

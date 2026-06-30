@@ -21,6 +21,12 @@ it, or content slides under the home indicator.
 top:0 OR the first flex child of a full-height column) must add
 `paddingTop: calc(env(safe-area-inset-top, 0px) + <base>)`. Per-page inline style
 objects mean this is NOT centralized — each new top-level screen must add it
-itself. PublicProfile/Following/Safety had to be fixed individually; others
-(SellerDashboard, Events, SellerAnalytics, ReviewMode, CommunityGuidelines,
-WantedDetail) still lack it.
+itself, so this regresses one page at a time as new screens are added.
+
+A full sweep of every page in `src/pages` was completed (June 2026): all top
+headers/containers now carry the inset. When fixing a shorthand `padding` block,
+either declare `paddingTop` AFTER the shorthand (React keeps both; later longhand
+wins the top value) or replace shorthand with explicit longhands. Auth/setup pages
+(Login/SignUp/Onboarding/ProfileSetup) put the inset on the root CONTAINER, not a
+header, since they have no header bar. To prevent future per-page regressions,
+consider a shared top-safe-padding token/helper.
