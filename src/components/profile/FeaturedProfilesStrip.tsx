@@ -5,13 +5,13 @@ import { ChevronRight } from 'lucide-react';
 import { ImageWithFade } from '../ui/ImageWithFade';
 import { AvatarFallback } from '../ui/MediaFallback';
 import { toThumbUrl } from '../../lib/imageCompress';
-import { fetchSellerProfiles } from '../../lib/profiles';
+import { fetchFeaturedProfiles } from '../../lib/profiles';
 import type { Profile } from '../../lib/supabase';
 
 /**
- * Horizontal strip of sellers (profiles with selling links) for the Discover
- * page. Featured profiles sort first. Renders nothing when there are no sellers
- * yet, so it never leaves an empty header behind.
+ * Horizontal strip of featured members for the Discover page. Renders nothing
+ * when there are no featured profiles (e.g. before the migration is applied or
+ * before any member is featured), so it never leaves an empty header behind.
  */
 export function FeaturedProfilesStrip() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export function FeaturedProfilesStrip() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const rows = await fetchSellerProfiles(18);
+      const rows = await fetchFeaturedProfiles(12);
       if (!cancelled) setProfiles(rows);
     })();
     return () => { cancelled = true; };
@@ -32,8 +32,8 @@ export function FeaturedProfilesStrip() {
     <section style={s.wrap}>
       <button style={s.head} onClick={() => navigate('/people')}>
         <div style={{ minWidth: 0 }}>
-          <h2 style={s.title}>Sellers</h2>
-          <p style={s.sub}>Top sellers across platforms</p>
+          <h2 style={s.title}>Featured People</h2>
+          <p style={s.sub}>Top sellers and collectors</p>
         </div>
         <span style={s.seeAll}>See all <ChevronRight size={14} /></span>
       </button>

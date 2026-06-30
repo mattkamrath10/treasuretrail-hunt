@@ -37,25 +37,3 @@ export async function fetchFeaturedProfiles(limit = 12): Promise<Profile[]> {
   const all = await fetchDirectoryProfiles(200);
   return all.filter((p) => (p as any).featured_profile).slice(0, limit);
 }
-
-/**
- * A profile counts as a public "seller" when it has at least one cross-platform
- * selling link filled in (Whatnot / eBay / Poshmark / Facebook Marketplace).
- * This is the self-serve opt-in: setting up your seller profile = adding a link,
- * so we don't need a separate DB flag or migration.
- */
-export function hasSellingLinks(p: Profile): boolean {
-  const anyP = p as any;
-  return ['link_whatnot', 'link_ebay', 'link_poshmark', 'link_facebook_marketplace']
-    .some((k) => typeof anyP[k] === 'string' && anyP[k].trim().length > 0);
-}
-
-/**
- * Sellers for the Discover "Sellers" carousel + slideshow. Reuses the
- * migration-safe directory fetch, then keeps only profiles with a selling link.
- * Already sorted featured-first (then by followers) by fetchDirectoryProfiles.
- */
-export async function fetchSellerProfiles(limit = 24): Promise<Profile[]> {
-  const all = await fetchDirectoryProfiles(200);
-  return all.filter(hasSellingLinks).slice(0, limit);
-}

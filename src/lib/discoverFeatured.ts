@@ -20,12 +20,12 @@ import type { BusinessRow } from './businesses';
 import { BUSINESS_CATEGORY_META } from './businesses';
 import type { WantedItemRow } from './wanted';
 import { WANTED_CATEGORY_LABEL } from './wanted';
-import type { CommunityPost, Profile } from './supabase';
+import type { CommunityPost } from './supabase';
 import { isBoosted, type BoostableRow } from './boost';
 import { haversineMiles } from './geocode';
 import { toThumbUrl } from './imageCompress';
 
-export type FeaturedKind = 'event' | 'business' | 'find' | 'wanted' | 'seller';
+export type FeaturedKind = 'event' | 'business' | 'find' | 'wanted';
 export type FeaturedFilter = 'all' | FeaturedKind;
 
 export interface FeaturedSlide {
@@ -56,7 +56,6 @@ export const FEATURED_KIND_ACCENT: Record<FeaturedKind, string> = {
   business: '#22d3ee',
   find: '#8b5cf6',
   wanted: '#f97316',
-  seller: '#ec4899',
 };
 
 export const FEATURED_KIND_LABEL: Record<FeaturedKind, string> = {
@@ -64,7 +63,6 @@ export const FEATURED_KIND_LABEL: Record<FeaturedKind, string> = {
   business: 'Business',
   find: 'Flash Find',
   wanted: 'Wanted',
-  seller: 'Seller',
 };
 
 const EVENT_CATEGORY_LABEL: Record<string, string> = {
@@ -266,51 +264,11 @@ function eventItemToSlide(item: EventFeaturedItem, ev: EventRow): FeaturedSlide 
   };
 }
 
-/**
- * A public seller (a profile with selling links) surfaced as a Discover slide.
- * Sellers carry no coordinates, so they intentionally pass the radius filter
- * and stay eligible everywhere — a cross-platform seller ships nationwide.
- * Admin-featured profiles (`featured_profile`) get the higher P_FEATURED bucket
- * and a "Featured" badge so they spotlight above ordinary sellers.
- */
-function profileToSlide(p: Profile): FeaturedSlide {
-  const anyP = p as any;
-  const featured = !!anyP.featured_profile;
-  const isBiz = anyP.account_type === 'business';
-  const title = (isBiz && anyP.business_name) || `@${p.username}`;
-  const avatar = (isBiz && anyP.business_logo_url) || p.avatar_url || null;
-  const bio = (isBiz && anyP.business_bio) || p.bio || '';
-  const subtitle = bio.trim() || 'Seller on TreasureTrail';
-  return {
-    id: `seller:${p.id}`,
-    kind: 'seller',
-    title,
-    subtitle,
-    category: null,
-    image: toThumbUrl(avatar) ?? avatar,
-    imageFull: avatar,
-    accent: FEATURED_KIND_ACCENT.seller,
-    badge: featured ? 'Featured' : null,
-    to: `/profile/${p.username}`,
-    lat: null,
-    lng: null,
-    distanceMi: null,
-    priority: featured ? P_FEATURED : P_NORMAL,
-    sortTime: ts(anyP.created_at),
-    fallbackKind: 'listing',
-    fallbackCategory: null,
-    searchText: `${title} ${subtitle} ${p.username}`.toLowerCase(),
-    online: false,
-  };
-}
-
 export interface BuildFeaturedInput {
   events: EventRow[];
   businesses: BusinessRow[];
   wanted: WantedItemRow[];
   finds: CommunityPost[];
-  /** Public sellers (profiles with selling links) surfaced as slides. */
-  sellers?: Profile[];
   /** Featured collectibles uploaded inside events (surfaced individually). */
   eventItems?: EventFeaturedItem[];
   proHolders: Set<string>;
@@ -329,7 +287,7 @@ export interface BuildFeaturedInput {
  * remote-boosted slideshow builder so they stay in lockstep.
  */
 function normalizeAll(input: BuildFeaturedInput): FeaturedSlide[] {
-  const { events, businesses, wanted, finds, sellers, eventItems, proHolders, findCoords } = input;
+  const { events, businesses, wanted, finds, eventItems, proHolders, findCoords } = input;
 
   // Resolve event collectibles against their parent (published) event so they
   // inherit its location/boost; items whose event isn't in the set are skipped.
@@ -345,7 +303,6 @@ function normalizeAll(input: BuildFeaturedInput): FeaturedSlide[] {
     ...businesses.map((b) => businessToSlide(b, proHolders)),
     ...wanted.map((w) => wantedToSlide(w)),
     ...finds.map((p) => findToSlide(p, findCoords)),
-    ...(sellers ?? []).map(profileToSlide),
     ...itemSlides,
   ];
 }
@@ -559,7 +516,6 @@ const CATEGORY_ROW_DEFS: Record<FeaturedFilter, RowDef[]> = {
     { key: 'feat-events',  title: 'Featured Events',      match: (s) => s.kind === 'event' },
     { key: 'feat-finds',   title: 'Featured Flash Finds', match: (s) => s.kind === 'find' },
     { key: 'feat-biz',     title: 'Featured Businesses',  match: (s) => s.kind === 'business' },
-    { key: 'feat-sellers', title: 'Sellers',             match: (s) => s.kind === 'seller' },
   ],
   event: [
     { key: 'auctions',     title: 'Auctions',     match: (s) => s.kind === 'event' && s.fallbackCategory === 'auction' },
@@ -583,7 +539,6 @@ const CATEGORY_ROW_DEFS: Record<FeaturedFilter, RowDef[]> = {
     { key: 'dealers',         title: 'Collectible Dealers',     match: (s) => s.kind === 'business' && (s.fallbackCategory === 'consignment_store' || s.fallbackCategory === 'vintage_store' || s.fallbackCategory === 'pawn_shop') },
   ],
   wanted: [],
-  seller: [],
 };
 
 /**
