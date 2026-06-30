@@ -2088,6 +2088,64 @@ if (fs.existsSync(distDir)) {
     }
   });
 
+  // Per-business Open Graph injection for /business/:id — same crawler-unfurl
+  // technique as /event/:id. A shared business-profile link must unfurl into
+  // the business's own name + logo/photo, not the generic site card.
+  app.get('/business/:id', async (req, res, next) => {
+    const id = req.params.id;
+    if (!/^[0-9a-fA-F-]{16,}$/.test(id)) return next();
+    try {
+      const { data: biz } = await ogSupabase
+        .from('businesses')
+        .select('id, name, description, category, logo_url, photos, status, city, region')
+        .eq('id', id)
+        .eq('status', 'published')
+        .maybeSingle();
+
+      const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      if (!biz) return res.send(indexHtml); // unpublished/missing → default OG
+
+      const place = [biz.city, biz.region].filter(Boolean).join(', ');
+      const rawDesc = (biz.description || '').trim().replace(/\s+/g, ' ');
+      const description = rawDesc
+        ? rawDesc.slice(0, 200)
+        : `A local seller on TreasureTrail${place ? ` in ${place}` : ''}.`;
+      const bizUrl = `${SITE_ORIGIN}/business/${biz.id}`;
+      // Prefer the logo, then the first uploaded photo, then the site default.
+      const firstPhoto = Array.isArray(biz.photos)
+        ? biz.photos.find((p: unknown) => typeof p === 'string' && /^https?:\/\//i.test(p))
+        : null;
+      const image = biz.logo_url || firstPhoto || DEFAULT_OG_IMAGE;
+
+      const bizSchema: Record<string, unknown> = {
+        '@context': 'https://schema.org',
+        '@type': 'LocalBusiness',
+        name: biz.name,
+        description,
+        url: bizUrl,
+      };
+      if (biz.logo_url || firstPhoto) bizSchema.image = biz.logo_url || firstPhoto;
+      if (place) bizSchema.address = { '@type': 'PostalAddress', addressLocality: biz.city, addressRegion: biz.region };
+
+      const bizHtml = injectJsonLd(
+        injectEventMeta(indexHtml, {
+          title: biz.name,
+          description,
+          image,
+          url: bizUrl,
+          type: 'profile',
+        }),
+        [bizSchema],
+      );
+      return res.send(bizHtml);
+    } catch (err) {
+      console.error('[ai-server] business OG injection failed:', err);
+      return next();
+    }
+  });
+
   // Dynamic sitemap.xml — static routes + every published blog post and
   // category. Registered here (after the static index handlers but this route
   // is defined BEFORE the express.static call below at module level via order)
