@@ -182,6 +182,44 @@ export async function revokeBusinessFoundingPartner(
   return { ok: true, data: { founding_partner: false } };
 }
 
+// =====================================================================
+// Featured Profile (admin-curated directory spotlight)
+// ---------------------------------------------------------------------
+// profiles.featured_profile is escalation-guarded like founding_partner, so
+// the ONLY way to flip it is this service-role module. Each writer .select('id')
+// and fails on 0 rows because PostgREST treats a 0-row UPDATE as success.
+// =====================================================================
+
+export async function grantFeaturedProfile(
+  userId: string,
+): Promise<GrantResult<{ featured_profile: true }>> {
+  const { data, error } = await admin()
+    .from('profiles')
+    .update({ featured_profile: true, featured_profile_since: new Date().toISOString() })
+    .eq('id', userId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: `No profile matched id ${userId} for Featured Profile grant.` };
+  }
+  return { ok: true, data: { featured_profile: true } };
+}
+
+export async function revokeFeaturedProfile(
+  userId: string,
+): Promise<GrantResult<{ featured_profile: false }>> {
+  const { data, error } = await admin()
+    .from('profiles')
+    .update({ featured_profile: false, featured_profile_since: null })
+    .eq('id', userId)
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: `No profile matched id ${userId} for Featured Profile revoke.` };
+  }
+  return { ok: true, data: { featured_profile: false } };
+}
+
 export async function applyBoost(args: {
   targetKind: BoostTargetKind;
   targetId: string;

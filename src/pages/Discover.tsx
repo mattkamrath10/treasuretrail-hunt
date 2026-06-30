@@ -25,6 +25,7 @@ import { isProUser } from '../lib/entitlements';
 import { monetizationHidden } from '../lib/platform';
 import { useAuth } from '../context/AuthContext';
 import { FeaturedSlideshow } from '../components/discover/FeaturedSlideshow';
+import { FeaturedProfilesStrip } from '../components/profile/FeaturedProfilesStrip';
 import {
   buildFeaturedSlides,
   buildRemoteBoostedSlides,
@@ -278,13 +279,19 @@ export default function Discover() {
             </button>
           );
         })}
-        <button style={{ ...s.chip, ...s.chipDisabled }} disabled aria-disabled="true" title="Seller profiles are coming soon">
-          Sellers
-          <span style={s.chipSoon}>Soon</span>
+        <button
+          style={s.chip}
+          onClick={() => navigate('/people')}
+          title="Browse people on TreasureTrail"
+        >
+          <Users size={13} style={{ marginRight: 4, verticalAlign: '-2px' }} />
+          People
         </button>
       </div>
 
       <LocationControl radius={nearRadius} />
+
+      <FeaturedProfilesStrip />
 
       <section style={s.featuredHead}>
         <div style={{ minWidth: 0 }}>

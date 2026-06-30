@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Camera, Heart, Upload, LogOut, Shield, ShieldOff, Users, CircleCheck as CheckCircle, Loader, Share2, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle, Bell, MapPin, BookOpen } from 'lucide-react';
+import { Camera, Heart, Upload, LogOut, Shield, ShieldOff, Users, CircleCheck as CheckCircle, Loader, Share2, BarChart3, ChevronRight, FileText, Trash2, TriangleAlert as AlertTriangle, Bell, MapPin, BookOpen, Link2 } from 'lucide-react';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { AvatarFallback } from '../components/ui/MediaFallback';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +22,7 @@ import { fetchSavedFinds, type SavedFindCard } from '../lib/savedListings';
 import { fetchMyEvents, type EventRow } from '../lib/events';
 import { fetchMyWantedItems, type WantedItemRow } from '../lib/wanted';
 import { MediaFallback, type FallbackKind } from '../components/ui/MediaFallback';
+import { SellingLinks, SELLING_LINK_PLATFORMS } from '../components/profile/SellingLinks';
 
 export default function Profile() {
   const { profile, signOut, isGuest, isAdmin } = useAuth();
@@ -104,6 +105,8 @@ export default function Profile() {
 
       <div style={styles.content}>
         <ProfileHeader profile={profile} />
+
+        <SellingLinksEditor profile={profile} />
 
         {!monetizationHidden() && !isProUser(profile) && (
           <UpgradeProCard
@@ -411,6 +414,8 @@ function ProfileHeader({ profile }: { profile: any }) {
       {profile?.bio && <p style={styles.bio}>{profile.bio}</p>}
       <span style={styles.joinDate}>Member since {joinDate}</span>
 
+      {profile && <div style={{ width: '100%', textAlign: 'left', marginTop: 'var(--space-4)' }}><SellingLinks profile={profile} /></div>}
+
       <div style={styles.stats}>
         <div style={styles.stat}>
           <span style={styles.statNumber}>{findsCount}</span>
@@ -435,6 +440,125 @@ function ProfileHeader({ profile }: { profile: any }) {
     </div>
   );
 }
+
+// Lets the signed-in user manage their "link tree" of external selling
+// profiles. The link_* columns are user-editable (not privileged), so this
+// saves straight through AuthContext.updateProfile.
+function SellingLinksEditor({ profile }: { profile: any }) {
+  const { updateProfile } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      SELLING_LINK_PLATFORMS.map((p) => [p.key, (profile?.[p.key] as string) ?? '']),
+    ),
+  );
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSavedMsg('');
+    setError('');
+    try {
+      const patch: Record<string, string | null> = {};
+      for (const p of SELLING_LINK_PLATFORMS) {
+        const v = (values[p.key] ?? '').trim();
+        patch[p.key] = v === '' ? null : v;
+      }
+      const { error: err } = await updateProfile(patch);
+      if (err) throw new Error(err);
+      setSavedMsg('Links saved');
+      setOpen(false);
+    } catch (e: any) {
+      setError(e?.message || 'Could not save links. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={linkStyles.card}>
+      <button style={linkStyles.cardHead} onClick={() => setOpen((o) => !o)}>
+        <span style={linkStyles.iconWrap}>
+          <Link2 size={18} style={{ color: 'var(--color-primary-600, #d97706)' }} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={linkStyles.cardTitle}>My Selling Links</span>
+          <span style={linkStyles.cardSub}>Facebook Marketplace, Whatnot, Poshmark, eBay</span>
+        </span>
+        <ChevronRight
+          size={18}
+          style={{ color: 'var(--color-neutral-400)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}
+        />
+      </button>
+
+      {open && (
+        <div style={linkStyles.body}>
+          {SELLING_LINK_PLATFORMS.map((p) => (
+            <label key={p.key} style={linkStyles.field}>
+              <span style={linkStyles.fieldLabel}>
+                <span style={{ ...linkStyles.dot, background: p.color }} />
+                {p.label}
+              </span>
+              <input
+                type="url"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder={p.placeholder}
+                value={values[p.key] ?? ''}
+                onChange={(e) => setValues((v) => ({ ...v, [p.key]: e.target.value }))}
+                style={linkStyles.input}
+              />
+            </label>
+          ))}
+          {error && <p style={linkStyles.error}>{error}</p>}
+          <button onClick={handleSave} disabled={saving} style={linkStyles.saveBtn}>
+            {saving ? 'Saving…' : 'Save links'}
+          </button>
+        </div>
+      )}
+      {savedMsg && !open && <p style={linkStyles.savedMsg}>{savedMsg}</p>}
+    </div>
+  );
+}
+
+const linkStyles: Record<string, React.CSSProperties> = {
+  card: {
+    marginTop: 'var(--space-4)', borderRadius: 16,
+    border: '1px solid var(--color-neutral-200)', background: 'var(--color-neutral-0)', overflow: 'hidden',
+  },
+  cardHead: {
+    display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+    padding: '14px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+  },
+  iconWrap: {
+    display: 'inline-flex', width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', background: 'rgba(251, 191, 36, 0.16)', flexShrink: 0,
+  },
+  cardTitle: { display: 'block', fontWeight: 700, fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)' },
+  cardSub: { display: 'block', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' },
+  body: { padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
+  field: { display: 'flex', flexDirection: 'column', gap: 6 },
+  fieldLabel: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-neutral-600)',
+  },
+  dot: { width: 9, height: 9, borderRadius: 999, flexShrink: 0 },
+  input: {
+    width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 10,
+    border: '1px solid var(--color-neutral-200)', background: 'var(--color-neutral-50)',
+    fontSize: 'var(--font-size-sm)', color: 'var(--color-neutral-900)',
+  },
+  error: { fontSize: 'var(--font-size-xs)', color: 'var(--color-error-600, #dc2626)' },
+  saveBtn: {
+    minHeight: 44, borderRadius: 10, border: 'none', cursor: 'pointer',
+    background: 'var(--color-primary-500)', color: '#fff', fontWeight: 700, fontSize: 'var(--font-size-sm)',
+  },
+  savedMsg: { padding: '0 16px 12px', fontSize: 'var(--font-size-xs)', color: 'var(--color-success-600, #16a34a)' },
+};
 
 function ActivitySection() {
   const { user } = useAuth();

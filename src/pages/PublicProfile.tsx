@@ -17,7 +17,9 @@ import { AvatarFallback } from '../components/ui/MediaFallback';
 import { toThumbUrl } from '../lib/imageCompress';
 import { FoundingPartnerBadge } from '../components/ui/FoundingPartnerBadge';
 import { setFoundingPartner } from '../lib/foundingPartner';
+import { setFeaturedProfile } from '../lib/featuredProfile';
 import { setProMembership } from '../lib/proMembership';
+import { SellingLinks } from '../components/profile/SellingLinks';
 import { flashToast } from '../lib/toast';
 
 export default function PublicProfile() {
@@ -26,6 +28,7 @@ export default function PublicProfile() {
   const { user, profile: meProfile, isAdmin } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [fpBusy, setFpBusy] = useState(false);
+  const [featBusy, setFeatBusy] = useState(false);
   const [proBusy, setProBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -188,6 +191,21 @@ export default function PublicProfile() {
     }
   };
 
+  const onToggleFeatured = async () => {
+    if (!profile?.id || featBusy) return;
+    const grant = !profile.featured_profile;
+    setFeatBusy(true);
+    try {
+      await setFeaturedProfile({ id: profile.id, action: grant ? 'grant' : 'revoke' });
+      setProfile((p: any) => (p ? { ...p, featured_profile: grant } : p));
+      flashToast(grant ? 'Added to Featured Profiles' : 'Removed from Featured');
+    } catch (e: any) {
+      flashToast(e?.message ?? 'Could not update Featured status.');
+    } finally {
+      setFeatBusy(false);
+    }
+  };
+
   const onTogglePro = async () => {
     if (!profile?.id || proBusy) return;
     const grant = !(profile.membership_tier === 'pro' || profile.pro_member === true);
@@ -299,6 +317,19 @@ export default function PublicProfile() {
                   ? 'Remove Pro'
                   : 'Make Pro'}
               </button>
+              <button
+                onClick={onToggleFeatured}
+                disabled={featBusy}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                  border: '1px dashed #b45309', background: 'transparent',
+                  color: '#b45309', fontSize: 11, fontWeight: 700,
+                  opacity: featBusy ? 0.6 : 1,
+                }}
+              >
+                {profile.featured_profile ? 'Remove Featured' : 'Make Featured'}
+              </button>
             </div>
           )}
           {profile.bio && <p style={s.bio}>{profile.bio}</p>}
@@ -377,6 +408,8 @@ export default function PublicProfile() {
         {toast && (
           <div style={s.toast}>{toast}</div>
         )}
+
+        <SellingLinks profile={profile} />
 
         <div style={s.section}>
           <h2 style={s.sectionTitle}>{isSelf ? 'Your Showcase' : `@${profile.username}'s Showcase`}</h2>

@@ -42,6 +42,7 @@ const BusinessForm = lazy(() => import('../pages/BusinessForm'));
 const FindDetail = lazy(() => import('../pages/FindDetail'));
 const ListingDetail = lazy(() => import('../pages/ListingDetail'));
 const PublicProfile = lazy(() => import('../pages/PublicProfile'));
+const FeaturedProfiles = lazy(() => import('../pages/FeaturedProfiles'));
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('../pages/TermsOfService'));
 const CommunityGuidelines = lazy(() => import('../pages/CommunityGuidelines'));
@@ -414,6 +415,7 @@ export default function AppShell() {
             <Route path="/events" element={<EventsPage />} />
             <Route path="/map" element={<EventsMap />} />
             <Route path="/following" element={<FollowingPage />} />
+            <Route path="/people" element={<FeaturedProfiles />} />
             <Route path="/seller" element={<SellerDashboardPage />} />
             {/* Pro-only Reach Analytics is temporarily removed for App Store
                 review — redirect to the seller dashboard. */}

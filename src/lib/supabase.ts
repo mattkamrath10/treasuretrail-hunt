@@ -37,6 +37,17 @@ export type Profile = {
   business_name: string | null;
   business_bio: string | null;
   business_logo_url: string | null;
+  // Admin-granted recognition that pins a member to the top of the Featured
+  // Profiles directory. Privileged column (escalation-guarded); set only via
+  // the service-role grant module. Optional so code keeps compiling before the
+  // 20260630000000_featured_profiles_and_links migration is applied.
+  featured_profile?: boolean;
+  featured_profile_since?: string | null;
+  // User-owned "link tree" of external selling profiles (optional URLs).
+  link_facebook_marketplace?: string | null;
+  link_whatnot?: string | null;
+  link_poshmark?: string | null;
+  link_ebay?: string | null;
   created_at: string;
   updated_at: string;
 };

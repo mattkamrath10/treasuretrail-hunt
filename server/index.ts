@@ -13,6 +13,8 @@ import {
   revokeFoundingPartner,
   grantBusinessFoundingPartner,
   revokeBusinessFoundingPartner,
+  grantFeaturedProfile,
+  revokeFeaturedProfile,
   applyBoost,
   removeBoost,
   deleteUserAccount,
@@ -355,6 +357,29 @@ app.post('/api/admin/founding-partner', async (req, res) => {
   } catch (err: any) {
     console.error('[admin/founding-partner]', err?.message || err);
     return res.status(500).json({ error: 'Founding Partner grant failed.' });
+  }
+});
+
+// Featured Profile grant/revoke for a member. Admin-gated; the privileged
+// featured_profile column is written only through the trusted grant module.
+app.post('/api/admin/featured-profile', async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    const { id, action } = req.body as { id?: string; action?: 'grant' | 'revoke' };
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'id is required.' });
+    }
+    if (action !== 'grant' && action !== 'revoke') {
+      return res.status(400).json({ error: "action must be 'grant' or 'revoke'." });
+    }
+    const result = action === 'revoke'
+      ? await revokeFeaturedProfile(id)
+      : await grantFeaturedProfile(id);
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    return res.json(result.data);
+  } catch (err: any) {
+    console.error('[admin/featured-profile]', err?.message || err);
+    return res.status(500).json({ error: 'Featured Profile grant failed.' });
   }
 });
 
