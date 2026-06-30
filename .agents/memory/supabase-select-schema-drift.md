@@ -45,3 +45,5 @@ doesn't blow up the card. But it also swallows schema-shape errors that affect
 - ARCHITECTURE.md §6 (external-link / fallback rules) — same principle:
   branded fallback is fine, but never let it mask an upstream failure that
   applies to every item.
+
+- Concrete instance: `profiles` has NO location_city/location_state columns (location is client-only localStorage). A server OG `.select('...location_city...')` returned null on every row → generic share card, not an obvious error.

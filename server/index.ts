@@ -2171,6 +2171,65 @@ if (fs.existsSync(distDir)) {
     }
   });
 
+  // Per-user Open Graph injection for /u/:username — same crawler-unfurl
+  // technique as /business/:id and /event/:id. Without this, sharing a
+  // profile link ("Check out my TreasureTrail profile!") unfurls the
+  // generic site card instead of the user's own @username + avatar + bio.
+  app.get('/u/:username', async (req, res, next) => {
+    const username = req.params.username;
+    if (!/^[a-zA-Z0-9_.-]{1,40}$/.test(username)) return next();
+    try {
+      const { data: profile } = await ogSupabase
+        .from('profiles')
+        .select('username, bio, avatar_url, account_type, business_name, business_bio, business_logo_url')
+        .eq('username', username)
+        .maybeSingle();
+
+      const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      if (!profile) return res.send(indexHtml); // missing → default OG
+
+      const isBusiness = profile.account_type === 'business' && !!profile.business_name;
+      const rawBio = ((isBusiness ? profile.business_bio : null) || profile.bio || '').trim().replace(/\s+/g, ' ');
+      const description = rawBio
+        ? rawBio.slice(0, 200)
+        : `A treasure hunter on TreasureTrail — see their finds, listings, and selling links.`;
+      const profileUrl = `${SITE_ORIGIN}/u/${profile.username}`;
+      const avatar = (isBusiness ? profile.business_logo_url : null) || profile.avatar_url;
+      const image = avatar && /^https?:\/\//i.test(avatar) ? avatar : DEFAULT_OG_IMAGE;
+      const title = isBusiness
+        ? `${profile.business_name} on TreasureTrail`
+        : `@${profile.username} on TreasureTrail`;
+
+      const personSchema: Record<string, unknown> = {
+        '@context': 'https://schema.org',
+        '@type': 'ProfilePage',
+        name: title,
+        description,
+        url: profileUrl,
+      };
+      if (avatar && /^https?:\/\//i.test(avatar)) {
+        personSchema.image = avatar;
+      }
+
+      const profileHtml = injectJsonLd(
+        injectEventMeta(indexHtml, {
+          title,
+          description,
+          image,
+          url: profileUrl,
+          type: 'profile',
+        }),
+        [personSchema],
+      );
+      return res.send(profileHtml);
+    } catch (err) {
+      console.error('[ai-server] profile OG injection failed:', err);
+      return next();
+    }
+  });
+
   // Dynamic sitemap.xml — static routes + every published blog post and
   // category. Registered here (after the static index handlers but this route
   // is defined BEFORE the express.static call below at module level via order)

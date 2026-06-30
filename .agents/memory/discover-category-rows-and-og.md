@@ -42,3 +42,10 @@ Supabase client and string-replaces the OG/Twitter/`<title>`/canonical tags in
 **To extend to finds/businesses/listings:** add sibling `app.get('/find/:id')` etc.
 with the same fetch→inject→graceful-fallback shape. server/ is NOT typechecked at
 build (tsconfig includes `src` only) — it runs via tsx, so verify by booting.
+
+**Profile shares (`/u/:username`):** added a sibling `app.get('/u/:username')` OG
+route (same fetch→inject→graceful-fallback shape) so shared profile links unfurl
+the user's own @username + avatar + bio instead of the generic card. For business
+accounts it prefers business_name/business_logo_url/business_bio. GOTCHA: the
+`profiles` table has NO location columns — selecting location_city/location_state
+(or any nonexistent column) fails the WHOLE anon select → null → silent default OG.
