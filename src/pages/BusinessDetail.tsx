@@ -17,7 +17,6 @@ import { PageScroll } from '../components/ui/PageScroll';
 import { ImageWithFade } from '../components/ui/ImageWithFade';
 import { EmptyState } from '../components/ui/EmptyState';
 import { flashToast } from '../lib/toast';
-import { shareWithImage } from '../lib/shareWithImage';
 import { publicWebUrl } from '../lib/apiBase';
 
 const LOG = '[BUSINESS_DETAIL]';
@@ -103,16 +102,33 @@ export default function BusinessDetail({ onBack }: { onBack: () => void }) {
 
   const onShare = async () => {
     if (!biz) return;
+    // Share the BARE URL — no title/text prefix. When a message contains
+    // only a link, iMessage/Messenger/WhatsApp collapse it into a single
+    // rich preview card (the server injects the business's name + logo as
+    // OG tags on /business/:id). Prepending the name forced those apps to
+    // also show the long raw URL as text, which looked terrible. URL-only
+    // = clean card, exactly like sharing any other legitimate site.
     const url = publicWebUrl(`/business/${biz.id}`);
-    const result = await shareWithImage({
-      url,
-      title: biz.name,
-      text: biz.name,
-      imageUrl: biz.logo_url || biz.photos[0]?.url || null,
-    });
-    if (result.kind === 'copied') flashToast('Link copied');
-    else if (result.kind === 'unsupported') window.prompt('Copy this link to share:', url);
-    else if (result.kind === 'error') window.prompt('Copy this link to share:', url);
+    const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+    if (nav && typeof nav.share === 'function') {
+      try {
+        await nav.share({ url });
+        return;
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return;
+        // fall through to clipboard
+      }
+    }
+    if (nav?.clipboard?.writeText) {
+      try {
+        await nav.clipboard.writeText(url);
+        flashToast('Link copied');
+        return;
+      } catch {
+        /* fall through to prompt */
+      }
+    }
+    window.prompt('Copy this link to share:', url);
   };
 
   /* --------------- render --------------- */
