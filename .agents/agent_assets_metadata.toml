@@ -413,3 +413,9 @@ id = "PvkDDIOA59qp0WIdwk0UI"
 uri = "file://treasuretrail-android-1.1.6.zip"
 type = "unspecified"
 title = "TreasureTrail Android Source v1.1.6 (ZIP)"
+
+[[outputs]]
+id = "tAZCM5Eeoe3TFMsiuPVaP"
+uri = "file://TreasureTrail-FullSource-20260701.zip"
+type = "unspecified"
+title = "TreasureTrail — Full Source (July 1, 2026)"
