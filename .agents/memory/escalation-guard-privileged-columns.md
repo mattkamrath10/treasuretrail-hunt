@@ -47,10 +47,16 @@ empirically: `admin().from('profiles').update({founding_partner:true})` returns
 the row via `.select('id')` (looks like success) but the value stays false. So
 the in-app admin "Make Founding Partner" / "Make Pro" buttons (server grants via
 service-role) are SILENT NO-OPS on the live DB.
-**Fix:** change the guard condition from "jwt.claims is non-empty" to "jwt role =
-'authenticated'" (mirroring `prevent_business_field_escalation`, which already
-does `IF v_role IS DISTINCT FROM 'authenticated' THEN RETURN NEW`). Then only
-real logged-in users are restricted; service_role (server) and no-JWT (SQL
-editor) pass through. Agent CANNOT apply this DDL — user pastes it in the
-Supabase SQL editor. The SQL editor itself has no JWT, so a plain
-`UPDATE profiles SET role='admin'` there works even WITHOUT the fix.
+**Fix (fail-CLOSED, preferred over the businesses guard's pattern):** read the
+JWT role via `nullif(current_setting('request.jwt.claims',true),'')::json->>'role'`
+(the NULLIF avoids `''::json` raising), then bypass ONLY trusted contexts —
+`IF v_role IS NULL OR v_role IN ('service_role','supabase_admin') THEN RETURN NEW`
+— and freeze for everything else (authenticated, anon, AND any unknown/custom
+role). Do NOT use the businesses guard's `IS DISTINCT FROM 'authenticated'`
+deny-list: it fail-OPENs for any unexpected role a future auth hook emits.
+**Why:** a security trigger must default to constrained, not trusted.
+**How to apply:** Agent CANNOT apply this DDL — user pastes the migration
+(20260701000000_fix_profile_guard_service_role.sql) into the Supabase SQL editor.
+The SQL editor runs as postgres (no JWT → v_role NULL), so a plain
+`UPDATE profiles SET founding_partner=true` there works even WITHOUT the fix —
+that's the manual escape hatch to grant someone before the trigger is patched.
