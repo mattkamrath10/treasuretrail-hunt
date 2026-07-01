@@ -140,7 +140,7 @@ function AppContent() {
 function LoadingScreen() {
   return (
     <div style={loadingStyles.container}>
-      <h1 style={loadingStyles.logo}>TreasureTrail</h1>
+      <h1 style={loadingStyles.logo}>TreasureTrail Marketplace</h1>
       <div style={loadingStyles.spinner} />
     </div>
   );

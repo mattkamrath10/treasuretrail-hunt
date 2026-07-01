@@ -183,7 +183,7 @@ export default function UserShowcase({ userId, isSelf }: { userId: string; isSel
       )}
 
       {wanted!.length > 0 && (
-        <Rail title="Wanted Items" subtitle="Treasures they're searching for" accent="#10b981">
+        <Rail title="In Search Of" subtitle="Treasures they're searching for" accent="#10b981">
           {wanted!.map((w) => (
             <WantedCard key={w.id} item={w} onClick={() => navigate(`/wanted/${w.id}`)} />
           ))}

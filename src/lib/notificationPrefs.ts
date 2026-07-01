@@ -55,11 +55,11 @@ export const CATEGORY_LABELS: Record<NotificationCategory, { label: string; desc
     description: 'Direct messages from other hunters.',
   },
   wanted_post_responses: {
-    label: 'Wanted Post Responses',
-    description: 'When someone responds to a wanted post you created.',
+    label: 'In Search Of Post Responses',
+    description: 'When someone responds to an In Search Of post you created.',
   },
   wanted_item_matches: {
-    label: 'Wanted Item Matches',
+    label: 'In Search Of Item Matches',
     description: 'Saved searches, Rare Radar, and marketplace matches.',
   },
   followers: {

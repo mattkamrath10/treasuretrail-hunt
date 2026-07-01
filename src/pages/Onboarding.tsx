@@ -57,7 +57,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       <div style={styles.logoContainer}>
-        <h1 style={styles.logo}>TreasureTrail</h1>
+        <h1 style={styles.logo}>TreasureTrail Marketplace</h1>
         <p style={styles.tagline}>Every find tells a story</p>
       </div>
 

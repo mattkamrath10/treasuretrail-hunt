@@ -279,7 +279,7 @@ async function searchTreasureTrail(term: string): Promise<SearchResultItem[]> {
         id: String(w.id),
         source: 'treasuretrail',
         kind: 'wanted',
-        title: (w.title as string) || 'Wanted Request',
+        title: (w.title as string) || 'In Search Of Request',
         subtitle: loc || null,
         price: (w.max_budget as number) ?? null,
         imageUrl: (w.thumb_url as string) || (w.image_url as string) || null,

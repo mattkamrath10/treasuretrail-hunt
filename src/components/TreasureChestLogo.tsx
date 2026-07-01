@@ -87,7 +87,7 @@ export function TreasureChestBrand({ variant = 'full' }: { variant?: 'full' | 'i
         color: 'var(--color-neutral-900)',
         letterSpacing: '-0.5px',
       }}>
-        TreasureTrail
+        TreasureTrail Marketplace
       </span>
     </div>
   );

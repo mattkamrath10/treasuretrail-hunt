@@ -429,7 +429,7 @@ function ProfileHeader({ profile }: { profile: any }) {
         <div style={styles.statDivider} />
         <div style={styles.stat}>
           <span style={styles.statNumber}>{wantedCount}</span>
-          <span style={styles.statLabel}>Wanted</span>
+          <span style={styles.statLabel}>In Search Of</span>
         </div>
         <div style={styles.statDivider} />
         <div style={styles.stat} title="Items you've bookmarked to revisit later">

@@ -337,7 +337,7 @@ export default function WantedDetail() {
                 const fresh = await fetchWantedItemWithRequester(id);
                 if (fresh) setItem(fresh);
                 setEditing(false);
-                showToast('Wanted post updated');
+                showToast('In Search Of post updated');
               }}
             />
           ) : (
@@ -517,7 +517,7 @@ function Header({ onBack }: { onBack: () => void }) {
     <header style={s.header}>
       <button onClick={onBack} style={s.backBtn} aria-label="Back"><ArrowLeft size={20} /></button>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h1 style={s.headerTitle}>Wanted</h1>
+        <h1 style={s.headerTitle}>In Search Of</h1>
       </div>
     </header>
   );
@@ -895,7 +895,7 @@ function OwnerEditForm({
           <ImageWithFade
             src={thumbUrl ?? imageUrl}
             fallbackSrc={imageUrl}
-            alt="Wanted item"
+            alt="In Search Of item"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             fallback={<MediaFallback kind="wanted" seed={item.id} label={title} />}
           />

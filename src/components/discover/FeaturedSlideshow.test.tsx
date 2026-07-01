@@ -24,6 +24,9 @@ function slide(over: Partial<FeaturedSlide> = {}): FeaturedSlide {
     fallbackCategory: null,
     searchText: 'slide',
     online: false,
+    recurring: false,
+    recurrenceLabel: null,
+    ended: false,
     ...over,
   };
 }

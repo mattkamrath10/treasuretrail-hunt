@@ -41,7 +41,7 @@ const TILES: Tile[] = [
   {
     id: 'wanted',
     icon: Search,
-    title: 'Wanted post',
+    title: 'In Search Of post',
     desc: 'Tell sellers exactly what you\'re looking for.',
     accent: '#10b981',
     to: '/sell/wanted',

@@ -278,3 +278,19 @@ export function describeRecurrence(e: RecurrenceFields & { starts_at: string }):
       return null;
   }
 }
+
+/**
+ * Short, badge-friendly frequency word for a recurring event: "Daily",
+ * "Weekly" or "Monthly". Returns null for non-recurring events. Used by the
+ * green recurring badge on Discover so users immediately see how often an
+ * event repeats.
+ */
+export function recurrenceFrequencyLabel(e: RecurrenceFields | null | undefined): string | null {
+  if (!isRecurring(e)) return null;
+  switch (e?.recurrence) {
+    case 'daily':   return 'Daily';
+    case 'weekly':  return 'Weekly';
+    case 'monthly': return 'Monthly';
+    default:        return null;
+  }
+}

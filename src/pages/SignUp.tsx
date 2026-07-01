@@ -89,7 +89,7 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-2)' }}>
             <TreasureChestLogo size={40} glow />
           </div>
-          <h1 style={styles.logo}>TreasureTrail</h1>
+          <h1 style={styles.logo}>TreasureTrail Marketplace</h1>
           <h2 style={styles.title}>Check your email</h2>
           <p style={styles.subtitle}>
             We sent a confirmation link to <strong>{form.email}</strong>. Tap the link
@@ -114,7 +114,7 @@ export default function SignUp({ onSwitchToLogin, onGuestBrowse }: SignUpProps) 
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-2)' }}>
           <TreasureChestLogo size={40} glow />
         </div>
-        <h1 style={styles.logo}>TreasureTrail</h1>
+        <h1 style={styles.logo}>TreasureTrail Marketplace</h1>
         <h2 style={styles.title}>Create Account</h2>
         <p style={styles.subtitle}>Join the treasure hunting community</p>
       </div>

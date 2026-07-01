@@ -114,7 +114,7 @@ export default function SellerDemand({ onBack }: { onBack: () => void }) {
       <section style={s.section}>
         <h3 style={s.sectionTitle}>
           <MapPin size={15} style={{ color: 'var(--color-primary-600, #d97706)' }} />
-          Wanted near you {origin ? `(within ${DEMAND_RADIUS_MILES} mi)` : ''}
+          In Search Of near you {origin ? `(within ${DEMAND_RADIUS_MILES} mi)` : ''}
         </h3>
         {!origin ? (
           <EmptyState
@@ -128,7 +128,7 @@ export default function SellerDemand({ onBack }: { onBack: () => void }) {
           <EmptyState
             icon={Search}
             title="No local demand yet"
-            body="As buyers near you search and post Wanted Requests, the most-wanted items will show up here."
+            body="As buyers near you search and post In Search Of requests, the most-wanted items will show up here."
           />
         ) : (
           <div style={s.list}>
@@ -159,7 +159,7 @@ export default function SellerDemand({ onBack }: { onBack: () => void }) {
           <EmptyState
             icon={TrendingUp}
             title="No demand data yet"
-            body="When buyers search for items we don't have, or post Wanted Requests, the trends will appear here."
+            body="When buyers search for items we don't have, or post In Search Of requests, the trends will appear here."
           />
         ) : (
           <div style={s.list}>

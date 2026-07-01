@@ -30,7 +30,7 @@ function makeEvent(over: Partial<EventRow> = {}): EventRow {
     title: 'Test Event',
     description: '',
     category: 'estate_sale',
-    starts_at: '2026-01-01T00:00:00.000Z',
+    starts_at: '2099-01-01T00:00:00.000Z',
     ends_at: null,
     address: null,
     city: 'Austin',
@@ -215,6 +215,43 @@ describe('buildFeaturedSlides — priority bucket ordering', () => {
   });
 });
 
+describe('buildFeaturedSlides — recurring & ended events', () => {
+  it('demotes an ended non-recurring event below active normal content', () => {
+    const ended = makeEvent({
+      id: 'ev-ended',
+      starts_at: '2020-01-01T00:00:00.000Z',
+      ends_at: '2020-01-01T02:00:00.000Z',
+    });
+    const active = makeEvent({ id: 'ev-active' }); // default future starts_at
+
+    const slides = buildFeaturedSlides(baseInput({ events: [ended, active] }));
+
+    expect(slides.map((s) => s.id)).toEqual(['event:ev-active', 'event:ev-ended']);
+    expect(slides.find((s) => s.id === 'event:ev-ended')!.ended).toBe(true);
+  });
+
+  it('ranks an active recurring featured event above a non-recurring featured event', () => {
+    const recurringPro = makeEvent({
+      id: 'ev-recurring',
+      holder_id: 'pro-holder',
+      recurrence: 'weekly',
+    });
+    const oneOffPro = makeEvent({ id: 'ev-oneoff', holder_id: 'pro-holder' });
+
+    const slides = buildFeaturedSlides(
+      baseInput({
+        events: [oneOffPro, recurringPro],
+        proHolders: new Set(['pro-holder']),
+      }),
+    );
+
+    expect(slides.map((s) => s.id)).toEqual(['event:ev-recurring', 'event:ev-oneoff']);
+    const rec = slides.find((s) => s.id === 'event:ev-recurring')!;
+    expect(rec.recurring).toBe(true);
+    expect(rec.recurrenceLabel).toBe('Weekly');
+  });
+});
+
 describe('buildFeaturedSlides — tie-break ordering', () => {
   it('within a bucket sorts nearest-first when located', () => {
     const near = makeEvent({ id: 'ev-near', lat: 30.27, lng: -97.74 });
@@ -232,8 +269,8 @@ describe('buildFeaturedSlides — tie-break ordering', () => {
   });
 
   it('within a bucket sorts newest-first when not located', () => {
-    const older = makeEvent({ id: 'ev-older', starts_at: '2026-01-01T00:00:00.000Z' });
-    const newer = makeEvent({ id: 'ev-newer', starts_at: '2026-06-01T00:00:00.000Z' });
+    const older = makeEvent({ id: 'ev-older', starts_at: '2099-01-01T00:00:00.000Z' });
+    const newer = makeEvent({ id: 'ev-newer', starts_at: '2099-06-01T00:00:00.000Z' });
 
     const slides = buildFeaturedSlides(
       baseInput({ events: [older, newer] }),
@@ -512,6 +549,9 @@ describe('composeSlideshow — hero composition (Decision 2 + 4)', () => {
       fallbackCategory: null,
       searchText: '',
       online: false,
+      recurring: false,
+      recurrenceLabel: null,
+      ended: false,
       ...over,
     };
   }
@@ -585,7 +625,8 @@ describe('buildBlogSlides + injectBlogIntoHero (blog surfacing)', () => {
       image: null, imageFull: null, accent: '#000', badge: null,
       to: over.to ?? `/x/${id}`, lat: null, lng: null, distanceMi: null,
       priority: 4, sortTime: 0, fallbackKind: 'find', fallbackCategory: null,
-      searchText: '', online: false, ...over,
+      searchText: '', online: false, recurring: false, recurrenceLabel: null,
+      ended: false, ...over,
     };
   }
 

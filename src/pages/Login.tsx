@@ -73,7 +73,7 @@ export default function Login({ onSwitchToSignUp, onGuestBrowse }: LoginProps) {
     <div style={styles.container}>
       <div style={styles.topSection}>
         <TreasureChestLogo size={56} glow />
-        <h1 style={styles.logo}>TreasureTrail</h1>
+        <h1 style={styles.logo}>TreasureTrail Marketplace</h1>
         <p style={styles.tagline}>Every find tells a story</p>
       </div>
 

@@ -1,0 +1,281 @@
+TreasureTrail Marketplace
+Discover Page UI & Featured Content Refresh (Task #37)
+Goal
+
+Using the attached mockup as the visual reference, update the Discover page and related screens to match the new TreasureTrail Marketplace design and behavior.
+
+This task includes UI changes, ranking logic improvements, recurring event handling, terminology updates, and a global branding audit.
+
+PART 1 — Global Branding Audit
+
+Search the entire project.
+
+Every place that displays:
+
+TreasureTrail
+
+or
+
+Treasure Trail
+
+should be updated to display:
+
+TreasureTrail
+Marketplace
+
+where applicable in the UI.
+
+Examples:
+
+Current
+
+TreasureTrail
+
+New
+
+TreasureTrail
+Marketplace
+
+This includes (but is not limited to):
+
+Discover page
+Create page
+Navigation headers
+Landing screens
+Splash screens
+Empty states
+Profile screens
+Search pages
+Any hard-coded titles
+Any app bar/header components
+
+Audit the entire project so branding is consistent everywhere.
+
+PART 2 — Rename "Wanted"
+
+Perform a project-wide audit.
+
+Anywhere the UI currently displays:
+
+Wanted
+
+replace it with
+
+In Search Of
+
+Examples include:
+
+Discover filters
+Create page
+Create Listing page
+Navigation
+Empty states
+Dashboard cards
+Buttons
+Labels
+Search filters
+Dialogs
+Cards
+Menus
+
+The underlying database/table names do NOT need to change.
+
+Only change user-facing labels.
+
+PART 3 — Rename Featured People
+
+Every place that currently says
+
+Featured People
+
+should become
+
+Featured Profiles
+
+Audit the project for consistency.
+
+PART 4 — Discover Page Layout
+
+Update the Discover page to match the attached mockup.
+
+Layout order should become:
+
+TreasureTrail Marketplace
+
+What are you looking for today?
+
+Row 1
+-------
+All
+Events
+Flash Finds
+
+Row 2
+-------
+Businesses
+In Search Of
+People
+
+ZIP
+City
+State
+Save
+
+Use My Location
+
+Featured Near You Slideshow
+
+Featured Profiles
+
+Remaining discovery sections...
+
+Remove the horizontally scrolling category chips.
+
+Replace them with a responsive two-row grid that is always fully visible on phones.
+
+No horizontal scrolling.
+
+PART 5 — Featured Slideshow Logic
+
+Update ranking logic.
+
+If an event:
+
+has ended
+and is NOT recurring
+
+then it should:
+
+disappear from Featured Near You slideshow
+disappear from featured carousels
+move to the bottom of ranking
+
+unless there are not enough active featured items available.
+
+If there are insufficient active featured items to fill the slideshow, ended featured events may remain temporarily until replaced.
+
+PART 6 — Recurring Events
+
+Recurring featured events should NEVER disappear simply because one occurrence has ended.
+
+Instead:
+
+Advance to the next occurrence.
+
+Continue appearing in:
+
+Featured Near You slideshow
+Featured event carousel
+
+Examples:
+
+Weekly
+
+Monthly
+
+Yearly
+
+Daily
+
+Custom recurrence
+
+The ranking should always use the next occurrence date.
+
+PART 7 — Recurring Event Badge
+
+Add a green badge to recurring events.
+
+Upper-left corner of the slideshow image.
+
+Style similar to the existing Featured badge.
+
+Examples:
+
+Weekly Recurring Event
+(Every Saturday)
+
+or
+
+Monthly Recurring Event
+(1st Sunday)
+
+or
+
+Yearly Recurring Event
+(Every June)
+
+or
+
+Daily Recurring Event
+
+The badge should immediately communicate:
+
+this event repeats
+how often it repeats
+
+Use a green color palette with a small calendar/refresh icon.
+
+This badge should coexist with:
+
+Featured
+
+and
+
+Flash Find
+
+badges.
+
+PART 8 — Featured Profiles Placement
+
+Move
+
+Featured Profiles
+
+below
+
+Featured Near You
+
+The slideshow becomes the primary focal point.
+
+Profiles become secondary.
+
+PART 9 — Ranking Priority
+
+When determining slideshow order:
+
+Priority should be:
+
+Active Featured Recurring Events
+Active Featured Events
+Featured Flash Finds
+Featured Businesses
+Other Featured Content
+
+Ended non-recurring events should only display if there is insufficient active featured content.
+
+PART 10 — Mobile UX
+
+The entire redesign should prioritize first-time users.
+
+Goals:
+
+eliminate hidden navigation
+eliminate horizontal scrolling
+improve discoverability
+make recurring events immediately recognizable
+improve branding consistency
+improve readability
+reduce confusion over the former "Wanted" terminology
+PART 11 — Deliverables
+
+When complete, provide:
+
+A list of every file modified.
+A summary of all branding updates.
+A summary of every "Wanted" → "In Search Of" replacement.
+Confirmation that all "Featured People" labels were renamed to "Featured Profiles."
+Confirmation that recurring event badge logic is implemented.
+Confirmation that ended featured event filtering is implemented.
+Confirmation that recurring featured events continue displaying based on their next occurrence.
+Confirmation that the Discover page layout matches the attached mockup.
+Confirmation that no horizontal scrolling remains for the category buttons on mobile.

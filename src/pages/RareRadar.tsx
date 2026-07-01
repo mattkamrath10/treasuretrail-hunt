@@ -286,7 +286,7 @@ function FeedView({
           <Search size={18} style={{ color: searchQuery ? 'var(--color-primary-500)' : 'var(--color-neutral-400)' }} />
           <input
             type="text"
-            placeholder="Search wanted items..."
+            placeholder="Search In Search Of items..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={styles.searchInput}

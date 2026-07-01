@@ -49,11 +49,11 @@ export default function Wanted({ onBack }: { onBack: () => void }) {
       <header style={s.header}>
         <button onClick={onBack} style={s.backBtn} aria-label="Back"><ArrowLeft size={20} /></button>
         <div style={s.headerTitleWrap}>
-          <h1 style={s.headerTitle}>Wanted</h1>
+          <h1 style={s.headerTitle}>In Search Of</h1>
           <p style={s.headerSubtitle}>Buyers looking for specific items</p>
         </div>
         {user && (
-          <button onClick={() => navigate('/sell/wanted')} style={s.newBtn} aria-label="Post a wanted item">
+          <button onClick={() => navigate('/sell/wanted')} style={s.newBtn} aria-label="Post an In Search Of item">
             <Plus size={16} /><span>Post</span>
           </button>
         )}

@@ -157,7 +157,7 @@ export default function WantedForm({ onBack }: { onBack: () => void }) {
             <ImageWithFade
               src={thumbUrl ?? imageUrl}
               fallbackSrc={imageUrl}
-              alt="Wanted item"
+              alt="In Search Of item"
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               fallback={<MediaFallback kind="wanted" seed={title || 'wanted'} label={title} />}
             />

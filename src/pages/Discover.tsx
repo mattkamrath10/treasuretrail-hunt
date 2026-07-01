@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGlobalSearch } from '../lib/search/useGlobalSearch';
-import { Search, MapPin, Navigation, Users, X } from 'lucide-react';
+import { Search, MapPin, Navigation, Users, X, RefreshCw } from 'lucide-react';
 import { fetchPublishedEvents, fetchProHolderIds, fetchFeaturedItemsForEvents, type EventRow, type EventFeaturedItem } from '../lib/events';
 import { fetchPublishedBusinesses, type BusinessRow } from '../lib/businesses';
 import { fetchOpenWantedItems, type WantedItemRow } from '../lib/wanted';
@@ -58,7 +58,7 @@ const FILTERS: { key: FeaturedFilter; label: string }[] = [
   { key: 'event', label: 'Events' },
   { key: 'find', label: 'Flash Finds' },
   { key: 'business', label: 'Businesses' },
-  { key: 'wanted', label: 'Wanted' },
+  { key: 'wanted', label: 'In Search Of' },
 ];
 
 // Remember the last-selected chip across visits (spec: persisted locally).
@@ -263,7 +263,7 @@ export default function Discover() {
     <PageScroll style={s.page}>
       <header style={s.header}>
         <div style={s.brandRow}>
-          <span style={s.brandWord}>TreasureTrail</span>
+          <span style={s.brandWord}>TreasureTrail Marketplace</span>
           <div style={s.headerActions}>
             <button onClick={() => navigate('/following')} aria-label="Following feed" style={s.followingBtn}>
               <Users size={16} style={{ color: 'var(--tt-text)' }} />
@@ -279,7 +279,7 @@ export default function Discover() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') goSearch(query); }}
             enterKeyHint="search"
-            placeholder="Search shows, sales, finds, and wanted items"
+            placeholder="Search shows, sales, finds, and In Search Of items"
             style={s.searchInput}
             aria-label="Search Discover"
           />
@@ -315,16 +315,13 @@ export default function Discover() {
         <button
           style={s.chip}
           onClick={() => navigate('/people')}
-          title="Browse people on TreasureTrail"
+          title="Browse featured profiles"
         >
-          <Users size={13} style={{ marginRight: 4, verticalAlign: '-2px' }} />
-          People
+          Featured Profiles
         </button>
       </div>
 
       <LocationControl radius={nearRadius} />
-
-      <FeaturedProfilesStrip />
 
       <section style={s.featuredHead}>
         <div style={{ minWidth: 0 }}>
@@ -332,7 +329,7 @@ export default function Discover() {
           <p style={s.featuredSub}>
             {savedLocation
               ? `Within ${nearRadius} miles of ${savedLocation.label ?? 'your location'}`
-              : 'Boosted events, top shops, wanted posts and finds'}
+              : 'Boosted events, top shops, In Search Of posts and finds'}
           </p>
         </div>
       </section>
@@ -346,6 +343,8 @@ export default function Discover() {
       ) : (
         <SlideshowSkeleton />
       )}
+
+      <FeaturedProfilesStrip />
 
       {loaded && displayRows.length > 0 && (
         <div style={s.rowsWrap}>
@@ -505,7 +504,10 @@ function FeaturedGridCard({ slide, onClick }: { slide: FeaturedSlide; onClick: (
         />
         <div style={s.cardOverlay} />
         <div style={s.cardBadges}>
-          <span style={{ ...s.cardKind, background: slide.accent }}>{slide.kind === 'find' ? 'Find' : slide.kind === 'business' ? 'Shop' : slide.kind === 'wanted' ? 'Wanted' : 'Event'}</span>
+          <span style={{ ...s.cardKind, background: slide.accent }}>{slide.kind === 'find' ? 'Find' : slide.kind === 'business' ? 'Shop' : slide.kind === 'wanted' ? 'In Search Of' : 'Event'}</span>
+          {slide.recurring && slide.recurrenceLabel && (
+            <span style={s.cardRecurring}><RefreshCw size={9} /> {slide.recurrenceLabel}</span>
+          )}
           {slide.badge && <span style={s.cardBadge}>{slide.badge}</span>}
         </div>
         {slide.distanceMi != null && (
@@ -547,7 +549,14 @@ function CategoryRowStrip({
                   />
                 }
               />
-              {sl.badge && <span style={s.rowCardBadge}>{sl.badge}</span>}
+              {(sl.recurring && sl.recurrenceLabel) || sl.badge ? (
+                <div style={s.rowCardBadges}>
+                  {sl.recurring && sl.recurrenceLabel && (
+                    <span style={s.rowCardRecurring}><RefreshCw size={9} /> {sl.recurrenceLabel}</span>
+                  )}
+                  {sl.badge && <span style={s.rowCardBadge}>{sl.badge}</span>}
+                </div>
+              ) : null}
             </div>
             <div style={s.rowCardBody}>
               <div style={s.rowCardTitle}>{sl.title}</div>
@@ -665,13 +674,12 @@ const s: Record<string, CSSProperties> = {
 
   // Chips
   chips: {
-    display: 'flex', flexWrap: 'nowrap', gap: 8,
+    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
     padding: '14px 16px 6px',
-    overflowX: 'auto',
   },
   chip: {
-    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
-    padding: '8px 14px', borderRadius: 999,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    padding: '9px 12px', borderRadius: 999,
     background: 'var(--tt-surface-2)', border: '1px solid var(--tt-border)',
     color: 'var(--tt-text-muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
     WebkitTapHighlightColor: 'transparent',
@@ -711,10 +719,15 @@ const s: Record<string, CSSProperties> = {
     color: 'var(--tt-text)', WebkitTapHighlightColor: 'transparent',
   },
   rowCardImg: { position: 'relative', width: '100%', aspectRatio: '4 / 3', background: 'var(--tt-image-bg)' },
+  rowCardBadges: { position: 'absolute', top: 6, left: 6, display: 'flex', gap: 3, flexWrap: 'wrap' },
   rowCardBadge: {
-    position: 'absolute', top: 6, left: 6,
     padding: '2px 7px', borderRadius: 999, fontSize: 9.5, fontWeight: 800,
     background: 'rgba(249,115,22,0.95)', color: '#1a0c00',
+  },
+  rowCardRecurring: {
+    display: 'inline-flex', alignItems: 'center', gap: 3,
+    padding: '2px 7px', borderRadius: 999, fontSize: 9.5, fontWeight: 800,
+    background: 'rgba(22,163,74,0.95)', color: '#f0fff4',
   },
   rowCardBody: { padding: '8px 9px 10px' },
   rowCardTitle: {
@@ -749,6 +762,11 @@ const s: Record<string, CSSProperties> = {
   cardBadge: {
     padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800,
     background: 'rgba(249,115,22,0.95)', color: '#1a0c00',
+  },
+  cardRecurring: {
+    display: 'inline-flex', alignItems: 'center', gap: 3,
+    padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800,
+    background: 'rgba(22,163,74,0.95)', color: '#f0fff4',
   },
   cardDistance: {
     position: 'absolute', bottom: 8, right: 8,

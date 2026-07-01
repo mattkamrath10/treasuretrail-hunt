@@ -373,7 +373,7 @@ export default function SearchResults() {
 
               <button onClick={handleCreateWanted} style={s.createBtn}>
                 <ClipboardList size={16} />
-                Create Wanted Request
+                Create In Search Of Request
               </button>
 
               <a href={googleSearchUrl(query)} target="_blank" rel="noopener noreferrer" style={s.secondaryBtn}>
@@ -430,7 +430,7 @@ function ResultCard({ item, onOpen }: { item: SearchResultItem; onOpen: (to: str
         />
         {isWanted && (
           <span style={s.wantedBadge}>
-            <ClipboardList size={11} /> Wanted
+            <ClipboardList size={11} /> In Search Of
           </span>
         )}
         {isExternal && (

@@ -25,6 +25,7 @@ import { categoryLabel, type BlogPost } from './blog';
 import { isBoosted, type BoostableRow } from './boost';
 import { haversineMiles } from './geocode';
 import { toThumbUrl } from './imageCompress';
+import { isRecurring, recurrenceFrequencyLabel } from './recurrence';
 
 export type FeaturedKind = 'event' | 'business' | 'find' | 'wanted' | 'blog';
 export type FeaturedFilter = 'all' | FeaturedKind;
@@ -50,6 +51,12 @@ export interface FeaturedSlide {
   searchText: string;
   /** True for online/livestream events (used by the "Live Shows" row). */
   online: boolean;
+  /** True for an active recurring event; drives the green recurring badge. */
+  recurring: boolean;
+  /** Short frequency word ("Daily"/"Weekly"/"Monthly") for recurring events. */
+  recurrenceLabel: string | null;
+  /** True for a non-recurring event whose window has fully passed (demoted). */
+  ended: boolean;
 }
 
 export const FEATURED_KIND_ACCENT: Record<FeaturedKind, string> = {
@@ -64,7 +71,7 @@ export const FEATURED_KIND_LABEL: Record<FeaturedKind, string> = {
   event: 'Event',
   business: 'Business',
   find: 'Flash Find',
-  wanted: 'Wanted',
+  wanted: 'In Search Of',
   blog: 'Article',
 };
 
@@ -88,9 +95,36 @@ const EVENT_CATEGORY_LABEL: Record<string, string> = {
 // else, so high-quality items aren't trapped on event detail pages.
 const P_BOOST_PAID = 0; // active paid boost (any kind)
 const P_BOOST_PRO = 1; // active Pro-included boost (any kind)
-const P_FEATURED_ITEM = 2; // featured collectibles uploaded inside events (no active boost)
-const P_FEATURED = 3; // Pro holders, verified/featured shops & events (no active boost)
-const P_NORMAL = 4; // everything else
+const P_FEATURED_RECURRING = 2; // active recurring featured events (never disappear)
+const P_FEATURED_ITEM = 3; // featured collectibles uploaded inside events (no active boost)
+const P_FEATURED = 4; // Pro holders, verified/featured shops & events (no active boost)
+const P_NORMAL = 5; // everything else
+const P_ENDED = 9; // ended, non-recurring events — demoted to the very bottom
+
+// In-person events without an explicit ends_at are treated as running until the
+// end of their start calendar day; online events assume a 2h show window.
+const ASSUMED_SHOW_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * True when a non-recurring event's window has fully passed. Recurring events
+ * are normalized to their next occurrence upstream (see recurrence.ts), so a
+ * still-alive series never reads as ended; only a dead series (past its
+ * recurrence_until, left in the past) or a one-off that's over returns true.
+ * Ended events are demoted to the bottom of Discover (P_ENDED) so they stop
+ * clogging the Featured slideshow/carousels unless there's little else to show.
+ */
+function eventEnded(e: EventRow, now: number): boolean {
+  const start = ts(e.starts_at);
+  if (!start) return false;
+  let end: number;
+  if (e.ends_at) end = ts(e.ends_at);
+  else if (e.event_kind === 'online') end = start + ASSUMED_SHOW_MS;
+  else {
+    const d = new Date(start);
+    end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
+  }
+  return now >= end;
+}
 
 /**
  * Bucket for an actively boosted row (paid above Pro), or null when the row
@@ -111,11 +145,20 @@ function placeLabel(city: string | null, region: string | null, fallback: string
   return [city, region].filter(Boolean).join(', ') || fallback;
 }
 
-function eventToSlide(e: EventRow, proHolders: Set<string>): FeaturedSlide {
+function eventToSlide(e: EventRow, proHolders: Set<string>, now: number): FeaturedSlide {
   const boosted = isBoosted(e);
   const pro = proHolders.has(e.holder_id);
+  const ended = eventEnded(e, now);
+  const recurring = isRecurring(e) && !ended;
   const category = EVENT_CATEGORY_LABEL[e.category] ?? 'Event';
   const subtitle = placeLabel(e.city, e.region, e.address ?? 'Local event');
+  // Ended one-offs sink to the very bottom. Otherwise: boost first, then active
+  // recurring featured events, then Pro/featured, then everything else.
+  const featured = pro;
+  const priority = ended
+    ? P_ENDED
+    : boostBucket(e) ??
+      (recurring && featured ? P_FEATURED_RECURRING : featured ? P_FEATURED : P_NORMAL);
   return {
     id: `event:${e.id}`,
     kind: 'event',
@@ -130,12 +173,15 @@ function eventToSlide(e: EventRow, proHolders: Set<string>): FeaturedSlide {
     lat: e.lat,
     lng: e.lng,
     distanceMi: null,
-    priority: boostBucket(e) ?? (pro ? P_FEATURED : P_NORMAL),
+    priority,
     sortTime: ts(e.starts_at),
     fallbackKind: 'event',
     fallbackCategory: e.category,
     searchText: `${e.title} ${subtitle} ${category}`.toLowerCase(),
     online: e.event_kind === 'online',
+    recurring,
+    recurrenceLabel: recurring ? recurrenceFrequencyLabel(e) : null,
+    ended,
   };
 }
 
@@ -168,12 +214,15 @@ function businessToSlide(b: BusinessRow, proOwners: Set<string>): FeaturedSlide 
     fallbackCategory: b.category,
     searchText: `${b.name} ${subtitle} ${category}`.toLowerCase(),
     online: false,
+    recurring: false,
+    recurrenceLabel: null,
+    ended: false,
   };
 }
 
 function wantedToSlide(w: WantedItemRow): FeaturedSlide {
   const boosted = isBoosted(w);
-  const category = WANTED_CATEGORY_LABEL[w.category] ?? 'Wanted';
+  const category = WANTED_CATEGORY_LABEL[w.category] ?? 'In Search Of';
   const place = placeLabel(w.city, w.region, 'Anywhere');
   const budget = w.max_budget != null ? `Budget: $${Math.round(w.max_budget)}` : null;
   const subtitle = [budget, place].filter(Boolean).join(' · ') || place;
@@ -197,6 +246,9 @@ function wantedToSlide(w: WantedItemRow): FeaturedSlide {
     fallbackCategory: w.category,
     searchText: `${w.title} ${subtitle} ${category}`.toLowerCase(),
     online: false,
+    recurring: false,
+    recurrenceLabel: null,
+    ended: false,
   };
 }
 
@@ -229,6 +281,9 @@ function findToSlide(
     fallbackCategory: p.category,
     searchText: `${title} ${subtitle} ${p.category ?? ''}`.toLowerCase(),
     online: false,
+    recurring: false,
+    recurrenceLabel: null,
+    ended: false,
   };
 }
 
@@ -239,8 +294,10 @@ function findToSlide(
  * status, and link to the event. Modeled as `find` kind so they live under the
  * Flash Finds filter alongside other collectibles.
  */
-function eventItemToSlide(item: EventFeaturedItem, ev: EventRow): FeaturedSlide {
+function eventItemToSlide(item: EventFeaturedItem, ev: EventRow, now: number): FeaturedSlide {
   const boosted = isBoosted(ev);
+  const ended = eventEnded(ev, now);
+  const recurring = isRecurring(ev) && !ended;
   const place = placeLabel(ev.city, ev.region, ev.address ?? 'Local event');
   const price = item.price != null ? `$${Math.round(item.price)}` : null;
   const subtitle = [price, `at ${ev.title}`].filter(Boolean).join(' · ') || place;
@@ -258,12 +315,15 @@ function eventItemToSlide(item: EventFeaturedItem, ev: EventRow): FeaturedSlide 
     lat: ev.lat,
     lng: ev.lng,
     distanceMi: null,
-    priority: boostBucket(ev) ?? P_FEATURED_ITEM,
+    priority: ended ? P_ENDED : boostBucket(ev) ?? P_FEATURED_ITEM,
     sortTime: ts(item.created_at),
     fallbackKind: 'find',
     fallbackCategory: ev.category,
     searchText: `${item.title} ${ev.title} ${place}`.toLowerCase(),
     online: ev.event_kind === 'online',
+    recurring,
+    recurrenceLabel: recurring ? recurrenceFrequencyLabel(ev) : null,
+    ended,
   };
 }
 
@@ -299,6 +359,9 @@ function blogToSlide(p: BlogPost): FeaturedSlide {
     fallbackCategory: p.category,
     searchText: `${p.title} ${p.excerpt ?? ''} ${category}`.toLowerCase(),
     online: false,
+    recurring: false,
+    recurrenceLabel: null,
+    ended: false,
   };
 }
 
@@ -330,6 +393,8 @@ export interface BuildFeaturedInput {
   radiusMi: number;
   query: string;
   filter: FeaturedFilter;
+  /** Reference "now" for ended/recurring detection (defaults to Date.now()). */
+  now?: number;
 }
 
 /**
@@ -339,6 +404,7 @@ export interface BuildFeaturedInput {
  */
 function normalizeAll(input: BuildFeaturedInput): FeaturedSlide[] {
   const { events, businesses, wanted, finds, eventItems, proHolders, findCoords } = input;
+  const now = input.now ?? Date.now();
 
   // Resolve event collectibles against their parent (published) event so they
   // inherit its location/boost; items whose event isn't in the set are skipped.
@@ -346,11 +412,11 @@ function normalizeAll(input: BuildFeaturedInput): FeaturedSlide[] {
   const itemSlides: FeaturedSlide[] = [];
   for (const it of eventItems ?? []) {
     const ev = eventById.get(it.event_id);
-    if (ev) itemSlides.push(eventItemToSlide(it, ev));
+    if (ev) itemSlides.push(eventItemToSlide(it, ev, now));
   }
 
   return [
-    ...events.map((e) => eventToSlide(e, proHolders)),
+    ...events.map((e) => eventToSlide(e, proHolders, now)),
     ...businesses.map((b) => businessToSlide(b, proHolders)),
     ...wanted.map((w) => wantedToSlide(w)),
     ...finds.map((p) => findToSlide(p, findCoords)),

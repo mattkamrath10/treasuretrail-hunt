@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { ChevronLeft, ChevronRight, MapPin, Navigation } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Navigation, RefreshCw } from 'lucide-react';
 import { ImageWithFade } from '../ui/ImageWithFade';
 import { MediaFallback } from '../ui/MediaFallback';
 import { FEATURED_KIND_LABEL, type FeaturedSlide } from '../../lib/discoverFeatured';
@@ -145,6 +145,11 @@ export function FeaturedSlideshow({
               />
               <div style={s.overlay} />
               <div style={s.topRow}>
+                {sl.recurring && sl.recurrenceLabel && (
+                  <span style={s.recurringBadge}>
+                    <RefreshCw size={11} /> {sl.recurrenceLabel} Recurring
+                  </span>
+                )}
                 <span style={{ ...s.kindPill, background: sl.accent }}>
                   {FEATURED_KIND_LABEL[sl.kind]}
                 </span>
@@ -255,6 +260,12 @@ const s: Record<string, CSSProperties> = {
     padding: '4px 10px', borderRadius: 999,
     fontSize: 11, fontWeight: 800,
     background: 'rgba(249, 115, 22, 0.95)', color: '#1a0c00',
+  },
+  recurringBadge: {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '4px 10px', borderRadius: 999,
+    fontSize: 11, fontWeight: 800, letterSpacing: '0.01em',
+    background: 'rgba(22, 163, 74, 0.95)', color: '#f0fff4',
   },
   distance: {
     display: 'inline-flex', alignItems: 'center', gap: 4,

@@ -32,7 +32,7 @@ export function FeaturedProfilesStrip() {
     <section style={s.wrap}>
       <button style={s.head} onClick={() => navigate('/people')}>
         <div style={{ minWidth: 0 }}>
-          <h2 style={s.title}>Featured People</h2>
+          <h2 style={s.title}>Featured Profiles</h2>
           <p style={s.sub}>Top sellers and collectors</p>
         </div>
         <span style={s.seeAll}>See all <ChevronRight size={14} /></span>
